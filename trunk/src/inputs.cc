@@ -31,7 +31,7 @@ void InputFile::read_section (string sectionName) {
 	
 	// Find the section
 	if(search(file,sectionName)) {
-		cout << "* \t Found section " << sectionName << endl;
+//		cout << "* \t Found section " << sectionName << endl;
 	}
 	// Find what is in between { and } after the section name appears in file
 	getline(file,sectionData,'{'); getline(file,sectionData,'}');
@@ -51,7 +51,7 @@ void InputFile::read_section (string sectionName) {
             string subsectionName=subsectionIter->first;
 	    // Find the section
 	   if(sectionData.find("(",0)) {
-		cout << "* \t\t Found subsection " << subsectionName << endl;
+//		cout << "* \t\t Found subsection " << subsectionName << endl;
 	    }
 	    // Find what is in between ( and ) after the subsection name appears
             loc=sectionData.find(subsectionName,0);
@@ -90,7 +90,7 @@ void InputFile::read_section (string sectionName) {
 			
 			// Find the subsection
 			if(sectionData.find(nameWithIndex,0)!=string::npos) {
-				cout << "* \t\t Found subsection " << nameWithIndex << endl;
+//				cout << "* \t\t Found subsection " << nameWithIndex << endl;
 				if (i>1) {
 					section[sectionName].numberedSubsections[subsectionName].doubles.push_back(section[sectionName].numberedSubsections[subsectionName].doubles[i-2]);
 					section[sectionName].numberedSubsections[subsectionName].ints.push_back(section[sectionName].numberedSubsections[subsectionName].ints[i-2]);
@@ -117,7 +117,7 @@ void InputFile::read_section (string sectionName) {
         }
 
 	file.close();
-	cout << "* \t Finished reading section "<< sectionName << "\n" << endl;	
+//	cout << "* \t Finished reading section "<< sectionName << "\n" << endl;	
 
 }
 
@@ -135,7 +135,7 @@ void InputFile::read (void) {
 		read_section(sectionName);
     }
     file.close();
-    cout << "* Finished reading input file\n" << endl;
+//    cout << "* Finished reading input file\n" << endl;
 }
 
 void InputFile::register_section(string sectionName) {
@@ -269,7 +269,7 @@ void read_doubles (map<string,double> &doubles, string sectionData) {
 		char *pEnd;
 		// The data is read as string. Now convert it to double
 		doubleIter->second=strtod(temp.c_str(),&pEnd);
-		cout << "* \t\t " << doubleIter->first << "=" << doubleIter->second << endl;
+//		cout << "* \t\t " << doubleIter->first << "=" << doubleIter->second << endl;
 	}
 }
 
@@ -305,7 +305,7 @@ void read_ints (map<string,int> &ints, string sectionData) {
             char *pEnd;
 	    // The data is read as string. Now convert it to integer
 	    intIter->second=strtol(temp.c_str(),&pEnd,10);
-            cout << "* \t\t " << intIter->first << "=" << intIter->second << endl;
+//            cout << "* \t\t " << intIter->first << "=" << intIter->second << endl;
         }
 }
 
@@ -339,7 +339,7 @@ void read_strings (map<string,string> &strings, string sectionData) {
             string::size_type endLoc=sectionData.find(";",loc);
             string temp=sectionData.substr(loc+1,endLoc-loc-1);
             stringIter->second=temp;
-            cout << "* \t\t " << stringIter->first << "=" << stringIter->second << endl;
+//            cout << "* \t\t " << stringIter->first << "=" << stringIter->second << endl;
         }
 }
 
@@ -377,6 +377,6 @@ void read_Vec3Ds (map<string,Vec3D> &Vec3Ds, string sectionData) {
             vecIter->second.comp[0]=strtod(temp.c_str(),&pEnd);
             vecIter->second.comp[1]=strtod(pEnd+1,&pEnd);
             vecIter->second.comp[2]=strtod(pEnd+1,NULL);
-            cout << "* \t\t " << vecIter->first << "="  << vecIter->second << endl;            
+//            cout << "* \t\t " << vecIter->first << "="  << vecIter->second << endl;            
         }	
 }

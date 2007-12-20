@@ -7,6 +7,7 @@
 
 #include <cgnslib.h>
 #include <vector>
+#include <mpi.h>
 #include "vec3d.h"
 #include "sparse.h"
 
@@ -55,6 +56,7 @@ class Grid {
  public:
   string fileName;
   unsigned int nodeCount,cellCount,faceCount;
+  unsigned int globalNodeCount,globalCellCount,globalFaceCount;
   std::vector<Node> node;
   std::vector<Face> face;
   std::vector<Cell> cell;

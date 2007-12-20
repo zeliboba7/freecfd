@@ -1,3 +1,4 @@
+#include <mpi.h>
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -35,7 +36,16 @@ Grid grid;
 // Allocate container for boundary conditions
 BC bc;
 
+int np, rank;
+
 int main (int argc, char *argv[]) {
+
+	// Initialize mpi
+	MPI_Init (&argc,&argv);
+	// Find the number of processors
+	MPI_Comm_size(MPI_COMM_WORLD, &np);
+	// Find current processor rank
+	MPI_Comm_rank(MPI_COMM_WORLD, &rank); 
 
 	string inputFileName, gridFileName;
 	inputFileName.assign(argv[1]);
@@ -49,6 +59,7 @@ int main (int argc, char *argv[]) {
 	InputFile input(inputFileName);
 	read_inputs(input);
 	grid.read(gridFileName);
+/*
 	initialize(grid,input);
 
 	cout << "* Applied initial conditions" << endl;
@@ -175,6 +186,8 @@ int main (int argc, char *argv[]) {
 		}
 	}
 	writeTecplotMacro(restart,timeStepMax, outFreq);
+*/
+	MPI_Finalize();
 	return 0;
 }
 
