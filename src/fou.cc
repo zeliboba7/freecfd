@@ -51,7 +51,7 @@ void fou(double gamma) {
 			rhoR=grid.cell[neighbor].rho;
 			pR=grid.cell[neighbor].p;
   		}
-		
+
 		if (grid.face[f].bc!=-1 && (bc.region[grid.face[f].bc].type=="outlet" | bc.region[grid.face[f].bc].type=="inlet")) {
 			fluxNormal[0]=rhoR*uNR;
 			fluxNormal[1]=rhoR*uNR*uNR+pR;

@@ -1,4 +1,4 @@
-CC=g++
+CC=mpic++ 
 #OPTS=-Wall -g
 OPTS=-O3
 EXE=fcfd
