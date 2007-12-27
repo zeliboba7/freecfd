@@ -181,7 +181,7 @@ int Grid::ReadCGNS() {
 	//Implementing Parmetis
 	/* ParMETIS_V3_PartMeshKway(idxtype *elmdist, idxtype *eptr, idxtype *eind, idxtype *elmwgt, int *wgtflag, int *numflag, int *ncon, int * ncommonnodes, int *nparts, float *tpwgts, float *ubvec, int *options, int *edgecut, idxtype *part, MPI_Comm) */
 
-	/*
+	/*  Definining variables
 	elmdist- look into making the 5 arrays short int (for performance
 		on 64 bit arch)
 	eptr- like xadf
@@ -200,29 +200,45 @@ int Grid::ReadCGNS() {
 	comm- most likely MPI_COMM_WORLD
 	*/
 
-/*	idxtype* elmdist;
-	idxtype* eptr;
-	idxtype* eind;
+	idxtype* elmdist = new idxtype[np + 1];
+	idxtype* eptr = new idxtype[cellCount+1];
+	idxtype* eind = new idxtype[8*cellCount]; //XXX CHANGE THIS TO MORE GENERAL FORM
 	idxtype* elmwgt = NULL;
-	int* wgtflag=0; // no weights associated with elem or edges
-	int* numflag=0; // C-style numbering
-	int* ncon=0; // # constraints
-	int* ncommonnodes; *ncommonnodes=4; // set to 3 for tetrahedra or mixed type
-	int* nparts; *nparts=np;
+	int wgtflag=0; // no weights associated with elem or edges
+	int numflag=0; // C-style numbering
+	int ncon=0; // # constraints
+	int ncommonnodes; ncommonnodes=4; // set to 3 for tetrahedra or mixed type
+	int nparts; nparts = np;
 	float* tpwgts = NULL;
 	float* ubvec = NULL;
-	int* options; // default values for timing info set 0 -> 1
+	int options[3]; // default values for timing info set 0 -> 1
 	options[0]=0; options[1]=1; options[2]=15;
-cout << *options << endl;
-	int* edgecut ; // outputom
-	idxtype* part ; // output
-*/
+	int edgecut ; // output
+	idxtype* part = new idxtype[cellCount];
+
 	//for (unsigned int p=0;p<np;++p) elmdist[p]=p*floor(globalCellCount/np);
-	//elemdist[np]=globalCellCount;
+	for (unsigned int p=0;p<np;++p) elmdist[p]=p*globalCellCount/np;
+	elmdist[np]=globalCellCount;// Note this is because #elements mod(np) are all on last proc
 
-	 //ParMETIS_V3_PartMeshKway(*elmdist,*eptr,*eind, *elmwgt, *wgtflag, *numflag, *ncon, *ncommonnodes, *nparts, *tpwgts, *ubvec, *options,  *edgecut, *part,*MPI_COMM_WORLD) ;
+	for (unsigned int c=0; c<cellCount+1;++c) eptr[c]=c*8; 	//XXX Change this to more General
+	for (unsigned int i=0; i<8*cellCount;++i){		//XXX Change this to more General
+		for (unsigned int c=0; c<cellCount; ++c) {
+			for (unsigned int n=0; n<8; ++n){	//XXX Change this to more General
+			//eind[i]=cell[c].node[n].globalId;	//XXX check the structure
+			}
+		}
+	}
+
+	 ParMETIS_V3_PartMeshKway(elmdist,eptr,eind, elmwgt,
+				 &wgtflag, &numflag, &ncon, &ncommonnodes,
+				 &nparts, tpwgts, ubvec, options,  &edgecut,
+				 part,&MPI_COMM_WORLD) ;
+	// I believe the calling statement is correct, except the mpi communicator (?)	
+
+	//XXX Delete the stuff we created that is no longer needed by ParMetis
+	// delete[] somestuffwedontneed;
+
 	
-
 /*
 	// Construct the list of cells for each node
 	int flag;
