@@ -174,6 +174,46 @@ int Grid::ReadCGNS() {
 		cell.push_back(temp);	
 	}
 
+	
+	//Implementing Parmetis
+	/* ParMETIS_V3_PartMeshKway(idxtype *elmdist, idxtype *eptr, idxtype *eind, idxtype *elmwgt, int *wgtflag, int *numflag, int *ncon, int * ncommonnodes, int *nparts, float *tpwgts, float *ubvec, int *options, int *edgecut, idxtype *part, MPI_Comm) */
+
+	/*
+	elmdist- look into making the 5 arrays short int (for performance
+		on 64 bit arch)
+	eptr- like xadf
+	eind- like adjncy
+	elmwgt- null (element weights)
+	wgtflag- 0 (no weights, can take value of 0,1,2,3 see documentation)
+	numflag- 0 C-style numbers, 1 Fortran-style numbers
+	ncon- 0 ( # of constraints)
+	ncommonnodes- 4 ( we can probably put this to 3)
+	nparts- # of processors (Note: BE CAREFUL if != to # of proc)
+	tpwgts- null
+	ubvec- null (balancing constraints,if needed 1.05 is a good value)
+	options- [0 1 15] for default
+	edgecut- output, # of edges cut (measure of communication)
+	part- output, where our elements should be
+	comm- most likely MPI_COMM_WORLD
+	*/
+	idxtype* elmdist;
+	idxtype* eptr;
+	idxtype* eind;
+	idxtype* elmwgt = NULL;
+	int* wgtflag=0; // no weights associated with elem or edges
+	int* numflag=0; // C-style numbering
+	int* ncon=0; // # constraints
+	int* ncommonnodes=4; // set to 3 for tetrahedra or mixed type
+	int* nparts = np;
+	float* tpwgts = NULL;
+	float* ubvec = NULL;
+	int* options = {0,1,15}; // default values for timing info set 0 -> 1
+	int* edgecut ; // output
+	idxtype* part ; // output
+
+	 ParMETIS_V3_PartMeshKway(*elmdist,*eptr,*eind, *elmwgt, *wgtflag, *numflag, *ncon, *ncommonnodes, *nparts, *tpwgts, *ubvec, *options,  *edgecut, *part,*MPI_COMM_WORLD) ;
+	
+
 /*
 	// Construct the list of cells for each node
 	int flag;
@@ -249,12 +289,6 @@ int Grid::ReadCGNS() {
 			}
 			if (!flagInternal) {
 				++boundaryFaceCount;
-				tempFace.bc=-2; // All the boundary faces are now marked with -2
-				tempFace.neighbor=-1*boundaryFaceCount;
-				face.push_back(tempFace);
-				for (unsigned int fn=0;fn<tempFace.nodeCount;++fn) face[tempFace.id].nodes.push_back(tempNodes[fn]);
-				cell[i].faces.push_back(tempFace.id);
-				++faceCount;
 			} else if (!flagExists) {
 				tempFace.bc=-1;
 				face.push_back(tempFace);
@@ -350,6 +384,12 @@ int Grid::ReadCGNS() {
         double volume=0.;
         for (unsigned int f=0;f<cell[c].faceCount;++f) {
             // [TBM] Area of a prism. Good for HEXA cells only
+            volume+=1./3.*cell[c].face(f).area*fabs(cell[c].face(f).normal.dot(cell[c].face(f).centroid-cell[c].centroid));
+        }
+        cell[c].volume=volume;
+        totalVolume+=volume;
+    }
+    cout << "* Total Volume: " << totalVolume << endl;
             volume+=1./3.*cell[c].face(f).area*fabs(cell[c].face(f).normal.dot(cell[c].face(f).centroid-cell[c].centroid));
         }
         cell[c].volume=volume;
