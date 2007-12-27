@@ -5,6 +5,7 @@
 using namespace std;
 #include<cmath>
 #include <cgnslib.h>
+#include <parmetis.h>
 
 #include "grid.h"
 #include "bc.h"
@@ -156,6 +157,7 @@ int Grid::ReadCGNS() {
 				++nodeCount;
         			Node temp;
         			temp.id=nodeCount-1;
+				temp.globalId=elemNodes[c+rank*cellCount][n]-1;
         			temp.comp[0]=x[elemNodes[c+offset][n]];
         			temp.comp[1]=y[elemNodes[c+offset][n]];
 	        		temp.comp[2]=z[elemNodes[c+offset][n]];
@@ -171,6 +173,7 @@ int Grid::ReadCGNS() {
 		Cell temp;
 		for (unsigned int n=0;n<elemNodeCount;++n) elemNodes[c+offset][n]=nodeMap[elemNodes[c+offset][n]];
 		temp.Construct(elemType,elemNodes[c+offset]);
+		temp.globalId=c+offset;
 		cell.push_back(temp);	
 	}
 
@@ -196,22 +199,28 @@ int Grid::ReadCGNS() {
 	part- output, where our elements should be
 	comm- most likely MPI_COMM_WORLD
 	*/
-	idxtype* elmdist;
+
+/*	idxtype* elmdist;
 	idxtype* eptr;
 	idxtype* eind;
 	idxtype* elmwgt = NULL;
 	int* wgtflag=0; // no weights associated with elem or edges
 	int* numflag=0; // C-style numbering
 	int* ncon=0; // # constraints
-	int* ncommonnodes=4; // set to 3 for tetrahedra or mixed type
-	int* nparts = np;
+	int* ncommonnodes; *ncommonnodes=4; // set to 3 for tetrahedra or mixed type
+	int* nparts; *nparts=np;
 	float* tpwgts = NULL;
 	float* ubvec = NULL;
-	int* options = {0,1,15}; // default values for timing info set 0 -> 1
-	int* edgecut ; // output
+	int* options; // default values for timing info set 0 -> 1
+	options[0]=0; options[1]=1; options[2]=15;
+cout << *options << endl;
+	int* edgecut ; // outputom
 	idxtype* part ; // output
+*/
+	//for (unsigned int p=0;p<np;++p) elmdist[p]=p*floor(globalCellCount/np);
+	//elemdist[np]=globalCellCount;
 
-	 ParMETIS_V3_PartMeshKway(*elmdist,*eptr,*eind, *elmwgt, *wgtflag, *numflag, *ncon, *ncommonnodes, *nparts, *tpwgts, *ubvec, *options,  *edgecut, *part,*MPI_COMM_WORLD) ;
+	 //ParMETIS_V3_PartMeshKway(*elmdist,*eptr,*eind, *elmwgt, *wgtflag, *numflag, *ncon, *ncommonnodes, *nparts, *tpwgts, *ubvec, *options,  *edgecut, *part,*MPI_COMM_WORLD) ;
 	
 
 /*
