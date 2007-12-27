@@ -14,7 +14,7 @@
 
 class Node : public Vec3D {
 public:
-  unsigned int id;
+  unsigned int id, globalId;
   std::vector<int> cells;
   Node(double x=0., double y=0., double z=0.);
 };
@@ -35,7 +35,7 @@ public:
 
 class Cell {
   public:
-  unsigned int nodeCount,faceCount;
+  unsigned int nodeCount,faceCount,globalId;
   ElementType_t type;
   double volume;
   Vec3D centroid;
