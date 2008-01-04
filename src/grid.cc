@@ -155,11 +155,11 @@ int Grid::ReadCGNS() {
 	nodeCount=0;
 	for (unsigned int c=0;c<cellCount;++c) {
 		for (unsigned int n=0;n<elemNodeCount;++n) {
-			if (!nodeFound[elemNodes[c+rank*cellCount][n]]) {
+			if (!nodeFound[elemNodes[c+offset][n]]) {
 				++nodeCount;
         			Node temp;
         			temp.id=nodeCount-1;
-				temp.globalId=elemNodes[c+rank*cellCount][n]-1;
+				temp.globalId=elemNodes[c+offset][n]-1;
         			temp.comp[0]=x[elemNodes[c+offset][n]];
         			temp.comp[1]=y[elemNodes[c+offset][n]];
 	        		temp.comp[2]=z[elemNodes[c+offset][n]];
@@ -176,10 +176,9 @@ int Grid::ReadCGNS() {
 		for (unsigned int n=0;n<elemNodeCount;++n) elemNodes[c+offset][n]=nodeMap[elemNodes[c+offset][n]];
 		temp.Construct(elemType,elemNodes[c+offset]);
 		temp.globalId=c+offset;
-		cell.push_back(temp);	
+		cell.push_back(temp);
 	}
 
-	
 	//Implementing Parmetis
 	/* ParMETIS_V3_PartMeshKway(idxtype *elmdist, idxtype *eptr, idxtype *eind, idxtype *elmwgt, int *wgtflag, int *numflag, int *ncon, int * ncommonnodes, int *nparts, float *tpwgts, float *ubvec, int *options, int *edgecut, idxtype *part, MPI_Comm) */
 
@@ -202,33 +201,38 @@ int Grid::ReadCGNS() {
 	comm- most likely MPI_COMM_WORLD
 	*/
 
-	idxtype* elmdist = new idxtype[np + 1];
-	idxtype* eptr = new idxtype[cellCount+1];
-	idxtype* eind = new idxtype[8*cellCount]; //XXX CHANGE THIS TO MORE GENERAL FORM
+	idxtype elmdist[np + 1]; 
+	idxtype eptr[cellCount+1];
+
+	int count=0; for (unsigned int c=0; c<cellCount; ++c) count+=cell[c].nodeCount;
+	idxtype  eind[count];
+
 	idxtype* elmwgt = NULL;
 	int wgtflag=0; // no weights associated with elem or edges
 	int numflag=0; // C-style numbering
-	int ncon=0; // # constraints
-	int ncommonnodes; ncommonnodes=4; // set to 3 for tetrahedra or mixed type
-	int nparts; nparts = np;
-	float* tpwgts = NULL;
-	float* ubvec = NULL;
+	int ncon=1; // # of weights or constraints
+	int ncommonnodes; ncommonnodes=3; // set to 3 for tetrahedra or mixed type
+
+	float tpwgts[np];
+	for (unsigned int p=0; p<np; ++p) tpwgts[p]=1./float(np);
+	float ubvec=1.05;
 	int options[3]; // default values for timing info set 0 -> 1
 
 	options[0]=0; options[1]=1; options[2]=15;
 	int edgecut ; // output
 	idxtype* part = new idxtype[cellCount];
 
-	//for (unsigned int p=0;p<np;++p) elmdist[p]=p*floor(globalCellCount/np);
-	for (unsigned int p=0;p<np;++p) elmdist[p]=p*globalCellCount/np;
+	for (unsigned int p=0;p<np;++p) elmdist[p]=p*floor(globalCellCount/np);
 	elmdist[np]=globalCellCount;// Note this is because #elements mod(np) are all on last proc
 
-	for (unsigned int c=0; c<cellCount+1;++c) eptr[c]=c*8; 	//XXX Change this to more General
-	for (unsigned int i=0; i<8*cellCount;++i){		//XXX Change this to more General
-		for (unsigned int c=0; c<cellCount; ++c) {
-			for (unsigned int n=0; n<8; ++n){	//XXX Change this to more General
-			//eind[i]=cell[c].node[n].globalId;	//XXX check the structure
-			}
+	eptr[0]=0;
+	for (unsigned int c=1; c<=cellCount;++c) eptr[c]=eptr[c-1]+cell[c-1].nodeCount;
+
+	int index=0;
+	for (unsigned int c=0; c<cellCount; ++c) {
+		for (unsigned int nc=0; nc<cell[c].nodeCount; ++nc) {
+		eind[index]=cell[c].node(nc).globalId;
+		++index;
 		}
 	}
 
@@ -236,15 +240,12 @@ int Grid::ReadCGNS() {
 
 	 ParMETIS_V3_PartMeshKway(elmdist,eptr,eind, elmwgt,
 				 &wgtflag, &numflag, &ncon, &ncommonnodes,
-				 &nparts, tpwgts, ubvec, options, &edgecut,
+				 &np, tpwgts, &ubvec, options, &edgecut,
 				 part,&commWorld) ;
-
-	// I believe the calling statement is correct, except the mpi communicator (?)	
 
 	//XXX Delete the stuff we created that is no longer needed by ParMetis
 	// delete[] somestuffwedontneed;
 
-	
 /*
 	// Construct the list of cells for each node
 	int flag;

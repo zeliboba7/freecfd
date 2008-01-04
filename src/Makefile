@@ -3,8 +3,8 @@ CC=mpic++
 OPTS=-O3
 EXE=fcfd
 
-INCLUDES= /home/esozer/cgnslib_2.5/include/ 
-LIBS= /home/esozer/cgnslib_2.5/lib/libcgns.a -lparmetis
+INCLUDES= /home/esozer/cgnslib_2.5/include/ -I/usr/include/parmetis/ 
+LIBS= /home/esozer/cgnslib_2.5/lib/libcgns.a -L/usr/lib  -lparmetis -lmetis  -lm
 
 SRC= \
 	main.cc grid.cc vec3d.cc RoeFlux.cc  write_tec.cc writeTecplotMacro.cc inputs.cc sparse.cc readInputs.cc initialize.cc setBCs.cc fou.cc read_tec.cc hancock.cc diffFlux.cc
