@@ -59,6 +59,7 @@ int Grid::ReadCGNS() {
 
     // Initialize the partition sizes
     cellCount=floor(globalCellCount/np);
+    int baseCellCount=cellCount;
     unsigned int offset=rank*cellCount;
     if (rank==np-1) cellCount=cellCount+globalCellCount-np*cellCount;
 
@@ -242,6 +243,21 @@ int Grid::ReadCGNS() {
 				 &wgtflag, &numflag, &ncon, &ncommonnodes,
 				 &np, tpwgts, &ubvec, options, &edgecut,
 				 part,&commWorld) ;
+	
+
+	// Distribute the part list to each proc
+	// Each proc has an array of length globalCellCount which says the processor number that cell belongs to [cellMap]
+	int recvCounts[np];
+	int displs[np];
+	for (int p=0;p<np;++p) {
+		recvCounts[p]=baseCellCount;
+		displs[p]=p*baseCellCount;
+	}
+	recvCounts[np-1]=baseCellCount+globalCellCount-np*baseCellCount;
+	int cellMap[globalCellCount];
+
+	MPI_Allgatherv(part,cellCount,MPI_INT,cellMap,recvCounts,displs,MPI_INT,MPI_COMM_WORLD);
+	
 
 	//XXX Delete the stuff we created that is no longer needed by ParMetis
 	// delete[] somestuffwedontneed;
