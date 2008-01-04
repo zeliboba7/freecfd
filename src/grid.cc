@@ -1,3 +1,4 @@
+#include <mpi.h>
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -6,6 +7,7 @@ using namespace std;
 #include<cmath>
 #include <cgnslib.h>
 #include <parmetis.h>
+
 
 #include "grid.h"
 #include "bc.h"
@@ -212,6 +214,7 @@ int Grid::ReadCGNS() {
 	float* tpwgts = NULL;
 	float* ubvec = NULL;
 	int options[3]; // default values for timing info set 0 -> 1
+
 	options[0]=0; options[1]=1; options[2]=15;
 	int edgecut ; // output
 	idxtype* part = new idxtype[cellCount];
@@ -229,10 +232,13 @@ int Grid::ReadCGNS() {
 		}
 	}
 
+	ompi_communicator_t* commWorld=MPI_COMM_WORLD; 
+
 	 ParMETIS_V3_PartMeshKway(elmdist,eptr,eind, elmwgt,
 				 &wgtflag, &numflag, &ncon, &ncommonnodes,
-				 &nparts, tpwgts, ubvec, options,  &edgecut,
-				 part,&MPI_COMM_WORLD) ;
+				 &nparts, tpwgts, ubvec, options, &edgecut,
+				 part,&commWorld) ;
+
 	// I believe the calling statement is correct, except the mpi communicator (?)	
 
 	//XXX Delete the stuff we created that is no longer needed by ParMetis
