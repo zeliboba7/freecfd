@@ -46,10 +46,16 @@ class Cell {
   double p; 
   double flux[5];
   Cell(void);
-  int Construct(const ElementType_t elemType,const int nodeList[]);
+  int Construct(const ElementType_t elemType,unsigned int nodeList[]);
   int HaveNodes(unsigned int &nodelistsize, unsigned int nodelist[]);
   Node& node(int n);
   Face& face(int f);
+};
+
+class Ghost {
+	public:
+	unsigned int partition;
+	unsigned int globalId;
 };
 
 class Grid {
@@ -60,6 +66,7 @@ class Grid {
   std::vector<Node> node;
   std::vector<Face> face;
   std::vector<Cell> cell;
+  std::vector<Ghost> ghost;
   int ReadCGNS();
   Grid();
   int read(string);

@@ -65,33 +65,13 @@ int Grid::ReadCGNS() {
 
     int nodeStart[3],nodeEnd[3];
     nodeStart[0]=nodeStart[1]=nodeStart[2]=1;
-    nodeEnd[0]=nodeEnd[1]=nodeEnd[2]=nodeCount;
+    nodeEnd[0]=nodeEnd[1]=nodeEnd[2]=globalNodeCount;
 
-    double x[nodeCount],y[nodeCount],z[nodeCount];
+    double x[globalNodeCount],y[globalNodeCount],z[globalNodeCount];
 
     cg_coord_read(fileIndex,baseIndex,zoneIndex,"CoordinateX",RealDouble,nodeStart,nodeEnd,&x);
     cg_coord_read(fileIndex,baseIndex,zoneIndex,"CoordinateY",RealDouble,nodeStart,nodeEnd,&y);
     cg_coord_read(fileIndex,baseIndex,zoneIndex,"CoordinateZ",RealDouble,nodeStart,nodeEnd,&z);
-
-    //cout << "* Read coordinates"  << endl;
-    //node.reserve(nodeCount);
-    //face.reserve(cellCount);
-    cell.reserve(cellCount);
-
-    //cout << "* Reserved memory for the nodes"  << endl;
-
-    /*
-    for (unsigned int i=0;i<nodeCount;++i) {
-        Node temp;
-        temp.id=i;
-        temp.comp[0]=x[i];
-        temp.comp[1]=y[i];
-        temp.comp[2]=z[i];
-        node.push_back(temp);
-    }
-
-    cout << "* Nodes created"  << endl;
-    */    
 
     // Determine the number of sections in the zone
     int sectionCount;
@@ -103,6 +83,167 @@ int Grid::ReadCGNS() {
     int elemNodeCount;
     int elemStart,elemEnd,nBndCells,parentFlag;
     
+	unsigned int section=0;
+	cg_section_read(fileIndex,baseIndex,zoneIndex,section+1,sectionName,&elemType,&elemStart,&elemEnd,&nBndCells,&parentFlag);
+	switch (elemType)  {
+		case TRI_3:
+			elemNodeCount=3; break;
+		case QUAD_4:
+			elemNodeCount=4; break;
+		case TETRA_4:
+			elemNodeCount=4; break;
+		case PENTA_6:
+			elemNodeCount=6; break;
+		case HEXA_8:
+			elemNodeCount=8; break;		
+	}
+	int elemNodes[elemEnd-elemStart+1][elemNodeCount];
+	cg_elements_read(fileIndex,baseIndex,zoneIndex,section+1,*elemNodes,0);
+
+	//Implementing Parmetis
+	/* ParMETIS_V3_PartMeshKway(idxtype *elmdist, idxtype *eptr, idxtype *eind, idxtype *elmwgt, int *wgtflag, int *numflag, int *ncon, int * ncommonnodes, int *nparts, float *tpwgts, float *ubvec, int *options, int *edgecut, idxtype *part, MPI_Comm) */
+
+	/*  Definining variables
+	elmdist- look into making the 5 arrays short int (for performance
+		on 64 bit arch)
+	eptr- like xadf
+	eind- like adjncy
+	elmwgt- null (element weights)
+	wgtflag- 0 (no weights, can take value of 0,1,2,3 see documentation)
+	numflag- 0 C-style numbers, 1 Fortran-style numbers
+	ncon- 0 ( # of constraints)
+	ncommonnodes- 4 ( we can probably put this to 3)
+	nparts- # of processors (Note: BE CAREFUL if != to # of proc)
+	tpwgts- null
+	ubvec- null (balancing constraints,if needed 1.05 is a good value)
+	options- [0 1 15] for default
+	edgecut- output, # of edges cut (measure of communication)
+	part- output, where our elements should be
+	comm- most likely MPI_COMM_WORLD
+	*/
+
+	idxtype elmdist[np + 1]; 
+	idxtype eptr[cellCount+1];
+
+	idxtype eind[cellCount*elemNodeCount];
+
+	idxtype* elmwgt = NULL;
+	int wgtflag=0; // no weights associated with elem or edges
+	int numflag=0; // C-style numbering
+	int ncon=1; // # of weights or constraints
+	int ncommonnodes; ncommonnodes=3; // set to 3 for tetrahedra or mixed type
+
+	float tpwgts[np];
+	for (unsigned int p=0; p<np; ++p) tpwgts[p]=1./float(np);
+	float ubvec=1.05;
+	int options[3]; // default values for timing info set 0 -> 1
+
+	options[0]=0; options[1]=1; options[2]=15;
+	int edgecut ; // output
+	idxtype* part = new idxtype[cellCount];
+
+	for (unsigned int p=0;p<np;++p) elmdist[p]=p*floor(globalCellCount/np);
+	elmdist[np]=globalCellCount;// Note this is because #elements mod(np) are all on last proc
+
+	eptr[0]=0;
+	for (unsigned int c=1; c<=cellCount;++c) eptr[c]=eptr[c-1]+elemNodeCount;
+
+	int index=0;
+	for (unsigned int c=0; c<cellCount; ++c) {
+		for (unsigned int nc=0; nc<elemNodeCount; ++nc) {
+		eind[index]=elemNodes[c+offset][nc]-1;
+		++index;
+		}
+	}
+ 
+	ompi_communicator_t* commWorld=MPI_COMM_WORLD; 
+
+	 ParMETIS_V3_PartMeshKway(elmdist,eptr,eind, elmwgt,
+				 &wgtflag, &numflag, &ncon, &ncommonnodes,
+				 &np, tpwgts, &ubvec, options, &edgecut,
+				 part,&commWorld) ;
+	
+
+	// Distribute the part list to each proc
+	// Each proc has an array of length globalCellCount which says the processor number that cell belongs to [cellMap]
+	int recvCounts[np];
+	int displs[np];
+	for (int p=0;p<np;++p) {
+		recvCounts[p]=baseCellCount;
+		displs[p]=p*baseCellCount;
+	}
+	recvCounts[np-1]=baseCellCount+globalCellCount-np*baseCellCount;
+	int cellMap[globalCellCount];
+
+	MPI_Allgatherv(part,cellCount,MPI_INT,cellMap,recvCounts,displs,MPI_INT,MPI_COMM_WORLD);
+	
+	// Find new local cellCount after ParMetis distribution
+	cellCount=0.;
+	for (unsigned int c=0;c<globalCellCount;++c) {
+		if (cellMap[c]==rank) ++cellCount;
+	}
+	cout << "* Processor " << rank << " has " << cellCount << " cells" << endl;
+
+        node.reserve(nodeCount/np);
+        face.reserve(cellCount);
+        cell.reserve(cellCount);
+
+	// Create the nodes and cells for each partition
+	// Run through the list of cells and check if it belongs to current partition 
+	// Loop through the cell's nodes
+	// Mark the visited nodes so that no duplicates are created (nodeFound array).
+	bool nodeFound[globalNodeCount];
+	unsigned int nodeMap[globalNodeCount];
+	unsigned int cellNodes[elemNodeCount];
+	for (unsigned int n=1;n<=globalNodeCount;++n) nodeFound[n]=false;
+	nodeCount=0;
+	for (unsigned int c=0;c<globalCellCount;++c) {
+		if (cellMap[c]==rank) {
+			for (unsigned int n=0;n<elemNodeCount;++n) {
+				if (!nodeFound[elemNodes[c][n]]) {
+        				Node temp;
+        				temp.id=nodeCount;
+					temp.globalId=elemNodes[c][n]-1;
+        				temp.comp[0]=x[elemNodes[c][n]-1];
+        				temp.comp[1]=y[elemNodes[c][n]-1];
+	        			temp.comp[2]=z[elemNodes[c][n]-1];
+      					node.push_back(temp);
+					nodeFound[elemNodes[c][n]]=true;
+					nodeMap[elemNodes[c][n]]=temp.id;
+					++nodeCount;
+				}
+				cellNodes[n]=nodeMap[elemNodes[c][n]];
+			}
+		Cell temp;
+		temp.Construct(elemType,cellNodes);
+		temp.globalId=c;
+		cell.push_back(temp);
+		}
+	}
+
+	//XXX Delete the stuff we created that is no longer needed by ParMetis
+	// delete[] somestuffwedontneed;
+
+
+	// Construct the list of cells for each node
+	int flag;
+	for (unsigned int c=0;c<cellCount;++c) {
+		int n;
+		for (unsigned int nc=0;nc<cell[c].nodeCount;++nc) {
+			n=cell[c].nodes[nc];
+			flag=0;
+			for (unsigned int i=0;i<node[n].cells.size();++i) {
+				if (node[n].cells[i]==c) {
+					flag=1;
+					break;
+				}
+			}
+			if (!flag) {
+				node[n].cells.push_back(c);
+			}
+		}
+	}
+
     // Set face connectivity lists
     int hexaFaces[6][4]=
         {
@@ -132,162 +273,15 @@ int Grid::ReadCGNS() {
         };
 
 
-	unsigned int section=0;
-	cg_section_read(fileIndex,baseIndex,zoneIndex,section+1,sectionName,&elemType,&elemStart,&elemEnd,&nBndCells,&parentFlag);
-	switch (elemType)  {
-		case TRI_3:
-			elemNodeCount=3; break;
-		case QUAD_4:
-			elemNodeCount=4; break;
-		case TETRA_4:
-			elemNodeCount=4; break;
-		case PENTA_6:
-			elemNodeCount=6; break;
-		case HEXA_8:
-			elemNodeCount=8; break;		
-	}
-	int elemNodes[elemEnd-elemStart+1][elemNodeCount];
-	cg_elements_read(fileIndex,baseIndex,zoneIndex,section+1,*elemNodes,0);
-
-	// Create the nodes for each partition
-	bool nodeFound[globalNodeCount];
-	unsigned int nodeMap[globalNodeCount];
-	for (unsigned int n=1;n<=globalNodeCount;++n) nodeFound[n]=false;
-	nodeCount=0;
-	for (unsigned int c=0;c<cellCount;++c) {
-		for (unsigned int n=0;n<elemNodeCount;++n) {
-			if (!nodeFound[elemNodes[c+offset][n]]) {
-				++nodeCount;
-        			Node temp;
-        			temp.id=nodeCount-1;
-				temp.globalId=elemNodes[c+offset][n]-1;
-        			temp.comp[0]=x[elemNodes[c+offset][n]];
-        			temp.comp[1]=y[elemNodes[c+offset][n]];
-	        		temp.comp[2]=z[elemNodes[c+offset][n]];
-        			node.push_back(temp);
-				nodeFound[elemNodes[c+offset][n]]=true;
-				nodeMap[elemNodes[c+offset][n]]=temp.id;
-			}
-		}
-	}
-
-	// Create the cells
-	for (unsigned int c=0;c<cellCount;++c) {
-		Cell temp;
-		for (unsigned int n=0;n<elemNodeCount;++n) elemNodes[c+offset][n]=nodeMap[elemNodes[c+offset][n]];
-		temp.Construct(elemType,elemNodes[c+offset]);
-		temp.globalId=c+offset;
-		cell.push_back(temp);
-	}
-
-	//Implementing Parmetis
-	/* ParMETIS_V3_PartMeshKway(idxtype *elmdist, idxtype *eptr, idxtype *eind, idxtype *elmwgt, int *wgtflag, int *numflag, int *ncon, int * ncommonnodes, int *nparts, float *tpwgts, float *ubvec, int *options, int *edgecut, idxtype *part, MPI_Comm) */
-
-	/*  Definining variables
-	elmdist- look into making the 5 arrays short int (for performance
-		on 64 bit arch)
-	eptr- like xadf
-	eind- like adjncy
-	elmwgt- null (element weights)
-	wgtflag- 0 (no weights, can take value of 0,1,2,3 see documentation)
-	numflag- 0 C-style numbers, 1 Fortran-style numbers
-	ncon- 0 ( # of constraints)
-	ncommonnodes- 4 ( we can probably put this to 3)
-	nparts- # of processors (Note: BE CAREFUL if != to # of proc)
-	tpwgts- null
-	ubvec- null (balancing constraints,if needed 1.05 is a good value)
-	options- [0 1 15] for default
-	edgecut- output, # of edges cut (measure of communication)
-	part- output, where our elements should be
-	comm- most likely MPI_COMM_WORLD
-	*/
-
-	idxtype elmdist[np + 1]; 
-	idxtype eptr[cellCount+1];
-
-	int count=0; for (unsigned int c=0; c<cellCount; ++c) count+=cell[c].nodeCount;
-	idxtype  eind[count];
-
-	idxtype* elmwgt = NULL;
-	int wgtflag=0; // no weights associated with elem or edges
-	int numflag=0; // C-style numbering
-	int ncon=1; // # of weights or constraints
-	int ncommonnodes; ncommonnodes=3; // set to 3 for tetrahedra or mixed type
-
-	float tpwgts[np];
-	for (unsigned int p=0; p<np; ++p) tpwgts[p]=1./float(np);
-	float ubvec=1.05;
-	int options[3]; // default values for timing info set 0 -> 1
-
-	options[0]=0; options[1]=1; options[2]=15;
-	int edgecut ; // output
-	idxtype* part = new idxtype[cellCount];
-
-	for (unsigned int p=0;p<np;++p) elmdist[p]=p*floor(globalCellCount/np);
-	elmdist[np]=globalCellCount;// Note this is because #elements mod(np) are all on last proc
-
-	eptr[0]=0;
-	for (unsigned int c=1; c<=cellCount;++c) eptr[c]=eptr[c-1]+cell[c-1].nodeCount;
-
-	int index=0;
-	for (unsigned int c=0; c<cellCount; ++c) {
-		for (unsigned int nc=0; nc<cell[c].nodeCount; ++nc) {
-		eind[index]=cell[c].node(nc).globalId;
-		++index;
-		}
-	}
-
-	ompi_communicator_t* commWorld=MPI_COMM_WORLD; 
-
-	 ParMETIS_V3_PartMeshKway(elmdist,eptr,eind, elmwgt,
-				 &wgtflag, &numflag, &ncon, &ncommonnodes,
-				 &np, tpwgts, &ubvec, options, &edgecut,
-				 part,&commWorld) ;
-	
-
-	// Distribute the part list to each proc
-	// Each proc has an array of length globalCellCount which says the processor number that cell belongs to [cellMap]
-	int recvCounts[np];
-	int displs[np];
-	for (int p=0;p<np;++p) {
-		recvCounts[p]=baseCellCount;
-		displs[p]=p*baseCellCount;
-	}
-	recvCounts[np-1]=baseCellCount+globalCellCount-np*baseCellCount;
-	int cellMap[globalCellCount];
-
-	MPI_Allgatherv(part,cellCount,MPI_INT,cellMap,recvCounts,displs,MPI_INT,MPI_COMM_WORLD);
-	
-
-	//XXX Delete the stuff we created that is no longer needed by ParMetis
-	// delete[] somestuffwedontneed;
-
-/*
-	// Construct the list of cells for each node
-	int flag;
-	for (unsigned int c=0;c<cellCount;++c) {
-		for (unsigned int n=0;n<cell[c].nodeCount;++n) {
-			flag=0;
-			for (unsigned int i=0;i<cell[c].node(n).cells.size();++i) {
-				if (cell[c].node(n).cells[i]==int(c)) {
-					flag=1;
-					break;
-				}
-			}
-			if (!flag) {
-				node[cell[c].nodes[n]].cells.push_back(c);
-			}
-		}
-	}
 	// Search and construct faces
 	faceCount=0;
 	unsigned int *tempNodes;
 	int boundaryFaceCount=0;
 	// Loop through all the cells
 
-	for (unsigned int i=0;i<cellCount;++i) {
+	for (unsigned int c=0;c<cellCount;++c) {
 		// Loop through the faces of the current cell
-		for (unsigned int f=0;f<cell[i].faceCount;++f) {
+		for (unsigned int cf=0;cf<cell[c].faceCount;++cf) {
 			Face tempFace;
 			switch (elemType)  {						
 				case TETRA_4:
@@ -295,7 +289,7 @@ int Grid::ReadCGNS() {
 					tempNodes= new unsigned int[3];
 					break;
 				case PENTA_6:
-					if (f<2) { 
+					if (cf<2) { 
 						tempFace.nodeCount=3; 
 						tempNodes= new unsigned int[3];
 					} else {
@@ -310,47 +304,86 @@ int Grid::ReadCGNS() {
 			}				
 			tempFace.id=faceCount;
 			// Assign current cell as the parent cell
-			tempFace.parent=i;
+			tempFace.parent=c;
 			// Assign boundary type as internal by default, will be overwritten later
-			tempFace.bc=-1;
+			tempFace.bc=0;
 			// Store the nodes of the current face
 			if (faceCount==face.capacity()) face.reserve(int(face.size()*0.10)+face.size()) ;
-			for (unsigned int n=0;n<tempFace.nodeCount;++n) {
+
+			for (unsigned int fn=0;fn<tempFace.nodeCount;++fn) {
 				switch (elemType)  {
-					case TETRA_4: tempNodes[n]=cell[i].node(tetraFaces[f][n]).id; break;
-					case PENTA_6: tempNodes[n]=cell[i].node(prismFaces[f][n]).id; break;
-					case HEXA_8: tempNodes[n]=cell[i].node(hexaFaces[f][n]).id; break;
+					case TETRA_4: tempNodes[fn]=cell[c].node(tetraFaces[cf][fn]).id; break;
+					case PENTA_6: tempNodes[fn]=cell[c].node(prismFaces[cf][fn]).id; break;
+					case HEXA_8: tempNodes[fn]=cell[c].node(hexaFaces[cf][fn]).id; break;
 				}
-				tempFace.nodes.push_back(tempNodes[n]);
+				tempFace.nodes.push_back(tempNodes[fn]);
 			}
 			// Find the neighbor cell
-			int flagInternal=0;
-			int flagExists=1;
-			for (unsigned int j=0;j<node[tempNodes[0]].cells.size();++j) {
-				int c=node[tempNodes[0]].cells[j];
-				if (int(i)!=c && cell[c].HaveNodes(tempFace.nodeCount,tempNodes)) {
-					tempFace.neighbor=c;
-					flagInternal=1;
-					if (int(i)<c) flagExists=0;
-					break;
+			bool internal=false;
+			bool unique=true;
+			for (unsigned int nc=0;nc<node[tempNodes[0]].cells.size();++nc) {
+				unsigned int i=node[tempNodes[0]].cells[nc];
+				if (i!=c && cell[i].HaveNodes(tempFace.nodeCount,tempNodes)) {
+					if (i>c) {
+						tempFace.neighbor=i;
+						internal=true;
+					} else {
+						unique=false;
+					}
 				}
 			}
-			if (!flagInternal) {
-				++boundaryFaceCount;
-			} else if (!flagExists) {
-				tempFace.bc=-1;
+			if (unique) {
+				if (!internal) {
+					tempFace.bc=-1;
+					++boundaryFaceCount;
+				}
+				for (unsigned int fn=0;fn<tempFace.nodeCount;++fn) tempFace.nodes.push_back(tempNodes[fn]);
+
 				face.push_back(tempFace);
-				for (unsigned int fn=0;fn<tempFace.nodeCount;++fn) face[tempFace.id].nodes.push_back(tempNodes[fn]);
-				cell[i].faces.push_back(tempFace.id);
-				cell[tempFace.neighbor].faces.push_back(tempFace.id);
+				cell[c].faces.push_back(tempFace.id);
+				if (internal) cell[tempFace.neighbor].faces.push_back(tempFace.id);
 				++faceCount;
 			}
-		} //for face
-	} // for cells
+
+		} //for face cf
+	} // for cells c
 	//cout << "* Number of Faces: " << faceCount << endl;
 	//cout << "* Number of Faces at Boundaries: " << boundaryFaceCount << endl;
 
+	// Determine and mark faces adjacent to other partitions
+	// Create ghost elemets to hold the data from other partitions
+	unsigned int ghostCount=0;
+	for (unsigned int f=0; f<faceCount; ++f) {
+		if (face[f].bc!=0) { // if not an internal face
+			for (unsigned int c=0; c<globalCellCount; ++c) {
+				if (cellMap[c]!=rank) {
+					unsigned int matchCount=0;
+        				for (unsigned int fn=0;fn<face[f].nodeCount;++fn) {
+	    	    				for (unsigned int cn=0;cn<elemNodeCount;++cn) {
+            						if ((elemNodes[c][cn]-1)==face[f].node(fn).globalId) ++matchCount;
+						}
+					}
+		    			if (matchCount==face[f].nodeCount) {
+						Ghost temp;
+						temp.partition=cellMap[c];
+						temp.globalId=c;
+						ghost.push_back(temp);
+						face[f].bc=ghostCount;
+						++ghostCount;
+						break;
+					}
+    		    		}
+    			}
+		}	
+	}
 
+if (rank==0) {
+for (unsigned int g=0;g<ghost.size();++g) {
+	cout << g << "\t" << ghost[g].partition << "\t" << ghost[g].globalId << endl;
+}
+}
+
+/*
 	for (section=1; section<sectionCount; ++section) {
 		cg_section_read(fileIndex,baseIndex,zoneIndex,section+1,sectionName,&elemType,&elemStart,&elemEnd,&nBndCells,&parentFlag);
 		switch (elemType)  {
@@ -403,7 +436,7 @@ int Grid::ReadCGNS() {
 		cout << "* Boundary condition section found and applied: " << sectionName << "\t" << count << endl;
 		if (count!=elemCount) cout << "!!! Something is terribly wrong here !!!" << endl;			
 	} // end loop over sections
-
+*/
 
 // Now loop through faces and calculate centroids and areas
     for (unsigned int f=0;f<faceCount;++f) {
@@ -420,7 +453,7 @@ int Grid::ReadCGNS() {
 	areaVec+=0.5*(face[f].node(face[f].nodeCount-1)-centroid).cross(face[f].node(0)-centroid);
         if (areaVec.dot(centroid-cell[face[f].parent].centroid)<0.) {
             // [TBM] Need to swap the face and reflect the area vector
-            cout << "face " << f << " should be swapped" << endl;
+           cout << "face " << f << " should be swapped" << endl;
         }
         face[f].area=fabs(areaVec);
         face[f].normal=areaVec/face[f].area;
@@ -437,15 +470,9 @@ int Grid::ReadCGNS() {
         cell[c].volume=volume;
         totalVolume+=volume;
     }
-    cout << "* Total Volume: " << totalVolume << endl;
-            volume+=1./3.*cell[c].face(f).area*fabs(cell[c].face(f).normal.dot(cell[c].face(f).centroid-cell[c].centroid));
-        }
-        cell[c].volume=volume;
-        totalVolume+=volume;
-    }
-    cout << "* Total Volume: " << totalVolume << endl;
+    cout << "* Processor " << rank << " Total Volume: " << totalVolume << endl;
     return 0;
-*/
+
 }
 
 
@@ -459,7 +486,7 @@ Cell::Cell(void) {
     ;
 }
 
-int Cell::Construct(const ElementType_t elemType, const int nodeList[]) {
+int Cell::Construct(const ElementType_t elemType, unsigned int nodeList[]) {
 
 	switch (elemType)  {
 		case TETRA_4:
