@@ -2,7 +2,7 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
- #include <iomanip>
+#include <iomanip>
 using namespace std;
 #include<cmath>
 #include <cgnslib.h>
@@ -16,76 +16,76 @@ extern Grid grid;
 extern BC bc;
 extern int np, rank;
 
-Grid::Grid () {
-    ;
+Grid::Grid() {
+	;
 }
 
 int Grid::read(string fname) {
-    fstream file;
-    fileName=fname;
-    file.open(fileName.c_str());
-    if (file.is_open()) {
-	if (rank==0) cout << "* Found grid file " << fileName  << endl;
-        file.close();
-        ReadCGNS();
-        return 1;
-    } else {
-        if (rank==0) cerr << "[!!] Grid file "<< fileName << " could not be found." << endl;
-        return 0;
-    }
+	fstream file;
+	fileName=fname;
+	file.open(fileName.c_str());
+	if (file.is_open()) {
+		if (rank==0) cout << "* Found grid file " << fileName  << endl;
+		file.close();
+		ReadCGNS();
+		return 1;
+	} else {
+		if (rank==0) cerr << "[!!] Grid file "<< fileName << " could not be found." << endl;
+		return 0;
+	}
 }
 
 int Grid::ReadCGNS() {
 
-    int fileIndex,baseIndex,zoneIndex,sectionIndex;
-    char zoneName[20],sectionName[20]; //baseName[20]
-    //  int nBases,cellDim,physDim;
-    int size[3];
+	int fileIndex,baseIndex,zoneIndex,sectionIndex;
+	char zoneName[20],sectionName[20]; //baseName[20]
+	//  int nBases,cellDim,physDim;
+	int size[3];
 
-    cg_open(fileName.c_str(),MODE_READ,&fileIndex);
-    baseIndex=1;
-    zoneIndex=1;
-   
-    cg_zone_read(fileIndex,baseIndex,zoneIndex,zoneName,size);
+	cg_open(fileName.c_str(),MODE_READ,&fileIndex);
+	baseIndex=1;
+	zoneIndex=1;
 
-    globalNodeCount=size[0];
-    globalCellCount=size[1];
-    globalFaceCount=0;
+	cg_zone_read(fileIndex,baseIndex,zoneIndex,zoneName,size);
 
-    if (rank==0) {
-    	cout << "* Total number of nodes: " << globalNodeCount << endl;
-    	cout << "* Total number of cells: " << globalCellCount << endl;
-    }
+	globalNodeCount=size[0];
+	globalCellCount=size[1];
+	globalFaceCount=0;
 
-    // Initialize the partition sizes
-    cellCount=floor(globalCellCount/np);
-    int baseCellCount=cellCount;
-    unsigned int offset=rank*cellCount;
-    if (rank==np-1) cellCount=cellCount+globalCellCount-np*cellCount;
+	if (rank==0) {
+		cout << "* Total number of nodes: " << globalNodeCount << endl;
+		cout << "* Total number of cells: " << globalCellCount << endl;
+	}
 
-    int nodeStart[3],nodeEnd[3];
-    nodeStart[0]=nodeStart[1]=nodeStart[2]=1;
-    nodeEnd[0]=nodeEnd[1]=nodeEnd[2]=globalNodeCount;
+	// Initialize the partition sizes
+	cellCount=floor(globalCellCount/np);
+	int baseCellCount=cellCount;
+	unsigned int offset=rank*cellCount;
+	if (rank==np-1) cellCount=cellCount+globalCellCount-np*cellCount;
 
-    double x[globalNodeCount],y[globalNodeCount],z[globalNodeCount];
+	int nodeStart[3],nodeEnd[3];
+	nodeStart[0]=nodeStart[1]=nodeStart[2]=1;
+	nodeEnd[0]=nodeEnd[1]=nodeEnd[2]=globalNodeCount;
 
-    cg_coord_read(fileIndex,baseIndex,zoneIndex,"CoordinateX",RealDouble,nodeStart,nodeEnd,&x);
-    cg_coord_read(fileIndex,baseIndex,zoneIndex,"CoordinateY",RealDouble,nodeStart,nodeEnd,&y);
-    cg_coord_read(fileIndex,baseIndex,zoneIndex,"CoordinateZ",RealDouble,nodeStart,nodeEnd,&z);
+	double x[globalNodeCount],y[globalNodeCount],z[globalNodeCount];
 
-    // Determine the number of sections in the zone
-    int sectionCount;
-    cg_nsections(fileIndex,baseIndex,zoneIndex, &sectionCount);
-    
-    if (rank==0) cout << "* Number of sections found in zone " << zoneName << ": " << sectionCount << endl;
+	cg_coord_read(fileIndex,baseIndex,zoneIndex,"CoordinateX",RealDouble,nodeStart,nodeEnd,&x);
+	cg_coord_read(fileIndex,baseIndex,zoneIndex,"CoordinateY",RealDouble,nodeStart,nodeEnd,&y);
+	cg_coord_read(fileIndex,baseIndex,zoneIndex,"CoordinateZ",RealDouble,nodeStart,nodeEnd,&z);
 
-    ElementType_t elemType;
-    int elemNodeCount;
-    int elemStart,elemEnd,nBndCells,parentFlag;
-    
+	// Determine the number of sections in the zone
+	int sectionCount;
+	cg_nsections(fileIndex,baseIndex,zoneIndex, &sectionCount);
+
+	if (rank==0) cout << "* Number of sections found in zone " << zoneName << ": " << sectionCount << endl;
+
+	ElementType_t elemType;
+	int elemNodeCount;
+	int elemStart,elemEnd,nBndCells,parentFlag;
+
 	unsigned int section=0;
 	cg_section_read(fileIndex,baseIndex,zoneIndex,section+1,sectionName,&elemType,&elemStart,&elemEnd,&nBndCells,&parentFlag);
-	switch (elemType)  {
+	switch (elemType) {
 		case TRI_3:
 			elemNodeCount=3; break;
 		case QUAD_4:
@@ -95,7 +95,7 @@ int Grid::ReadCGNS() {
 		case PENTA_6:
 			elemNodeCount=6; break;
 		case HEXA_8:
-			elemNodeCount=8; break;		
+			elemNodeCount=8; break;
 	}
 	int elemNodes[elemEnd-elemStart+1][elemNodeCount];
 	cg_elements_read(fileIndex,baseIndex,zoneIndex,section+1,*elemNodes,0);
@@ -122,7 +122,7 @@ int Grid::ReadCGNS() {
 	comm- most likely MPI_COMM_WORLD
 	*/
 
-	idxtype elmdist[np + 1]; 
+	idxtype elmdist[np + 1];
 	idxtype eptr[cellCount+1];
 
 	idxtype eind[cellCount*elemNodeCount];
@@ -151,18 +151,18 @@ int Grid::ReadCGNS() {
 	int index=0;
 	for (unsigned int c=0; c<cellCount; ++c) {
 		for (unsigned int nc=0; nc<elemNodeCount; ++nc) {
-		eind[index]=elemNodes[c+offset][nc]-1;
-		++index;
+			eind[index]=elemNodes[c+offset][nc]-1;
+			++index;
 		}
 	}
- 
-	ompi_communicator_t* commWorld=MPI_COMM_WORLD; 
 
-	 ParMETIS_V3_PartMeshKway(elmdist,eptr,eind, elmwgt,
-				 &wgtflag, &numflag, &ncon, &ncommonnodes,
-				 &np, tpwgts, &ubvec, options, &edgecut,
-				 part,&commWorld) ;
-	
+	ompi_communicator_t* commWorld=MPI_COMM_WORLD;
+
+	ParMETIS_V3_PartMeshKway(elmdist,eptr,eind, elmwgt,
+	                         &wgtflag, &numflag, &ncon, &ncommonnodes,
+	                         &np, tpwgts, &ubvec, options, &edgecut,
+	                         part,&commWorld) ;
+
 
 	// Distribute the part list to each proc
 	// Each proc has an array of length globalCellCount which says the processor number that cell belongs to [cellMap]
@@ -176,7 +176,7 @@ int Grid::ReadCGNS() {
 	int cellMap[globalCellCount];
 
 	MPI_Allgatherv(part,cellCount,MPI_INT,cellMap,recvCounts,displs,MPI_INT,MPI_COMM_WORLD);
-	
+
 	// Find new local cellCount after ParMetis distribution
 	cellCount=0.;
 	for (unsigned int c=0;c<globalCellCount;++c) {
@@ -184,12 +184,12 @@ int Grid::ReadCGNS() {
 	}
 	cout << "* Processor " << rank << " has " << cellCount << " cells" << endl;
 
-        node.reserve(nodeCount/np);
-        face.reserve(cellCount);
-        cell.reserve(cellCount);
+	node.reserve(nodeCount/np);
+	face.reserve(cellCount);
+	cell.reserve(cellCount);
 
 	// Create the nodes and cells for each partition
-	// Run through the list of cells and check if it belongs to current partition 
+	// Run through the list of cells and check if it belongs to current partition
 	// Loop through the cell's nodes
 	// Mark the visited nodes so that no duplicates are created (nodeFound array).
 	bool nodeFound[globalNodeCount];
@@ -201,23 +201,23 @@ int Grid::ReadCGNS() {
 		if (cellMap[c]==rank) {
 			for (unsigned int n=0;n<elemNodeCount;++n) {
 				if (!nodeFound[elemNodes[c][n]]) {
-        				Node temp;
-        				temp.id=nodeCount;
+					Node temp;
+					temp.id=nodeCount;
 					temp.globalId=elemNodes[c][n]-1;
-        				temp.comp[0]=x[elemNodes[c][n]-1];
-        				temp.comp[1]=y[elemNodes[c][n]-1];
-	        			temp.comp[2]=z[elemNodes[c][n]-1];
-      					node.push_back(temp);
+					temp.comp[0]=x[elemNodes[c][n]-1];
+					temp.comp[1]=y[elemNodes[c][n]-1];
+					temp.comp[2]=z[elemNodes[c][n]-1];
+					node.push_back(temp);
 					nodeFound[elemNodes[c][n]]=true;
 					nodeMap[elemNodes[c][n]]=temp.id;
 					++nodeCount;
 				}
 				cellNodes[n]=nodeMap[elemNodes[c][n]];
 			}
-		Cell temp;
-		temp.Construct(elemType,cellNodes);
-		temp.globalId=c;
-		cell.push_back(temp);
+			Cell temp;
+			temp.Construct(elemType,cellNodes);
+			temp.globalId=c;
+			cell.push_back(temp);
 		}
 	}
 
@@ -244,33 +244,30 @@ int Grid::ReadCGNS() {
 		}
 	}
 
-    // Set face connectivity lists
-    int hexaFaces[6][4]=
-        {
-            {0,3,2,1},
-            {4,5,6,7},
-            {1,2,6,5},
-            {0,4,7,3},
-            {1,5,4,0},
-            {2,3,7,6}
-        };
-	
-    int prismFaces[5][4]=
-        {
-            {0,2,1,0},
-            {3,4,5,0},
-            {0,3,5,2},
-            {1,2,5,4},
-            {0,1,4,3},
-        };	
+	// Set face connectivity lists
+	int hexaFaces[6][4]= {
+		{0,3,2,1},
+		{4,5,6,7},
+		{1,2,6,5},
+		{0,4,7,3},
+		{1,5,4,0},
+		{2,3,7,6}
+	};
 
-    int tetraFaces[4][3]=
-        {
-            {0,2,1},
-            {1,2,3},
-            {0,3,2},
-            {0,1,3}
-        };
+	int prismFaces[5][4]= {
+		{0,2,1,0},
+		{3,4,5,0},
+		{0,3,5,2},
+		{1,2,5,4},
+		{0,1,4,3},
+	};
+
+	int tetraFaces[4][3]= {
+		{0,2,1},
+		{1,2,3},
+		{0,3,2},
+		{0,1,3}
+	};
 
 
 	// Search and construct faces
@@ -283,35 +280,35 @@ int Grid::ReadCGNS() {
 		// Loop through the faces of the current cell
 		for (unsigned int cf=0;cf<cell[c].faceCount;++cf) {
 			Face tempFace;
-			switch (elemType)  {						
+			switch (elemType) {
 				case TETRA_4:
 					tempFace.nodeCount=3;
 					tempNodes= new unsigned int[3];
 					break;
 				case PENTA_6:
-					if (cf<2) { 
-						tempFace.nodeCount=3; 
+					if (cf<2) {
+						tempFace.nodeCount=3;
 						tempNodes= new unsigned int[3];
 					} else {
 						tempFace.nodeCount=4;
-						tempNodes= new unsigned int[4];			
+						tempNodes= new unsigned int[4];
 					}
 					break;
 				case HEXA_8:
 					tempFace.nodeCount=4;
-					tempNodes= new unsigned int[4];	
+					tempNodes= new unsigned int[4];
 					break;
-			}				
+			}
 			tempFace.id=faceCount;
 			// Assign current cell as the parent cell
 			tempFace.parent=c;
 			// Assign boundary type as internal by default, will be overwritten later
-			tempFace.bc=0;
+			tempFace.bc=-1;
 			// Store the nodes of the current face
-			if (faceCount==face.capacity()) face.reserve(int(face.size()*0.10)+face.size()) ;
+			if (faceCount==face.capacity()) face.reserve(int (face.size() *0.10) +face.size()) ;
 
 			for (unsigned int fn=0;fn<tempFace.nodeCount;++fn) {
-				switch (elemType)  {
+				switch (elemType) {
 					case TETRA_4: tempNodes[fn]=cell[c].node(tetraFaces[cf][fn]).id; break;
 					case PENTA_6: tempNodes[fn]=cell[c].node(prismFaces[cf][fn]).id; break;
 					case HEXA_8: tempNodes[fn]=cell[c].node(hexaFaces[cf][fn]).id; break;
@@ -334,11 +331,10 @@ int Grid::ReadCGNS() {
 			}
 			if (unique) {
 				if (!internal) {
-					tempFace.bc=-1;
+					tempFace.bc=0;
 					++boundaryFaceCount;
 				}
 				for (unsigned int fn=0;fn<tempFace.nodeCount;++fn) tempFace.nodes.push_back(tempNodes[fn]);
-
 				face.push_back(tempFace);
 				cell[c].faces.push_back(tempFace.id);
 				if (internal) cell[tempFace.neighbor].faces.push_back(tempFace.id);
@@ -352,18 +348,18 @@ int Grid::ReadCGNS() {
 
 	// Determine and mark faces adjacent to other partitions
 	// Create ghost elemets to hold the data from other partitions
-	unsigned int ghostCount=0;
+	ghostCount=0;
 	for (unsigned int f=0; f<faceCount; ++f) {
-		if (face[f].bc!=0) { // if not an internal face
+		if (face[f].bc!=-1) { // if not an internal face
 			for (unsigned int c=0; c<globalCellCount; ++c) {
 				if (cellMap[c]!=rank) {
 					unsigned int matchCount=0;
-        				for (unsigned int fn=0;fn<face[f].nodeCount;++fn) {
-	    	    				for (unsigned int cn=0;cn<elemNodeCount;++cn) {
-            						if ((elemNodes[c][cn]-1)==face[f].node(fn).globalId) ++matchCount;
+					for (unsigned int fn=0;fn<face[f].nodeCount;++fn) {
+						for (unsigned int cn=0;cn<elemNodeCount;++cn) {
+							if ((elemNodes[c][cn]-1) ==face[f].node(fn).globalId) ++matchCount;
 						}
 					}
-		    			if (matchCount==face[f].nodeCount) {
+					if (matchCount==face[f].nodeCount) {
 						Ghost temp;
 						temp.partition=cellMap[c];
 						temp.globalId=c;
@@ -372,197 +368,191 @@ int Grid::ReadCGNS() {
 						++ghostCount;
 						break;
 					}
-    		    		}
-    			}
-		}	
-	}
-
-if (rank==0) {
-for (unsigned int g=0;g<ghost.size();++g) {
-	cout << g << "\t" << ghost[g].partition << "\t" << ghost[g].globalId << endl;
-}
-}
-
-/*
-	for (section=1; section<sectionCount; ++section) {
-		cg_section_read(fileIndex,baseIndex,zoneIndex,section+1,sectionName,&elemType,&elemStart,&elemEnd,&nBndCells,&parentFlag);
-		switch (elemType)  {
-			case TRI_3:
-				elemNodeCount=3; break;
-			case QUAD_4:
-				elemNodeCount=4; break;
-			case TETRA_4:
-				elemNodeCount=4; break;
-			case PENTA_6:
-				elemNodeCount=6; break;
-			case HEXA_8:
-				elemNodeCount=8; break;		
-		}
-		int elemNodes[elemEnd-elemStart+1][elemNodeCount];
-		cg_elements_read(fileIndex,baseIndex,zoneIndex,section+1,*elemNodes,0);
-
-		//cout << "* Began applying " << sectionName << " boundary conditions" << endl;
-		// Now all the cells and faces are constructed, read the boundary conditions
-		int elemCount=elemEnd-elemStart+1;
-		int mark[elemCount];
-		for (unsigned int e=0;e<elemCount;++e) {
-			for (unsigned int n=0;n<elemNodeCount;++n) --elemNodes[e][n];
-			mark[e]=0;
-		}
-		int flag, count=0.;
-		unsigned int f,e,n,n2;
-		for (f=0; f<faceCount; ++f) {	
-			if (face[f].bc==-2 && elemNodeCount==face[f].nodeCount) {// meaning a boundary face of unknown type			
-				for (e=0;e<elemCount;++e) {
-					if (mark[e]==0) {
-						for (n=0;n<elemNodeCount;++n) {
-							flag=0;							
-							for (n2=0;n2<elemNodeCount;++n2) {
-								if (elemNodes[e][n]==face[f].nodes[n2]) {
-									flag=1; break;
-								}
-							}
-							if (flag==0) break;
-						}
-						if (flag==1) {
-							mark[e]=1;
-							face[f].bc=section-1;
-							++count;
-						}
-					}
-				}	
+				}
 			}
 		}
-		cout << "* Boundary condition section found and applied: " << sectionName << "\t" << count << endl;
-		if (count!=elemCount) cout << "!!! Something is terribly wrong here !!!" << endl;			
-	} // end loop over sections
-*/
+	}
+
+	/*
+		for (section=1; section<sectionCount; ++section) {
+			cg_section_read(fileIndex,baseIndex,zoneIndex,section+1,sectionName,&elemType,&elemStart,&elemEnd,&nBndCells,&parentFlag);
+			switch (elemType)  {
+				case TRI_3:
+					elemNodeCount=3; break;
+				case QUAD_4:
+					elemNodeCount=4; break;
+				case TETRA_4:
+					elemNodeCount=4; break;
+				case PENTA_6:
+					elemNodeCount=6; break;
+				case HEXA_8:
+					elemNodeCount=8; break;
+			}
+			int elemNodes[elemEnd-elemStart+1][elemNodeCount];
+			cg_elements_read(fileIndex,baseIndex,zoneIndex,section+1,*elemNodes,0);
+
+			//cout << "* Began applying " << sectionName << " boundary conditions" << endl;
+			// Now all the cells and faces are constructed, read the boundary conditions
+			int elemCount=elemEnd-elemStart+1;
+			int mark[elemCount];
+			for (unsigned int e=0;e<elemCount;++e) {
+				for (unsigned int n=0;n<elemNodeCount;++n) --elemNodes[e][n];
+				mark[e]=0;
+			}
+			int flag, count=0.;
+			unsigned int f,e,n,n2;
+			for (f=0; f<faceCount; ++f) {
+				if (face[f].bc==-2 && elemNodeCount==face[f].nodeCount) {// meaning a boundary face of unknown type
+					for (e=0;e<elemCount;++e) {
+						if (mark[e]==0) {
+							for (n=0;n<elemNodeCount;++n) {
+								flag=0;
+								for (n2=0;n2<elemNodeCount;++n2) {
+									if (elemNodes[e][n]==face[f].nodes[n2]) {
+										flag=1; break;
+									}
+								}
+								if (flag==0) break;
+							}
+							if (flag==1) {
+								mark[e]=1;
+								face[f].bc=section-1;
+								++count;
+							}
+						}
+					}
+				}
+			}
+			cout << "* Boundary condition section found and applied: " << sectionName << "\t" << count << endl;
+			if (count!=elemCount) cout << "!!! Something is terribly wrong here !!!" << endl;
+		} // end loop over sections
+	*/
 
 // Now loop through faces and calculate centroids and areas
-    for (unsigned int f=0;f<faceCount;++f) {
-        Vec3D centroid=0.;
-        Vec3D areaVec=0.;
-        for (unsigned int n=0;n<face[f].nodeCount;++n) {
-            centroid+=face[f].node(n);
-        }
-        centroid/=face[f].nodeCount;
-        face[f].centroid=centroid;
-        for (unsigned int n=0;n<face[f].nodeCount-1;++n) {
-            areaVec+=0.5*(face[f].node(n)-centroid).cross(face[f].node(n+1)-centroid);
-        }
-	areaVec+=0.5*(face[f].node(face[f].nodeCount-1)-centroid).cross(face[f].node(0)-centroid);
-        if (areaVec.dot(centroid-cell[face[f].parent].centroid)<0.) {
-            // [TBM] Need to swap the face and reflect the area vector
-           cout << "face " << f << " should be swapped" << endl;
-        }
-        face[f].area=fabs(areaVec);
-        face[f].normal=areaVec/face[f].area;
-    }
+	for (unsigned int f=0;f<faceCount;++f) {
+		Vec3D centroid=0.;
+		Vec3D areaVec=0.;
+		for (unsigned int n=0;n<face[f].nodeCount;++n) {
+			centroid+=face[f].node(n);
+		}
+		centroid/=face[f].nodeCount;
+		face[f].centroid=centroid;
+		for (unsigned int n=0;n<face[f].nodeCount-1;++n) {
+			areaVec+=0.5* (face[f].node(n)-centroid).cross(face[f].node(n+1)-centroid);
+		}
+		areaVec+=0.5* (face[f].node(face[f].nodeCount-1)-centroid).cross(face[f].node(0)-centroid);
+		if (areaVec.dot(centroid-cell[face[f].parent].centroid) <0.) {
+			// [TBM] Need to swap the face and reflect the area vector
+			cout << "face " << f << " should be swapped" << endl;
+		}
+		face[f].area=fabs(areaVec);
+		face[f].normal=areaVec/face[f].area;
+	}
 
 // Loop through the cells and calculate the volumes
-    double totalVolume=0.;
-    for (unsigned int c=0;c<cellCount;++c) {
-        double volume=0.;
-        for (unsigned int f=0;f<cell[c].faceCount;++f) {
-            // [TBM] Area of a prism. Good for HEXA cells only
-            volume+=1./3.*cell[c].face(f).area*fabs(cell[c].face(f).normal.dot(cell[c].face(f).centroid-cell[c].centroid));
-        }
-        cell[c].volume=volume;
-        totalVolume+=volume;
-    }
-    cout << "* Processor " << rank << " Total Volume: " << totalVolume << endl;
-    return 0;
+	double totalVolume=0.;
+	for (unsigned int c=0;c<cellCount;++c) {
+		double volume=0.;
+		for (unsigned int f=0;f<cell[c].faceCount;++f) {
+			// [TBM] Area of a prism. Good for HEXA cells only
+			volume+=1./3.*cell[c].face(f).area*fabs(cell[c].face(f).normal.dot(cell[c].face(f).centroid-cell[c].centroid));
+		}
+		cell[c].volume=volume;
+		totalVolume+=volume;
+	}
+	cout << "* Processor " << rank << " Total Volume: " << totalVolume << endl;
+	return 0;
 
 }
 
 
-Node::Node (double x, double y, double z) {
-    comp[0]=x;
-    comp[1]=y;
-    comp[2]=z;
+Node::Node(double x, double y, double z) {
+	comp[0]=x;
+	comp[1]=y;
+	comp[2]=z;
 }
 
 Cell::Cell(void) {
-    ;
+	;
 }
 
 int Cell::Construct(const ElementType_t elemType, unsigned int nodeList[]) {
 
-	switch (elemType)  {
+	switch (elemType) {
 		case TETRA_4:
-			faceCount=4; 
+			faceCount=4;
 			nodeCount=4;
 			break;
 		case PENTA_6:
-			faceCount=5; 
+			faceCount=5;
 			nodeCount=6;
 			break;
 		case HEXA_8:
-			faceCount=6; 
+			faceCount=6;
 			nodeCount=8;
-			break;	
+			break;
 	}
-    type=elemType;
-    nodes.reserve(nodeCount);
-    if (nodeCount==0) {
-        cerr << "[!! proc " << rank << " ] Number of nodes of the cell must be specified before allocation" << endl;
-        return -1;
-    } else {
-        centroid=0.;
-        for (unsigned int i=0;i<nodeCount;++i) {
-            nodes.push_back(nodeList[i]);
-            centroid+=node(i);
-        }
-        centroid/=nodeCount;
-        return 0;
-    }
+	type=elemType;
+	nodes.reserve(nodeCount);
+	if (nodeCount==0) {
+		cerr << "[!! proc " << rank << " ] Number of nodes of the cell must be specified before allocation" << endl;
+		return -1;
+	} else {
+		centroid=0.;
+		for (unsigned int i=0;i<nodeCount;++i) {
+			nodes.push_back(nodeList[i]);
+			centroid+=node(i);
+		}
+		centroid/=nodeCount;
+		return 0;
+	}
 }
 
 int Cell::HaveNodes(unsigned int &nodelistsize, unsigned int nodelist []) {
 
-    unsigned int matchCount=0;
-    for (unsigned int i=0;i<nodelistsize;++i) {
-        for (unsigned int j=0;j<nodeCount;++j) {
-            if (nodelist[i]==node(j).id) ++matchCount;
-	    if (matchCount==nodelistsize) return 1;		    
-        }
-    }
+	unsigned int matchCount=0;
+	for (unsigned int i=0;i<nodelistsize;++i) {
+		for (unsigned int j=0;j<nodeCount;++j) {
+			if (nodelist[i]==node(j).id) ++matchCount;
+			if (matchCount==nodelistsize) return 1;
+		}
+	}
 
-    return 0;
+	return 0;
 }
 
 int Grid::face_exists(int &parentCell) {
-    //int s=face.size();
-    for (int f=0;f<faceCount;++f) {
-        if (face[f].parent==parentCell) return 1;
-    }
-    return 0;
+	//int s=face.size();
+	for (int f=0;f<faceCount;++f) {
+		if (face[f].parent==parentCell) return 1;
+	}
+	return 0;
 }
 
 Node& Cell::node(int n) {
-    return grid.node[nodes[n]];
+	return grid.node[nodes[n]];
 };
 
 Face& Cell::face(int f) {
-    return grid.face[faces[f]];
+	return grid.face[faces[f]];
 };
 
 Node& Face::node(int n) {
-    return grid.node[nodes[n]];
+	return grid.node[nodes[n]];
 };
 
 void Grid::gradients(void) {
-			
+
 	// Calculate cell gradients
 
 	// Initialize all gradients to zero
 	for (unsigned int c = 0;c<grid.cellCount;++c) {
 		for (unsigned int i=0;i<5;++i) cell[c].grad[i]=0.;
 	}
-		
+
 	int parent,neighbor;
 	double average[5],factor;
-	
+
 	// Loop faces
 	Vec3D areaVec, averageVel;
 	for (unsigned int f=0;f<faceCount;++f) {
@@ -579,32 +569,32 @@ void Grid::gradients(void) {
 		}
 		if (face[f].bc==-1) { // Internal face
 			for (unsigned int i=0;i<5;++i) cell[neighbor].grad[i]-=average[i]*areaVec/cell[neighbor].volume;
-		} else {	// Boundary face 
-			 if (bc.region[face[f].bc].type=="slip") {
+		} else {	// Boundary face
+			if (bc.region[face[f].bc].type=="slip") {
 				for (unsigned int i=0;i<3;++i) averageVel.comp[i]=average[i+1];
-				averageVel-=averageVel.dot(face[f].normal)*face[f].normal;
+				averageVel-=averageVel.dot(face[f].normal) *face[f].normal;
 				for (unsigned int i=0;i<3;++i) average[i+1]=averageVel.comp[i];
-			        //average[0]=grid.cell[parent].rho;
-			        //average[4]=grid.cell[parent].p;
+				//average[0]=grid.cell[parent].rho;
+				//average[4]=grid.cell[parent].p;
 			} else if (bc.region[face[f].bc].type=="noslip") {
 				for (unsigned int i=1;i<4;++i) average[i]=0.;
 			} else if (bc.region[face[f].bc].type=="inlet") {
 				average[0]=bc.region[face[f].bc].rho;
 				average[1]=bc.region[face[f].bc].v.comp[0];
 				average[2]=bc.region[face[f].bc].v.comp[1];
-				average[3]=bc.region[face[f].bc].v.comp[2];				
+				average[3]=bc.region[face[f].bc].v.comp[2];
 				average[4]=bc.region[face[f].bc].p;
 			} else if (bc.region[face[f].bc].type=="outlet") {
 				/*average[0]=grid.cell[parent].rho;
 				average[1]=grid.cell[parent].v.comp[0];
 				average[2]=grid.cell[parent].v.comp[1];
-				average[3]=grid.cell[parent].v.comp[2];				
+				average[3]=grid.cell[parent].v.comp[2];
 				average[4]=grid.cell[parent].p; */
-			}			
+			}
 		}
-		
+
 		cell[parent].grad[0]+=average[0]*areaVec/cell[parent].volume;
 		cell[parent].grad[4]+=average[4]*areaVec/cell[parent].volume;
 		for (unsigned int i=1;i<4;++i) cell[parent].grad[i]+=average[i]*areaVec/cell[parent].volume;
-	}	
+	}
 }

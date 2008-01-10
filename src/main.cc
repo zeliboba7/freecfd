@@ -24,8 +24,7 @@ double minmod(double a, double b);
 double maxmod(double a, double b);
 double superbee(double a, double b);
 void update(double dt, double gamma);
-string get_filename(string begin, int number, string ext) ;
-
+string get_filename(string begin, int number, int rank, string ext) ;
 void fou(double gamma);
 void hancock_predictor(double gamma, double dt, string limiter);
 void hancock_corrector(double gamma, string limiter);
@@ -38,36 +37,54 @@ BC bc;
 
 int np, rank;
 
-int main (int argc, char *argv[]) {
+int main(int argc, char *argv[]) {
 
 	// Initialize mpi
-	MPI_Init (&argc,&argv);
+	MPI_Init(&argc,&argv);
 	// Find the number of processors
 	MPI_Comm_size(MPI_COMM_WORLD, &np);
 	// Find current processor rank
-	MPI_Comm_rank(MPI_COMM_WORLD, &rank); 
+	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
 	string inputFileName, gridFileName;
 	inputFileName.assign(argv[1]);
 	gridFileName.assign(argv[1]);
 	inputFileName+=".in";
 	gridFileName+=".cgns";
-	
+
 	int restart=0;
 	if (argc>2) restart=atoi(argv[2]);
-	
+
 	InputFile input(inputFileName);
 	read_inputs(input);
 	grid.read(gridFileName);
-/*
+
+	int maxGhost=grid.globalCellCount/np*2;
+	
+	unsigned int ghostRequest[np][maxGhost];
+	
+	for (unsigned int p=0;p<np;++p) {
+		ghostRequest[p][0]=0;
+	}
+
+	for (unsigned int g=0; g<grid.ghostCount; ++g) {
+		int p=grid.ghost[g].partition;
+		ghostRequest[p][ghostRequest[p][0]]=grid.ghost[g].globalId;
+		++ghostRequest[p][0];
+	}
+	
+	for (unsigned int p=0;p<np;++p) {
+		//MPI_AlltoAllv(ghostRequest,maxGhost,MPI_UNSIGNED,p,0,MPI_COMM_WORLD);
+	}
+
+	
+	
 	initialize(grid,input);
+	//cout << "* Applied initial conditions" << endl;
 
-	cout << "* Applied initial conditions" << endl;
-	
 	set_bcs(grid,input,bc);
+	//cout << "* Set boundary conditions" << endl;
 
-	cout << "* Set boundary conditions" << endl;	
-	
 	double gamma = input.section["fluidProperties"].doubles["gamma"];
 	double time = 0.;
 
@@ -86,7 +103,8 @@ int main (int argc, char *argv[]) {
 	double weight,weightSum;
 	Vec3D node2cell;
 	VecSparse nodeAverage;
-	
+
+	/*
 	for (unsigned int f=0;f<grid.faceCount;++f) {
 		grid.face[f].cellContributions.flush();
 		for (unsigned int fn=0;fn<grid.face[f].nodeCount;++fn) {
@@ -103,29 +121,29 @@ int main (int argc, char *argv[]) {
 			grid.face[f].cellContributions+=(nodeAverage/weightSum)/grid.face[f].nodeCount;
 		}
 	}
+	//cout << "* Calculated cell gradient contributions" << endl;
 
-	cout << "* Calculated cell gradient contributions" << endl;
-	
-	if (restart!=0) {
-		string fileName=get_filename("out", restart, "dat");
-		fstream file;
-		file.open(fileName.c_str());
-		if (file.is_open()) {
-			cout << "* Restarting from " << fileName  << endl;
-			file.close();
-			read_tec(fileName,time);
-		} else {
-			cerr << "[!!] Restart "<< fileName << " could not be found." << endl;
-			exit(0);
+
+		if (restart!=0) {
+			string fileName=get_filename("out", restart, "dat");
+			fstream file;
+			file.open(fileName.c_str());
+			if (file.is_open()) {
+				cout << "* Restarting from " << fileName  << endl;
+				file.close();
+				read_tec(fileName,time);
+			} else {
+				cerr << "[!!] Restart "<< fileName << " could not be found." << endl;
+				exit(0);
+			}
 		}
-	}
+	*/
 
+	//cout << "* Beginning time loop" << endl;
 
-	cout << "* Beginning time loop" << endl;
-	
 	// Begin time loop
 	for (int timeStep = restart;timeStep < input.section["timeMarching"].ints["numberOfSteps"]+restart;++timeStep) {
-		
+
 		if (input.section["timeMarching"].strings["type"]=="CFL") {
 			// Determine time step with CFL condition
 			double cellScaleX, cellScaleY, cellScaleZ;
@@ -137,25 +155,25 @@ int main (int argc, char *argv[]) {
 					for (unsigned int cn2=0;cn2<grid.cell[c].nodeCount;++cn2) {
 						cellScaleX=max(cellScaleX,fabs(grid.cell[c].node(cn).comp[0]-grid.cell[c].node(cn2).comp[0]));
 						cellScaleY=max(cellScaleY,fabs(grid.cell[c].node(cn).comp[1]-grid.cell[c].node(cn2).comp[1]));
-						cellScaleZ=max(cellScaleZ,fabs(grid.cell[c].node(cn).comp[2]-grid.cell[c].node(cn2).comp[2]));					
+						cellScaleZ=max(cellScaleZ,fabs(grid.cell[c].node(cn).comp[2]-grid.cell[c].node(cn2).comp[2]));
 					}
 				}
 				dt=min(dt,CFL*cellScaleX/(fabs(grid.cell[c].v.comp[0])+a));
 				dt=min(dt,CFL*cellScaleY/(fabs(grid.cell[c].v.comp[1])+a));
-				dt=min(dt,CFL*cellScaleZ/(fabs(grid.cell[c].v.comp[2])+a));			
+				dt=min(dt,CFL*cellScaleZ/(fabs(grid.cell[c].v.comp[2])+a));
 			}
 		}
-				
-		if (input.section["numericalOptions"].strings["order"]=="first") {	
+		//if (input.section["numericalOptions"].strings["order"]=="first") {
 			fou(gamma);
-			if (input.section["equations"].strings["set"]=="NS") grid.gradients();
+			//if (input.section["equations"].strings["set"]=="NS") grid.gradients();
+			/*
 		} else {
-			
+
 			// Calculate all the cell gradients for each variable
 			grid.gradients();
-			
-			double rhoOld[grid.cellCount] ,pOld[grid.cellCount] ; 
-			Vec3D vOld[grid.cellCount];		
+
+			double rhoOld[grid.cellCount] ,pOld[grid.cellCount] ;
+			Vec3D vOld[grid.cellCount];
 			// Backup variables
 			for (unsigned int c = 0;c < grid.cellCount;++c) {
 				rhoOld[c]=grid.cell[c].rho;
@@ -171,30 +189,31 @@ int main (int argc, char *argv[]) {
 				grid.cell[c].p=pOld[c];
 			}
 		}
-		
+
 		if (input.section["equations"].strings["set"]=="NS") diff_flux(mu);
-				
+		*/
+			
 		update(dt,gamma);
-		
-		cout << timeStep << "\t" << setprecision(4) << scientific << time << "\t" << dt << endl;
+
+		if (rank==0) cout << timeStep << "\t" << setprecision(4) << scientific << time << "\t" << dt << endl;
 		time += dt;
 		if ((timeStep + 1) % outFreq == 0) {
 			string fileName;
-			fileName=get_filename("out",timeStep+1, "dat") ;
+			fileName=get_filename("out",timeStep+1,rank,"dat") ;
 			// Write tecplot output file
 			write_tec(fileName,time);
 		}
 	}
-	writeTecplotMacro(restart,timeStepMax, outFreq);
-*/
+	//writeTecplotMacro(restart,timeStepMax, outFreq);
+
 	MPI_Finalize();
 	return 0;
 }
 
 double minmod(double a, double b) {
-	if (a*b < 0 ) {
+	if ((a*b)<0) {
 		return 0.;
-	} else if ( fabs(a)<fabs(b)) {
+	} else if (fabs(a) <fabs(b)) {
 		return a;
 	} else {
 		return b;
@@ -202,9 +221,9 @@ double minmod(double a, double b) {
 }
 
 double maxmod(double a, double b) {
-	if (a*b < 0 ) {
+	if ((a*b)<0) {
 		return 0.;
-	} else if ( fabs(a)<fabs(b)) {
+	} else if (fabs(a) <fabs(b)) {
 		return b;
 	} else {
 		return a;
@@ -216,14 +235,14 @@ double superbee(double a, double b) {
 }
 
 bool within_box(Vec3D centroid, Vec3D box_1, Vec3D box_2) {
-	double tocorners_x=fabs(centroid.comp[0]-box_1.comp[0])+fabs(centroid.comp[0]-box_2.comp[0]);
-	double tocorners_y=fabs(centroid.comp[1]-box_1.comp[1])+fabs(centroid.comp[1]-box_2.comp[1]);
-	double tocorners_z=fabs(centroid.comp[2]-box_1.comp[2])+fabs(centroid.comp[2]-box_2.comp[2]);				
-	if (tocorners_x<=fabs(box_1.comp[0]-box_2.comp[0]) ) {
-		if (tocorners_y<=fabs(box_1.comp[1]-box_2.comp[1]) ) {
-			if (tocorners_z<=fabs(box_1.comp[2]-box_2.comp[2]) ) {
+	double tocorners_x=fabs(centroid.comp[0]-box_1.comp[0]) +fabs(centroid.comp[0]-box_2.comp[0]);
+	double tocorners_y=fabs(centroid.comp[1]-box_1.comp[1]) +fabs(centroid.comp[1]-box_2.comp[1]);
+	double tocorners_z=fabs(centroid.comp[2]-box_1.comp[2]) +fabs(centroid.comp[2]-box_2.comp[2]);
+	if (tocorners_x<=fabs(box_1.comp[0]-box_2.comp[0])) {
+		if (tocorners_y<=fabs(box_1.comp[1]-box_2.comp[1])) {
+			if (tocorners_z<=fabs(box_1.comp[2]-box_2.comp[2])) {
 				// The cell centroid is inside the box region
-				return true;						
+				return true;
 			}
 		}
 	}
@@ -231,8 +250,8 @@ bool within_box(Vec3D centroid, Vec3D box_1, Vec3D box_2) {
 }
 
 void update(double dt, double gamma) {
-	
-	double conservative[5];	
+
+	double conservative[5];
 	for (unsigned int c = 0;c < grid.cellCount;++c) {
 		conservative[0] = grid.cell[c].rho;
 		conservative[1] = grid.cell[c].rho * grid.cell[c].v.comp[0];
@@ -252,13 +271,16 @@ void update(double dt, double gamma) {
 	return;
 }
 
-string get_filename(string begin, int number, string ext) {
-	char dummy[12];				
+string get_filename(string begin, int number, int rank, string ext) {
+	char dummy[12];
 	// Print timeStep integer to character
 	sprintf(dummy, "%12d", number);
 	// Convert character to string and erase leading whitespaces
 	string fileName = dummy;
 	fileName.erase(0, fileName.rfind(" ", fileName.length()) + 1);
-	fileName = begin + fileName + "."  + ext;
+	sprintf(dummy, "%12d", rank);
+	string procName = dummy;
+	procName.erase(0, procName.rfind(" ", procName.length()) + 1);	
+	fileName = begin + fileName + "_" + procName + "."  + ext;
 	return fileName;
 }
