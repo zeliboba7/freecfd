@@ -24,7 +24,7 @@ void set_bcs(Grid& grid, InputFile &input, BC &bc) {
 				// if the face is not already marked as internal or partition boundary
 				// And if the face centroid falls within the defined box
 				if (grid.face[f].bc>=0 && within_box(grid.face[f].centroid,box_1,box_2)) {
-					grid.face[f].bc=b; // real boundary conditions are marked as negative
+					grid.face[f].bc=b; // real boundary conditions are marked as positive
 				}
 			}
 		}

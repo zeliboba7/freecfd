@@ -56,6 +56,9 @@ class Ghost {
 public:
 	unsigned int partition;
 	unsigned int globalId;
+	double rho;
+	Vec3D v;
+	double p;
 };
 
 class Grid {
