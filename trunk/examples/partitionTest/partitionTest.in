@@ -1,17 +1,16 @@
-equations {set=NS;}
+equations {set=Euler;}
 
 numericalOptions {order=first; limiter=superbee;}
 
-timeMarching {type=CFL; step=0.0001; CFL=0.5; numberOfSteps=10; outFreq=1000;}
+timeMarching {type=CFL; step=0.0001; CFL=0.5; numberOfSteps=1; outFreq=1;}
 
 initialConditions { 
-	region_1(type=box; box_1=[-1,-1,-1]; box_2=[10,10,10]; rho=1; v=[0,0,0]; p=1;);
+	region_1(type=box; box_1=[-1,-1,-1]; box_2=[0.5,2,2]; rho=2; v=[0,0,0]; p=2;);
+	region_2(type=box; box_1=[0.5,-1,-1]; box_2=[2,2,2]; rho=1; v=[0,0,0]; p=1;);
 }
 
 boundaryConditions { 
-	BC_1 (type=noslip; region=box; box_1=[-1,-1,-1]; box_2=[10,10,10];); 
-	BC_2 (type=inlet; region=box; box_1=[-1,-1,-1]; box_2=[0.001,1.001,1.001]; rho=1; v=[1,0,0]; p=1;);
-	BC_3 (type=outlet; region=box; box_1=[4.999,-1,-1]; box_2=[5.001,1.001,1.001];);
+	BC_1 (type=slip; region=box; box_1=[-1,-1,-1]; box_2=[10,10,10];); 
 }
 
 fluidProperties {gamma=1.4; viscosity(type=fixed; value=2E-5;);}
