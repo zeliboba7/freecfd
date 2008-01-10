@@ -349,10 +349,13 @@ int Grid::ReadCGNS() {
 	// Determine and mark faces adjacent to other partitions
 	// Create ghost elemets to hold the data from other partitions
 	ghostCount=0;
+	int foundFlag[globalCellCount];
+	for (unsigned int c=0; c<globalCellCount; ++c) foundFlag[c]=0;
+	
 	for (unsigned int f=0; f<faceCount; ++f) {
-		if (face[f].bc!=-1) { // if not an internal face
+		if (face[f].bc>=0) { // if not an internal face or if not found before as partition boundary
 			for (unsigned int c=0; c<globalCellCount; ++c) {
-				if (cellMap[c]!=rank) {
+				if (cellMap[c]!=rank && !foundFlag[c]) {
 					unsigned int matchCount=0;
 					for (unsigned int fn=0;fn<face[f].nodeCount;++fn) {
 						for (unsigned int cn=0;cn<elemNodeCount;++cn) {
@@ -360,11 +363,12 @@ int Grid::ReadCGNS() {
 						}
 					}
 					if (matchCount==face[f].nodeCount) {
+						foundFlag[c]=1;
 						Ghost temp;
 						temp.partition=cellMap[c];
 						temp.globalId=c;
 						ghost.push_back(temp);
-						face[f].bc=ghostCount;
+						face[f].bc=-1*ghostCount-2;
 						++ghostCount;
 						break;
 					}

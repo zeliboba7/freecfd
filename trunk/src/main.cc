@@ -58,26 +58,28 @@ int main(int argc, char *argv[]) {
 	InputFile input(inputFileName);
 	read_inputs(input);
 	grid.read(gridFileName);
-
+	
 	int maxGhost=grid.globalCellCount/np*2;
 	
-	unsigned int ghostRequest[np][maxGhost];
-	
-	for (unsigned int p=0;p<np;++p) {
-		ghostRequest[p][0]=0;
-	}
+	unsigned int ghosts2receive[np][maxGhost],ghosts2send[np][maxGhost];
 
+	for (unsigned int p=0;p<np;++p) {
+		ghosts2receive[p][0]=0;
+	}
+	
 	for (unsigned int g=0; g<grid.ghostCount; ++g) {
-		int p=grid.ghost[g].partition;
-		ghostRequest[p][ghostRequest[p][0]]=grid.ghost[g].globalId;
-		++ghostRequest[p][0];
-	}
-	
-	for (unsigned int p=0;p<np;++p) {
-		//MPI_AlltoAllv(ghostRequest,maxGhost,MPI_UNSIGNED,p,0,MPI_COMM_WORLD);
+		unsigned int p=grid.ghost[g].partition;
+		ghosts2receive[p][ghosts2receive[p][0]+1]=grid.ghost[g].globalId;
+		++ghosts2receive[p][0];
 	}
 
+	//if (rank==0) for (int p=0;p<np;++p) for (int g=0;g<ghosts2receive[p][0];++g) cout << p << "\t" << ghosts2receive[p][0] << "\t" << ghosts2receive[p][g+1] << endl;
 	
+	for (unsigned int p=0;p<np;++p) {
+		MPI_Alltoall(ghosts2receive,maxGhost,MPI_UNSIGNED,ghosts2send,maxGhost,MPI_UNSIGNED,MPI_COMM_WORLD);
+	}
+
+	//if (rank==0) for (int p=0;p<np;++p) for (int g=0;g<ghosts2send[p][0];++g) cout << p << "\t" << ghosts2send[p][0] << "\t" << ghosts2send[p][g+1] << endl;
 	
 	initialize(grid,input);
 	//cout << "* Applied initial conditions" << endl;
@@ -165,6 +167,7 @@ int main(int argc, char *argv[]) {
 		}
 		//if (input.section["numericalOptions"].strings["order"]=="first") {
 			fou(gamma);
+		
 			//if (input.section["equations"].strings["set"]=="NS") grid.gradients();
 			/*
 		} else {
@@ -203,6 +206,7 @@ int main(int argc, char *argv[]) {
 			// Write tecplot output file
 			write_tec(fileName,time);
 		}
+	
 	}
 	//writeTecplotMacro(restart,timeStepMax, outFreq);
 
