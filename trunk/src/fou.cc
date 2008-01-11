@@ -52,7 +52,12 @@ void fou(double gamma) {
 			rhoR=grid.cell[neighbor].rho;
 			pR=grid.cell[neighbor].p;
 		} else { // partition boundary 
-			rhoR=rhoL; uNR=uNL; vTR=vTL; wTR=wTL; pR=pL; // temporary
+			int g=-1*grid.face[f].bc-2;
+			rhoR=grid.ghost[g].rho;
+			uNR=grid.ghost[g].v.dot(grid.face[f].normal);
+			vTR=grid.ghost[g].v.dot(faceTangent1);
+			wTR=grid.ghost[g].v.dot(faceTangent2);
+			pR=grid.ghost[g].p;
 		}
 		
 		if (grid.face[f].bc>=0 && (bc.region[grid.face[f].bc].type=="outlet" | bc.region[grid.face[f].bc].type=="inlet")) {
@@ -61,7 +66,7 @@ void fou(double gamma) {
 			fluxNormal[2]=rhoR*uNR*vTR;
 			fluxNormal[3]=rhoR*uNR*wTR;
 			fluxNormal[4]=uNR* (0.5*rhoR* (uNR*uNR+vTR*vTR+wTR*wTR) +pR/ (gamma - 1.) +pR);
-		} else if (grid.face[f].bc==-1 ) {
+		} else {
 			qL[0]=rhoL;
 			qL[1]=qL[0] * uNL;
 			qL[2]=qL[0] * vTL;
@@ -75,13 +80,7 @@ void fou(double gamma) {
 			qR[4] = 0.5*qR[0]* (uNR*uNR+vTR*vTR+wTR*wTR) +pR/ (gamma - 1.);
 
 			RoeFlux(gamma, qL, qR, fluxNormal);
-		} else { // partition boundary 
-			fluxNormal[0]=rhoR*uNR; 
-			fluxNormal[1]=rhoR*uNR*uNR+pR;
-			fluxNormal[2]=rhoR*uNR*vTR;
-			fluxNormal[3]=rhoR*uNR*wTR;
-			fluxNormal[4]=uNR* (0.5*rhoR* (uNR*uNR+vTR*vTR+wTR*wTR) +pR/ (gamma - 1.) +pR);
-		}
+		} 
 
 
 		flux[0] = fluxNormal[0]*grid.face[f].area;

@@ -143,9 +143,73 @@ int main(int argc, char *argv[]) {
 
 	//cout << "* Beginning time loop" << endl;
 
+	struct mpiGhost {
+		unsigned int partition,globalId;
+		double vars[5];
+	};
+	
+	int array_of_block_lengths[2]={2,5};
+	int extent;
+	MPI_Type_extent(MPI_UNSIGNED,&extent);
+	MPI_Aint array_of_displacements[2]={0,2*extent};
+	MPI_Datatype array_of_types[2]={MPI_UNSIGNED,MPI_DOUBLE};
+	MPI_Datatype MPI_GHOST;
+	MPI_Type_struct(2,array_of_block_lengths,array_of_displacements,array_of_types,&MPI_GHOST);
+	MPI_Type_commit(&MPI_GHOST);
+	MPI_Status status;
+	
+	// Need a conversion map from globalId to local index
+	unsigned int global2local[grid.globalCellCount];
+	for (unsigned int c=0;c<grid.cellCount;++c) {
+		global2local[grid.cell[c].globalId]=c;
+	}
+	for (unsigned int g=0;g<grid.ghostCount;++g) {
+		global2local[grid.ghost[g].globalId]=g;
+	}
 	// Begin time loop
 	for (int timeStep = restart;timeStep < input.section["timeMarching"].ints["numberOfSteps"]+restart;++timeStep) {
-
+		
+		for (unsigned int p=0;p<np;++p) {
+			if (rank!=p) {
+				mpiGhost sendBuffer[ghosts2send[p][0]];
+				//mpiGhost recvBuffer[ghosts2receive[p][0]];
+				int id;
+				for (unsigned int g=0;g<ghosts2send[p][0];++g) {
+					id=global2local[ghosts2send[p][g+1]];
+					sendBuffer[g].partition=rank;
+					sendBuffer[g].globalId=grid.cell[id].globalId;
+					sendBuffer[g].vars[0]=grid.cell[id].rho;
+					sendBuffer[g].vars[1]=grid.cell[id].v.comp[0];
+					sendBuffer[g].vars[2]=grid.cell[id].v.comp[1];
+					sendBuffer[g].vars[3]=grid.cell[id].v.comp[2];
+					sendBuffer[g].vars[4]=grid.cell[id].p;
+				}
+				//if (rank==1) cout << sendBuffer[2].globalId << "\t" << sendBuffer[2].vars[0] << "\t" << sendBuffer[2].vars[4] << endl;
+				int tag=rank; // tag is set to source
+				//MPI_Sendrecv(sendBuffer,ghosts2send[p][0],MPI_GHOST,p,tag,recvBuffer,ghosts2receive[p][0],MPI_GHOST,rank,p,MPI_COMM_WORLD,&status);
+				MPI_Send(sendBuffer,ghosts2send[p][0],MPI_GHOST,p,tag,MPI_COMM_WORLD);
+				//if (rank==0)
+			}
+		}
+		for (unsigned int p=0;p<np;++p) {
+			if (rank!=p) {
+				mpiGhost recvBuffer[ghosts2receive[p][0]];
+				int tag=p; // again tag is set to source
+				MPI_Recv(recvBuffer,ghosts2receive[p][0],MPI_GHOST,p,tag,MPI_COMM_WORLD,&status);
+				int id;
+				for (unsigned int g=0;g<ghosts2receive[p][0];++g) {
+					id=global2local[recvBuffer[g].globalId];
+					grid.ghost[id].partition=recvBuffer[g].partition;
+					grid.ghost[id].globalId=recvBuffer[g].globalId;
+					grid.ghost[id].rho=recvBuffer[g].vars[0];
+					grid.ghost[id].v.comp[0]=recvBuffer[g].vars[1];
+					grid.ghost[id].v.comp[1]=recvBuffer[g].vars[2];
+					grid.ghost[id].v.comp[2]=recvBuffer[g].vars[3];
+					grid.ghost[id].p=recvBuffer[g].vars[4];
+				}
+			}
+		}
+		/*
 		if (input.section["timeMarching"].strings["type"]=="CFL") {
 			// Determine time step with CFL condition
 			double cellScaleX, cellScaleY, cellScaleZ;
@@ -165,6 +229,7 @@ int main(int argc, char *argv[]) {
 				dt=min(dt,CFL*cellScaleZ/(fabs(grid.cell[c].v.comp[2])+a));
 			}
 		}
+		*/
 		//if (input.section["numericalOptions"].strings["order"]=="first") {
 			fou(gamma);
 		
@@ -198,7 +263,7 @@ int main(int argc, char *argv[]) {
 			
 		update(dt,gamma);
 
-		if (rank==0) cout << timeStep << "\t" << setprecision(4) << scientific << time << "\t" << dt << endl;
+		//if (rank==0) cout << timeStep << "\t" << setprecision(4) << scientific << time << "\t" << dt << endl;
 		time += dt;
 		if ((timeStep + 1) % outFreq == 0) {
 			string fileName;
