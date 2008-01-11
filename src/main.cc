@@ -209,7 +209,7 @@ int main(int argc, char *argv[]) {
 				}
 			}
 		}
-		/*
+		
 		if (input.section["timeMarching"].strings["type"]=="CFL") {
 			// Determine time step with CFL condition
 			double cellScaleX, cellScaleY, cellScaleZ;
@@ -228,10 +228,11 @@ int main(int argc, char *argv[]) {
 				dt=min(dt,CFL*cellScaleY/(fabs(grid.cell[c].v.comp[1])+a));
 				dt=min(dt,CFL*cellScaleZ/(fabs(grid.cell[c].v.comp[2])+a));
 			}
+			MPI_Allreduce(&dt,&dt,1, MPI_DOUBLE,MPI_MIN,MPI_COMM_WORLD);
 		}
-		*/
+		
 		//if (input.section["numericalOptions"].strings["order"]=="first") {
-			fou(gamma);
+		fou(gamma);
 		
 			//if (input.section["equations"].strings["set"]=="NS") grid.gradients();
 			/*
@@ -263,7 +264,7 @@ int main(int argc, char *argv[]) {
 			
 		update(dt,gamma);
 
-		//if (rank==0) cout << timeStep << "\t" << setprecision(4) << scientific << time << "\t" << dt << endl;
+		if (rank==0) cout << timeStep << "\t" << setprecision(4) << scientific << time << "\t" << dt << endl;
 		time += dt;
 		if ((timeStep + 1) % outFreq == 0) {
 			string fileName;
