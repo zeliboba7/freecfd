@@ -10,10 +10,8 @@ initialConditions {
 }
 
 boundaryConditions { 
-	BC_1 (type=slip; region=gridFile;); 
-	BC_2 (type=slip; region=gridFile;); 
-	BC_3 (type=outlet; region=gridFile;); 
-	BC_4 (type=outlet; region=gridFile;); 
+	BC_1 (type=slip; region=box; box_1=[-1,-1,-1]; box_2=[2,2,2]); 
+	BC_2 (type=outlet; region=box; box_1=[1.75,0.001,-1]; box_2=[2,2,2]); 
 }
 
 fluidProperties {gamma=1.4; viscosity(type=fixed; value=2E-2;);}
