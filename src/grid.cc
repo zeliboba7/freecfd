@@ -352,6 +352,8 @@ int Grid::ReadCGNS() {
 	int foundFlag[globalCellCount];
 	for (unsigned int c=0; c<globalCellCount; ++c) foundFlag[c]=0;
 	
+	//sendList.resize(np);receiveList.resize(np);
+	
 	for (unsigned int f=0; f<faceCount; ++f) {
 		if (face[f].bc>=0) { // if not an internal face or if not found before as partition boundary
 			for (unsigned int c=0; c<globalCellCount; ++c) {
