@@ -166,6 +166,11 @@ int main(int argc, char *argv[]) {
 	for (unsigned int g=0;g<grid.ghostCount;++g) {
 		global2local[grid.ghost[g].globalId]=g;
 	}
+	
+	MPI_Barrier(MPI_COMM_WORLD);
+	double timeRef, timeEnd;
+	timeRef=MPI_Wtime();
+	
 	// Begin time loop
 	for (int timeStep = restart;timeStep < input.section["timeMarching"].ints["numberOfSteps"]+restart;++timeStep) {
 		
@@ -275,7 +280,14 @@ int main(int argc, char *argv[]) {
 	
 	}
 	//writeTecplotMacro(restart,timeStepMax, outFreq);
+	// Syncronize the processors
+	MPI_Barrier(MPI_COMM_WORLD);
 
+	// Report the wall time
+	if (rank==0) {
+		timeEnd=MPI_Wtime();
+		cout << "* Wall time: " << timeEnd-timeRef << " seconds" << endl;
+	}
 	MPI_Finalize();
 	return 0;
 }
