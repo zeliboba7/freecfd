@@ -39,6 +39,24 @@ void initialize(Grid &grid, InputFile &input) {
 					grid.cell[c].p = region.doubles[r]["p"];
 				}
 			}
+		} else if (region.strings[r]["type"]=="sphere") {
+			double radius=region.doubles[r]["radius"];
+			Vec3D center=region.Vec3Ds[r]["center"];
+			Vec3D center2cell,center2cellUnit;
+			Vec3D unitX, unitY, unitZ;
+			unitX.comp[0]=1.; unitX.comp[1]=0.;unitX.comp[2]=0.;
+			unitY.comp[1]=0.; unitY.comp[1]=1.;unitY.comp[2]=0.;
+			unitZ.comp[2]=0.; unitZ.comp[1]=0.;unitZ.comp[2]=1.;			
+			for (unsigned int c = 0;c < grid.cellCount;++c) {
+				center2cell= grid.cell[c].centroid-center;
+				center2cellUnit=center2cell/fabs(center2cell);
+				if (fabs(center2cell) <=radius) {
+					// The cell centroid is inside the box region
+					grid.cell[c].rho = region.doubles[r]["rho"];
+					grid.cell[c].v = region.Vec3Ds[r]["v"].comp[0]*center2cellUnit;
+					grid.cell[c].p = region.doubles[r]["p"];
+				}
+			}
 		}
 	}
 

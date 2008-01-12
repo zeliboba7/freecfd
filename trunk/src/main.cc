@@ -59,6 +59,9 @@ int main(int argc, char *argv[]) {
 	read_inputs(input);
 	grid.read(gridFileName);
 	
+	
+	// We want to move this to grid.cc cause we already do this search
+	//TODO There may be no need for communication
 	int maxGhost=grid.globalCellCount/np*2;
 	
 	unsigned int ghosts2receive[np][maxGhost],ghosts2send[np][maxGhost];
@@ -149,7 +152,7 @@ int main(int argc, char *argv[]) {
 	};
 	
 	int array_of_block_lengths[2]={2,5};
-	int extent;
+	MPI_Aint extent;
 	MPI_Type_extent(MPI_UNSIGNED,&extent);
 	MPI_Aint array_of_displacements[2]={0,2*extent};
 	MPI_Datatype array_of_types[2]={MPI_UNSIGNED,MPI_DOUBLE};
@@ -179,12 +182,12 @@ int main(int argc, char *argv[]) {
 				mpiGhost sendBuffer[ghosts2send[p][0]];
 				//mpiGhost recvBuffer[ghosts2receive[p][0]];
 				int id;
-				for (unsigned int g=0;g<ghosts2send[p][0];++g) {
+				for (unsigned int g=0;g<ghosts2send[p][0];++g)	{
 					id=global2local[ghosts2send[p][g+1]];
 					sendBuffer[g].partition=rank;
 					sendBuffer[g].globalId=grid.cell[id].globalId;
 					sendBuffer[g].vars[0]=grid.cell[id].rho;
-					sendBuffer[g].vars[1]=grid.cell[id].v.comp[0];
+					sendBuffer[g].vars[ 1]=grid.cell[id].v.comp[0];
 					sendBuffer[g].vars[2]=grid.cell[id].v.comp[1];
 					sendBuffer[g].vars[3]=grid.cell[id].v.comp[2];
 					sendBuffer[g].vars[4]=grid.cell[id].p;
