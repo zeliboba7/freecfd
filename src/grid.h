@@ -47,7 +47,7 @@ public:
 	double flux[5];
 	Cell(void);
 	int Construct(const ElementType_t elemType,unsigned int nodeList[]);
-	int HaveNodes(unsigned int &nodelistsize, unsigned int nodelist[]);
+	bool HaveNodes(unsigned int &nodelistsize, unsigned int nodelist[]) ;
 	Node& node(int n);
 	Face& face(int f);
 };

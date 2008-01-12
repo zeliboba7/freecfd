@@ -221,16 +221,17 @@ int Grid::ReadCGNS() {
 		}
 	}
 
+	cout << "* Processor " << rank << " has created its cells and nodes" << endl;
+	
 	//XXX Delete the stuff we created that is no longer needed by ParMetis
 	// delete[] somestuffwedontneed;
-
 
 	// Construct the list of cells for each node
 	int flag;
 	for (unsigned int c=0;c<cellCount;++c) {
 		int n;
-		for (unsigned int nc=0;nc<cell[c].nodeCount;++nc) {
-			n=cell[c].nodes[nc];
+		for (unsigned int cn=0;cn<cell[c].nodeCount;++cn) {
+			n=cell[c].nodes[cn];
 			flag=0;
 			for (unsigned int i=0;i<node[n].cells.size();++i) {
 				if (node[n].cells[i]==c) {
@@ -244,6 +245,8 @@ int Grid::ReadCGNS() {
 		}
 	}
 
+	cout << "* Processor " << rank << " has computed its node-cell connectivity" << endl;
+	
 	// Set face connectivity lists
 	int hexaFaces[6][4]= {
 		{0,3,2,1},
@@ -272,14 +275,18 @@ int Grid::ReadCGNS() {
 
 	// Search and construct faces
 	faceCount=0;
-	unsigned int *tempNodes;
+
 	int boundaryFaceCount=0;
 	// Loop through all the cells
 
+	double timeRef, timeEnd;
+	if (rank==0) timeRef=MPI_Wtime();
+	
 	for (unsigned int c=0;c<cellCount;++c) {
 		// Loop through the faces of the current cell
 		for (unsigned int cf=0;cf<cell[c].faceCount;++cf) {
 			Face tempFace;
+			unsigned int *tempNodes;
 			switch (elemType) {
 				case TETRA_4:
 					tempFace.nodeCount=3;
@@ -305,7 +312,7 @@ int Grid::ReadCGNS() {
 			// Assign boundary type as internal by default, will be overwritten later
 			tempFace.bc=-1;
 			// Store the nodes of the current face
-			if (faceCount==face.capacity()) face.reserve(int (face.size() *0.10) +face.size()) ;
+			//if (faceCount==face.capacity()) face.reserve(int (face.size() *0.10) +face.size()) ; //TODO check how the size grows by default
 
 			for (unsigned int fn=0;fn<tempFace.nodeCount;++fn) {
 				switch (elemType) {
@@ -313,7 +320,7 @@ int Grid::ReadCGNS() {
 					case PENTA_6: tempNodes[fn]=cell[c].node(prismFaces[cf][fn]).id; break;
 					case HEXA_8: tempNodes[fn]=cell[c].node(hexaFaces[cf][fn]).id; break;
 				}
-				tempFace.nodes.push_back(tempNodes[fn]);
+				//tempFace.nodes.push_back(tempNodes[fn]); // FIXME I think this is unnecessary
 			}
 			// Find the neighbor cell
 			bool internal=false;
@@ -340,45 +347,54 @@ int Grid::ReadCGNS() {
 				if (internal) cell[tempFace.neighbor].faces.push_back(tempFace.id);
 				++faceCount;
 			}
-
+			delete [] tempNodes;
 		} //for face cf
 	} // for cells c
-	//cout << "* Number of Faces: " << faceCount << endl;
-	//cout << "* Number of Faces at Boundaries: " << boundaryFaceCount << endl;
 
+	cout << "* Processor " << rank << " has " << faceCount << " faces, " << boundaryFaceCount << " are on boundaries" << endl;
+	
+	if (rank==0) {
+		timeEnd=MPI_Wtime();
+		cout << "* Processor took " << timeEnd-timeRef << " sec to find its faces" << endl;
+	}
+	
 	// Determine and mark faces adjacent to other partitions
 	// Create ghost elemets to hold the data from other partitions
 	ghostCount=0;
-	int foundFlag[globalCellCount];
-	for (unsigned int c=0; c<globalCellCount; ++c) foundFlag[c]=0;
 	
-	//sendList.resize(np);receiveList.resize(np);
+	if (np!=1) {
 	
-	for (unsigned int f=0; f<faceCount; ++f) {
-		if (face[f].bc>=0) { // if not an internal face or if not found before as partition boundary
-			for (unsigned int c=0; c<globalCellCount; ++c) {
-				if (cellMap[c]!=rank && !foundFlag[c]) {
-					unsigned int matchCount=0;
-					for (unsigned int fn=0;fn<face[f].nodeCount;++fn) {
-						for (unsigned int cn=0;cn<elemNodeCount;++cn) {
-							if ((elemNodes[c][cn]-1) ==face[f].node(fn).globalId) ++matchCount;
+		int foundFlag[globalCellCount];
+		for (unsigned int c=0; c<globalCellCount; ++c) foundFlag[c]=0;
+	
+		for (unsigned int f=0; f<faceCount; ++f) {
+			if (face[f].bc>=0) { // if not an internal face or if not found before as partition boundary
+				for (unsigned int c=0; c<globalCellCount; ++c) { //TODO mesh2dual could narrow this search significantly
+					if (cellMap[c]!=rank && !foundFlag[c]) {
+						unsigned int matchCount=0;
+						for (unsigned int fn=0;fn<face[f].nodeCount;++fn) {
+							for (unsigned int cn=0;cn<elemNodeCount;++cn) {
+								if ((elemNodes[c][cn]-1) ==face[f].node(fn).globalId) ++matchCount;
+							}
 						}
-					}
-					if (matchCount==face[f].nodeCount) {
-						foundFlag[c]=1;
-						Ghost temp;
-						temp.partition=cellMap[c];
-						temp.globalId=c;
-						ghost.push_back(temp);
-						face[f].bc=-1*ghostCount-2;
-						++ghostCount;
-						break;
+						if (matchCount==face[f].nodeCount) {
+							foundFlag[c]=1;
+							Ghost temp;
+							temp.partition=cellMap[c];
+							temp.globalId=c;
+							ghost.push_back(temp);
+							face[f].bc=-1*ghostCount-2;
+							++ghostCount;
+							break;
+						}
 					}
 				}
 			}
 		}
 	}
-
+	
+	cout << "* Processor " << rank << " has " << ghostCount << " ghost cells at partition boundaries" << endl;
+	
 	/*
 		for (section=1; section<sectionCount; ++section) {
 			cg_section_read(fileIndex,baseIndex,zoneIndex,section+1,sectionName,&elemType,&elemStart,&elemEnd,&nBndCells,&parentFlag);
@@ -514,17 +530,16 @@ int Cell::Construct(const ElementType_t elemType, unsigned int nodeList[]) {
 	}
 }
 
-int Cell::HaveNodes(unsigned int &nodelistsize, unsigned int nodelist []) {
-
-	unsigned int matchCount=0;
-	for (unsigned int i=0;i<nodelistsize;++i) {
-		for (unsigned int j=0;j<nodeCount;++j) {
-			if (nodelist[i]==node(j).id) ++matchCount;
-			if (matchCount==nodelistsize) return 1;
+bool Cell::HaveNodes(unsigned int &nodelistsize, unsigned int nodelist []) {
+	unsigned int matchCount=0,nodeId;
+	for (unsigned int j=0;j<nodeCount;++j) {
+		nodeId=node(j).id;
+		for (unsigned int i=0;i<nodelistsize;++i) {
+			if (nodelist[i]==nodeId) ++matchCount;
+			if (matchCount==3) return true;
 		}
 	}
-
-	return 0;
+	return false;
 }
 
 int Grid::face_exists(int &parentCell) {
