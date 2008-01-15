@@ -159,7 +159,6 @@ int main(int argc, char *argv[]) {
 	MPI_Datatype MPI_GHOST;
 	MPI_Type_struct(2,array_of_block_lengths,array_of_displacements,array_of_types,&MPI_GHOST);
 	MPI_Type_commit(&MPI_GHOST);
-	MPI_Status status;
 	
 	// Need a conversion map from globalId to local index
 	unsigned int global2local[grid.globalCellCount];
@@ -176,29 +175,43 @@ int main(int argc, char *argv[]) {
 	
 	// Begin time loop
 	for (int timeStep = restart;timeStep < input.section["timeMarching"].ints["numberOfSteps"]+restart;++timeStep) {
-		
+
 		for (unsigned int p=0;p<np;++p) {
 			if (rank!=p) {
 				mpiGhost sendBuffer[ghosts2send[p][0]];
-				//mpiGhost recvBuffer[ghosts2receive[p][0]];
+				mpiGhost recvBuffer[ghosts2receive[p][0]];
 				int id;
 				for (unsigned int g=0;g<ghosts2send[p][0];++g)	{
 					id=global2local[ghosts2send[p][g+1]];
 					sendBuffer[g].partition=rank;
 					sendBuffer[g].globalId=grid.cell[id].globalId;
 					sendBuffer[g].vars[0]=grid.cell[id].rho;
-					sendBuffer[g].vars[ 1]=grid.cell[id].v.comp[0];
+					sendBuffer[g].vars[1]=grid.cell[id].v.comp[0];
 					sendBuffer[g].vars[2]=grid.cell[id].v.comp[1];
 					sendBuffer[g].vars[3]=grid.cell[id].v.comp[2];
 					sendBuffer[g].vars[4]=grid.cell[id].p;
 				}
 				//if (rank==1) cout << sendBuffer[2].globalId << "\t" << sendBuffer[2].vars[0] << "\t" << sendBuffer[2].vars[4] << endl;
 				int tag=rank; // tag is set to source
-				//MPI_Sendrecv(sendBuffer,ghosts2send[p][0],MPI_GHOST,p,tag,recvBuffer,ghosts2receive[p][0],MPI_GHOST,rank,p,MPI_COMM_WORLD,&status);
-				MPI_Send(sendBuffer,ghosts2send[p][0],MPI_GHOST,p,tag,MPI_COMM_WORLD);
-				//if (rank==0)
+				//sendbuf, sendcount, sendtype, dest, sendtag, recvbuf, recvcount, recvtype, source, recvtag, comm, status
+				MPI_Sendrecv(sendBuffer,ghosts2send[p][0],MPI_GHOST,p,0,recvBuffer,ghosts2receive[p][0],MPI_GHOST,p,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+		
+				for (unsigned int g=0;g<ghosts2receive[p][0];++g) {
+					id=global2local[recvBuffer[g].globalId];
+					grid.ghost[id].partition=recvBuffer[g].partition;
+					grid.ghost[id].globalId=recvBuffer[g].globalId;
+					grid.ghost[id].rho=recvBuffer[g].vars[0];
+					grid.ghost[id].v.comp[0]=recvBuffer[g].vars[1];
+					grid.ghost[id].v.comp[1]=recvBuffer[g].vars[2];
+					grid.ghost[id].v.comp[2]=recvBuffer[g].vars[3];
+					grid.ghost[id].p=recvBuffer[g].vars[4];
+				}
+				
+				//MPI_Send(sendBuffer,ghosts2send[p][0],MPI_GHOST,p,tag,MPI_COMM_WORLD);
 			}
 		}
+
+		/*
 		for (unsigned int p=0;p<np;++p) {
 			if (rank!=p) {
 				mpiGhost recvBuffer[ghosts2receive[p][0]];
@@ -217,7 +230,8 @@ int main(int argc, char *argv[]) {
 				}
 			}
 		}
-		
+		*/
+
 		if (input.section["timeMarching"].strings["type"]=="CFL") {
 			// Determine time step with CFL condition
 			double cellScaleX, cellScaleY, cellScaleZ;
