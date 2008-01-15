@@ -2,6 +2,7 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
+#include <map>
 #include <iomanip>
 using namespace std;
 #include<cmath>
@@ -190,21 +191,7 @@ int Grid::ReadCGNS() {
 		if (cellMap[c]==rank) ++cellCount;
 	}
 	cout << "* Processor " << rank << " has " << cellCount << " cells" << endl;
-	
-	// Now find the localCellMap ... this returns the globalID
-	index=0;
-	int localCellMap[cellCount];
-	for (unsigned int c=0;c<globalCellCount;++c) {
-		if (cellMap[c]==rank){
-			localCellMap[index]=c;
-			++index;				
-		} 
-		if (index==cellCount) break;	
-	}
 		
-	
-
-
 	node.reserve(nodeCount/np);
 	face.reserve(cellCount);
 	cell.reserve(cellCount);
@@ -242,7 +229,6 @@ int Grid::ReadCGNS() {
 		}
 	}
 
-
 	cout << "* Processor " << rank << " has created its cells and nodes" << endl;
 
 	//Create the Mesh2Dual inputs
@@ -259,16 +245,13 @@ int Grid::ReadCGNS() {
 	for (unsigned int c=1; c<=cellCount;++c) eptr[c]=eptr[c-1]+elemNodeCount;
 	index=0;
 	for (unsigned int c=0; c<cellCount;c++){
-		for (unsigned int cn=0; cn<elemNodeCount; ++cn) {
-			eind[index]=elemNodes[localCellMap[c]][cn]-1;	
+		for (unsigned int cn=0; cn<cell[c].nodeCount; ++cn) {
+			eind[index]=cell[c].node(cn).globalId;
 			++index;
 		}	
 	}
 	
-	
 	ParMETIS_V3_Mesh2Dual(elmdist, eptr, eind, &numflag, &ncommonnodes, &xadj, &adjncy, &commWorld);
-	cout << rank << "rank" << "xadj" << xadj[0] << " " << xadj[1] << " " << xadj[2] << xadj[3] << endl;  
-	//End of Mesh2dual	
 
 	// Construct the list of cells for each node
 	int flag;
@@ -407,34 +390,84 @@ int Grid::ReadCGNS() {
 	ghostCount=0;
 	
 	if (np!=1) {
-	
-		int foundFlag[globalCellCount];
-		for (unsigned int c=0; c<globalCellCount; ++c) foundFlag[c]=0;
-	
+		int counter=0;
+		int cellCountOffset[np];
+		
+		for (unsigned int p=0;p<np;++p) {
+			cellCountOffset[p]=counter;
+			counter+=otherCellCounts[p];
+		}
+		
+		// Now find the metis2global mapping
+		index=0;
+		int metis2global[globalCellCount];
+		int counter2[np];
+		for (unsigned int p=0;p<np;++p) counter2[p]=0;
+		for (unsigned int c=0;c<globalCellCount;++c) {
+			metis2global[cellCountOffset[cellMap[c]]+counter2[cellMap[c]]]=c;
+			counter2[cellMap[c]]++;
+		}
+
+		bool foundFlag[globalCellCount];
+		for (unsigned int c=0; c<globalCellCount; ++c) foundFlag[c]=false;
+
+		unsigned int parent, metisIndex, gg, matchCount;
+		map<unsigned int,unsigned int> ghostGlobal2local;
 		for (unsigned int f=0; f<faceCount; ++f) {
 			if (face[f].bc>=0) { // if not an internal face or if not found before as partition boundary
-				for (unsigned int c=0; c<globalCellCount; ++c) { //TODO mesh2dual could narrow this search significantly
-					if (cellMap[c]!=rank && !foundFlag[c]) {
-						unsigned int matchCount=0;
-						for (unsigned int fn=0;fn<face[f].nodeCount;++fn) {
-							for (unsigned int cn=0;cn<elemNodeCount;++cn) {
-								if ((elemNodes[c][cn]-1) ==face[f].node(fn).globalId) ++matchCount;
+				parent=face[f].parent;
+				for (unsigned int adjCount=0;adjCount<(xadj[parent+1]-xadj[parent]);++adjCount)  {
+					metisIndex=adjncy[xadj[parent]+adjCount];
+					gg=metis2global[metisIndex];
+
+						if (metisIndex<cellCountOffset[rank] || metisIndex>=(cellCount+cellCountOffset[rank])) {
+							matchCount=0;
+							for (unsigned int fn=0;fn<face[f].nodeCount;++fn) {
+								for (unsigned int gn=0;gn<elemNodeCount;++gn) {
+									if ((elemNodes[gg][gn]-1)==face[f].node(fn).globalId) ++matchCount;
+								}
+							}
+							if (matchCount==face[f].nodeCount) {
+								if (!foundFlag[gg]) {
+									foundFlag[gg]=true;
+									Ghost temp;
+									temp.globalId=gg;
+									temp.partition=cellMap[gg];
+									ghost.push_back(temp);
+									face[f].bc=-1*ghostCount-2;
+									ghostGlobal2local.insert(pair<unsigned int,unsigned int>(gg,ghostCount));
+									++ghostCount;
+								}
+								face[f].bc=-1*ghostGlobal2local[gg]-2;
+								break;
 							}
 						}
-						if (matchCount==face[f].nodeCount) {
-							foundFlag[c]=1;
-							Ghost temp;
-							temp.partition=cellMap[c];
-							temp.globalId=c;
-							ghost.push_back(temp);
-							face[f].bc=-1*ghostCount-2;
-							++ghostCount;
-							break;
-						}
-					}
+					
 				}
 			}
 		}
+				
+//  				for (unsigned int c=0; c<globalCellCount; ++c) { //TODO mesh2dual could narrow this search significantly
+//  					if (cellMap[c]!=rank && !foundFlag[c]) {
+//  						unsigned int matchCount=0;
+//  						for (unsigned int fn=0;fn<face[f].nodeCount;++fn) {
+//  							for (unsigned int cn=0;cn<elemNodeCount;++cn) {
+//  								if ((elemNodes[c][cn]-1) ==face[f].node(fn).globalId) ++matchCount;
+//  							}
+//  						}
+//  						if (matchCount==face[f].nodeCount) {
+//  							foundFlag[c]=1;
+//  							Ghost temp;
+//  							temp.partition=cellMap[c];
+//  							temp.globalId=c;
+//  							ghost.push_back(temp);
+//  							face[f].bc=-1*ghostCount-2;
+//  							++ghostCount;
+//  							break;
+//  						}
+//  					}
+//  				}
+
 	}
 	
 	cout << "* Processor " << rank << " has " << ghostCount << " ghost cells at partition boundaries" << endl;
