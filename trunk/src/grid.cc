@@ -111,11 +111,11 @@ int Grid::ReadCGNS() {
 	elmwgt- null (element weights)
 	wgtflag- 0 (no weights, can take value of 0,1,2,3 see documentation)
 	numflag- 0 C-style numbers, 1 Fortran-style numbers
-	ncon- 0 ( # of constraints)
+	ncon- 1  ( # of constraints)
 	ncommonnodes- 4 ( we can probably put this to 3)
 	nparts- # of processors (Note: BE CAREFUL if != to # of proc)
-	tpwgts- null
-	ubvec- null (balancing constraints,if needed 1.05 is a good value)
+	tpwgts- 
+	ubvec-  (balancing constraints,if needed 1.05 is a good value)
 	options- [0 1 15] for default
 	edgecut- output, # of edges cut (measure of communication)
 	part- output, where our elements should be
@@ -123,9 +123,10 @@ int Grid::ReadCGNS() {
 	*/
 
 	idxtype elmdist[np + 1];
-	idxtype eptr[cellCount+1];
-
-	idxtype eind[cellCount*elemNodeCount];
+	idxtype *eptr;
+	eptr = new idxtype[cellCount+1];
+	idxtype *eind;
+	eind = new idxtype[cellCount*elemNodeCount];
 
 	idxtype* elmwgt = NULL;
 	int wgtflag=0; // no weights associated with elem or edges
@@ -163,6 +164,8 @@ int Grid::ReadCGNS() {
 	                         &np, tpwgts, &ubvec, options, &edgecut,
 	                         part,&commWorld) ;
 
+	delete[] eptr;
+	delete[] eind;
 
 	// Distribute the part list to each proc
 	// Each proc has an array of length globalCellCount which says the processor number that cell belongs to [cellMap]
@@ -174,15 +177,33 @@ int Grid::ReadCGNS() {
 	}
 	recvCounts[np-1]=baseCellCount+globalCellCount-np*baseCellCount;
 	int cellMap[globalCellCount];
-
+	//cellMap of a cell returns which processor it is assigned to
 	MPI_Allgatherv(part,cellCount,MPI_INT,cellMap,recvCounts,displs,MPI_INT,MPI_COMM_WORLD);
 
 	// Find new local cellCount after ParMetis distribution
 	cellCount=0.;
+	int otherCellCounts[np]; 
+	for (unsigned int p=0;p<np;p++) otherCellCounts[p]=0; 
+	
 	for (unsigned int c=0;c<globalCellCount;++c) {
+		otherCellCounts[cellMap[c]]+=1;
 		if (cellMap[c]==rank) ++cellCount;
 	}
 	cout << "* Processor " << rank << " has " << cellCount << " cells" << endl;
+	
+	// Now find the localCellMap ... this returns the globalID
+	index=0;
+	int localCellMap[cellCount];
+	for (unsigned int c=0;c<globalCellCount;++c) {
+		if (cellMap[c]==rank){
+			localCellMap[index]=c;
+			++index;				
+		} 
+		if (index==cellCount) break;	
+	}
+		
+	
+
 
 	node.reserve(nodeCount/np);
 	face.reserve(cellCount);
@@ -221,10 +242,33 @@ int Grid::ReadCGNS() {
 		}
 	}
 
+
 	cout << "* Processor " << rank << " has created its cells and nodes" << endl;
+
+	//Create the Mesh2Dual inputs
+	//idxtype elmdist [np+1] (stays the same size)
+	eptr = new idxtype[cellCount+1];
+	eind = new idxtype[cellCount*elemNodeCount];
+	// numflag and ncommonnodes previously defined
+	idxtype* xadj;
+	idxtype* adjncy;
 	
-	//XXX Delete the stuff we created that is no longer needed by ParMetis
-	// delete[] somestuffwedontneed;
+	elmdist[0]=0;
+	for (unsigned int p=1;p<=np;p++) elmdist[p]=otherCellCounts[p-1]+elmdist[p-1];
+	eptr[0]=0;
+	for (unsigned int c=1; c<=cellCount;++c) eptr[c]=eptr[c-1]+elemNodeCount;
+	index=0;
+	for (unsigned int c=0; c<cellCount;c++){
+		for (unsigned int cn=0; cn<elemNodeCount; ++cn) {
+			eind[index]=elemNodes[localCellMap[c]][cn]-1;	
+			++index;
+		}	
+	}
+	
+	
+	ParMETIS_V3_Mesh2Dual(elmdist, eptr, eind, &numflag, &ncommonnodes, &xadj, &adjncy, &commWorld);
+	cout << rank << "rank" << "xadj" << xadj[0] << " " << xadj[1] << " " << xadj[2] << xadj[3] << endl;  
+	//End of Mesh2dual	
 
 	// Construct the list of cells for each node
 	int flag;
