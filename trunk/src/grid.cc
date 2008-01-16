@@ -382,7 +382,7 @@ int Grid::ReadCGNS() {
 	
 	if (rank==0) {
 		timeEnd=MPI_Wtime();
-		cout << "* Processor took " << timeEnd-timeRef << " sec to find its faces" << endl;
+		cout << "* Processor 0 took " << timeEnd-timeRef << " sec to find its faces" << endl;
 	}
 	
 	// Determine and mark faces adjacent to other partitions
