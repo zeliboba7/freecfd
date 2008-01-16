@@ -3,8 +3,8 @@ CC=mpic++
 OPTS=-O3
 EXE=fcfd
 
-INCLUDES= /home/esozer/cgnslib_2.5/include/ -I/usr/include/parmetis/ 
-LIBS= /home/esozer/cgnslib_2.5/lib/libcgns.a -L/usr/lib  -lparmetis -lmetis  -lm
+INCLUDES= -I$(CGNS_BASE)/include -I$(PARMETIS_BASE)/include
+LIBS= -L$(CGNS_BASE)/lib -L$(PARMETIS_BASE)/lib
 
 SRC= \
 	main.cc grid.cc vec3d.cc RoeFlux.cc  write_tec.cc writeTecplotMacro.cc inputs.cc sparse.cc readInputs.cc initialize.cc setBCs.cc fou.cc read_tec.cc hancock.cc diffFlux.cc
@@ -13,12 +13,12 @@ SRC= \
 OBJ=	$(SRC:.cc=.o)
 
 .cc.o:
-	$(CC) $(OPTS) -I$(INCLUDES) -c $<
+	$(CC) $(OPTS) $(INCLUDES) -c $<
 
 all:	$(EXE)
 
 $(EXE):	$(OBJ)
-	$(CC) $(OPTS) -o $@ $(OBJ) $(LIBS)
+	$(CC) $(OPTS) -o $@ $(OBJ) $(LIBS) -lcgns -lparmetis -lmetis
 
 clean:	
 	rm -rf $(OBJ) $(EXE)
