@@ -137,7 +137,7 @@ int Grid::ReadCGNS() {
 
 	float tpwgts[np];
 	for (unsigned int p=0; p<np; ++p) tpwgts[p]=1./float(np);
-	float ubvec=1.05;
+	float ubvec=1.02;
 	int options[3]; // default values for timing info set 0 -> 1
 
 	options[0]=0; options[1]=1; options[2]=15;
