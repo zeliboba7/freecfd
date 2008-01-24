@@ -236,6 +236,7 @@ int Grid::ReadCGNS() {
 	eptr = new idxtype[cellCount+1];
 	eind = new idxtype[cellCount*elemNodeCount];
 	// numflag and ncommonnodes previously defined
+	ncommonnodes=1;
 	idxtype* xadj;
 	idxtype* adjncy;
 	
@@ -252,7 +253,7 @@ int Grid::ReadCGNS() {
 	}
 	
 	ParMETIS_V3_Mesh2Dual(elmdist, eptr, eind, &numflag, &ncommonnodes, &xadj, &adjncy, &commWorld);
-
+	
 	// Construct the list of cells for each node
 	int flag;
 	for (unsigned int c=0;c<cellCount;++c) {
@@ -408,8 +409,8 @@ int Grid::ReadCGNS() {
 			counter2[cellMap[c]]++;
 		}
 
-		bool foundFlag[globalCellCount];
-		for (unsigned int c=0; c<globalCellCount; ++c) foundFlag[c]=false;
+		int foundFlag[globalCellCount];
+		for (unsigned int c=0; c<globalCellCount; ++c) foundFlag[c]=0;
 
 		unsigned int parent, metisIndex, gg, matchCount;
 		map<unsigned int,unsigned int> ghostGlobal2local;
@@ -420,54 +421,33 @@ int Grid::ReadCGNS() {
 					metisIndex=adjncy[xadj[parent]+adjCount];
 					gg=metis2global[metisIndex];
 
-						if (metisIndex<cellCountOffset[rank] || metisIndex>=(cellCount+cellCountOffset[rank])) {
-							matchCount=0;
-							for (unsigned int fn=0;fn<face[f].nodeCount;++fn) {
-								for (unsigned int gn=0;gn<elemNodeCount;++gn) {
-									if ((elemNodes[gg][gn]-1)==face[f].node(fn).globalId) ++matchCount;
-								}
-							}
-							if (matchCount==face[f].nodeCount) {
-								if (!foundFlag[gg]) {
-									foundFlag[gg]=true;
-									Ghost temp;
-									temp.globalId=gg;
-									temp.partition=cellMap[gg];
-									ghost.push_back(temp);
-									face[f].bc=-1*ghostCount-2;
-									ghostGlobal2local.insert(pair<unsigned int,unsigned int>(gg,ghostCount));
-									++ghostCount;
-								}
-								face[f].bc=-1*ghostGlobal2local[gg]-2;
-								break;
+					if (metisIndex<cellCountOffset[rank] || metisIndex>=(cellCount+cellCountOffset[rank])) {
+						matchCount=0;
+						for (unsigned int fn=0;fn<face[f].nodeCount;++fn) {
+							for (unsigned int gn=0;gn<elemNodeCount;++gn) {
+								if ((elemNodes[gg][gn]-1)==face[f].node(fn).globalId) ++matchCount;
+								// TODO Store the nodes that match and add the ghost to that nodes' cell list
 							}
 						}
-					
+						if (matchCount>0 && foundFlag[gg]==0) {
+							if (matchCount>=3) foundFlag[gg]=3;
+							if (matchCount<3) foundFlag[gg]=matchCount;
+							Ghost temp;
+							temp.globalId=gg;
+							temp.partition=cellMap[gg];
+							ghost.push_back(temp);
+							ghostGlobal2local.insert(pair<unsigned int,unsigned int>(gg,ghostCount));
+							++ghostCount;
+						}
+						if (matchCount>=3) {
+							foundFlag[gg]=3;
+							face[f].bc=-1*ghostGlobal2local[gg]-2;
+						} 
+					}
 				}
+					
 			}
 		}
-				
-//  				for (unsigned int c=0; c<globalCellCount; ++c) { //TODO mesh2dual could narrow this search significantly
-//  					if (cellMap[c]!=rank && !foundFlag[c]) {
-//  						unsigned int matchCount=0;
-//  						for (unsigned int fn=0;fn<face[f].nodeCount;++fn) {
-//  							for (unsigned int cn=0;cn<elemNodeCount;++cn) {
-//  								if ((elemNodes[c][cn]-1) ==face[f].node(fn).globalId) ++matchCount;
-//  							}
-//  						}
-//  						if (matchCount==face[f].nodeCount) {
-//  							foundFlag[c]=1;
-//  							Ghost temp;
-//  							temp.partition=cellMap[c];
-//  							temp.globalId=c;
-//  							ghost.push_back(temp);
-//  							face[f].bc=-1*ghostCount-2;
-//  							++ghostCount;
-//  							break;
-//  						}
-//  					}
-//  				}
-
 	}
 	
 	cout << "* Processor " << rank << " has " << ghostCount << " ghost cells at partition boundaries" << endl;
