@@ -58,8 +58,7 @@ int main(int argc, char *argv[]) {
 	InputFile input(inputFileName);
 	read_inputs(input);
 	grid.read(gridFileName);
-	
-	
+		
 	// We want to move this to grid.cc cause we already do this search
 	//TODO There may be no need for communication
 	int maxGhost=grid.globalCellCount/np*2;
