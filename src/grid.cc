@@ -2,6 +2,7 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
+#include <set>
 #include <map>
 #include <iomanip>
 using namespace std;
@@ -414,6 +415,9 @@ int Grid::ReadCGNS() {
 
 		unsigned int parent, metisIndex, gg, matchCount;
 		map<unsigned int,unsigned int> ghostGlobal2local;
+		
+		map<int,set<int> > nodeCellSet;
+		
 		for (unsigned int f=0; f<faceCount; ++f) {
 			if (face[f].bc>=0) { // if not an internal face or if not found before as partition boundary
 				parent=face[f].parent;
@@ -424,9 +428,13 @@ int Grid::ReadCGNS() {
 					if (metisIndex<cellCountOffset[rank] || metisIndex>=(cellCount+cellCountOffset[rank])) {
 						matchCount=0;
 						for (unsigned int fn=0;fn<face[f].nodeCount;++fn) {
+							set<int> tempSet;
+							nodeCellSet.insert(pair<unsigned int,set<int> >(face[f].nodes[fn],tempSet) );
 							for (unsigned int gn=0;gn<elemNodeCount;++gn) {
-								if ((elemNodes[gg][gn]-1)==face[f].node(fn).globalId) ++matchCount;
-								// TODO Store the nodes that match and add the ghost to that nodes' cell list
+								if ((elemNodes[gg][gn]-1)==face[f].node(fn).globalId) {
+									nodeCellSet[face[f].nodes[fn]].insert(gg);
+									++matchCount;
+								}
 							}
 						}
 						if (matchCount>0 && foundFlag[gg]==0) {
@@ -448,7 +456,25 @@ int Grid::ReadCGNS() {
 					
 			}
 		}
-	}
+
+		map<int,set<int> >::iterator mit;
+		set<int>::iterator sit;
+		for ( mit=nodeCellSet.begin() ; mit != nodeCellSet.end(); mit++ ) {
+			for ( sit=(*mit).second.begin() ; sit != (*mit).second.end(); sit++ ) {
+				node[(*mit).first].ghosts.push_back(ghostGlobal2local[*sit]);
+				//cout << (*mit).first << "\t" << *sit << endl; // DEBUG
+			}	
+		}
+		
+	} // if (np!=1) 
+	
+// 	if (rank==2) { // DEBUG
+// 		for (int n=0;n<nodeCount;++n) {
+// 			for (int nc=0;nc<node[n].cells.size();++nc) cout << n << "\t" << "cells\t" << node[n].cells[nc] << endl;
+// 			for (int ng=0;ng<node[n].ghosts.size();++ng) cout << n << "\t" << "ghosts\t" << node[n].ghosts[ng] << "\t" << ghost[node[n].ghosts[ng]].globalId <<  endl;
+// 		}
+// 	}
+	
 	
 	cout << "* Processor " << rank << " has " << ghostCount << " ghost cells at partition boundaries" << endl;
 	
