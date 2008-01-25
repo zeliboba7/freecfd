@@ -16,6 +16,7 @@ class Node : public Vec3D {
 public:
 	unsigned int id, globalId;
 	std::vector<int> cells;
+	std::vector<int> ghosts;
 	Node(double x=0., double y=0., double z=0.);
 };
 
