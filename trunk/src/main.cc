@@ -24,7 +24,7 @@ double minmod(double a, double b);
 double maxmod(double a, double b);
 double superbee(double a, double b);
 void update(double dt, double gamma);
-string get_filename(string begin, int number, int rank, string ext) ;
+string get_filename(string begin, int number, string ext) ;
 void fou(double gamma);
 void hancock_predictor(double gamma, double dt, string limiter);
 void hancock_corrector(double gamma, string limiter);
@@ -289,11 +289,13 @@ int main(int argc, char *argv[]) {
 		time += dt;
 		if ((timeStep + 1) % outFreq == 0) {
 			string fileName;
-			fileName=get_filename("out",timeStep+1,rank,"dat") ;
+			fileName=get_filename("out",timeStep+1,"dat") ;
 			// Write tecplot output file
-			write_tec(fileName,time);
+			for (int p=0;p<np;++p) {
+				if(rank==p) write_tec(fileName,time);
+				MPI_Barrier(MPI_COMM_WORLD);
+			}
 		}
-	
 	}
 	//writeTecplotMacro(restart,timeStepMax, outFreq);
 	// Syncronize the processors
@@ -369,7 +371,7 @@ void update(double dt, double gamma) {
 	return;
 }
 
-string get_filename(string begin, int number, int rank, string ext) {
+string get_filename(string begin, int number, string ext) {
 	char dummy[12];
 	// Print timeStep integer to character
 	sprintf(dummy, "%12d", number);
@@ -377,8 +379,6 @@ string get_filename(string begin, int number, int rank, string ext) {
 	string fileName = dummy;
 	fileName.erase(0, fileName.rfind(" ", fileName.length()) + 1);
 	sprintf(dummy, "%12d", rank);
-	string procName = dummy;
-	procName.erase(0, procName.rfind(" ", procName.length()) + 1);	
-	fileName = begin + fileName + "_" + procName + "."  + ext;
+	fileName = begin + fileName + "."  + ext;
 	return fileName;
 }

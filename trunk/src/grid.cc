@@ -206,7 +206,25 @@ int Grid::ReadCGNS() {
 	unsigned int cellNodes[elemNodeCount];
 	for (unsigned int n=1;n<=globalNodeCount;++n) nodeFound[n]=false;
 	nodeCount=0;
+	fstream file;
+	if (rank==0) file.open("connectivity.dat", ios::out);
 	for (unsigned int c=0;c<globalCellCount;++c) {
+		if (rank==0) {
+			if (elemType==PENTA_6) {
+				file << elemNodes[c][0] << "\t" ; 
+				file << elemNodes[c][1] << "\t" ; 
+				file << elemNodes[c][2] << "\t" ; 
+				file << elemNodes[c][2] << "\t" ; 
+				file << elemNodes[c][3] << "\t" ; 
+				file << elemNodes[c][4] << "\t" ; 
+				file << elemNodes[c][5] << "\t" ; 	
+				file << elemNodes[c][5] << "\t" ; 
+			} else {
+				for (unsigned int i=0;i<elemNodeCount;++i) {
+					file << elemNodes[c][i] << "\t";
+				}
+			}
+		}
 		if (cellMap[c]==rank) {
 			for (unsigned int n=0;n<elemNodeCount;++n) {
 				if (!nodeFound[elemNodes[c][n]]) {
@@ -228,8 +246,10 @@ int Grid::ReadCGNS() {
 			temp.globalId=c;
 			cell.push_back(temp);
 		}
+		if (rank==0) file << "\n" ;
 	}
-
+	if (rank==0) file.close();
+	
 	cout << "* Processor " << rank << " has created its cells and nodes" << endl;
 
 	//Create the Mesh2Dual inputs
