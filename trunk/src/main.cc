@@ -16,7 +16,7 @@ using namespace std;
 void read_inputs(InputFile &input);
 void initialize(Grid &grid, InputFile &input);
 void write_tec(string fileName, double time);
-void read_tec(string fileName, double &time);
+void read_tec(string fileName, int global2local[], double &time);
 void writeTecplotMacro(int restart, int timeStepMax, int outFreq);
 void set_bcs(Grid& grid, InputFile &input, BC &bc);
 bool within_box(Vec3D centroid, Vec3D box_1, Vec3D box_2);
@@ -127,24 +127,29 @@ int main(int argc, char *argv[]) {
 	}
 	//cout << "* Calculated cell gradient contributions" << endl;
 
-
-		if (restart!=0) {
-			string fileName=get_filename("out", restart, "dat");
-			fstream file;
-			file.open(fileName.c_str());
-			if (file.is_open()) {
-				cout << "* Restarting from " << fileName  << endl;
-				file.close();
-				read_tec(fileName,time);
-			} else {
-				cerr << "[!!] Restart "<< fileName << " could not be found." << endl;
-				exit(0);
-			}
-		}
 	*/
-
-	//cout << "* Beginning time loop" << endl;
-
+	
+	// Need a conversion map from globalId to local index
+	int global2local[grid.globalCellCount];
+	for (unsigned int c=0;c<grid.globalCellCount;++c) global2local[c]=-1;
+	for (unsigned int c=0;c<grid.cellCount;++c) {
+		global2local[grid.cell[c].globalId]=c;
+	}
+	
+	if (restart!=0) {
+		string fileName=get_filename("out", restart, "dat");
+		fstream file;
+		file.open(fileName.c_str());
+		if (file.is_open()) {
+			if (rank==0) cout << "* Restarting from " << fileName  << endl;
+			file.close();
+			read_tec(fileName,global2local,time);
+		} else {
+			if(rank==0) cerr << "[!!] Restart "<< fileName << " could not be found." << endl;
+			exit(0);
+		}
+	}
+	
 	struct mpiGhost {
 		unsigned int partition,globalId;
 		double vars[5];
@@ -159,11 +164,6 @@ int main(int argc, char *argv[]) {
 	MPI_Type_struct(2,array_of_block_lengths,array_of_displacements,array_of_types,&MPI_GHOST);
 	MPI_Type_commit(&MPI_GHOST);
 	
-	// Need a conversion map from globalId to local index
-	unsigned int global2local[grid.globalCellCount];
-	for (unsigned int c=0;c<grid.cellCount;++c) {
-		global2local[grid.cell[c].globalId]=c;
-	}
 	for (unsigned int g=0;g<grid.ghostCount;++g) {
 		global2local[grid.ghost[g].globalId]=g;
 	}
