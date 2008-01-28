@@ -1,10 +1,12 @@
 #include <cmath>
 #include<string>
+#include<mpi.h>
 #include "grid.h"
 #include "bc.h"
 
 extern Grid grid;
 extern BC bc;
+extern int np, rank;
 
 void find_extremas(Grid &grid, unsigned int c, unsigned int f, double deltaMax[], double deltaMax[]);
 
@@ -96,7 +98,7 @@ void hancock_predictor(double gamma, double dt, string limiter) {
 } // end function
 
 
-void hancock_corrector(double gamma, string limiter) {
+void hancock_corrector(double gamma, string limiter, vector<unsigned int> sendCells[]) {
 
 	double delta[5],deltaMin[5], deltaMax[5]; // These arrays has rho,u,v,w,p sequentially
 	double rhoL,pL,uL,vL,wL,rhoR,pR,uR,vR,wR,uNL,uNR,vTL,vTR,wTL,wTR;
@@ -104,6 +106,48 @@ void hancock_corrector(double gamma, string limiter) {
 	Vec3D faceVel,parent2face,neighbor2face,faceTangent1,faceTangent2;
 	unsigned int parent,neighbor;
 
+	// Calculate gradients
+	grid.gradients();
+	// Get ghost gradients
+	for (unsigned int p=0;p<np;++p) {
+		
+	}
+	// Limit sendCells
+	// Send limited values
+	
+/*	for (unsigned int p=0;p<np;++p) {
+		if (rank!=p) {
+			mpiGhost sendBuffer[sendCells[p].size()];
+			mpiGhost recvBuffer[recvCount[p]];
+			int id;
+			for (unsigned int g=0;g<sendCells[p].size();++g)	{
+				id=global2local[sendCells[p][g]];
+				sendBuffer[g].partition=rank;
+				sendBuffer[g].globalId=grid.cell[id].globalId;
+				sendBuffer[g].vars[0]=grid.cell[id].rho;
+				sendBuffer[g].vars[1]=grid.cell[id].v.comp[0];
+				sendBuffer[g].vars[2]=grid.cell[id].v.comp[1];
+				sendBuffer[g].vars[3]=grid.cell[id].v.comp[2];
+				sendBuffer[g].vars[4]=grid.cell[id].p;
+			}
+
+			int tag=rank; // tag is set to source
+			MPI_Sendrecv(sendBuffer,sendCells[p].size(),MPI_GHOST,p,0,recvBuffer,recvCount[p],MPI_GHOST,p,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+		
+			for (unsigned int g=0;g<recvCount[p];++g) {
+				id=global2local[recvBuffer[g].globalId];
+				grid.ghost[id].partition=recvBuffer[g].partition;
+				grid.ghost[id].globalId=recvBuffer[g].globalId;
+				grid.ghost[id].rho=recvBuffer[g].vars[0];
+				grid.ghost[id].v.comp[0]=recvBuffer[g].vars[1];
+				grid.ghost[id].v.comp[1]=recvBuffer[g].vars[2];
+				grid.ghost[id].v.comp[2]=recvBuffer[g].vars[3];
+				grid.ghost[id].p=recvBuffer[g].vars[4];
+			}
+				
+		}
+	}*/
+	
 	// Calculate flux through each face
 	for (unsigned int f = 0;f < grid.faceCount;++f) {
 		parent=grid.face[f].parent; neighbor=grid.face[f].neighbor;
@@ -130,8 +174,8 @@ void hancock_corrector(double gamma, string limiter) {
 		uNL=faceVel.dot(grid.face[f].normal);
 		vTL=faceVel.dot(faceTangent1);
 		wTL=faceVel.dot(faceTangent2);
-
-		if (grid.face[f].bc!=-1) { // means a boundary face
+		
+		if (grid.face[f].bc>=0) { // means a real boundary face
 			rhoR=rhoL; uNR=uNL; vTR=vTL; wTR=wTL; pR=pL; // outlet condition
 			if (bc.region[grid.face[f].bc].type=="slip") uNR=-uNL;
 			if (bc.region[grid.face[f].bc].type=="noslip") {uNR=-uNL; vTR=vTL=0.; wTR=wTL=0.;}
@@ -142,7 +186,7 @@ void hancock_corrector(double gamma, string limiter) {
 				rhoR=bc.region[grid.face[f].bc].rho;
 				//pR=bc.region[grid.face[f].bc].p;
 			}
-		} else {
+		} else if (grid.face[f].bc==-1) { // internal face
 			// Limit neighbor cell gradients
 
 			find_extremas(grid,neighbor,f,deltaMin,deltaMax);
@@ -162,6 +206,14 @@ void hancock_corrector(double gamma, string limiter) {
 			uNR=faceVel.dot(grid.face[f].normal);
 			vTR=faceVel.dot(faceTangent1);
 			wTR=faceVel.dot(faceTangent2);
+		
+		} else { // partition boundary 
+			int g=-1*grid.face[f].bc-2;
+			rhoR=grid.ghost[g].rho;
+			uNR=grid.ghost[g].v.dot(grid.face[f].normal);
+			vTR=grid.ghost[g].v.dot(faceTangent1);
+			wTR=grid.ghost[g].v.dot(faceTangent2);
+			pR=grid.ghost[g].p;
 		}
 
 		qL[0]=rhoL;

@@ -27,7 +27,7 @@ void update(double dt, double gamma);
 string get_filename(string begin, int number, string ext) ;
 void fou(double gamma);
 void hancock_predictor(double gamma, double dt, string limiter);
-void hancock_corrector(double gamma, string limiter);
+void hancock_corrector(double gamma, string limiter, vector<unsigned int> sendCells[]);
 void diff_flux(double mu);
 
 // Initiate grid class
@@ -62,30 +62,31 @@ int main(int argc, char *argv[]) {
 	grid.nodeAverages();
 	grid.faceAverages();
 	grid.gradMaps();
-		
-	// We want to move this to grid.cc cause we already do this search
-	//TODO There may be no need for communication
-	int maxGhost=grid.globalCellCount/np*2;
 	
-	unsigned int ghosts2receive[np][maxGhost],ghosts2send[np][maxGhost];
-
-	for (unsigned int p=0;p<np;++p) {
-		ghosts2receive[p][0]=0;
-	}
-	
-	for (unsigned int g=0; g<grid.ghostCount; ++g) {
-		unsigned int p=grid.ghost[g].partition;
-		ghosts2receive[p][ghosts2receive[p][0]+1]=grid.ghost[g].globalId;
-		++ghosts2receive[p][0];
-	}
-
-	//if (rank==0) for (int p=0;p<np;++p) for (int g=0;g<ghosts2receive[p][0];++g) cout << p << "\t" << ghosts2receive[p][0] << "\t" << ghosts2receive[p][g+1] << endl;
-	
-	for (unsigned int p=0;p<np;++p) {
-		MPI_Alltoall(ghosts2receive,maxGhost,MPI_UNSIGNED,ghosts2send,maxGhost,MPI_UNSIGNED,MPI_COMM_WORLD);
-	}
-
-	//if (rank==0) for (int p=0;p<np;++p) for (int g=0;g<ghosts2send[p][0];++g) cout << p << "\t" << ghosts2send[p][0] << "\t" << ghosts2send[p][g+1] << endl;
+	vector<unsigned int> sendCells[np];
+	unsigned int recvCount[np];
+	{
+		int maxGhost=grid.globalCellCount/np*2;		
+		unsigned int ghosts2receive[np][maxGhost],ghosts2send[np][maxGhost];
+		for (unsigned int p=0;p<np;++p) {
+			ghosts2receive[p][0]=0;
+		}
+		for (unsigned int g=0; g<grid.ghostCount; ++g) {
+			unsigned int p=grid.ghost[g].partition;
+			ghosts2receive[p][ghosts2receive[p][0]+1]=grid.ghost[g].globalId;
+			++ghosts2receive[p][0];
+		}
+		//if (rank==0) for (int p=0;p<np;++p) for (int g=0;g<ghosts2receive[p][0];++g) cout << p << "\t" << ghosts2receive[p][0] << "\t" << ghosts2receive[p][g+1] << endl;
+		for (unsigned int p=0;p<np;++p) {
+			MPI_Alltoall(ghosts2receive,maxGhost,MPI_UNSIGNED,ghosts2send,maxGhost,MPI_UNSIGNED,MPI_COMM_WORLD);
+		}
+		//if (rank==0) for (int p=0;p<np;++p) for (int g=0;g<ghosts2send[p][0];++g) cout << p << "\t" << ghosts2send[p][0] << "\t" << ghosts2send[p][g+1] << endl;
+		// Transfer data to more efficient containers
+		for (unsigned int p=0;p<np;++p) {
+			for (unsigned int i=1;i<=ghosts2send[p][0];++i) sendCells[p].push_back(ghosts2send[p][i]);
+			recvCount[p]=ghosts2receive[p][0];
+		}
+	} // end scope
 	
 	initialize(grid,input);
 	//cout << "* Applied initial conditions" << endl;
@@ -93,9 +94,8 @@ int main(int argc, char *argv[]) {
 	set_bcs(grid,input,bc);
 	//cout << "* Set boundary conditions" << endl;
 
-	double gamma = input.section["fluidProperties"].doubles["gamma"];
 	double time = 0.;
-
+	double gamma = input.section["fluidProperties"].doubles["gamma"];
 	double dt = input.section["timeMarching"].doubles["step"];
 	double CFL= input.section["timeMarching"].doubles["CFL"];
 	int timeStepMax = input.section["timeMarching"].ints["numberOfSteps"];
@@ -159,11 +159,11 @@ int main(int argc, char *argv[]) {
 
 		for (unsigned int p=0;p<np;++p) {
 			if (rank!=p) {
-				mpiGhost sendBuffer[ghosts2send[p][0]];
-				mpiGhost recvBuffer[ghosts2receive[p][0]];
+				mpiGhost sendBuffer[sendCells[p].size()];
+				mpiGhost recvBuffer[recvCount[p]];
 				int id;
-				for (unsigned int g=0;g<ghosts2send[p][0];++g)	{
-					id=global2local[ghosts2send[p][g+1]];
+				for (unsigned int g=0;g<sendCells[p].size();++g)	{
+					id=global2local[sendCells[p][g]];
 					sendBuffer[g].partition=rank;
 					sendBuffer[g].globalId=grid.cell[id].globalId;
 					sendBuffer[g].vars[0]=grid.cell[id].rho;
@@ -172,12 +172,11 @@ int main(int argc, char *argv[]) {
 					sendBuffer[g].vars[3]=grid.cell[id].v.comp[2];
 					sendBuffer[g].vars[4]=grid.cell[id].p;
 				}
-				//if (rank==1) cout << sendBuffer[2].globalId << "\t" << sendBuffer[2].vars[0] << "\t" << sendBuffer[2].vars[4] << endl;
+
 				int tag=rank; // tag is set to source
-				//sendbuf, sendcount, sendtype, dest, sendtag, recvbuf, recvcount, recvtype, source, recvtag, comm, status
-				MPI_Sendrecv(sendBuffer,ghosts2send[p][0],MPI_GHOST,p,0,recvBuffer,ghosts2receive[p][0],MPI_GHOST,p,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+				MPI_Sendrecv(sendBuffer,sendCells[p].size(),MPI_GHOST,p,0,recvBuffer,recvCount[p],MPI_GHOST,p,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
 		
-				for (unsigned int g=0;g<ghosts2receive[p][0];++g) {
+				for (unsigned int g=0;g<recvCount[p];++g) {
 					id=global2local[recvBuffer[g].globalId];
 					grid.ghost[id].partition=recvBuffer[g].partition;
 					grid.ghost[id].globalId=recvBuffer[g].globalId;
@@ -188,30 +187,8 @@ int main(int argc, char *argv[]) {
 					grid.ghost[id].p=recvBuffer[g].vars[4];
 				}
 				
-				//MPI_Send(sendBuffer,ghosts2send[p][0],MPI_GHOST,p,tag,MPI_COMM_WORLD);
 			}
 		}
-
-		/*
-		for (unsigned int p=0;p<np;++p) {
-			if (rank!=p) {
-				mpiGhost recvBuffer[ghosts2receive[p][0]];
-				int tag=p; // again tag is set to source
-				MPI_Recv(recvBuffer,ghosts2receive[p][0],MPI_GHOST,p,tag,MPI_COMM_WORLD,&status);
-				int id;
-				for (unsigned int g=0;g<ghosts2receive[p][0];++g) {
-					id=global2local[recvBuffer[g].globalId];
-					grid.ghost[id].partition=recvBuffer[g].partition;
-					grid.ghost[id].globalId=recvBuffer[g].globalId;
-					grid.ghost[id].rho=recvBuffer[g].vars[0];
-					grid.ghost[id].v.comp[0]=recvBuffer[g].vars[1];
-					grid.ghost[id].v.comp[1]=recvBuffer[g].vars[2];
-					grid.ghost[id].v.comp[2]=recvBuffer[g].vars[3];
-					grid.ghost[id].p=recvBuffer[g].vars[4];
-				}
-			}
-		}
-		*/
 
 		if (input.section["timeMarching"].strings["type"]=="CFL") {
 			// Determine time step with CFL condition
@@ -234,15 +211,14 @@ int main(int argc, char *argv[]) {
 			MPI_Allreduce(&dt,&dt,1, MPI_DOUBLE,MPI_MIN,MPI_COMM_WORLD);
 		}
 		
-		//if (input.section["numericalOptions"].strings["order"]=="first") {
-		fou(gamma);
+		if (input.section["numericalOptions"].strings["order"]=="first") {
+			fou(gamma);
+			if (input.section["equations"].strings["set"]=="NS") grid.gradients();
 		
-			//if (input.section["equations"].strings["set"]=="NS") grid.gradients();
-			/*
 		} else {
 
 			// Calculate all the cell gradients for each variable
-			grid.gradients();
+			//grid.gradients();
 
 			double rhoOld[grid.cellCount] ,pOld[grid.cellCount] ;
 			Vec3D vOld[grid.cellCount];
@@ -253,7 +229,7 @@ int main(int argc, char *argv[]) {
 				pOld[c]=grid.cell[c].p;
 			}
 			//hancock_predictor(gamma,dt,limiter);
-			hancock_corrector(gamma,limiter);
+			hancock_corrector(gamma,limiter, sendCells);
 			// Restore variables
 			for (unsigned int c = 0;c < grid.cellCount;++c) {
 				grid.cell[c].rho=rhoOld[c];
@@ -262,8 +238,7 @@ int main(int argc, char *argv[]) {
 			}
 		}
 
-		if (input.section["equations"].strings["set"]=="NS") diff_flux(mu);
-		*/
+		//if (input.section["equations"].strings["set"]=="NS") diff_flux(mu);
 			
 		update(dt,gamma);
 
