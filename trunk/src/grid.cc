@@ -437,6 +437,7 @@ int Grid::ReadCGNS() {
 		map<unsigned int,unsigned int> ghostGlobal2local;
 		
 		map<int,set<int> > nodeCellSet;
+		Vec3D nodeVec;
 		
 		for (unsigned int f=0; f<faceCount; ++f) {
 			if (face[f].bc>=0) { // if not an internal face or if not found before as partition boundary
@@ -463,6 +464,15 @@ int Grid::ReadCGNS() {
 							Ghost temp;
 							temp.globalId=gg;
 							temp.partition=cellMap[gg];
+							// Calculate the centroid
+							temp.centroid=0.;
+							for (unsigned int gn=0;gn<elemNodeCount;++gn) {
+								nodeVec.comp[0]=x[elemNodes[gg][gn]-1];
+								nodeVec.comp[1]=y[elemNodes[gg][gn]-1];
+								nodeVec.comp[2]=z[elemNodes[gg][gn]-1];
+								temp.centroid+=nodeVec;
+							}
+							temp.centroid/=double(elemNodeCount);
 							ghost.push_back(temp);
 							ghostGlobal2local.insert(pair<unsigned int,unsigned int>(gg,ghostCount));
 							++ghostCount;
@@ -665,60 +675,149 @@ Node& Face::node(int n) {
 	return grid.node[nodes[n]];
 };
 
+void Grid::nodeAverages() {
+	
+	unsigned int c,g;
+	double weight=0.,weightSum;
+	Vec3D node2cell,node2ghost;
+	map<int,double>::iterator it;
+	
+	for (unsigned int n=0;n<nodeCount;++n) {
+		// Add contributions from real cells
+		weightSum=0.;
+		for (unsigned int nc=0;nc<node[n].cells.size();++nc) {
+			c=node[n].cells[nc];
+			node2cell=node[n]-cell[c].centroid;
+			weight=1./(node2cell.dot(node2cell));
+			node[n].average.insert(pair<int,double>(c,weight));
+			weightSum+=weight;
+		}
+		// Add contributions from ghost cells		
+		for (unsigned int ng=0;ng<node[n].ghosts.size();++ng) {
+			g=node[n].ghosts[ng];
+			node2ghost=node[n]-ghost[g].centroid;
+			weight=1./(node2ghost.dot(node2ghost));
+			node[n].average.insert(pair<int,double>(-g-1,weight));
+			weightSum+=weight;
+		}
+		for ( it=node[n].average.begin() ; it != node[n].average.end(); it++ ) {
+			(*it).second/=weightSum;
+		}
+	}
+	
+}
+
+void Grid::faceAverages() {
+
+	unsigned int n;
+	map<int,double>::iterator it;
+	
+	for (unsigned int f=0;f<faceCount;++f) {
+		// Add contributions from nodes
+		for (unsigned int fn=0;fn<face[f].nodeCount;++fn) {
+			n=face[f].nodes[fn];
+			for ( it=node[n].average.begin() ; it != node[n].average.end(); it++ ) {
+				if (face[f].average.find((*it).first)!=face[f].average.end()) { // if the cell contributing to the node average is already contained in the face average map
+					face[f].average[(*it).first]+=(*it).second/face[f].nodeCount;					
+				} else {
+					face[f].average.insert(pair<int,double>((*it).first,(*it).second/face[f].nodeCount));
+				}
+			} 
+		} // end face node loop
+	} // end face loop
+	
+} // end Grid::faceAverages()
+
+void Grid::gradMaps() {
+	
+	unsigned int f;
+	map<int,double>::iterator it;
+	Vec3D areaVec;
+	for (unsigned int c=0;c<cellCount;++c) {
+		for (unsigned int cf=0;cf<cell[c].faceCount;++cf) { 
+			f=cell[c].faces[cf];
+			if (face[f].bc<0) { // if internal or interpartition face
+				areaVec=face[f].normal*face[f].area;
+				if (face[f].parent!=c) areaVec*=-1.;
+				for ( it=face[f].average.begin() ; it != face[f].average.end(); it++ ) {
+					if (cell[c].gradMap.find((*it).first)!=cell[c].gradMap.end()) { // if the cell contributing to the face average is already contained in the cell gradient map
+						cell[c].gradMap[(*it).first]+=(*it).second*areaVec/cell[c].volume;
+					} else {
+						cell[c].gradMap.insert(pair<int,Vec3D>((*it).first,(*it).second*areaVec/cell[c].volume));
+					}
+				}
+			} // end if internal face
+		} // end cell face loop
+	} // end cell loop
+	
+} // end Grid::gradMaps()
+	
+
 void Grid::gradients(void) {
 
 	// Calculate cell gradients
 
-	// Initialize all gradients to zero
-	for (unsigned int c = 0;c<grid.cellCount;++c) {
+	map<int,Vec3D>::iterator it;
+	map<int,double>::iterator fit;
+	unsigned int f;
+	Vec3D faceVel,areaVec;
+	double faceRho,faceP;
+	
+ 	for (unsigned int c=0;c<cellCount;++c) {
+		// Initialize all gradients to zero
 		for (unsigned int i=0;i<5;++i) cell[c].grad[i]=0.;
-	}
-
-	int parent,neighbor;
-	double average[5],factor;
-
-	// Loop faces
-	Vec3D areaVec, averageVel;
-	for (unsigned int f=0;f<faceCount;++f) {
-		parent=face[f].parent; neighbor=face[f].neighbor;
-		areaVec=face[f].normal*face[f].area;
-		for (unsigned int i=0;i<5;++i) average[i]=0.;
-		for (unsigned int i=0;i<face[f].cellContributions.indices.size();++i) {
-			factor=face[f].cellContributions.data[i];
-			average[0]+=cell[face[f].cellContributions.indices[i]].rho*factor;
-			average[1]+=cell[face[f].cellContributions.indices[i]].v.comp[0]*factor;
-			average[2]+=cell[face[f].cellContributions.indices[i]].v.comp[1]*factor;
-			average[3]+=cell[face[f].cellContributions.indices[i]].v.comp[2]*factor;
-			average[4]+=cell[face[f].cellContributions.indices[i]].p*factor;
-		}
-		if (face[f].bc==-1) { // Internal face
-			for (unsigned int i=0;i<5;++i) cell[neighbor].grad[i]-=average[i]*areaVec/cell[neighbor].volume;
-		} else {	// Boundary face
-			if (bc.region[face[f].bc].type=="slip") {
-				for (unsigned int i=0;i<3;++i) averageVel.comp[i]=average[i+1];
-				averageVel-=averageVel.dot(face[f].normal) *face[f].normal;
-				for (unsigned int i=0;i<3;++i) average[i+1]=averageVel.comp[i];
-				//average[0]=grid.cell[parent].rho;
-				//average[4]=grid.cell[parent].p;
-			} else if (bc.region[face[f].bc].type=="noslip") {
-				for (unsigned int i=1;i<4;++i) average[i]=0.;
-			} else if (bc.region[face[f].bc].type=="inlet") {
-				average[0]=bc.region[face[f].bc].rho;
-				average[1]=bc.region[face[f].bc].v.comp[0];
-				average[2]=bc.region[face[f].bc].v.comp[1];
-				average[3]=bc.region[face[f].bc].v.comp[2];
-				average[4]=bc.region[face[f].bc].p;
-			} else if (bc.region[face[f].bc].type=="outlet") {
-				/*average[0]=grid.cell[parent].rho;
-				average[1]=grid.cell[parent].v.comp[0];
-				average[2]=grid.cell[parent].v.comp[1];
-				average[3]=grid.cell[parent].v.comp[2];
-				average[4]=grid.cell[parent].p; */
+		// Add internal and interpartition face contributions
+		for (it=cell[c].gradMap.begin();it!=cell[c].gradMap.end(); it++ ) {
+			if ((*it).first>=0) { // if contribution is coming from a real cell
+				cell[c].grad[0]+=(*it).second*cell[(*it).first].rho;
+				for (unsigned int i=1;i<4;++i) cell[c].grad[i]+=(*it).second*cell[(*it).first].v.comp[i-1];
+				cell[c].grad[4]+=(*it).second*cell[(*it).first].p;
+			} else { // if contribution is coming from a ghost cell
+				cell[c].grad[0]+=(*it).second*ghost[-1*((*it).first+1)].rho;
+				for (unsigned int i=1;i<4;++i) cell[c].grad[i]+=(*it).second*ghost[-1*((*it).first+1)].v.comp[i-1];
+				cell[c].grad[4]+=(*it).second*ghost[-1*((*it).first+1)].p;	
 			}
-		}
-
-		cell[parent].grad[0]+=average[0]*areaVec/cell[parent].volume;
-		cell[parent].grad[4]+=average[4]*areaVec/cell[parent].volume;
-		for (unsigned int i=1;i<4;++i) cell[parent].grad[i]+=average[i]*areaVec/cell[parent].volume;
-	}
-}
+		} // end gradMap loop
+		// Add boundary face contributions
+		for (unsigned int cf=0;cf<cell[c].faceCount;++cf) {
+			f=cell[c].faces[cf];
+			if (face[f].parent!=c) areaVec*=-1.;
+			if (face[f].bc>=0) { // if a boundary face
+				areaVec=face[f].area*face[f].normal/cell[c].volume;
+				if (bc.region[face[f].bc].type=="inlet") {
+					cell[c].grad[0]+=bc.region[face[f].bc].rho*areaVec;
+					cell[c].grad[1]+=bc.region[face[f].bc].v.comp[0]*areaVec;
+					cell[c].grad[2]+=bc.region[face[f].bc].v.comp[1]*areaVec;
+					cell[c].grad[3]+=bc.region[face[f].bc].v.comp[2]*areaVec;
+					cell[c].grad[4]+=bc.region[face[f].bc].p*areaVec; // FIXME Can you specify everything at inlet???
+				} else { // if not an inlet
+					// Find face averaged variables 
+					faceVel=0.;faceRho=0.;faceP=0.;
+					for (fit=face[f].average.begin();fit!=face[f].average.end();fit++) {
+						if ((*it).first>=0) { // if contribution is coming from a real cell
+							faceRho+=(*fit).second*cell[(*fit).first].rho;
+							faceVel+=(*fit).second*cell[(*fit).first].v;
+							faceP+=(*fit).second*cell[(*fit).first].p;
+						} else { // if contribution is coming from a ghost cell
+							faceRho+=(*fit).second*ghost[-1*((*it).first+1)].rho;
+							faceVel+=(*fit).second*ghost[-1*((*it).first+1)].v;
+							faceP+=(*fit).second*ghost[-1*((*it).first+1)].p;
+						}
+					}
+					// These two are interpolated for all boundary types other than inlet
+					cell[c].grad[0]+=faceRho*areaVec;
+					cell[c].grad[4]+=faceP*areaVec;
+					// Kill the wall normal component for slip
+					if (bc.region[face[f].bc].type=="slip") faceVel-=faceVel.dot(face[f].normal)*face[f].normal;
+					// Simply don't add face velocity gradient contributions for noslip
+					if (bc.region[face[f].bc].type!="noslip") {
+						cell[c].grad[1]+=faceVel.comp[0]*areaVec;
+						cell[c].grad[2]+=faceVel.comp[1]*areaVec;
+						cell[c].grad[3]+=faceVel.comp[2]*areaVec;
+					}
+				} // end if inlet or not
+			} // end if a boundary face
+		} // end cell face loop
+	} // end cell loop
+ 	
+} // end Grid::gradients(void)
