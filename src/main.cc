@@ -58,6 +58,10 @@ int main(int argc, char *argv[]) {
 	InputFile input(inputFileName);
 	read_inputs(input);
 	grid.read(gridFileName);
+	
+	grid.nodeAverages();
+	grid.faceAverages();
+	grid.gradMaps();
 		
 	// We want to move this to grid.cc cause we already do this search
 	//TODO There may be no need for communication
@@ -101,33 +105,6 @@ int main(int argc, char *argv[]) {
 		mu=input.section["fluidProperties"].subsections["viscosity"].doubles["value"];
 	}
 	string limiter=input.section["numericalOptions"].strings["limiter"];
-
-	// Calculate and store face average contributions from each cell
-	unsigned int n,c;
-	double weight,weightSum;
-	Vec3D node2cell;
-	VecSparse nodeAverage;
-
-	/*
-	for (unsigned int f=0;f<grid.faceCount;++f) {
-		grid.face[f].cellContributions.flush();
-		for (unsigned int fn=0;fn<grid.face[f].nodeCount;++fn) {
-			n=grid.face[f].nodes[fn];
-			weightSum=0.;
-			nodeAverage.flush();
-			for (unsigned int nc=0;nc<grid.node[n].cells.size();++nc) {
-				c=grid.node[n].cells[nc];
-				node2cell=grid.node[n]-grid.cell[c].centroid;
-				weight=1./(node2cell.dot(node2cell));
-				weightSum+=weight;
-				nodeAverage.put(c,weight);
-			}
-			grid.face[f].cellContributions+=(nodeAverage/weightSum)/grid.face[f].nodeCount;
-		}
-	}
-	//cout << "* Calculated cell gradient contributions" << endl;
-
-	*/
 	
 	// Need a conversion map from globalId to local index
 	int global2local[grid.globalCellCount];
@@ -171,6 +148,11 @@ int main(int argc, char *argv[]) {
 	MPI_Barrier(MPI_COMM_WORLD);
 	double timeRef, timeEnd;
 	timeRef=MPI_Wtime();
+	
+//	grid.gradients();
+// 	for (unsigned int c=0;c<grid.cellCount;++c) { // DEBUG
+// 		cout << rank << "\t" << c << "\t" << grid.cell[c].grad[0] << endl;
+// 	}
 	
 	// Begin time loop
 	for (int timeStep = restart;timeStep < input.section["timeMarching"].ints["numberOfSteps"]+restart;++timeStep) {

@@ -17,6 +17,7 @@ public:
 	unsigned int id, globalId;
 	std::vector<int> cells;
 	std::vector<int> ghosts;
+	std::map<int,double> average;
 	Node(double x=0., double y=0., double z=0.);
 };
 
@@ -28,7 +29,7 @@ public:
 	unsigned int nodeCount;
 	Vec3D centroid;
 	Vec3D normal;
-	VecSparse cellContributions;
+	std::map<int,double> average;
 	double area;
 	std::vector<int> nodes;
 	Node& node(int n);
@@ -44,6 +45,7 @@ public:
 	std::vector<int> faces;
 	double rho;
 	Vec3D v,grad[5];
+	std::map<int,Vec3D> gradMap;
 	double p;
 	double flux[5];
 	Cell(void);
@@ -58,7 +60,7 @@ public:
 	unsigned int partition;
 	unsigned int globalId;
 	double rho;
-	Vec3D v;
+	Vec3D v,centroid;
 	double p;
 };
 
@@ -75,6 +77,9 @@ public:
 	Grid();
 	int read(string);
 	int face_exists(int &parentCell);
+	void nodeAverages();
+	void faceAverages();
+	void gradMaps();
 	void gradients();
 };
 
