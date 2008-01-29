@@ -27,7 +27,7 @@ void update(double dt, double gamma);
 string get_filename(string begin, int number, string ext) ;
 void fou(double gamma);
 void hancock_predictor(double gamma, double dt, string limiter);
-void hancock_corrector(double gamma, string limiter, vector<unsigned int> sendCells[]);
+void hancock_corrector(double gamma, string limiter);
 void diff_flux(double mu);
 
 // Initiate grid class
@@ -141,6 +141,16 @@ int main(int argc, char *argv[]) {
 	MPI_Type_struct(2,array_of_block_lengths,array_of_displacements,array_of_types,&MPI_GHOST);
 	MPI_Type_commit(&MPI_GHOST);
 	
+	struct mpiGrad {
+		unsigned int globalId;
+		double vars[15];
+	};
+	array_of_block_lengths[0]=1;array_of_block_lengths[1]=15;
+	array_of_displacements[1]=extent;
+	MPI_Datatype MPI_GRAD;
+	MPI_Type_struct(2,array_of_block_lengths,array_of_displacements,array_of_types,&MPI_GRAD);
+	MPI_Type_commit(&MPI_GRAD);
+	
 	for (unsigned int g=0;g<grid.ghostCount;++g) {
 		global2local[grid.ghost[g].globalId]=g;
 	}
@@ -156,7 +166,7 @@ int main(int argc, char *argv[]) {
 	
 	// Begin time loop
 	for (int timeStep = restart;timeStep < input.section["timeMarching"].ints["numberOfSteps"]+restart;++timeStep) {
-
+		// TODO partition variable need not be send and received
 		for (unsigned int p=0;p<np;++p) {
 			if (rank!=p) {
 				mpiGhost sendBuffer[sendCells[p].size()];
@@ -179,6 +189,7 @@ int main(int argc, char *argv[]) {
 				for (unsigned int g=0;g<recvCount[p];++g) {
 					id=global2local[recvBuffer[g].globalId];
 					grid.ghost[id].partition=recvBuffer[g].partition;
+					// TODO is it necessary to overwrite gloabalId?
 					grid.ghost[id].globalId=recvBuffer[g].globalId;
 					grid.ghost[id].rho=recvBuffer[g].vars[0];
 					grid.ghost[id].v.comp[0]=recvBuffer[g].vars[1];
@@ -192,21 +203,26 @@ int main(int argc, char *argv[]) {
 
 		if (input.section["timeMarching"].strings["type"]=="CFL") {
 			// Determine time step with CFL condition
-			double cellScaleX, cellScaleY, cellScaleZ;
+			//double cellScaleX, cellScaleY, cellScaleZ;
+			double lengthScale;
 			dt=1.E20;
 			for (unsigned int c=0;c<grid.cellCount;++c) {
 				double a=sqrt(gamma*grid.cell[c].p/grid.cell[c].rho);
-				cellScaleX=cellScaleY=cellScaleZ=0.;
-				for (unsigned int cn=0;cn<grid.cell[c].nodeCount;++cn) {
-					for (unsigned int cn2=0;cn2<grid.cell[c].nodeCount;++cn2) {
-						cellScaleX=max(cellScaleX,fabs(grid.cell[c].node(cn).comp[0]-grid.cell[c].node(cn2).comp[0]));
-						cellScaleY=max(cellScaleY,fabs(grid.cell[c].node(cn).comp[1]-grid.cell[c].node(cn2).comp[1]));
-						cellScaleZ=max(cellScaleZ,fabs(grid.cell[c].node(cn).comp[2]-grid.cell[c].node(cn2).comp[2]));
-					}
-				}
-				dt=min(dt,CFL*cellScaleX/(fabs(grid.cell[c].v.comp[0])+a));
-				dt=min(dt,CFL*cellScaleY/(fabs(grid.cell[c].v.comp[1])+a));
-				dt=min(dt,CFL*cellScaleZ/(fabs(grid.cell[c].v.comp[2])+a));
+// 				cellScaleX=cellScaleY=cellScaleZ=0.;
+// 				for (unsigned int cn=0;cn<grid.cell[c].nodeCount;++cn) {
+// 					for (unsigned int cn2=0;cn2<grid.cell[c].nodeCount;++cn2) {
+// 						cellScaleX=max(cellScaleX,fabs(grid.cell[c].node(cn).comp[0]-grid.cell[c].node(cn2).comp[0]));
+// 						cellScaleY=max(cellScaleY,fabs(grid.cell[c].node(cn).comp[1]-grid.cell[c].node(cn2).comp[1]));
+// 						cellScaleZ=max(cellScaleZ,fabs(grid.cell[c].node(cn).comp[2]-grid.cell[c].node(cn2).comp[2]));
+// 					}
+// 				}
+// 				dt=min(dt,CFL*cellScaleX/(fabs(grid.cell[c].v.comp[0])+a));
+// 				dt=min(dt,CFL*cellScaleY/(fabs(grid.cell[c].v.comp[1])+a));
+// 				dt=min(dt,CFL*cellScaleZ/(fabs(grid.cell[c].v.comp[2])+a));
+				lengthScale=grid.cell[c].lengthScale;
+				dt=min(dt,CFL*lengthScale/(fabs(grid.cell[c].v.comp[0])+a));
+				dt=min(dt,CFL*lengthScale/(fabs(grid.cell[c].v.comp[1])+a));
+				dt=min(dt,CFL*lengthScale/(fabs(grid.cell[c].v.comp[2])+a));
 			}
 			MPI_Allreduce(&dt,&dt,1, MPI_DOUBLE,MPI_MIN,MPI_COMM_WORLD);
 		}
@@ -215,27 +231,60 @@ int main(int argc, char *argv[]) {
 			fou(gamma);
 			if (input.section["equations"].strings["set"]=="NS") grid.gradients();
 		
-		} else {
-
+		} else { // if not first order
 			// Calculate all the cell gradients for each variable
-			//grid.gradients();
+			grid.gradients();
+			// Update ghost gradients
+			for (unsigned int p=0;p<np;++p) {
+				mpiGrad sendBuffer[sendCells[p].size()];
+				mpiGrad recvBuffer[recvCount[p]];
+				int id;
+				for (unsigned int g=0;g<sendCells[p].size();++g)	{
+					id=global2local[sendCells[p][g]];
+					sendBuffer[g].globalId=grid.cell[id].globalId;
+					int count=0;
+					for (unsigned int var=0;var<5;++var) {
+						for (unsigned int comp=0;comp<3;++comp) {
+							sendBuffer[g].vars[count]=grid.cell[id].grad[var].comp[comp];
+							count++;
+						}
+					}
+				}
 
-			double rhoOld[grid.cellCount] ,pOld[grid.cellCount] ;
-			Vec3D vOld[grid.cellCount];
-			// Backup variables
-			for (unsigned int c = 0;c < grid.cellCount;++c) {
-				rhoOld[c]=grid.cell[c].rho;
-				vOld[c]=grid.cell[c].v;
-				pOld[c]=grid.cell[c].p;
+				int tag=rank; // tag is set to source
+				MPI_Sendrecv(sendBuffer,sendCells[p].size(),MPI_GRAD,p,0,recvBuffer,recvCount[p],MPI_GRAD,p,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+		
+				for (unsigned int g=0;g<recvCount[p];++g) {
+					id=global2local[recvBuffer[g].globalId];
+					int count=0;
+					for (unsigned int var=0;var<5;++var) {
+						for (unsigned int comp=0;comp<3;++comp) {
+							grid.ghost[id].grad[var].comp[comp]=recvBuffer[g].vars[count];
+							count++;
+						}
+					}
+				}
 			}
-			//hancock_predictor(gamma,dt,limiter);
-			hancock_corrector(gamma,limiter, sendCells);
-			// Restore variables
-			for (unsigned int c = 0;c < grid.cellCount;++c) {
-				grid.cell[c].rho=rhoOld[c];
-				grid.cell[c].v=vOld[c];
-				grid.cell[c].p=pOld[c];
-			}
+			
+			hancock_corrector(gamma,limiter);
+			//fou(gamma);
+			
+//			double rhoOld[grid.cellCount] ,pOld[grid.cellCount] ;
+//			Vec3D vOld[grid.cellCount];
+//			// Backup variables
+// 			for (unsigned int c = 0;c < grid.cellCount;++c) {
+// 				rhoOld[c]=grid.cell[c].rho;
+// 				vOld[c]=grid.cell[c].v;
+// 				pOld[c]=grid.cell[c].p;
+// 			}
+//			//hancock_predictor(gamma,dt,limiter);
+//			hancock_corrector(gamma,limiter, sendCells);
+//			// Restore variables
+// 			for (unsigned int c = 0;c < grid.cellCount;++c) {
+// 				grid.cell[c].rho=rhoOld[c];
+// 				grid.cell[c].v=vOld[c];
+// 				grid.cell[c].p=pOld[c];
+// 			}
 		}
 
 		//if (input.section["equations"].strings["set"]=="NS") diff_flux(mu);

@@ -1,8 +1,8 @@
 equations {set=Euler;}
 
-numericalOptions {order=first; limiter=superbee;}
+numericalOptions {order=second; limiter=superbee;}
 
-timeMarching {type=CFL; step=0.0001; CFL=0.5; numberOfSteps=60; outFreq=20;}
+timeMarching {type=CFL; step=0.0001; CFL=1.; numberOfSteps=1000; outFreq=50;}
 
 initialConditions { 
 	region_1(type=box; box_1=[-1,-1,-1]; box_2=[3,3,3]; rho=1; v=[0,0,0]; p=1;);
