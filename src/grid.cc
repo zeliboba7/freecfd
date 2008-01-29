@@ -584,13 +584,18 @@ int Grid::ReadCGNS() {
 		face[f].normal=areaVec/face[f].area;
 	}
 
-// Loop through the cells and calculate the volumes
+// Loop through the cells and calculate the volumes and length scales
 	double totalVolume=0.;
 	for (unsigned int c=0;c<cellCount;++c) {
-		double volume=0.;
-		for (unsigned int f=0;f<cell[c].faceCount;++f) {
-			// [TBM] Area of a prism. Good for HEXA cells only
-			volume+=1./3.*cell[c].face(f).area*fabs(cell[c].face(f).normal.dot(cell[c].face(f).centroid-cell[c].centroid));
+		cell[c].lengthScale=1.e20;
+		double volume=0.,height;
+		unsigned int f;
+		for (unsigned int cf=0;cf<cell[c].faceCount;++cf) {
+			// FIXME Is this a generic volume formula?
+			f=cell[c].faces[cf];
+			height=fabs(face[f].normal.dot(face[f].centroid-cell[c].centroid));
+			volume+=1./3.*face[f].area*height;
+			cell[c].lengthScale=min(cell[c].lengthScale,height);
 		}
 		cell[c].volume=volume;
 		totalVolume+=volume;

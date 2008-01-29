@@ -39,7 +39,7 @@ class Cell {
 public:
 	unsigned int nodeCount,faceCount,globalId,globalCellCount;
 	ElementType_t type;
-	double volume;
+	double volume,lengthScale;
 	Vec3D centroid;
 	std::vector<int> nodes;
 	std::vector<int> faces;
@@ -60,7 +60,7 @@ public:
 	unsigned int partition;
 	unsigned int globalId;
 	double rho;
-	Vec3D v,centroid;
+	Vec3D v,centroid,grad[5];
 	double p;
 };
 
