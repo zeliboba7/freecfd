@@ -47,6 +47,7 @@ void read_inputs(InputFile &input) {
 	input.register_section("numericalOptions");
 	input.section["numericalOptions"].register_string("order");
 	input.section["numericalOptions"].register_string("limiter");
+	input.section["numericalOptions"].register_double("sharpeningFactor");
 	input.read_section("numericalOptions");
 
 }

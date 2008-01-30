@@ -37,14 +37,16 @@ public:
 
 class Cell {
 public:
-	unsigned int nodeCount,faceCount,globalId,globalCellCount;
+	unsigned int nodeCount,faceCount,neighborCellCount,ghostCount,globalId,globalCellCount;
 	ElementType_t type;
 	double volume,lengthScale;
 	Vec3D centroid;
 	std::vector<int> nodes;
 	std::vector<int> faces;
+	std::vector<int> neighborCells;
+	std::vector<int> ghosts;
 	double rho;
-	Vec3D v,grad[5];
+	Vec3D v,grad[5],limited_grad[5];
 	std::map<int,Vec3D> gradMap;
 	double p;
 	double flux[5];
@@ -81,6 +83,7 @@ public:
 	void faceAverages();
 	void gradMaps();
 	void gradients();
+	void limit_gradients(string limiter, double sharpeningFactor);
 };
 
 #endif

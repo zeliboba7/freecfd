@@ -34,13 +34,14 @@ void hancock_predictor(double gamma, double dt, string limiter) {
 			}
 
 			find_extremas(grid,c,f,deltaMin,deltaMax);
-
 			if (limiter=="superbee") {
 				for (unsigned int i=0;i<5;++i) delta[i]=superbee(deltaMax[i],deltaMin[i]);
 			} else if (limiter=="minmod") {
 				for (unsigned int i=0;i<5;++i) delta[i]=minmod(deltaMax[i],deltaMin[i]);
 			}
 
+
+			
 			// Values at the face
 			rho=grid.cell[c].rho+delta[0];
 			u=grid.cell[c].v.comp[0]+delta[1];
@@ -115,13 +116,18 @@ void hancock_corrector(double gamma, string limiter) {
 		// Cross the tangent vector with the normal vector to get the second tangent
 		faceTangent2= (grid.face[f].normal).cross(faceTangent1);
 
-		find_extremas(grid,parent,f,deltaMin,deltaMax);
-		if (limiter=="superbee") {
-			for (unsigned int i=0;i<5;++i) delta[i]=superbee(deltaMax[i],deltaMin[i]);
-		} else if (limiter=="minmod") {
-			for (unsigned int i=0;i<5;++i) delta[i]=minmod(deltaMax[i],deltaMin[i]);
-		}
+// 		find_extremas(grid,parent,f,deltaMin,deltaMax);
+// 		if (limiter=="superbee") {
+// 			for (unsigned int i=0;i<5;++i) delta[i]=superbee(deltaMax[i],deltaMin[i]);
+// 		} else if (limiter=="minmod") {
+// 			for (unsigned int i=0;i<5;++i) delta[i]=minmod(deltaMax[i],deltaMin[i]);
+// 		}
 
+		for (unsigned int i=0;i<5;++i) delta[i]=(grid.face[f].centroid-grid.cell[parent].centroid).dot(grid.cell[parent].limited_grad[i]);
+		
+		//cout << parent << "\t" << delta[0] << endl;
+		//cout << (grid.face[f].centroid-grid.cell[parent].centroid) << "\t" << grid.cell[parent].limited_grad[0] << endl;
+		
 		rhoL=grid.cell[parent].rho+delta[0];
 		uL=grid.cell[parent].v.comp[0]+delta[1];
 		vL=grid.cell[parent].v.comp[1]+delta[2];
@@ -147,12 +153,14 @@ void hancock_corrector(double gamma, string limiter) {
 		} else if (grid.face[f].bc==-1) { // internal face
 			// Limit neighbor cell gradients
 
-			find_extremas(grid,neighbor,f,deltaMin,deltaMax);
-			if (limiter=="superbee") {
-				for (unsigned int i=0;i<5;++i) delta[i]=superbee(deltaMax[i],deltaMin[i]);
-			} else if (limiter=="minmod") {
-				for (unsigned int i=0;i<5;++i) delta[i]=minmod(deltaMax[i],deltaMin[i]);
-			}
+// 			find_extremas(grid,neighbor,f,deltaMin,deltaMax);
+// 			if (limiter=="superbee") {
+// 				for (unsigned int i=0;i<5;++i) delta[i]=superbee(deltaMax[i],deltaMin[i]);
+// 			} else if (limiter=="minmod") {
+// 				for (unsigned int i=0;i<5;++i) delta[i]=minmod(deltaMax[i],deltaMin[i]);
+// 			}
+			
+			for (unsigned int i=0;i<5;++i) delta[i]=(grid.face[f].centroid-grid.cell[neighbor].centroid).dot(grid.cell[neighbor].limited_grad[i]);
 			
 			rhoR=grid.cell[neighbor].rho+delta[0];
 			uR=grid.cell[neighbor].v.comp[0]+delta[1];
@@ -233,6 +241,13 @@ void find_extremas(Grid &grid, unsigned int c, unsigned int f, double deltaMin[]
  				}
  			} // if the node cell is not the same as the cell
  		} // loop node cells
+		for (unsigned int ng=0;ng<grid.cell[c].node(n).ghosts.size();++ng) {
+			c2=grid.cell[c].node(n).ghosts[ng];
+			for (unsigned int i=0;i<5;++i) {
+				deltaMin[i]=min(deltaMin[i],grid.ghost[c2].grad[i].dot(cell2face));
+				deltaMax[i]=max(deltaMax[i],grid.ghost[c2].grad[i].dot(cell2face));
+			}
+		} // loop node cells
  	} // loop cell nodes
 
 	return;

@@ -1,0 +1,18 @@
+equations {set=Euler;}
+
+timeMarching {type=fixed; step=5.E-4; CFL=1.; numberOfSteps=100; outFreq=100;}
+
+numericalOptions {order=second; limiter=minmod; sharpeningFactor=0.14;}
+
+initialConditions { 
+	region_1(type=box; box_1=[-1,-1,-1]; box_2=[0.5,1,1]; rho=5.; v=[4.73,0,0]; p=29.;); 
+	region_2(type=box; box_1=[0.5,-1,-1]; box_2=[1,1,1]; rho=1.; v=[0,0,0]; p=1.;);
+}
+
+boundaryConditions { 
+	BC_1 (type=slip; region=box; box_1=[-1,-1,-1]; box_2=[2,2,2]; ); 
+    	BC_2 (type=outlet; region=box; box_1=[0,-1,-1]; box_2=[0,2,2]; );
+	BC_3 (type=outlet; region=box; box_1=[1,-1,-1]; box_2=[1,2,2]; );
+}
+
+fluidProperties {gamma=1.4; viscosity(type=fixed; value=2E-2;);}

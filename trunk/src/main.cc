@@ -105,6 +105,7 @@ int main(int argc, char *argv[]) {
 		mu=input.section["fluidProperties"].subsections["viscosity"].doubles["value"];
 	}
 	string limiter=input.section["numericalOptions"].strings["limiter"];
+	double sharpeningFactor=input.section["numericalOptions"].doubles["sharpeningFactor"];
 	
 	// Need a conversion map from globalId to local index
 	int global2local[grid.globalCellCount];
@@ -265,7 +266,8 @@ int main(int argc, char *argv[]) {
 					}
 				}
 			}
-			
+			// Limit gradients
+			grid.limit_gradients(limiter,sharpeningFactor);
 			hancock_corrector(gamma,limiter);
 			//fou(gamma);
 			
@@ -319,7 +321,7 @@ int main(int argc, char *argv[]) {
 double minmod(double a, double b) {
 	if ((a*b)<0) {
 		return 0.;
-	} else if (fabs(a) <fabs(b)) {
+	} else if (fabs(a) < fabs(b)) {
 		return a;
 	} else {
 		return b;
@@ -329,7 +331,7 @@ double minmod(double a, double b) {
 double maxmod(double a, double b) {
 	if ((a*b)<0) {
 		return 0.;
-	} else if (fabs(a) <fabs(b)) {
+	} else if (fabs(a) < fabs(b)) {
 		return b;
 	} else {
 		return a;

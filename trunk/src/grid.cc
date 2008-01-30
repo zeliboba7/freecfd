@@ -5,8 +5,8 @@
 #include <set>
 #include <map>
 #include <iomanip>
-using namespace std;
 #include<cmath>
+using namespace std;
 #include <cgnslib.h>
 #include <parmetis.h>
 
@@ -17,6 +17,9 @@ using namespace std;
 extern Grid grid;
 extern BC bc;
 extern int np, rank;
+
+double superbee(double a, double b);
+double minmod(double a, double b);
 
 Grid::Grid() {
 	;
@@ -276,15 +279,15 @@ int Grid::ReadCGNS() {
 	ParMETIS_V3_Mesh2Dual(elmdist, eptr, eind, &numflag, &ncommonnodes, &xadj, &adjncy, &commWorld);
 	
 	// Construct the list of cells for each node
-	int flag;
+	bool flag;
 	for (unsigned int c=0;c<cellCount;++c) {
-		int n;
+		unsigned int n;
 		for (unsigned int cn=0;cn<cell[c].nodeCount;++cn) {
 			n=cell[c].nodes[cn];
-			flag=0;
+			flag=false;
 			for (unsigned int i=0;i<node[n].cells.size();++i) {
 				if (node[n].cells[i]==c) {
-					flag=1;
+					flag=true;
 					break;
 				}
 			}
@@ -295,6 +298,27 @@ int Grid::ReadCGNS() {
 	}
 
 	cout << "* Processor " << rank << " has computed its node-cell connectivity" << endl;
+	
+	// Construct the list of neighboring cells for each cell
+	int c2;
+	for (unsigned int c=0;c<cellCount;++c) {
+		unsigned int n;
+		for (unsigned int cn=0;cn<cell[c].nodeCount;++cn) {
+			n=cell[c].nodes[cn];
+			for (unsigned int nc=0;nc<node[n].cells.size();++nc) {
+				c2=node[n].cells[nc];
+				flag=false;
+				for (unsigned int cc=0;cc<cell[c].neighborCells.size();++cc) {
+					if(cell[c].neighborCells[cc]==c2) {
+						flag=true;
+						break;
+					}
+				}
+				if (!flag) cell[c].neighborCells.push_back(c2);
+			} // end node cell loop
+		} // end cell node loop
+		cell[c].neighborCellCount=cell[c].neighborCells.size();
+	} // end cell loop
 	
 	// Set face connectivity lists
 	int hexaFaces[6][4]= {
@@ -495,6 +519,30 @@ int Grid::ReadCGNS() {
 				//cout << (*mit).first << "\t" << *sit << endl; // DEBUG
 			}	
 		}
+		
+		// Construct the list of neighboring ghosts for each cell
+		int g;
+		bool flag;
+		for (unsigned int c=0;c<cellCount;++c) {
+			unsigned int n;
+			for (unsigned int cn=0;cn<cell[c].nodeCount;++cn) {
+				n=cell[c].nodes[cn];
+				for (unsigned int ng=0;ng<node[n].ghosts.size();++ng) {
+					g=node[n].ghosts[ng];
+					flag=false;
+					for (unsigned int cg=0;cg<cell[c].ghosts.size();++cg) {
+						if(cell[c].ghosts[cg]==g) {
+							flag=true;
+							break;
+						}
+					} // end cell ghost loop
+					if (flag==false) cell[c].ghosts.push_back(g);
+				} // end node ghost loop
+			} // end cell node loop
+			cell[c].ghostCount=cell[c].ghosts.size();
+		} // end cell loop
+		
+		
 		
 	} // if (np!=1) 
 	
@@ -710,7 +758,7 @@ void Grid::nodeAverages() {
 		}
 	}
 	
-}
+} // end Grid::nodeAverages()
 
 void Grid::faceAverages() {
 
@@ -826,3 +874,40 @@ void Grid::gradients(void) {
 	} // end cell loop
  	
 } // end Grid::gradients(void)
+
+void Grid::limit_gradients(string limiter, double sharpeningFactor) {
+	
+	unsigned int neighbor,g;
+	Vec3D maxGrad[5],minGrad[5];
+	
+	for (unsigned int c=0;c<cellCount;++c) {
+		for (unsigned int i=0;i<5;++i) maxGrad[i]=minGrad[i]=cell[c].grad[i];
+		for (unsigned int cc=0;cc<cell[c].neighborCellCount;++cc) {
+			neighbor=cell[c].neighborCells[cc];
+			for (unsigned int var=0;var<5;++var) {
+				for (unsigned int comp=0;comp<3;++comp) {
+					maxGrad[var].comp[comp]=max(maxGrad[var].comp[comp],(1.-sharpeningFactor)*cell[neighbor].grad[var].comp[comp]+sharpeningFactor*cell[c].grad[var].comp[comp]);
+					minGrad[var].comp[comp]=min(minGrad[var].comp[comp],(1.-sharpeningFactor)*cell[neighbor].grad[var].comp[comp]+sharpeningFactor*cell[c].grad[var].comp[comp]);
+// 					maxGrad[var].comp[comp]=max(maxGrad[var].comp[comp],cell[neighbor].grad[var].comp[comp]);
+// 					minGrad[var].comp[comp]=min(minGrad[var].comp[comp],cell[neighbor].grad[var].comp[comp]);
+				}
+			}
+		}
+		
+// 		for (unsigned int cg=0;cg<cell[c].ghostCount;++cg) {
+// 			g=cell[c].ghosts[cg];
+// 			for (unsigned int var=0;var<5;++var) {
+// 				for (unsigned int comp=0;comp<3;++comp) {
+// 					maxGrad[var].comp[comp]=max(maxGrad[var].comp[comp],0.5*(ghost[g].grad[var].comp[comp]+cell[c].grad[var].comp[comp]));
+// 					minGrad[var].comp[comp]=min(minGrad[var].comp[comp],0.5*(ghost[g].grad[var].comp[comp]+cell[c].grad[var].comp[comp]));
+// 				}
+// 			}
+// 		}
+		//cout << c << "\t" << maxGrad[0] << "\t" << minGrad[0] << endl;
+		if(limiter=="superbee") for (unsigned int var=0;var<5;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].limited_grad[var].comp[comp]=superbee(maxGrad[var].comp[comp],minGrad[var].comp[comp]);
+		if(limiter=="minmod") for (unsigned int var=0;var<5;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].limited_grad[var].comp[comp]=minmod(maxGrad[var].comp[comp],minGrad[var].comp[comp]);
+
+		//cout << c << "\t" << maxGrad[0] << "\t" << minGrad[0] << "\t" << cell[c].limited_grad[0] << endl;
+	}
+	
+} // end Grid::limit_gradients(string limiter, double sharpeningFactor)
