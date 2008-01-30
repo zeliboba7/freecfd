@@ -1,17 +1,21 @@
 equations {set=Euler;}
 
-numericalOptions {order=second; limiter=superbee;}
+numericalOptions {order=second; limiter=superbee; sharpeningFactor=0.;}
 
-timeMarching {type=CFL; step=0.0001; CFL=1.; numberOfSteps=1000; outFreq=50;}
+timeMarching {type=CFL; step=0.0001; CFL=1.; numberOfSteps=2000; outFreq=100;}
+
+	//region_1(type=box; box_1=[-1,-1,-1]; box_2=[3,3,3]; rho=1.0; v=[0.0,0.,0.]; p=1.0;);
+	//region_2(type=box; box_1=[-1,-1,-1]; box_2=[0.25,3,3]; rho=5; v=[4.730,0.,0.]; p=29.;);
 
 initialConditions { 
-	region_1(type=box; box_1=[-1,-1,-1]; box_2=[3,3,3]; rho=1; v=[0,0,0]; p=1;);
-	region_2(type=box; box_1=[-1,-1,-1]; box_2=[0.25,3,3]; rho=1.16908212; v=[0.18823891,0,0]; p=1.245;);
+	region_1(type=box; box_1=[-1,-1,-1]; box_2=[3,3,3]; rho=1.0; v=[0.0,0.,0.]; p=1.0;);
+	region_2(type=box; box_1=[-1,-1,-1]; box_2=[0.25,3,3]; rho=2.66666666; v=[1.47901996,0.,0.]; p=4.5;);
 }
 
 boundaryConditions { 
 	BC_1 (type=slip; region=box; box_1=[-1,-1,-1]; box_2=[2,2,2]); 
-	BC_2 (type=outlet; region=box; box_1=[1.75,0.001,-1]; box_2=[2,2,2]); 
+	BC_2 (type=outlet; region=box; box_1=[1.2501,0.0001,-1.]; box_2=[2.,2.,2.]); 
+	BC_3 (type=outlet; region=box; box_1=[-1.00,-0.0001,-1.]; box_2=[0.0001,2.,2.]); 
 }
 
 fluidProperties {gamma=1.4; viscosity(type=fixed; value=2E-2;);}

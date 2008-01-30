@@ -1,6 +1,6 @@
 equations {set=Euler;}
 
-numericalOptions {order=second; limiter=superbee;}
+numericalOptions {order=second; limiter=superbee; sharpeningFactor=0.;}
 
 timeMarching {type=CFL; step=0.005; CFL=1.; numberOfSteps=50; outFreq=5;}
 
