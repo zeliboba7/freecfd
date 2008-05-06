@@ -89,10 +89,10 @@ int main(int argc, char *argv[]) {
 	} // end scope
 	
 	initialize(grid,input);
-	//cout << "* Applied initial conditions" << endl;
+	if (rank==0) cout << "[I] Applied initial conditions" << endl;
 
 	set_bcs(grid,input,bc);
-	//cout << "* Set boundary conditions" << endl;
+	if (rank==0) cout << "[I] Set boundary conditions" << endl;
 
 	double time = 0.;
 	double gamma = input.section["fluidProperties"].doubles["gamma"];
@@ -144,7 +144,7 @@ int main(int argc, char *argv[]) {
 	
 	struct mpiGrad {
 		unsigned int globalId;
-		double vars[15];
+		double grads[15];
 	};
 	array_of_block_lengths[0]=1;array_of_block_lengths[1]=15;
 	array_of_displacements[1]=extent;
@@ -159,12 +159,7 @@ int main(int argc, char *argv[]) {
 	MPI_Barrier(MPI_COMM_WORLD);
 	double timeRef, timeEnd;
 	timeRef=MPI_Wtime();
-	
-//	grid.gradients();
-// 	for (unsigned int c=0;c<grid.cellCount;++c) { // DEBUG
-// 		cout << rank << "\t" << c << "\t" << grid.cell[c].grad[0] << endl;
-// 	}
-	
+
 	// Begin time loop
 	for (int timeStep = restart;timeStep < input.section["timeMarching"].ints["numberOfSteps"]+restart;++timeStep) {
 		// TODO partition variable need not be send and received
@@ -209,17 +204,6 @@ int main(int argc, char *argv[]) {
 			dt=1.E20;
 			for (unsigned int c=0;c<grid.cellCount;++c) {
 				double a=sqrt(gamma*grid.cell[c].p/grid.cell[c].rho);
-// 				cellScaleX=cellScaleY=cellScaleZ=0.;
-// 				for (unsigned int cn=0;cn<grid.cell[c].nodeCount;++cn) {
-// 					for (unsigned int cn2=0;cn2<grid.cell[c].nodeCount;++cn2) {
-// 						cellScaleX=max(cellScaleX,fabs(grid.cell[c].node(cn).comp[0]-grid.cell[c].node(cn2).comp[0]));
-// 						cellScaleY=max(cellScaleY,fabs(grid.cell[c].node(cn).comp[1]-grid.cell[c].node(cn2).comp[1]));
-// 						cellScaleZ=max(cellScaleZ,fabs(grid.cell[c].node(cn).comp[2]-grid.cell[c].node(cn2).comp[2]));
-// 					}
-// 				}
-// 				dt=min(dt,CFL*cellScaleX/(fabs(grid.cell[c].v.comp[0])+a));
-// 				dt=min(dt,CFL*cellScaleY/(fabs(grid.cell[c].v.comp[1])+a));
-// 				dt=min(dt,CFL*cellScaleZ/(fabs(grid.cell[c].v.comp[2])+a));
 				lengthScale=grid.cell[c].lengthScale;
 				dt=min(dt,CFL*lengthScale/(fabs(grid.cell[c].v.comp[0])+a));
 				dt=min(dt,CFL*lengthScale/(fabs(grid.cell[c].v.comp[1])+a));
@@ -227,26 +211,28 @@ int main(int argc, char *argv[]) {
 			}
 			MPI_Allreduce(&dt,&dt,1, MPI_DOUBLE,MPI_MIN,MPI_COMM_WORLD);
 		}
-		
+
 		if (input.section["numericalOptions"].strings["order"]=="first") {
 			fou(gamma);
 			if (input.section["equations"].strings["set"]=="NS") grid.gradients();
-		
 		} else { // if not first order
+
 			// Calculate all the cell gradients for each variable
+
 			grid.gradients();
+
 			// Update ghost gradients
 			for (unsigned int p=0;p<np;++p) {
 				mpiGrad sendBuffer[sendCells[p].size()];
 				mpiGrad recvBuffer[recvCount[p]];
 				int id;
-				for (unsigned int g=0;g<sendCells[p].size();++g)	{
+				for (unsigned int g=0;g<sendCells[p].size();++g) {
 					id=global2local[sendCells[p][g]];
 					sendBuffer[g].globalId=grid.cell[id].globalId;
 					int count=0;
 					for (unsigned int var=0;var<5;++var) {
 						for (unsigned int comp=0;comp<3;++comp) {
-							sendBuffer[g].vars[count]=grid.cell[id].grad[var].comp[comp];
+							sendBuffer[g].grads[count]=grid.cell[id].grad[var].comp[comp];
 							count++;
 						}
 					}
@@ -260,7 +246,7 @@ int main(int argc, char *argv[]) {
 					int count=0;
 					for (unsigned int var=0;var<5;++var) {
 						for (unsigned int comp=0;comp<3;++comp) {
-							grid.ghost[id].grad[var].comp[comp]=recvBuffer[g].vars[count];
+							grid.ghost[id].grad[var].comp[comp]=recvBuffer[g].grads[count];
 							count++;
 						}
 					}
@@ -268,6 +254,40 @@ int main(int argc, char *argv[]) {
 			}
 			// Limit gradients
 			grid.limit_gradients(limiter,sharpeningFactor);
+
+			// Send limited gradients
+			for (unsigned int p=0;p<np;++p) {
+				mpiGrad sendBuffer[sendCells[p].size()];
+				mpiGrad recvBuffer[recvCount[p]];
+				int id;
+				for (unsigned int g=0;g<sendCells[p].size();++g) {
+					id=global2local[sendCells[p][g]];
+					sendBuffer[g].globalId=grid.cell[id].globalId;
+					int count=0;
+					for (unsigned int var=0;var<5;++var) {
+						for (unsigned int comp=0;comp<3;++comp) {
+							sendBuffer[g].grads[count]=grid.cell[id].limited_grad[var].comp[comp];
+							count++;
+						}
+					}
+				}
+
+				int tag=rank; // tag is set to source
+				MPI_Sendrecv(sendBuffer,sendCells[p].size(),MPI_GRAD,p,0,recvBuffer,recvCount[p],MPI_GRAD,p,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+		
+				for (unsigned int g=0;g<recvCount[p];++g) {
+					id=global2local[recvBuffer[g].globalId];
+					int count=0;
+					for (unsigned int var=0;var<5;++var) {
+						for (unsigned int comp=0;comp<3;++comp) {
+							grid.ghost[id].limited_grad[var].comp[comp]=recvBuffer[g].grads[count];
+							count++;
+						}
+						//cout << rank << "\t" << var << "\t" << grid.ghost[id].limited_grad[var] << endl;
+					}
+				}
+			}
+			
 			hancock_corrector(gamma,limiter);
 			//fou(gamma);
 			
