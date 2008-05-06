@@ -8,93 +8,91 @@ extern Grid grid;
 extern BC bc;
 extern int np, rank;
 
-void find_extremas(Grid &grid, unsigned int c, unsigned int f, double deltaMax[], double deltaMax[]);
-void find_ghost_extremas(Grid &grid, unsigned int g, unsigned int f, double deltaMax[], double deltaMax[]);
 void RoeFlux(const double gamma, const double qL[], const double qR[], double flux[]);
 double superbee(double a, double b);
 double minmod(double a, double b);
 
 void hancock_predictor(double gamma, double dt, string limiter) {
 
-	double delta[5],deltaMin[5], deltaMax[5]; // These arrays has rho,u,v,w,p sequentially
-	Vec3D faceVel, faceNormal;
-	double a,rho, u, v, w, p, uN;
-	double flux[5];
-
-	unsigned int f;
-	// Loop through cells
-	for (unsigned int c = 0;c < grid.cellCount;++c) {
-		// Loop through each face of the cell to get the limited face values
-		for (unsigned int cf=0; cf<grid.cell[c].faceCount; ++cf) {
-			f=grid.cell[c].faces[cf];
-			if (grid.face[f].parent==c) {
-				faceNormal=grid.face[f].normal;
-			} else {
-				faceNormal=-1.*grid.face[f].normal;
-			}
-
-			find_extremas(grid,c,f,deltaMin,deltaMax);
-			if (limiter=="superbee") {
-				for (unsigned int i=0;i<5;++i) delta[i]=superbee(deltaMax[i],deltaMin[i]);
-			} else if (limiter=="minmod") {
-				for (unsigned int i=0;i<5;++i) delta[i]=minmod(deltaMax[i],deltaMin[i]);
-			}
-
-
-			
-			// Values at the face
-			rho=grid.cell[c].rho+delta[0];
-			u=grid.cell[c].v.comp[0]+delta[1];
-			v=grid.cell[c].v.comp[1]+delta[2];
-			w=grid.cell[c].v.comp[2]+delta[3];
-			p=grid.cell[c].p+delta[4];
-
-			faceVel.comp[0]=u;faceVel.comp[1]=v;faceVel.comp[2]=w;
-
-			uN=faceVel.dot(faceNormal);
-
-			if (grid.face[f].bc!=-1) { // means a boundary face
-				if (bc.region[grid.face[f].bc].type=="slip") {
-					uN=0.;
-					faceVel-=faceVel.dot(faceNormal) *faceNormal;
-					u=faceVel.comp[0]; v=faceVel.comp[1]; w=faceVel.comp[2];
-				} else if (bc.region[grid.face[f].bc].type=="noslip") {
-					uN=0.;u=0.;v=0.;w=0.;
-				} else if (bc.region[grid.face[f].bc].type=="outlet") {
-					/*u=grid.cell[c].v.comp[0];
-					v=grid.cell[c].v.comp[1];
-					w=grid.cell[c].v.comp[2];
-					uN=grid.cell[c].v.dot(faceNormal);*/
-				} else if (bc.region[grid.face[f].bc].type=="inlet") {
-					rho=bc.region[grid.face[f].bc].p;
-					u=bc.region[grid.face[f].bc].v.comp[0];
-					v=bc.region[grid.face[f].bc].v.comp[1];
-					w=bc.region[grid.face[f].bc].v.comp[2];
-					//p=bc.region[grid.face[f].bc].p;
-					uN=bc.region[grid.face[f].bc].v.dot(faceNormal);
-				}
-			}
-
-			a=sqrt(gamma*p/rho);
-
-			flux[0]= (rho*uN) *grid.face[f].area;
-			flux[1]= (uN*u+p/rho*faceNormal.comp[0]) *grid.face[f].area;
-			flux[2]= (uN*v+p/rho*faceNormal.comp[1]) *grid.face[f].area;
-			flux[3]= (uN*w+p/rho*faceNormal.comp[2]) *grid.face[f].area;
-			flux[4]= (rho* (uN) *a*a+uN*p) *grid.face[f].area;
-
-			for (int i = 0;i < 5;++i) {
-				grid.cell[c].flux[i] += flux[i];
-			}
-
-		} // cell faces loop
-
-		grid.cell[c].rho -= 0.5*dt / grid.cell[c].volume * grid.cell[c].flux[0];
-		for (int i = 0;i <= 3;++i) grid.cell[c].v.comp[i]-= 0.5*dt / grid.cell[c].volume * grid.cell[c].flux[i+1];
-		grid.cell[c].p-= 0.5*dt / grid.cell[c].volume * grid.cell[c].flux[4];
-		for (int i = 0;i < 5;++i) grid.cell[c].flux[i] = 0.;
-
-	} // cell loop
+// 	double delta[5],deltaMin[5], deltaMax[5]; // These arrays has rho,u,v,w,p sequentially
+// 	Vec3D faceVel, faceNormal;
+// 	double a,rho, u, v, w, p, uN;
+// 	double flux[5];
+// 
+// 	unsigned int f;
+// 	// Loop through cells
+// 	for (unsigned int c = 0;c < grid.cellCount;++c) {
+// 		// Loop through each face of the cell to get the limited face values
+// 		for (unsigned int cf=0; cf<grid.cell[c].faceCount; ++cf) {
+// 			f=grid.cell[c].faces[cf];
+// 			if (grid.face[f].parent==c) {
+// 				faceNormal=grid.face[f].normal;
+// 			} else {
+// 				faceNormal=-1.*grid.face[f].normal;
+// 			}
+// 
+// 			find_extremas(grid,c,f,deltaMin,deltaMax);
+// 			if (limiter=="superbee") {
+// 				for (unsigned int i=0;i<5;++i) delta[i]=superbee(deltaMax[i],deltaMin[i]);
+// 			} else if (limiter=="minmod") {
+// 				for (unsigned int i=0;i<5;++i) delta[i]=minmod(deltaMax[i],deltaMin[i]);
+// 			}
+// 
+// 
+// 			
+// 			// Values at the face
+// 			rho=grid.cell[c].rho+delta[0];
+// 			u=grid.cell[c].v.comp[0]+delta[1];
+// 			v=grid.cell[c].v.comp[1]+delta[2];
+// 			w=grid.cell[c].v.comp[2]+delta[3];
+// 			p=grid.cell[c].p+delta[4];
+// 
+// 			faceVel.comp[0]=u;faceVel.comp[1]=v;faceVel.comp[2]=w;
+// 
+// 			uN=faceVel.dot(faceNormal);
+// 
+// 			if (grid.face[f].bc!=-1) { // means a boundary face
+// 				if (bc.region[grid.face[f].bc].type=="slip") {
+// 					uN=0.;
+// 					faceVel-=faceVel.dot(faceNormal) *faceNormal;
+// 					u=faceVel.comp[0]; v=faceVel.comp[1]; w=faceVel.comp[2];
+// 				} else if (bc.region[grid.face[f].bc].type=="noslip") {
+// 					uN=0.;u=0.;v=0.;w=0.;
+// 				} else if (bc.region[grid.face[f].bc].type=="outlet") {
+// 					/*u=grid.cell[c].v.comp[0];
+// 					v=grid.cell[c].v.comp[1];
+// 					w=grid.cell[c].v.comp[2];
+// 					uN=grid.cell[c].v.dot(faceNormal);*/
+// 				} else if (bc.region[grid.face[f].bc].type=="inlet") {
+// 					rho=bc.region[grid.face[f].bc].p;
+// 					u=bc.region[grid.face[f].bc].v.comp[0];
+// 					v=bc.region[grid.face[f].bc].v.comp[1];
+// 					w=bc.region[grid.face[f].bc].v.comp[2];
+// 					//p=bc.region[grid.face[f].bc].p;
+// 					uN=bc.region[grid.face[f].bc].v.dot(faceNormal);
+// 				}
+// 			}
+// 
+// 			a=sqrt(gamma*p/rho);
+// 
+// 			flux[0]= (rho*uN) *grid.face[f].area;
+// 			flux[1]= (uN*u+p/rho*faceNormal.comp[0]) *grid.face[f].area;
+// 			flux[2]= (uN*v+p/rho*faceNormal.comp[1]) *grid.face[f].area;
+// 			flux[3]= (uN*w+p/rho*faceNormal.comp[2]) *grid.face[f].area;
+// 			flux[4]= (rho* (uN) *a*a+uN*p) *grid.face[f].area;
+// 
+// 			for (int i = 0;i < 5;++i) {
+// 				grid.cell[c].flux[i] += flux[i];
+// 			}
+// 
+// 		} // cell faces loop
+// 
+// 		grid.cell[c].rho -= 0.5*dt / grid.cell[c].volume * grid.cell[c].flux[0];
+// 		for (int i = 0;i <= 3;++i) grid.cell[c].v.comp[i]-= 0.5*dt / grid.cell[c].volume * grid.cell[c].flux[i+1];
+// 		grid.cell[c].p-= 0.5*dt / grid.cell[c].volume * grid.cell[c].flux[4];
+// 		for (int i = 0;i < 5;++i) grid.cell[c].flux[i] = 0.;
+// 
+// 	} // cell loop
 
 } // end function
 
@@ -116,18 +114,8 @@ void hancock_corrector(double gamma, string limiter) {
 		// Cross the tangent vector with the normal vector to get the second tangent
 		faceTangent2= (grid.face[f].normal).cross(faceTangent1);
 
-// 		find_extremas(grid,parent,f,deltaMin,deltaMax);
-// 		if (limiter=="superbee") {
-// 			for (unsigned int i=0;i<5;++i) delta[i]=superbee(deltaMax[i],deltaMin[i]);
-// 		} else if (limiter=="minmod") {
-// 			for (unsigned int i=0;i<5;++i) delta[i]=minmod(deltaMax[i],deltaMin[i]);
-// 		}
-
 		for (unsigned int i=0;i<5;++i) delta[i]=(grid.face[f].centroid-grid.cell[parent].centroid).dot(grid.cell[parent].limited_grad[i]);
-		
-		//cout << parent << "\t" << delta[0] << endl;
-		//cout << (grid.face[f].centroid-grid.cell[parent].centroid) << "\t" << grid.cell[parent].limited_grad[0] << endl;
-		
+
 		rhoL=grid.cell[parent].rho+delta[0];
 		uL=grid.cell[parent].v.comp[0]+delta[1];
 		vL=grid.cell[parent].v.comp[1]+delta[2];
@@ -151,17 +139,8 @@ void hancock_corrector(double gamma, string limiter) {
 				//pR=bc.region[grid.face[f].bc].p;
 			}
 		} else if (grid.face[f].bc==-1) { // internal face
-			// Limit neighbor cell gradients
-
-// 			find_extremas(grid,neighbor,f,deltaMin,deltaMax);
-// 			if (limiter=="superbee") {
-// 				for (unsigned int i=0;i<5;++i) delta[i]=superbee(deltaMax[i],deltaMin[i]);
-// 			} else if (limiter=="minmod") {
-// 				for (unsigned int i=0;i<5;++i) delta[i]=minmod(deltaMax[i],deltaMin[i]);
-// 			}
-			
 			for (unsigned int i=0;i<5;++i) delta[i]=(grid.face[f].centroid-grid.cell[neighbor].centroid).dot(grid.cell[neighbor].limited_grad[i]);
-			
+
 			rhoR=grid.cell[neighbor].rho+delta[0];
 			uR=grid.cell[neighbor].v.comp[0]+delta[1];
 			vR=grid.cell[neighbor].v.comp[1]+delta[2];
@@ -175,13 +154,12 @@ void hancock_corrector(double gamma, string limiter) {
 		
 		} else { // partition boundary 
 			int g=-1*grid.face[f].bc-2;
-			find_ghost_extremas(grid,g,f,deltaMin,deltaMax);
-			
-			if (limiter=="superbee") {
-				for (unsigned int i=0;i<5;++i) delta[i]=superbee(deltaMax[i],deltaMin[i]);
-			} else if (limiter=="minmod") {
-				for (unsigned int i=0;i<5;++i) delta[i]=minmod(deltaMax[i],deltaMin[i]);
+
+			for (unsigned int i=0;i<5;++i) {
+				delta[i]=(grid.face[f].centroid-grid.ghost[g].centroid).dot(grid.ghost[g].limited_grad[i]);
+				//cout << grid.ghost[g].limited_grad[i] << endl;
 			}
+			
 			rhoR=grid.ghost[g].rho+delta[0];
 			uR=grid.ghost[g].v.comp[0]+delta[1];
 			vR=grid.ghost[g].v.comp[1]+delta[2];
@@ -224,46 +202,5 @@ void hancock_corrector(double gamma, string limiter) {
 	} // face loop
 
 } // end function
-
-void find_extremas(Grid &grid, unsigned int c, unsigned int f, double deltaMin[], double deltaMax[]) {
-
-	int c2;
-	Vec3D cell2face=grid.face[f].centroid-grid.cell[c].centroid;
-	for (unsigned int i=0;i<5;++i) deltaMin[i]=deltaMax[i]=grid.cell[c].grad[i].dot(cell2face);
-	
- 	for (unsigned int n=0;n<grid.cell[c].nodeCount;++n) {
- 		for (unsigned int nc=0;nc<grid.cell[c].node(n).cells.size();++nc) {
- 			c2=grid.cell[c].node(n).cells[nc];
- 			if (c2!=c) {
-				for (unsigned int i=0;i<5;++i) {
- 					deltaMin[i]=min(deltaMin[i],grid.cell[c2].grad[i].dot(cell2face));
- 					deltaMax[i]=max(deltaMax[i],grid.cell[c2].grad[i].dot(cell2face));
- 				}
- 			} // if the node cell is not the same as the cell
- 		} // loop node cells
-		for (unsigned int ng=0;ng<grid.cell[c].node(n).ghosts.size();++ng) {
-			c2=grid.cell[c].node(n).ghosts[ng];
-			for (unsigned int i=0;i<5;++i) {
-				deltaMin[i]=min(deltaMin[i],grid.ghost[c2].grad[i].dot(cell2face));
-				deltaMax[i]=max(deltaMax[i],grid.ghost[c2].grad[i].dot(cell2face));
-			}
-		} // loop node cells
- 	} // loop cell nodes
-
-	return;
-}
-	
-void find_ghost_extremas(Grid &grid, unsigned int g, unsigned int f, double deltaMin[], double deltaMax[]) {
-
-		Vec3D cell2face=grid.face[f].centroid-grid.ghost[g].centroid;
-		for (unsigned int i=0;i<5;++i) deltaMin[i]=deltaMax[i]=grid.ghost[g].grad[i].dot(cell2face);
-	
-		int c2=max(grid.face[f].parent,grid.face[f].neighbor);
-		for (unsigned int i=0;i<5;++i) {
-			deltaMin[i]=min(deltaMin[i],grid.cell[c2].grad[i].dot(cell2face));
-			deltaMax[i]=max(deltaMax[i],grid.cell[c2].grad[i].dot(cell2face));
-		}
-		return;
-	}
 
 

@@ -10,6 +10,7 @@
 #include <mpi.h>
 #include "vec3d.h"
 #include "sparse.h"
+using namespace std;
 
 
 class Node : public Vec3D {
@@ -61,8 +62,9 @@ class Ghost {
 public:
 	unsigned int partition;
 	unsigned int globalId;
+	std::vector<unsigned int> cells;
 	double rho;
-	Vec3D v,centroid,grad[5];
+	Vec3D v,centroid,grad[5],limited_grad[5];
 	double p;
 };
 

@@ -27,7 +27,7 @@ void RoeFlux(const double gamma, const double qL[], const double qR[], double fl
 	v= (vL+rho*vR) / (1.+rho);
 	w= (wL+rho*wR) / (1.+rho);
 	h= (hL+rho*hR) / (1.+rho);
-	a=sqrt((gamma-1.) * (h-0.5* (u*u+v*v)));
+	a=sqrt((gamma-1.) * (h-0.5* (u*u+v*v+w*w)));
 
 	rho=rho*qL[0];
 

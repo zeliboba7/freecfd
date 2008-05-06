@@ -42,68 +42,195 @@ int Grid::read(string fname) {
 
 int Grid::ReadCGNS() {
 
-	int fileIndex,baseIndex,zoneIndex,sectionIndex;
+
+
+	int fileIndex,baseIndex,zoneIndex,sectionIndex,nBases,nZones,nSections,nBocos;
 	char zoneName[20],sectionName[20]; //baseName[20]
 	//  int nBases,cellDim,physDim;
 	int size[3];
-
-	cg_open(fileName.c_str(),MODE_READ,&fileIndex);
-	baseIndex=1;
-	zoneIndex=1;
-
-	cg_zone_read(fileIndex,baseIndex,zoneIndex,zoneName,size);
-
-	globalNodeCount=size[0];
-	globalCellCount=size[1];
+	globalNodeCount=0;
+	globalCellCount=0;
 	globalFaceCount=0;
+	
+	// Open the grid file for reading
+	cg_open(fileName.c_str(),MODE_READ,&fileIndex);
 
-	if (rank==0) {
-		cout << "* Total number of nodes: " << globalNodeCount << endl;
-		cout << "* Total number of cells: " << globalCellCount << endl;
+	// Read number of bases
+	cg_nbases(fileIndex,&nBases);
+
+	if (rank==0) cout << "Number of Bases= " << nBases << endl;
+
+	//for (int baseIndex=1;baseIndex<=nBases;++baseIndex) {
+	// For now assuming there is only one base as I don't know in which cases there would be more
+	baseIndex=1;
+	// Read number of zones
+	cg_nzones(fileIndex,baseIndex,&nZones);
+	int zoneNodeCount[nZones],zoneCellCount[nZones];
+	if (rank==0) cout << "Number of Zones= " << nZones << endl;
+	std::vector<int> elemConnIndex,elemConnectivity;
+	std::vector<ElementType_t> elemTypes;
+	std::vector<double> coordX[nZones],coordY[nZones],coordZ[nZones];
+	std::vector<int> zoneCoordMap[nZones];
+
+	// Get total number of boundary conditions
+	int totalnBocos=0;
+	for (int zoneIndex=1;zoneIndex<=nZones;++zoneIndex) {
+		cg_nbocos(fileIndex,baseIndex,zoneIndex,&nBocos);
+		totalnBocos+=nBocos;
 	}
+	std::vector<int> bocos[totalnBocos],bocoConnectivity[totalnBocos];
+	int bocoCount=0;
+	for (int zoneIndex=1;zoneIndex<=nZones;++zoneIndex) {
+		// Read the zone
+		cg_zone_read(fileIndex,baseIndex,zoneIndex,zoneName,size);
+		// These are the number of cells and nodes in that zone
+		zoneNodeCount[zoneIndex-1]=size[0];
+		zoneCellCount[zoneIndex-1]=size[1];
+		// Read number of sections
+		cg_nsections(fileIndex,baseIndex,zoneIndex,&nSections);
+		cg_nbocos(fileIndex,baseIndex,zoneIndex,&nBocos);
+		if (rank==0) cout << "In Zone " << zoneName << endl;
+		if (rank==0) cout << "...Number of Nodes= " << size[0] << endl;
+		if (rank==0) cout << "...Number of Cells= " << size[1] << endl;
+		if (rank==0) cout << "...Number of Sections= " << nSections << endl;
+		if (rank==0) cout << "...Number of Boundary Conditions= " << nBocos << endl;
+			
+		// Read the node coordinates
+		int nodeStart[3],nodeEnd[3];
+		nodeStart[0]=nodeStart[1]=nodeStart[2]=1;
+		nodeEnd[0]=nodeEnd[1]=nodeEnd[2]=size[0];
+				
+		double x[size[0]],y[size[0]],z[size[0]];
+		cg_coord_read(fileIndex,baseIndex,zoneIndex,"CoordinateX",RealDouble,nodeStart,nodeEnd,&x);
+		cg_coord_read(fileIndex,baseIndex,zoneIndex,"CoordinateY",RealDouble,nodeStart,nodeEnd,&y);
+		cg_coord_read(fileIndex,baseIndex,zoneIndex,"CoordinateZ",RealDouble,nodeStart,nodeEnd,&z);
+		for (int i=0;i<size[0];++i) {
+			coordX[zoneIndex-1].push_back(x[i]);
+			coordY[zoneIndex-1].push_back(y[i]);
+			coordZ[zoneIndex-1].push_back(z[i]);
+			zoneCoordMap[zoneIndex-1].push_back(-1);
+		}
 
+			// In case there are multiple connected zones, collapse the repeated nodes and fix the node numbering
+		if (zoneIndex==1) {
+			for (int c=0;c<coordX[0].size();++c) {
+				zoneCoordMap[0][c]=globalNodeCount;
+				globalNodeCount++;
+			}
+		}
+		for (int z=0;z<zoneIndex-1;++z) {
+			for (int c=0;c<coordX[zoneIndex-1].size();++c) {
+				bool foundFlag=false;
+				for (int c2=0;c2<coordX[z].size();++c2) {
+					if (fabs(coordX[zoneIndex-1][c]-coordX[z][c2])<1.e-7 && fabs(coordY[zoneIndex-1][c]-coordY[z][c2])<1.e-7 && fabs(coordZ[zoneIndex-1][c]-coordZ[z][c2])<1.e-7) {
+						zoneCoordMap[zoneIndex-1][c]=zoneCoordMap[z][c2];
+						foundFlag=true;
+					}
+				}
+				if (!foundFlag) {
+					zoneCoordMap[zoneIndex-1][c]=globalNodeCount;
+					globalNodeCount++;
+				}
+			}
+		}
+
+		int bc_range[nBocos][2];
+		for (int bocoIndex=1;bocoIndex<=nBocos;++bocoIndex) {
+			int dummy;
+			cg_boco_read(fileIndex,baseIndex,zoneIndex,bocoIndex,bc_range[bocoIndex-1],&dummy);
+		} // for boco
+			
+			// Loop sections within the zone
+		for (int sectionIndex=1;sectionIndex<=nSections;++sectionIndex) {
+			ElementType_t elemType;
+			int elemNodeCount,elemStart,elemEnd,nBndCells,parentFlag;
+				// Read the section 
+			cg_section_read(fileIndex,baseIndex,zoneIndex,sectionIndex,sectionName,&elemType,&elemStart,&elemEnd,&nBndCells,&parentFlag);
+
+			switch (elemType) {
+				case TRI_3:
+					elemNodeCount=3; break;
+				case QUAD_4:
+					elemNodeCount=4; break;
+				case TETRA_4:
+					elemNodeCount=4; break;
+				case PENTA_6:
+					elemNodeCount=6; break;
+				case HEXA_8:
+					elemNodeCount=8; break;
+			} //switch
+			int elemNodes[elemEnd-elemStart+1][elemNodeCount];
+				// Read element node connectivities
+			cg_elements_read(fileIndex,baseIndex,zoneIndex,sectionIndex,*elemNodes,0);
+				// Only pick the volume elements
+
+			if (elemType==TETRA_4 | elemType==PENTA_6 | elemType==HEXA_8 ) {
+				cout << "   ...Found Volume Section " << sectionName << endl;
+					// elements array serves as an start index for connectivity list elemConnectivity
+
+				for (int elem=0;elem<=(elemEnd-elemStart);++elem) {
+					elemConnIndex.push_back(elemConnectivity.size());
+					elemTypes.push_back(elemType);
+					for (int n=0;n<elemNodeCount;++n) elemConnectivity.push_back(zoneCoordMap[zoneIndex-1][elemNodes[elem][n]-1]);
+				}
+
+				globalCellCount+=(elemEnd-elemStart+1);
+			} else {
+				bool bcFlag=false;
+				for (int nbc=0;nbc<nBocos;++nbc) {
+					if (elemStart==bc_range[nbc][0] && elemEnd==bc_range[nbc][1]) {
+						bcFlag=true;
+						break;
+					}
+				}
+				if (bcFlag) {
+					cout << "   ...Found BC Section " << sectionName << endl;
+					for (int elem=0;elem<=(elemEnd-elemStart);++elem) {
+						bocos[bocoCount].push_back(bocoConnectivity[bocoCount].size());
+						for (int n=0;n<elemNodeCount;++n) bocoConnectivity[bocoCount].push_back(zoneCoordMap[zoneIndex-1][elemNodes[elem][n]-1]);
+					}
+					bocoCount+=1;
+				}
+			}// if
+		} // for section
+	} // for zone
+	//} // for base
+
+	if (rank==0) cout << "Total Node Count= " << globalNodeCount << endl;
+	// Merge coordinates of the zones
+	double x[globalNodeCount],y[globalNodeCount],z[globalNodeCount];
+	int counter=0;
+	// for zone 0
+	for (int n=0;n<coordX[0].size();++n) {
+		x[counter]=coordX[0][n];
+		y[counter]=coordY[0][n];
+		z[counter]=coordZ[0][n];
+		counter++;
+	}
+	for (int zone=1;zone<nZones;++zone) {
+		for (int n=0;n<coordX[zone].size();++n) {
+			if (zoneCoordMap[zone][n]>zoneCoordMap[zone-1][zoneCoordMap[zone-1].size()-1]) {
+				x[counter]=coordX[zone][n];
+				y[counter]=coordY[zone][n];
+				z[counter]=coordZ[zone][n];
+				counter++;
+			}
+		}
+	}
+	if (counter!=globalNodeCount) cerr << "[E] counter is different from globalNodeCount" << endl;
+	if (rank==0) cout << "Total Cell Count= " << globalCellCount << endl;
+	// Store element node counts
+	int elemNodeCount[globalCellCount];
+	for (unsigned int c=0;c<globalCellCount-1;++c) {
+		elemNodeCount[c]=elemConnIndex[c+1]-elemConnIndex[c];
+	}
+	elemNodeCount[globalCellCount-1]=elemConnectivity.size()-elemConnIndex[globalCellCount-1];
+	
 	// Initialize the partition sizes
 	cellCount=floor(globalCellCount/np);
 	int baseCellCount=cellCount;
 	unsigned int offset=rank*cellCount;
 	if (rank==np-1) cellCount=cellCount+globalCellCount-np*cellCount;
-
-	int nodeStart[3],nodeEnd[3];
-	nodeStart[0]=nodeStart[1]=nodeStart[2]=1;
-	nodeEnd[0]=nodeEnd[1]=nodeEnd[2]=globalNodeCount;
-
-	double x[globalNodeCount],y[globalNodeCount],z[globalNodeCount];
-
-	cg_coord_read(fileIndex,baseIndex,zoneIndex,"CoordinateX",RealDouble,nodeStart,nodeEnd,&x);
-	cg_coord_read(fileIndex,baseIndex,zoneIndex,"CoordinateY",RealDouble,nodeStart,nodeEnd,&y);
-	cg_coord_read(fileIndex,baseIndex,zoneIndex,"CoordinateZ",RealDouble,nodeStart,nodeEnd,&z);
-
-	// Determine the number of sections in the zone
-	int sectionCount;
-	cg_nsections(fileIndex,baseIndex,zoneIndex, &sectionCount);
-
-	if (rank==0) cout << "* Number of sections found in zone " << zoneName << ": " << sectionCount << endl;
-
-	ElementType_t elemType;
-	int elemNodeCount;
-	int elemStart,elemEnd,nBndCells,parentFlag;
-
-	unsigned int section=0;
-	cg_section_read(fileIndex,baseIndex,zoneIndex,section+1,sectionName,&elemType,&elemStart,&elemEnd,&nBndCells,&parentFlag);
-	switch (elemType) {
-		case TRI_3:
-			elemNodeCount=3; break;
-		case QUAD_4:
-			elemNodeCount=4; break;
-		case TETRA_4:
-			elemNodeCount=4; break;
-		case PENTA_6:
-			elemNodeCount=6; break;
-		case HEXA_8:
-			elemNodeCount=8; break;
-	}
-	int elemNodes[elemEnd-elemStart+1][elemNodeCount];
-	cg_elements_read(fileIndex,baseIndex,zoneIndex,section+1,*elemNodes,0);
 
 	//Implementing Parmetis
 	/* ParMETIS_V3_PartMeshKway(idxtype *elmdist, idxtype *eptr, idxtype *eind, idxtype *elmwgt, int *wgtflag, int *numflag, int *ncon, int * ncommonnodes, int *nparts, float *tpwgts, float *ubvec, int *options, int *edgecut, idxtype *part, MPI_Comm) */
@@ -127,12 +254,18 @@ int Grid::ReadCGNS() {
 	comm- most likely MPI_COMM_WORLD
 	*/
 
-	idxtype elmdist[np + 1];
+	idxtype elmdist[np+1];
 	idxtype *eptr;
 	eptr = new idxtype[cellCount+1];
 	idxtype *eind;
-	eind = new idxtype[cellCount*elemNodeCount];
-
+	int eindSize=0;
+	if ((offset+cellCount)==globalCellCount) {
+		eindSize=elemConnectivity.size()-elemConnIndex[offset];
+	}
+	else {
+		eindSize=elemConnIndex[offset+cellCount]-elemConnIndex[offset]+1;
+	}
+	eind = new idxtype[eindSize];
 	idxtype* elmwgt = NULL;
 	int wgtflag=0; // no weights associated with elem or edges
 	int numflag=0; // C-style numbering
@@ -151,15 +284,17 @@ int Grid::ReadCGNS() {
 	for (unsigned int p=0;p<np;++p) elmdist[p]=p*floor(globalCellCount/np);
 	elmdist[np]=globalCellCount;// Note this is because #elements mod(np) are all on last proc
 
-	eptr[0]=0;
-	for (unsigned int c=1; c<=cellCount;++c) eptr[c]=eptr[c-1]+elemNodeCount;
+	for (unsigned int c=0; c<cellCount;++c) {
+		eptr[c]=elemConnIndex[offset+c]-elemConnIndex[offset];
+	}
+	if ((offset+cellCount)==globalCellCount) {
+		 eptr[cellCount]=elemConnectivity.size()-elemConnIndex[offset];
+	} else {
+		eptr[cellCount]=elemConnIndex[offset+cellCount]-elemConnIndex[offset];
+	}
 
-	int index=0;
-	for (unsigned int c=0; c<cellCount; ++c) {
-		for (unsigned int nc=0; nc<elemNodeCount; ++nc) {
-			eind[index]=elemNodes[c+offset][nc]-1;
-			++index;
-		}
+	for (unsigned int i=0; i<eindSize; ++i) {
+			eind[i]=elemConnectivity[elemConnIndex[offset]+i];
 	}
 
 	ompi_communicator_t* commWorld=MPI_COMM_WORLD;
@@ -168,9 +303,10 @@ int Grid::ReadCGNS() {
 	                         &wgtflag, &numflag, &ncon, &ncommonnodes,
 	                         &np, tpwgts, &ubvec, options, &edgecut,
 	                         part,&commWorld) ;
-
+	
 	delete[] eptr;
 	delete[] eind;
+
 
 	// Distribute the part list to each proc
 	// Each proc has an array of length globalCellCount which says the processor number that cell belongs to [cellMap]
@@ -196,7 +332,7 @@ int Grid::ReadCGNS() {
 	}
 	cout << "* Processor " << rank << " has " << cellCount << " cells" << endl;
 		
-	node.reserve(nodeCount/np);
+	//node.reserve(nodeCount/np);
 	face.reserve(cellCount);
 	cell.reserve(cellCount);
 
@@ -206,48 +342,53 @@ int Grid::ReadCGNS() {
 	// Mark the visited nodes so that no duplicates are created (nodeFound array).
 	bool nodeFound[globalNodeCount];
 	unsigned int nodeMap[globalNodeCount];
-	unsigned int cellNodes[elemNodeCount];
-	for (unsigned int n=1;n<=globalNodeCount;++n) nodeFound[n]=false;
+
+	for (unsigned int n=0;n<globalNodeCount;++n) nodeFound[n]=false;
 	nodeCount=0;
 	fstream file;
-	if (rank==0) file.open("connectivity.dat", ios::out);
+	
+	if (rank==0) file.open("connectivity.dat", ios::out); // TODO revise tecplot output method
 	for (unsigned int c=0;c<globalCellCount;++c) {
 		if (rank==0) {
-			if (elemType==PENTA_6) {
-				file << elemNodes[c][0] << "\t" ; 
-				file << elemNodes[c][1] << "\t" ; 
-				file << elemNodes[c][2] << "\t" ; 
-				file << elemNodes[c][2] << "\t" ; 
-				file << elemNodes[c][3] << "\t" ; 
-				file << elemNodes[c][4] << "\t" ; 
-				file << elemNodes[c][5] << "\t" ; 	
-				file << elemNodes[c][5] << "\t" ; 
+			if (elemTypes[c]==PENTA_6) {
+				file << elemConnectivity[elemConnIndex[c]]+1 << "\t" ;
+				file << elemConnectivity[elemConnIndex[c]+1]+1 << "\t" ;
+				file << elemConnectivity[elemConnIndex[c]+2]+1 << "\t" ;
+				file << elemConnectivity[elemConnIndex[c]+2]+1 << "\t" ;
+				file << elemConnectivity[elemConnIndex[c]+3]+1 << "\t" ;
+				file << elemConnectivity[elemConnIndex[c]+4]+1 << "\t" ;
+				file << elemConnectivity[elemConnIndex[c]+5]+1 << "\t" ;
+				file << elemConnectivity[elemConnIndex[c]+5]+1 << "\t" ;
 			} else {
-				for (unsigned int i=0;i<elemNodeCount;++i) {
-					file << elemNodes[c][i] << "\t";
+				for (unsigned int i=0;i<elemNodeCount[c];++i) {
+					file << elemConnectivity[elemConnIndex[c]+i]+1 << "\t";
 				}
 			}
-		}
+		} // TODO revise tecplot output method
 		if (cellMap[c]==rank) {
-			for (unsigned int n=0;n<elemNodeCount;++n) {
-				if (!nodeFound[elemNodes[c][n]]) {
+			unsigned int cellNodes[elemNodeCount[c]];
+			for (unsigned int n=0;n<elemNodeCount[c];++n) {
+
+				if (!nodeFound[elemConnectivity[elemConnIndex[c]+n]]) {
 					Node temp;
 					temp.id=nodeCount;
-					temp.globalId=elemNodes[c][n]-1;
-					temp.comp[0]=x[elemNodes[c][n]-1];
-					temp.comp[1]=y[elemNodes[c][n]-1];
-					temp.comp[2]=z[elemNodes[c][n]-1];
+					temp.globalId=elemConnectivity[elemConnIndex[c]+n];
+					temp.comp[0]=x[temp.globalId];
+					temp.comp[1]=y[temp.globalId];
+					temp.comp[2]=z[temp.globalId];
 					node.push_back(temp);
-					nodeFound[elemNodes[c][n]]=true;
-					nodeMap[elemNodes[c][n]]=temp.id;
+					nodeFound[temp.globalId]=true;
+					nodeMap[temp.globalId]=temp.id;
 					++nodeCount;
 				}
-				cellNodes[n]=nodeMap[elemNodes[c][n]];
+				cellNodes[n]=nodeMap[elemConnectivity[elemConnIndex[c]+n]];
 			}
+
 			Cell temp;
-			temp.Construct(elemType,cellNodes);
+			temp.Construct(elemTypes[c],cellNodes);
 			temp.globalId=c;
 			cell.push_back(temp);
+
 		}
 		if (rank==0) file << "\n" ;
 	}
@@ -258,24 +399,28 @@ int Grid::ReadCGNS() {
 	//Create the Mesh2Dual inputs
 	//idxtype elmdist [np+1] (stays the same size)
 	eptr = new idxtype[cellCount+1];
-	eind = new idxtype[cellCount*elemNodeCount];
+	eindSize=0;
+	for (unsigned int c=0;c<cellCount;++c) {
+		eindSize+=cell[c].nodeCount;
+	}
+	eind = new idxtype[eindSize];
 	// numflag and ncommonnodes previously defined
 	ncommonnodes=1;
 	idxtype* xadj;
 	idxtype* adjncy;
-	
+
 	elmdist[0]=0;
 	for (unsigned int p=1;p<=np;p++) elmdist[p]=otherCellCounts[p-1]+elmdist[p-1];
 	eptr[0]=0;
-	for (unsigned int c=1; c<=cellCount;++c) eptr[c]=eptr[c-1]+elemNodeCount;
-	index=0;
+	for (unsigned int c=1; c<=cellCount;++c) eptr[c]=eptr[c-1]+cell[c-1].nodeCount;
+	int eindIndex=0;
 	for (unsigned int c=0; c<cellCount;c++){
 		for (unsigned int cn=0; cn<cell[c].nodeCount; ++cn) {
-			eind[index]=cell[c].node(cn).globalId;
-			++index;
+			eind[eindIndex]=cell[c].node(cn).globalId;
+			++eindIndex;
 		}	
 	}
-	
+
 	ParMETIS_V3_Mesh2Dual(elmdist, eptr, eind, &numflag, &ncommonnodes, &xadj, &adjncy, &commWorld);
 	
 	// Construct the list of cells for each node
@@ -360,7 +505,7 @@ int Grid::ReadCGNS() {
 		for (unsigned int cf=0;cf<cell[c].faceCount;++cf) {
 			Face tempFace;
 			unsigned int *tempNodes;
-			switch (elemType) {
+			switch (elemTypes[c]) {
 				case TETRA_4:
 					tempFace.nodeCount=3;
 					tempNodes= new unsigned int[3];
@@ -388,7 +533,7 @@ int Grid::ReadCGNS() {
 			//if (faceCount==face.capacity()) face.reserve(int (face.size() *0.10) +face.size()) ; //TODO check how the size grows by default
 
 			for (unsigned int fn=0;fn<tempFace.nodeCount;++fn) {
-				switch (elemType) {
+				switch (elemTypes[c]) {
 					case TETRA_4: tempNodes[fn]=cell[c].node(tetraFaces[cf][fn]).id; break;
 					case PENTA_6: tempNodes[fn]=cell[c].node(prismFaces[cf][fn]).id; break;
 					case HEXA_8: tempNodes[fn]=cell[c].node(hexaFaces[cf][fn]).id; break;
@@ -445,7 +590,6 @@ int Grid::ReadCGNS() {
 		}
 		
 		// Now find the metis2global mapping
-		index=0;
 		int metis2global[globalCellCount];
 		int counter2[np];
 		for (unsigned int p=0;p<np;++p) counter2[p]=0;
@@ -475,8 +619,8 @@ int Grid::ReadCGNS() {
 						for (unsigned int fn=0;fn<face[f].nodeCount;++fn) {
 							set<int> tempSet;
 							nodeCellSet.insert(pair<unsigned int,set<int> >(face[f].nodes[fn],tempSet) );
-							for (unsigned int gn=0;gn<elemNodeCount;++gn) {
-								if ((elemNodes[gg][gn]-1)==face[f].node(fn).globalId) {
+							for (unsigned int gn=0;gn<elemNodeCount[gg];++gn) {
+								if (elemConnectivity[elemConnIndex[gg]+gn]==face[f].node(fn).globalId) {
 									nodeCellSet[face[f].nodes[fn]].insert(gg);
 									++matchCount;
 								}
@@ -490,13 +634,13 @@ int Grid::ReadCGNS() {
 							temp.partition=cellMap[gg];
 							// Calculate the centroid
 							temp.centroid=0.;
-							for (unsigned int gn=0;gn<elemNodeCount;++gn) {
-								nodeVec.comp[0]=x[elemNodes[gg][gn]-1];
-								nodeVec.comp[1]=y[elemNodes[gg][gn]-1];
-								nodeVec.comp[2]=z[elemNodes[gg][gn]-1];
+							for (unsigned int gn=0;gn<elemNodeCount[gg];++gn) {
+								nodeVec.comp[0]=x[elemConnectivity[elemConnIndex[gg]+gn]];
+								nodeVec.comp[1]=y[elemConnectivity[elemConnIndex[gg]+gn]];
+								nodeVec.comp[2]=z[elemConnectivity[elemConnIndex[gg]+gn]];
 								temp.centroid+=nodeVec;
 							}
-							temp.centroid/=double(elemNodeCount);
+							temp.centroid/=double(elemNodeCount[gg]);
 							ghost.push_back(temp);
 							ghostGlobal2local.insert(pair<unsigned int,unsigned int>(gg,ghostCount));
 							++ghostCount;
@@ -536,7 +680,10 @@ int Grid::ReadCGNS() {
 							break;
 						}
 					} // end cell ghost loop
-					if (flag==false) cell[c].ghosts.push_back(g);
+					if (flag==false) {
+						cell[c].ghosts.push_back(g);
+						ghost[g].cells.push_back(c);
+					}
 				} // end node ghost loop
 			} // end cell node loop
 			cell[c].ghostCount=cell[c].ghosts.size();
@@ -626,7 +773,7 @@ int Grid::ReadCGNS() {
 		areaVec+=0.5* (face[f].node(face[f].nodeCount-1)-centroid).cross(face[f].node(0)-centroid);
 		if (areaVec.dot(centroid-cell[face[f].parent].centroid) <0.) {
 			// [TBM] Need to swap the face and reflect the area vector
-			cout << "face " << f << " should be swapped" << endl;
+		//	cout << "face " << f << " should be swapped" << endl;
 		}
 		face[f].area=fabs(areaVec);
 		face[f].normal=areaVec/face[f].area;
@@ -757,7 +904,6 @@ void Grid::nodeAverages() {
 			(*it).second/=weightSum;
 		}
 	}
-	
 } // end Grid::nodeAverages()
 
 void Grid::faceAverages() {
@@ -771,14 +917,14 @@ void Grid::faceAverages() {
 			n=face[f].nodes[fn];
 			for ( it=node[n].average.begin() ; it != node[n].average.end(); it++ ) {
 				if (face[f].average.find((*it).first)!=face[f].average.end()) { // if the cell contributing to the node average is already contained in the face average map
-					face[f].average[(*it).first]+=(*it).second/face[f].nodeCount;					
+					face[f].average[(*it).first]+=(*it).second/face[f].nodeCount;
+
 				} else {
 					face[f].average.insert(pair<int,double>((*it).first,(*it).second/face[f].nodeCount));
 				}
 			} 
 		} // end face node loop
 	} // end face loop
-	
 } // end Grid::faceAverages()
 
 void Grid::gradMaps() {
@@ -881,33 +1027,34 @@ void Grid::limit_gradients(string limiter, double sharpeningFactor) {
 	Vec3D maxGrad[5],minGrad[5];
 	
 	for (unsigned int c=0;c<cellCount;++c) {
+
+		// Initialize min and max to current cells values
 		for (unsigned int i=0;i<5;++i) maxGrad[i]=minGrad[i]=cell[c].grad[i];
+		// Find extremes in neighboring real cells
 		for (unsigned int cc=0;cc<cell[c].neighborCellCount;++cc) {
 			neighbor=cell[c].neighborCells[cc];
 			for (unsigned int var=0;var<5;++var) {
 				for (unsigned int comp=0;comp<3;++comp) {
 					maxGrad[var].comp[comp]=max(maxGrad[var].comp[comp],(1.-sharpeningFactor)*cell[neighbor].grad[var].comp[comp]+sharpeningFactor*cell[c].grad[var].comp[comp]);
 					minGrad[var].comp[comp]=min(minGrad[var].comp[comp],(1.-sharpeningFactor)*cell[neighbor].grad[var].comp[comp]+sharpeningFactor*cell[c].grad[var].comp[comp]);
-// 					maxGrad[var].comp[comp]=max(maxGrad[var].comp[comp],cell[neighbor].grad[var].comp[comp]);
-// 					minGrad[var].comp[comp]=min(minGrad[var].comp[comp],cell[neighbor].grad[var].comp[comp]);
+				}
+			}
+		}
+		// Find extremes in neighboring ghost cells
+		for (unsigned int cg=0;cg<cell[c].ghostCount;++cg) {
+			g=cell[c].ghosts[cg];
+			for (unsigned int var=0;var<5;++var) {
+				for (unsigned int comp=0;comp<3;++comp) {
+					maxGrad[var].comp[comp]=max(maxGrad[var].comp[comp],(1.-sharpeningFactor)*ghost[g].grad[var].comp[comp]+sharpeningFactor*cell[c].grad[var].comp[comp]);
+					minGrad[var].comp[comp]=min(minGrad[var].comp[comp],(1.-sharpeningFactor)*ghost[g].grad[var].comp[comp]+sharpeningFactor*cell[c].grad[var].comp[comp]);
 				}
 			}
 		}
 		
-// 		for (unsigned int cg=0;cg<cell[c].ghostCount;++cg) {
-// 			g=cell[c].ghosts[cg];
-// 			for (unsigned int var=0;var<5;++var) {
-// 				for (unsigned int comp=0;comp<3;++comp) {
-// 					maxGrad[var].comp[comp]=max(maxGrad[var].comp[comp],0.5*(ghost[g].grad[var].comp[comp]+cell[c].grad[var].comp[comp]));
-// 					minGrad[var].comp[comp]=min(minGrad[var].comp[comp],0.5*(ghost[g].grad[var].comp[comp]+cell[c].grad[var].comp[comp]));
-// 				}
-// 			}
-// 		}
 		//cout << c << "\t" << maxGrad[0] << "\t" << minGrad[0] << endl;
 		if(limiter=="superbee") for (unsigned int var=0;var<5;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].limited_grad[var].comp[comp]=superbee(maxGrad[var].comp[comp],minGrad[var].comp[comp]);
 		if(limiter=="minmod") for (unsigned int var=0;var<5;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].limited_grad[var].comp[comp]=minmod(maxGrad[var].comp[comp],minGrad[var].comp[comp]);
 
-		//cout << c << "\t" << maxGrad[0] << "\t" << minGrad[0] << "\t" << cell[c].limited_grad[0] << endl;
 	}
-	
+
 } // end Grid::limit_gradients(string limiter, double sharpeningFactor)
