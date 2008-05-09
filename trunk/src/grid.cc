@@ -965,7 +965,7 @@ void Grid::gradients(void) {
 	Vec3D faceVel,areaVec;
 	double faceRho,faceP;
 	
- 	for (unsigned int c=0;c<cellCount;++c) {
+	for (unsigned int c=0;c<cellCount;++c) {
 		// Initialize all gradients to zero
 		for (unsigned int i=0;i<5;++i) cell[c].grad[i]=0.;
 		// Add internal and interpartition face contributions
@@ -977,7 +977,7 @@ void Grid::gradients(void) {
 			} else { // if contribution is coming from a ghost cell
 				cell[c].grad[0]+=(*it).second*ghost[-1*((*it).first+1)].rho;
 				for (unsigned int i=1;i<4;++i) cell[c].grad[i]+=(*it).second*ghost[-1*((*it).first+1)].v.comp[i-1];
-				cell[c].grad[4]+=(*it).second*ghost[-1*((*it).first+1)].p;	
+				cell[c].grad[4]+=(*it).second*ghost[-1*((*it).first+1)].p;
 			}
 		} // end gradMap loop
 		// Add boundary face contributions
@@ -996,14 +996,14 @@ void Grid::gradients(void) {
 					// Find face averaged variables 
 					faceVel=0.;faceRho=0.;faceP=0.;
 					for (fit=face[f].average.begin();fit!=face[f].average.end();fit++) {
-						if ((*it).first>=0) { // if contribution is coming from a real cell
+						if ((*fit).first>=0) { // if contribution is coming from a real cell
 							faceRho+=(*fit).second*cell[(*fit).first].rho;
 							faceVel+=(*fit).second*cell[(*fit).first].v;
 							faceP+=(*fit).second*cell[(*fit).first].p;
 						} else { // if contribution is coming from a ghost cell
-							faceRho+=(*fit).second*ghost[-1*((*it).first+1)].rho;
-							faceVel+=(*fit).second*ghost[-1*((*it).first+1)].v;
-							faceP+=(*fit).second*ghost[-1*((*it).first+1)].p;
+							faceRho+=(*fit).second*ghost[-1*((*fit).first+1)].rho;
+							faceVel+=(*fit).second*ghost[-1*((*fit).first+1)].v;
+							faceP+=(*fit).second*ghost[-1*((*fit).first+1)].p;
 						}
 					}
 					// These two are interpolated for all boundary types other than inlet
