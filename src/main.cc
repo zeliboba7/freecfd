@@ -157,8 +157,10 @@ int main(int argc, char *argv[]) {
 	double timeRef, timeEnd;
 	timeRef=MPI_Wtime();
 
+	if (rank==0) cout << "[I] Beginning time loop" << endl;
 	// Begin time loop
 	for (int timeStep=restart+1;timeStep<=input.section["timeMarching"].ints["numberOfSteps"]+restart;++timeStep) {
+
 		// TODO partition variable need not be send and received
 		for (unsigned int p=0;p<np;++p) {
 			if (rank!=p) {
@@ -194,6 +196,8 @@ int main(int argc, char *argv[]) {
 			}
 		}
 
+// 		cerr << "[DEBUG rank=" << rank << " ] updated ghosts" << endl;
+		
 		if (input.section["timeMarching"].strings["type"]=="CFL") {
 			// Determine time step with CFL condition
 			//double cellScaleX, cellScaleY, cellScaleZ;
@@ -209,15 +213,17 @@ int main(int argc, char *argv[]) {
 			MPI_Allreduce(&dt,&dt,1, MPI_DOUBLE,MPI_MIN,MPI_COMM_WORLD);
 		}
 
+// 		cerr << "[DEBUG rank=" << rank << " ] calculated CFL" << endl;
+		
 		if (input.section["numericalOptions"].strings["order"]=="first") {
 			fou(gamma);
 			if (input.section["equations"].strings["set"]=="NS") grid.gradients();
 		} else { // if not first order
 
 			// Calculate all the cell gradients for each variable
-//cout << "before grad" << endl; // [debug]
+// 			cerr << "[DEBUG rank=" << rank << " ] before grad" << endl;
 			grid.gradients();
-//cout << "after grad" << endl; // [debug]
+// 			cerr << "[DEBUG rank=" << rank << " ] after grad" << endl;
 			// Update ghost gradients
 			for (unsigned int p=0;p<np;++p) {
 				mpiGrad sendBuffer[sendCells[p].size()];
@@ -249,12 +255,13 @@ int main(int argc, char *argv[]) {
 					}
 				}
 			}
+// 			cerr << "[DEBUG rank=" << rank << " ] ghosts gradients updated" << endl;
 
-//cout << "after update ghost grads" << endl; // [debug]
 			// Limit gradients
 			grid.limit_gradients(limiter,sharpeningFactor);
 			
-//cout << "after limiter" << endl; // [debug]
+// 			cerr << "[DEBUG rank=" << rank << " ] gradients limited" << endl;
+
 			// Send limited gradients
 			for (unsigned int p=0;p<np;++p) {
 				mpiGrad sendBuffer[sendCells[p].size()];
@@ -287,7 +294,8 @@ int main(int argc, char *argv[]) {
 					}
 				}
 			}
-			
+
+// 			cerr << "[DEBUG rank=" << rank << " ] before flux calculation" << endl;
 			hancock_corrector(gamma,limiter);
 			//fou(gamma);
 			

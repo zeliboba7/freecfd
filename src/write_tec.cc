@@ -20,7 +20,6 @@ void write_tec(int timeStep, double time) {
 	if (rank==0) {
 		file.open((fileName).c_str(),ios::out); 
 		file << "VARIABLES = \"x\", \"y\", \"z\",\"rho\",\"u\",\"v\",\"w\",\"p\" " << endl;
-		//file << "VARIABLES = \"x\", \"y\", \"z\" " << endl;
 	} else {
 		file.open((fileName).c_str(),ios::app);
 	}
