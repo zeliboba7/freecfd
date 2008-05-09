@@ -8,42 +8,81 @@ using namespace std;
 #include <cgnslib.h>
 
 extern Grid grid;
+extern int np, rank;
+extern string int2str(int number) ;
 
-void read_tec(string fileName, int global2local[], double &time) {
-	fstream file;
-	string data="";
-
-	file.open((fileName).c_str(), ios::in);
-
-	for (unsigned int i=0; i<8; ++i) getline(file,data,'=');
-
-	file >> time; getline(file,data,'\n');
-
-	int lineCount;
-
-	// Skip the node data
-	lineCount=grid.globalNodeCount*3/int (100);
-	if ((grid.nodeCount*3) %int (100) !=0) lineCount++;
-	for (unsigned int n=0;n<lineCount;++n) getline(file,data,'\n');
-
-	double temp;
-	for (unsigned int c=0;c<grid.globalCellCount;++c) {
-		file >> temp;
-		if (global2local[c]>=0) grid.cell[global2local[c]].rho=temp;
-	}
+void read_tec(int restart, int global2local[], double &time) {
 	
-	for (unsigned int i=0;i<3;++i) {
-		for (unsigned int c=0;c<grid.globalCellCount;++c) {
-			file >> temp;
-			if (global2local[c]>=0) grid.cell[global2local[c]].v.comp[i]=temp;
+	fstream file;
+
+	// Read partitionMap
+	string fileName="./output/partitionMap"+int2str(restart)+".dat";
+	int nprocs,cellGlobalId;
+	int ncells[np],nnodes[np];
+	file.open(fileName.c_str(),ios::in);
+	file >> nprocs;
+	vector<int> partitionMap[nprocs];
+	for (int p=0;p<nprocs;++p) {
+		file >> nnodes[p];
+		file >> ncells[p];
+		for (unsigned int c=0;c<ncells[p];++c) {
+			file >> cellGlobalId;
+			partitionMap[p].push_back(cellGlobalId);
 		}
 	}
+	file.close();
 	
-	for (unsigned int c=0;c<grid.globalCellCount;++c) {
-		file >> temp;
-		if (global2local[c]>=0) grid.cell[global2local[c]].p=temp;
+	fileName="./output/out"+int2str(restart)+".tec";
+	string data="";
+	double dummy;
+	file.open(fileName.c_str(),ios::in);
+	// Skip first two header lines
+	getline(file,data,'\n'); getline(file,data,'\n');
+	// Skip 3 "=" signs and read solution time
+	for (unsigned int i=0; i<3; ++i) getline(file,data,'=');
+	file >> time;
+	// Rewind the file
+	file.seekg(0,ios::beg);
+	// Skip the variable header line
+	getline(file,data,'\n');
+	int id;
+	for (unsigned int p=0;p<nprocs;++p) {
+		// Skip two header lines
+		getline(file,data,'\n'); getline(file,data,'\n');
+		// Skip node data
+		for (unsigned int n=0;n<3*nnodes[p];++n) file >> dummy;
+		// Read density
+		for (unsigned int c=0;c<ncells[p];++c) {
+			// Get local cell id
+			id=global2local[partitionMap[p][c]];
+			// If id is negative, that means the cell currently lies on another partition
+			if (id>=0) { file >> grid.cell[id].rho; } else { file >> dummy; }
+		}
+		// Read u-velocity
+		for (unsigned int c=0;c<ncells[p];++c) {
+			id=global2local[partitionMap[p][c]];
+			if (id>=0) { file >> grid.cell[id].v.comp[0]; } else { file >> dummy; }
+		}
+		// Read v-velocity
+		for (unsigned int c=0;c<ncells[p];++c) {
+			id=global2local[partitionMap[p][c]];
+			if (id>=0) { file >> grid.cell[id].v.comp[1]; } else { file >> dummy; }
+		}
+		// Read w-velocity
+		for (unsigned int c=0;c<ncells[p];++c) {
+			id=global2local[partitionMap[p][c]];
+			if (id>=0) { file >> grid.cell[id].v.comp[2]; } else { file >> dummy; }
+		}		
+		// Read pressure
+		for (unsigned int c=0;c<ncells[p];++c) {
+			id=global2local[partitionMap[p][c]];
+			if (id>=0) { file >> grid.cell[id].p; } else { file >> dummy; }
+		}
+		// Skip connectivity list
+		getline(file,data,'\n');
+		for (unsigned int c=0;c<ncells[p];++c) getline(file,data,'\n');
 	}
-	
+
 	file.close();
 
 }

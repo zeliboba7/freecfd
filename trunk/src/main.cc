@@ -5,6 +5,8 @@
 #include <map>
 #include <cmath>
 #include <iomanip>
+#include <sys/stat.h>
+#include <sys/types.h>
 using namespace std;
 
 #include "grid.h"
@@ -15,8 +17,10 @@ using namespace std;
 // Function prototypes
 void read_inputs(InputFile &input);
 void initialize(Grid &grid, InputFile &input);
-void write_tec(string fileName, double time);
-void read_tec(string fileName, int global2local[], double &time);
+void write_tec(int timeStep, double time);
+void write_vtk(int timeStep);
+void write_vtk_parallel(int timeStep);
+void read_tec(int restart, int global2local[], double &time);
 void writeTecplotMacro(int restart, int timeStepMax, int outFreq);
 void set_bcs(Grid& grid, InputFile &input, BC &bc);
 bool within_box(Vec3D centroid, Vec3D box_1, Vec3D box_2);
@@ -24,7 +28,7 @@ double minmod(double a, double b);
 double maxmod(double a, double b);
 double superbee(double a, double b);
 void update(double dt, double gamma);
-string get_filename(string begin, int number, string ext) ;
+string int2str(int number) ;
 void fou(double gamma);
 void hancock_predictor(double gamma, double dt, string limiter);
 void hancock_corrector(double gamma, string limiter);
@@ -115,16 +119,9 @@ int main(int argc, char *argv[]) {
 	}
 	
 	if (restart!=0) {
-		string fileName=get_filename("out", restart, "dat");
-		fstream file;
-		file.open(fileName.c_str());
-		if (file.is_open()) {
-			if (rank==0) cout << "* Restarting from " << fileName  << endl;
-			file.close();
-			read_tec(fileName,global2local,time);
-		} else {
-			if(rank==0) cerr << "[!!] Restart "<< fileName << " could not be found." << endl;
-			exit(0);
+		for (int p=0;p<np;++p) {
+			if (rank==p) read_tec(restart,global2local,time);
+			MPI_Barrier(MPI_COMM_WORLD);
 		}
 	}
 	
@@ -161,7 +158,7 @@ int main(int argc, char *argv[]) {
 	timeRef=MPI_Wtime();
 
 	// Begin time loop
-	for (int timeStep = restart;timeStep < input.section["timeMarching"].ints["numberOfSteps"]+restart;++timeStep) {
+	for (int timeStep=restart+1;timeStep<=input.section["timeMarching"].ints["numberOfSteps"]+restart;++timeStep) {
 		// TODO partition variable need not be send and received
 		for (unsigned int p=0;p<np;++p) {
 			if (rank!=p) {
@@ -218,9 +215,9 @@ int main(int argc, char *argv[]) {
 		} else { // if not first order
 
 			// Calculate all the cell gradients for each variable
-
+//cout << "before grad" << endl; // [debug]
 			grid.gradients();
-
+//cout << "after grad" << endl; // [debug]
 			// Update ghost gradients
 			for (unsigned int p=0;p<np;++p) {
 				mpiGrad sendBuffer[sendCells[p].size()];
@@ -252,9 +249,12 @@ int main(int argc, char *argv[]) {
 					}
 				}
 			}
+
+//cout << "after update ghost grads" << endl; // [debug]
 			// Limit gradients
 			grid.limit_gradients(limiter,sharpeningFactor);
-
+			
+//cout << "after limiter" << endl; // [debug]
 			// Send limited gradients
 			for (unsigned int p=0;p<np;++p) {
 				mpiGrad sendBuffer[sendCells[p].size()];
@@ -283,7 +283,7 @@ int main(int argc, char *argv[]) {
 							grid.ghost[id].limited_grad[var].comp[comp]=recvBuffer[g].grads[count];
 							count++;
 						}
-						//cout << rank << "\t" << var << "\t" << grid.ghost[id].limited_grad[var] << endl;
+						//cout << rank << "\t" << var << "\t" << grid.ghost[id].limited_grad[var] << endl; // [debug]
 					}
 				}
 			}
@@ -315,12 +315,30 @@ int main(int argc, char *argv[]) {
 
 		if (rank==0) cout << timeStep << "\t" << setprecision(4) << scientific << time << "\t" << dt << endl;
 		time += dt;
-		if ((timeStep + 1) % outFreq == 0) {
+		if ((timeStep) % outFreq == 0) {
+			mkdir("./output",S_IRWXU);
+			if (input.section["solutionFormat"].strings["output"]=="vtk") {
+				// Write vtk output file
+				if (rank==0) write_vtk_parallel(timeStep);
+				write_vtk(timeStep);
+			} else if(input.section["solutionFormat"].strings["output"]=="tecplot") {
+				// Write tecplot output file
+				for (int p=0;p<np;++p) {
+					if(rank==p) write_tec(timeStep,time);
+					MPI_Barrier(MPI_COMM_WORLD);
+				}
+			}
+			ofstream file;
 			string fileName;
-			fileName=get_filename("out",timeStep+1,"dat") ;
-			// Write tecplot output file
 			for (int p=0;p<np;++p) {
-				if(rank==p) write_tec(fileName,time);
+				if (rank==p) {
+					fileName="./output/partitionMap"+int2str(timeStep)+".dat";
+					if (rank==0) { file.open(fileName.c_str(), ios::out); file << np << endl;}
+					else { file.open(fileName.c_str(), ios::app); }
+					file << grid.nodeCount << "\t" << grid.cellCount << endl;
+					for (unsigned int c=0;c<grid.cellCount;++c) file << grid.cell[c].globalId << endl;
+					file.close();
+				}
 				MPI_Barrier(MPI_COMM_WORLD);
 			}
 		}
@@ -399,14 +417,12 @@ void update(double dt, double gamma) {
 	return;
 }
 
-string get_filename(string begin, int number, string ext) {
+string int2str(int number) {
 	char dummy[12];
-	// Print timeStep integer to character
+	// Print integer to character
 	sprintf(dummy, "%12d", number);
 	// Convert character to string and erase leading whitespaces
-	string fileName = dummy;
-	fileName.erase(0, fileName.rfind(" ", fileName.length()) + 1);
-	sprintf(dummy, "%12d", rank);
-	fileName = begin + fileName + "."  + ext;
-	return fileName;
+	string name = dummy;
+	name.erase(0, name.rfind(" ", name.length()) + 1);
+	return name;
 }
