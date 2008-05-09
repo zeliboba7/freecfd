@@ -345,26 +345,25 @@ int Grid::ReadCGNS() {
 
 	for (unsigned int n=0;n<globalNodeCount;++n) nodeFound[n]=false;
 	nodeCount=0;
-	fstream file;
 	
-	if (rank==0) file.open("connectivity.dat", ios::out); // TODO revise tecplot output method
+	//if (rank==0) file.open("connectivity.dat", ios::out); // TODO revise tecplot output method
 	for (unsigned int c=0;c<globalCellCount;++c) {
-		if (rank==0) {
-			if (elemTypes[c]==PENTA_6) {
-				file << elemConnectivity[elemConnIndex[c]]+1 << "\t" ;
-				file << elemConnectivity[elemConnIndex[c]+1]+1 << "\t" ;
-				file << elemConnectivity[elemConnIndex[c]+2]+1 << "\t" ;
-				file << elemConnectivity[elemConnIndex[c]+2]+1 << "\t" ;
-				file << elemConnectivity[elemConnIndex[c]+3]+1 << "\t" ;
-				file << elemConnectivity[elemConnIndex[c]+4]+1 << "\t" ;
-				file << elemConnectivity[elemConnIndex[c]+5]+1 << "\t" ;
-				file << elemConnectivity[elemConnIndex[c]+5]+1 << "\t" ;
-			} else {
-				for (unsigned int i=0;i<elemNodeCount[c];++i) {
-					file << elemConnectivity[elemConnIndex[c]+i]+1 << "\t";
-				}
-			}
-		} // TODO revise tecplot output method
+// 		if (rank==0) {
+// 			if (elemTypes[c]==PENTA_6) {
+// 				file << elemConnectivity[elemConnIndex[c]]+1 << "\t" ;
+// 				file << elemConnectivity[elemConnIndex[c]+1]+1 << "\t" ;
+// 				file << elemConnectivity[elemConnIndex[c]+2]+1 << "\t" ;
+// 				file << elemConnectivity[elemConnIndex[c]+2]+1 << "\t" ;
+// 				file << elemConnectivity[elemConnIndex[c]+3]+1 << "\t" ;
+// 				file << elemConnectivity[elemConnIndex[c]+4]+1 << "\t" ;
+// 				file << elemConnectivity[elemConnIndex[c]+5]+1 << "\t" ;
+// 				file << elemConnectivity[elemConnIndex[c]+5]+1 << "\t" ;
+// 			} else {
+// 				for (unsigned int i=0;i<elemNodeCount[c];++i) {
+// 					file << elemConnectivity[elemConnIndex[c]+i]+1 << "\t";
+// 				}
+// 			}
+// 		} // TODO revise tecplot output method
 		if (cellMap[c]==rank) {
 			unsigned int cellNodes[elemNodeCount[c]];
 			for (unsigned int n=0;n<elemNodeCount[c];++n) {
@@ -390,10 +389,9 @@ int Grid::ReadCGNS() {
 			cell.push_back(temp);
 
 		}
-		if (rank==0) file << "\n" ;
+		//if (rank==0) file << "\n" ;
 	}
-	if (rank==0) file.close();
-	
+
 	cout << "* Processor " << rank << " has created its cells and nodes" << endl;
 
 	//Create the Mesh2Dual inputs
@@ -579,8 +577,13 @@ int Grid::ReadCGNS() {
 	// Determine and mark faces adjacent to other partitions
 	// Create ghost elemets to hold the data from other partitions
 	ghostCount=0;
-	
-	if (np!=1) {
+
+	if (np==1) {
+		for (unsigned int c=0;c<cellCount;++c) {
+			cell[c].ghostCount=cell[c].ghosts.size();
+		} // end cell loop
+	} else {
+
 		int counter=0;
 		int cellCountOffset[np];
 		
@@ -1050,8 +1053,6 @@ void Grid::limit_gradients(string limiter, double sharpeningFactor) {
 				}
 			}
 		}
-		
-		//cout << c << "\t" << maxGrad[0] << "\t" << minGrad[0] << endl;
 		if(limiter=="superbee") for (unsigned int var=0;var<5;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].limited_grad[var].comp[comp]=superbee(maxGrad[var].comp[comp],minGrad[var].comp[comp]);
 		if(limiter=="minmod") for (unsigned int var=0;var<5;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].limited_grad[var].comp[comp]=minmod(maxGrad[var].comp[comp],minGrad[var].comp[comp]);
 

@@ -7,7 +7,10 @@ INCLUDES= -I$(CGNS_BASE)/include -I$(PARMETIS_BASE)/include
 LIBS= -L$(CGNS_BASE)/lib -L$(PARMETIS_BASE)/lib
 
 SRC= \
-	main.cc grid.cc vec3d.cc RoeFlux.cc  write_tec.cc writeTecplotMacro.cc inputs.cc sparse.cc readInputs.cc initialize.cc setBCs.cc fou.cc read_tec.cc hancock.cc diffFlux.cc
+	main.cc grid.cc vec3d.cc RoeFlux.cc  write_tec.cc write_vtk.cc writeTecplotMacro.cc \
+        inputs.cc sparse.cc readInputs.cc initialize.cc setBCs.cc fou.cc read_tec.cc \
+        hancock.cc diffFlux.cc
+
 .SUFFIXES: .cc .o
 
 OBJ=	$(SRC:.cc=.o)

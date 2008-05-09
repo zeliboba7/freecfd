@@ -1,8 +1,8 @@
 equations {set=Euler;}
 
-numericalOptions {order=second; limiter=superbee; sharpeningFactor=0.;}
+numericalOptions {order=first; limiter=superbee; sharpeningFactor=0.;}
 
-timeMarching {type=CFL; step=0.005; CFL=1.; numberOfSteps=50; outFreq=5;}
+timeMarching {type=CFL; step=0.005; CFL=1.; numberOfSteps=10; outFreq=5;}
 
 initialConditions { 
 	region_1(type=box; box_1=[-1,-1,-1]; box_2=[0.5,2,2]; rho=2; v=[0,0,0]; p=2;);
@@ -14,3 +14,5 @@ boundaryConditions {
 }
 
 fluidProperties {gamma=1.4; viscosity(type=fixed; value=2E-5;);}
+
+solutionFormat {input=tecplot; output=tecplot;}

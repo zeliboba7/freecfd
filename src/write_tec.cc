@@ -10,11 +10,12 @@ using namespace std;
 
 extern Grid grid;
 extern int np, rank;
+extern string int2str(int number) ;
 
-void write_tec(string fileName, double time) {
+void write_tec(int timeStep, double time) {
 
 	ofstream file;
-	
+	string fileName="./output/out"+int2str(timeStep)+".tec";
 	// Proc 0 creates the output file and writes variable list
 	if (rank==0) {
 		file.open((fileName).c_str(),ios::out); 
