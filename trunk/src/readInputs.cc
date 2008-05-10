@@ -39,6 +39,7 @@ void read_inputs(InputFile &input) {
 	input.section["boundaryConditions"].numberedSubsections["BC"].register_string("region");
 	input.section["boundaryConditions"].numberedSubsections["BC"].register_Vec3D("box_1");
 	input.section["boundaryConditions"].numberedSubsections["BC"].register_Vec3D("box_2");
+	input.section["boundaryConditions"].numberedSubsections["BC"].register_string("pick");
 	input.section["boundaryConditions"].numberedSubsections["BC"].register_double("rho");
 	input.section["boundaryConditions"].numberedSubsections["BC"].register_double("p");
 	input.section["boundaryConditions"].numberedSubsections["BC"].register_Vec3D("v");
