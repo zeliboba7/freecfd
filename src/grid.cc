@@ -111,7 +111,7 @@ int Grid::ReadCGNS() {
 			zoneCoordMap[zoneIndex-1].push_back(-1);
 		}
 
-			// In case there are multiple connected zones, collapse the repeated nodes and fix the node numbering
+		// In case there are multiple connected zones, collapse the repeated nodes and fix the node numbering
 		if (zoneIndex==1) {
 			for (int c=0;c<coordX[0].size();++c) {
 				zoneCoordMap[0][c]=globalNodeCount;
@@ -346,24 +346,7 @@ int Grid::ReadCGNS() {
 	for (unsigned int n=0;n<globalNodeCount;++n) nodeFound[n]=false;
 	nodeCount=0;
 	
-	//if (rank==0) file.open("connectivity.dat", ios::out); // TODO revise tecplot output method
 	for (unsigned int c=0;c<globalCellCount;++c) {
-// 		if (rank==0) {
-// 			if (elemTypes[c]==PENTA_6) {
-// 				file << elemConnectivity[elemConnIndex[c]]+1 << "\t" ;
-// 				file << elemConnectivity[elemConnIndex[c]+1]+1 << "\t" ;
-// 				file << elemConnectivity[elemConnIndex[c]+2]+1 << "\t" ;
-// 				file << elemConnectivity[elemConnIndex[c]+2]+1 << "\t" ;
-// 				file << elemConnectivity[elemConnIndex[c]+3]+1 << "\t" ;
-// 				file << elemConnectivity[elemConnIndex[c]+4]+1 << "\t" ;
-// 				file << elemConnectivity[elemConnIndex[c]+5]+1 << "\t" ;
-// 				file << elemConnectivity[elemConnIndex[c]+5]+1 << "\t" ;
-// 			} else {
-// 				for (unsigned int i=0;i<elemNodeCount[c];++i) {
-// 					file << elemConnectivity[elemConnIndex[c]+i]+1 << "\t";
-// 				}
-// 			}
-// 		} // TODO revise tecplot output method
 		if (cellMap[c]==rank) {
 			unsigned int cellNodes[elemNodeCount[c]];
 			for (unsigned int n=0;n<elemNodeCount[c];++n) {
@@ -389,7 +372,6 @@ int Grid::ReadCGNS() {
 			cell.push_back(temp);
 
 		}
-		//if (rank==0) file << "\n" ;
 	}
 
 	cout << "* Processor " << rank << " has created its cells and nodes" << endl;
@@ -492,9 +474,11 @@ int Grid::ReadCGNS() {
 	// Search and construct faces
 	faceCount=0;
 
-	int boundaryFaceCount=0;
-	// Loop through all the cells
+	int boundaryFaceCount[totalnBocos];
+	for (int boco=0;boco<totalnBocos;++boco) boundaryFaceCount[boco]=0;
 
+	
+	// Loop through all the cells
 	double timeRef, timeEnd;
 	if (rank==0) timeRef=MPI_Wtime();
 	
@@ -536,7 +520,6 @@ int Grid::ReadCGNS() {
 					case PENTA_6: tempNodes[fn]=cell[c].node(prismFaces[cf][fn]).id; break;
 					case HEXA_8: tempNodes[fn]=cell[c].node(hexaFaces[cf][fn]).id; break;
 				}
-				//tempFace.nodes.push_back(tempNodes[fn]); // FIXME I think this is unnecessary
 			}
 			// Find the neighbor cell
 			bool internal=false;
@@ -553,11 +536,43 @@ int Grid::ReadCGNS() {
 				}
 			}
 			if (unique) {
-				if (!internal) {
-					tempFace.bc=0;
-					++boundaryFaceCount;
-				}
 				for (unsigned int fn=0;fn<tempFace.nodeCount;++fn) tempFace.nodes.push_back(tempNodes[fn]);
+				if (!internal) {
+					bool match;
+					std::set<int> fnodes,bfnodes;
+					std::set<int>::iterator fnodes_it,bfnodes_it;
+					for (unsigned int i=0;i<tempFace.nodeCount;++i) fnodes.insert(tempFace.node(i).globalId);
+					tempFace.bc=-2; // unassigned boundary face
+					int bfnodeCount;
+					for (int boco=0;boco<totalnBocos;++boco) { // for each boundary condition region defined in grid file
+						for (int bf=0;bf<bocos[boco].size();++bf) { // for each boundary face in current region
+							if (bocoConnectivity[boco][bocos[boco][bf]]!=-1) {
+								if (bf==bocos[boco].size()-1) { bfnodeCount=bocoConnectivity[boco].size()-bocos[boco][bf]; } else { bfnodeCount=bocos[boco][bf+1]-bocos[boco][bf]; }
+								if (bfnodeCount==tempFace.nodeCount) { // if boco face and temp face has the same number of nodes
+									bfnodes.clear();
+									for (unsigned int i=0;i<tempFace.nodeCount;++i) bfnodes.insert(bocoConnectivity[boco][bocos[boco][bf]+i]);
+									match=true;
+									fnodes_it=fnodes.begin(); bfnodes_it=bfnodes.begin();
+									for (unsigned int i=0;i<tempFace.nodeCount;++i) {
+										if (*fnodes_it!=*bfnodes_it) { // if the sets are not equivalent
+											match=false;
+											break;
+										}
+										fnodes_it++;bfnodes_it++;
+									}
+									if (match) {
+										tempFace.bc=boco;
+										boundaryFaceCount[boco]++;
+										bocoConnectivity[boco][bocos[boco][bf]]=-1; // this is destroying the bocos array
+										break;
+									}
+								} // if same number of nodes
+							} // if boundary face is not already assigned 
+						} // for boco face
+						if (tempFace.bc!=-2) break;
+					} // for boco
+				} // if not internal
+				
 				face.push_back(tempFace);
 				cell[c].faces.push_back(tempFace.id);
 				if (internal) cell[tempFace.neighbor].faces.push_back(tempFace.id);
@@ -567,7 +582,8 @@ int Grid::ReadCGNS() {
 		} //for face cf
 	} // for cells c
 
-	cout << "* Processor " << rank << " has " << faceCount << " faces, " << boundaryFaceCount << " are on boundaries" << endl;
+	cout << "[I rank=" << rank << "] Number of Faces=" << faceCount << endl;
+	for (int boco=0;boco<totalnBocos;++boco) cout << "[I rank=" << rank << "] Number of Faces on BC_" << boco+1 << "=" << boundaryFaceCount[boco] << endl;
 	
 	if (rank==0) {
 		timeEnd=MPI_Wtime();
@@ -611,7 +627,7 @@ int Grid::ReadCGNS() {
 		Vec3D nodeVec;
 		
 		for (unsigned int f=0; f<faceCount; ++f) {
-			if (face[f].bc>=0) { // if not an internal face or if not found before as partition boundary
+			if (face[f].bc==-2) { // if an assigned boundary face
 				parent=face[f].parent;
 				for (unsigned int adjCount=0;adjCount<(xadj[parent+1]-xadj[parent]);++adjCount)  {
 					metisIndex=adjncy[xadj[parent]+adjCount];
@@ -650,7 +666,7 @@ int Grid::ReadCGNS() {
 						}
 						if (matchCount>=3) {
 							foundFlag[gg]=3;
-							face[f].bc=-1*ghostGlobal2local[gg]-2;
+							face[f].bc=-1*ghostGlobal2local[gg]-3;
 						} 
 					}
 				}
@@ -696,71 +712,8 @@ int Grid::ReadCGNS() {
 		
 	} // if (np!=1) 
 	
-// 	if (rank==2) { // DEBUG
-// 		for (int n=0;n<nodeCount;++n) {
-// 			for (int nc=0;nc<node[n].cells.size();++nc) cout << n << "\t" << "cells\t" << node[n].cells[nc] << endl;
-// 			for (int ng=0;ng<node[n].ghosts.size();++ng) cout << n << "\t" << "ghosts\t" << node[n].ghosts[ng] << "\t" << ghost[node[n].ghosts[ng]].globalId <<  endl;
-// 		}
-// 	}
-	
-	
 	cout << "* Processor " << rank << " has " << ghostCount << " ghost cells at partition boundaries" << endl;
 	
-	/*
-		for (section=1; section<sectionCount; ++section) {
-			cg_section_read(fileIndex,baseIndex,zoneIndex,section+1,sectionName,&elemType,&elemStart,&elemEnd,&nBndCells,&parentFlag);
-			switch (elemType)  {
-				case TRI_3:
-					elemNodeCount=3; break;
-				case QUAD_4:
-					elemNodeCount=4; break;
-				case TETRA_4:
-					elemNodeCount=4; break;
-				case PENTA_6:
-					elemNodeCount=6; break;
-				case HEXA_8:
-					elemNodeCount=8; break;
-			}
-			int elemNodes[elemEnd-elemStart+1][elemNodeCount];
-			cg_elements_read(fileIndex,baseIndex,zoneIndex,section+1,*elemNodes,0);
-
-			//cout << "* Began applying " << sectionName << " boundary conditions" << endl;
-			// Now all the cells and faces are constructed, read the boundary conditions
-			int elemCount=elemEnd-elemStart+1;
-			int mark[elemCount];
-			for (unsigned int e=0;e<elemCount;++e) {
-				for (unsigned int n=0;n<elemNodeCount;++n) --elemNodes[e][n];
-				mark[e]=0;
-			}
-			int flag, count=0.;
-			unsigned int f,e,n,n2;
-			for (f=0; f<faceCount; ++f) {
-				if (face[f].bc==-2 && elemNodeCount==face[f].nodeCount) {// meaning a boundary face of unknown type
-					for (e=0;e<elemCount;++e) {
-						if (mark[e]==0) {
-							for (n=0;n<elemNodeCount;++n) {
-								flag=0;
-								for (n2=0;n2<elemNodeCount;++n2) {
-									if (elemNodes[e][n]==face[f].nodes[n2]) {
-										flag=1; break;
-									}
-								}
-								if (flag==0) break;
-							}
-							if (flag==1) {
-								mark[e]=1;
-								face[f].bc=section-1;
-								++count;
-							}
-						}
-					}
-				}
-			}
-			cout << "* Boundary condition section found and applied: " << sectionName << "\t" << count << endl;
-			if (count!=elemCount) cout << "!!! Something is terribly wrong here !!!" << endl;
-		} // end loop over sections
-	*/
-
 // Now loop through faces and calculate centroids and areas
 	for (unsigned int f=0;f<faceCount;++f) {
 		Vec3D centroid=0.;

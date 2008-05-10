@@ -52,7 +52,7 @@ void fou(double gamma) {
 			rhoR=grid.cell[neighbor].rho;
 			pR=grid.cell[neighbor].p;
 		} else { // partition boundary 
-			int g=-1*grid.face[f].bc-2;
+			int g=-1*grid.face[f].bc-3;
 			rhoR=grid.ghost[g].rho;
 			uNR=grid.ghost[g].v.dot(grid.face[f].normal);
 			vTR=grid.ghost[g].v.dot(faceTangent1);

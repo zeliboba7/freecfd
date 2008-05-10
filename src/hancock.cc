@@ -153,7 +153,7 @@ void hancock_corrector(double gamma, string limiter) {
 			wTR=faceVel.dot(faceTangent2);
 		
 		} else { // partition boundary 
-			int g=-1*grid.face[f].bc-2;
+			int g=-1*grid.face[f].bc-3;
 
 			for (unsigned int i=0;i<5;++i) {
 				delta[i]=(grid.face[f].centroid-grid.ghost[g].centroid).dot(grid.ghost[g].limited_grad[i]);
