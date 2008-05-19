@@ -63,10 +63,6 @@ int main(int argc, char *argv[]) {
 	read_inputs(input);
 	grid.read(gridFileName);
 	
-	grid.nodeAverages();
-	grid.faceAverages();
-	grid.gradMaps();
-	
 	vector<unsigned int> sendCells[np];
 	unsigned int recvCount[np];
 	{
@@ -97,7 +93,11 @@ int main(int argc, char *argv[]) {
 
 	set_bcs(grid,input,bc);
 	if (rank==0) cout << "[I] Set boundary conditions" << endl;
-
+	
+	grid.nodeAverages();
+	grid.faceAverages();
+	grid.gradMaps();
+	
 	double time = 0.;
 	double gamma = input.section["fluidProperties"].doubles["gamma"];
 	double dt = input.section["timeMarching"].doubles["step"];
