@@ -891,14 +891,14 @@ void Grid::gradMaps() {
 	for (unsigned int c=0;c<cellCount;++c) {
 		for (unsigned int cf=0;cf<cell[c].faceCount;++cf) { 
 			f=cell[c].faces[cf];
-			if (face[f].bc<0) { // if internal or interpartition face
-				areaVec=face[f].normal*face[f].area;
+			if (face[f].bc<0 ) { // if internal or interpartition face
+				areaVec=face[f].normal*face[f].area/cell[c].volume;
 				if (face[f].parent!=c) areaVec*=-1.;
 				for ( it=face[f].average.begin() ; it != face[f].average.end(); it++ ) {
 					if (cell[c].gradMap.find((*it).first)!=cell[c].gradMap.end()) { // if the cell contributing to the face average is already contained in the cell gradient map
-						cell[c].gradMap[(*it).first]+=(*it).second*areaVec/cell[c].volume;
+						cell[c].gradMap[(*it).first]+=(*it).second*areaVec;
 					} else {
-						cell[c].gradMap.insert(pair<int,Vec3D>((*it).first,(*it).second*areaVec/cell[c].volume));
+						cell[c].gradMap.insert(pair<int,Vec3D>((*it).first,(*it).second*areaVec));
 					}
 				}
 			} // end if internal face
@@ -936,9 +936,9 @@ void Grid::gradients(void) {
 		// Add boundary face contributions
 		for (unsigned int cf=0;cf<cell[c].faceCount;++cf) {
 			f=cell[c].faces[cf];
-			if (face[f].parent!=c) areaVec*=-1.;
 			if (face[f].bc>=0) { // if a boundary face
 				areaVec=face[f].area*face[f].normal/cell[c].volume;
+				if (face[f].parent!=c) areaVec*=-1.;
 				if (bc.region[face[f].bc].type=="inlet") {
 					cell[c].grad[0]+=bc.region[face[f].bc].rho*areaVec;
 					cell[c].grad[1]+=bc.region[face[f].bc].v.comp[0]*areaVec;

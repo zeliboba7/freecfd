@@ -19,14 +19,16 @@ void write_tec(int timeStep, double time) {
 	// Proc 0 creates the output file and writes variable list
 	if (rank==0) {
 		file.open((fileName).c_str(),ios::out); 
-		file << "VARIABLES = \"x\", \"y\", \"z\",\"rho\",\"u\",\"v\",\"w\",\"p\" " << endl;
+		//file << "VARIABLES = \"x\", \"y\", \"z\",\"rho\",\"u\",\"v\",\"w\",\"p\" " << endl;
+		file << "VARIABLES = \"x\", \"y\", \"z\",\"rho\",\"u\",\"v\",\"w\",\"p\",\"gradu_x\",\"gradp_x\" " << endl;
 	} else {
 		file.open((fileName).c_str(),ios::app);
 	}
 
 	// Write header (each proc has its own zone)
 	file << "ZONE, T=\"Partition " << rank << "\"" ;
-	file << ", N=" << grid.nodeCount << ", E=" << grid.cellCount << ", VARLOCATION=([4-8]=CellCentered)" << endl;
+	file << ", N=" << grid.nodeCount << ", E=" << grid.cellCount << ", VARLOCATION=([4-10]=CellCentered)" << endl;
+//	file << ", N=" << grid.nodeCount << ", E=" << grid.cellCount << ", VARLOCATION=([4-8]=CellCentered)" << endl;
 	file << "DATAPACKING=BLOCK, ZONETYPE=FEBRICK, SOLUTIONTIME=" << time << endl;
 
 	// Write coordinates
@@ -42,6 +44,8 @@ void write_tec(int timeStep, double time) {
 	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].v.comp[1] << endl;
 	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].v.comp[2] << endl;
 	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].p << endl;
+	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].grad[1].comp[0] << endl;
+	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].grad[4].comp[0] << endl;
 
 	// Write coonnectivity
 	for (unsigned int c=0;c<grid.cellCount;++c) {
