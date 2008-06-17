@@ -7,12 +7,13 @@
 extern Grid grid;
 extern BC bc;
 extern int np, rank;
+extern double Gamma;
 
-void RoeFlux(const double gamma, const double qL[], const double qR[], double flux[]);
+void RoeFlux(const double qL[], const double qR[], double flux[]);
 double superbee(double a, double b);
 double minmod(double a, double b);
 
-void hancock_predictor(double gamma, double dt, string limiter) {
+void hancock_predictor(double dt, string limiter) {
 
 // 	double delta[5],deltaMin[5], deltaMax[5]; // These arrays has rho,u,v,w,p sequentially
 // 	Vec3D faceVel, faceNormal;
@@ -73,7 +74,7 @@ void hancock_predictor(double gamma, double dt, string limiter) {
 // 				}
 // 			}
 // 
-// 			a=sqrt(gamma*p/rho);
+// 			a=sqrt(Gamma*p/rho);
 // 
 // 			flux[0]= (rho*uN) *grid.face[f].area;
 // 			flux[1]= (uN*u+p/rho*faceNormal.comp[0]) *grid.face[f].area;
@@ -97,7 +98,7 @@ void hancock_predictor(double gamma, double dt, string limiter) {
 } // end function
 
 
-void hancock_corrector(double gamma, string limiter) {
+void hancock_corrector(string limiter) {
 
 	double delta[5],deltaMin[5], deltaMax[5]; // These arrays has rho,u,v,w,p sequentially
 	double rhoL,pL,uL,vL,wL,rhoR,pR,uR,vR,wR,uNL,uNR,vTL,vTR,wTL,wTR;
@@ -176,15 +177,15 @@ void hancock_corrector(double gamma, string limiter) {
 		qL[1]=rhoL * uNL;
 		qL[2]=rhoL * vTL;
 		qL[3]=rhoL * wTL;
-		qL[4]=0.5*rhoL* (uNL*uNL+vTL*vTL+wTL*wTL) + pL/ (gamma - 1.);
+		qL[4]=0.5*rhoL* (uNL*uNL+vTL*vTL+wTL*wTL) + pL/ (Gamma - 1.);
 
 		qR[0] = rhoR;
 		qR[1] = rhoR * uNR;
 		qR[2] = rhoR * vTR;
 		qR[3] = rhoR * wTR;
-		qR[4] = 0.5*rhoR* (uNR*uNR+vTR*vTR+wTR*wTR) + pR/ (gamma - 1.);
+		qR[4] = 0.5*rhoR* (uNR*uNR+vTR*vTR+wTR*wTR) + pR/ (Gamma - 1.);
 
-		RoeFlux(gamma, qL, qR, fluxNormal);
+		RoeFlux(qL, qR, fluxNormal);
 
 		flux[0] = fluxNormal[0]*grid.face[f].area;
 		flux[1] = (fluxNormal[1]*grid.face[f].normal.comp[0]+fluxNormal[2]*faceTangent1.comp[0]+fluxNormal[3]*faceTangent2.comp[0]) * grid.face[f].area;

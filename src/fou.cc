@@ -5,12 +5,13 @@
 extern Grid grid;
 extern BC bc;
 extern int rank;
+extern double Gamma;
 
-void update(double dt,double gamma);
+void update(double dt);
 
-void RoeFlux(const double gamma, const double qL[], const double qR[], double flux[]);
+void RoeFlux(const double qL[], const double qR[], double flux[]);
 
-void fou(double gamma) {
+void fou() {
 
 	double rhoL,rhoR,uNL,uNR,vTL,vTR,wTL,wTR, pL, pR;
 	Vec3D faceTangent1, faceTangent2;
@@ -42,7 +43,7 @@ void fou(double gamma) {
 				uNR=bc.region[grid.face[f].bc].v.dot(grid.face[f].normal);
 				vTR=bc.region[grid.face[f].bc].v.dot(faceTangent1);
 				wTR=bc.region[grid.face[f].bc].v.dot(faceTangent2);
-				rhoR=bc.region[grid.face[f].bc].rho;
+				//rhoR=bc.region[grid.face[f].bc].rho;
 				//pR=bc.region[grid.face[f].bc].p;
 			}
 		} else if (grid.face[f].bc==-1) { // internal face
@@ -65,21 +66,21 @@ void fou(double gamma) {
 			fluxNormal[1]=rhoR*uNR*uNR+pR;
 			fluxNormal[2]=rhoR*uNR*vTR;
 			fluxNormal[3]=rhoR*uNR*wTR;
-			fluxNormal[4]=uNR* (0.5*rhoR* (uNR*uNR+vTR*vTR+wTR*wTR) +pR/ (gamma - 1.) +pR);
+			fluxNormal[4]=uNR* (0.5*rhoR* (uNR*uNR+vTR*vTR+wTR*wTR) +pR/ (Gamma - 1.) +pR);
 		} else {
 			qL[0]=rhoL;
 			qL[1]=qL[0] * uNL;
 			qL[2]=qL[0] * vTL;
 			qL[3]=qL[0] * wTL;
-			qL[4]=0.5*qL[0]* (uNL*uNL+vTL*vTL+wTL*wTL) +pL/ (gamma - 1.);
+			qL[4]=0.5*qL[0]* (uNL*uNL+vTL*vTL+wTL*wTL) +pL/ (Gamma - 1.);
 
 			qR[0] = rhoR;
 			qR[1] = qR[0] * uNR;
 			qR[2] = qR[0] * vTR;
 			qR[3] = qR[0] * wTR;
-			qR[4] = 0.5*qR[0]* (uNR*uNR+vTR*vTR+wTR*wTR) +pR/ (gamma - 1.);
+			qR[4] = 0.5*qR[0]* (uNR*uNR+vTR*vTR+wTR*wTR) +pR/ (Gamma - 1.);
 
-			RoeFlux(gamma, qL, qR, fluxNormal);
+			RoeFlux(qL, qR, fluxNormal);
 		} 
 
 

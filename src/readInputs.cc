@@ -9,6 +9,7 @@ void read_inputs(InputFile &input) {
 	input.read_section("equations");
 
 	input.register_section("timeMarching");
+	input.section["timeMarching"].register_string("integrator");
 	input.section["timeMarching"].register_string("type");
 	input.section["timeMarching"].register_double("step");
 	input.section["timeMarching"].register_double("CFL");
