@@ -1,8 +1,9 @@
 #include <iostream>
 #include <cmath>
 using namespace std;
+extern double Gamma;
 
-void RoeFlux(const double gamma, const double qL[], const double qR[], double flux[]) {
+void RoeFlux(const double qL[], const double qR[], double flux[]) {
 	// Local variables
 	double rho,u,v,w,h,a;
 	double uL,uR,vL,vR,wL,wR,pL,pR,aL,aR,hL,hR;
@@ -10,7 +11,7 @@ void RoeFlux(const double gamma, const double qL[], const double qR[], double fl
 
 	double lambda1,lambda5,alpha1,alpha5;
 	double right11,right21,right31,right41,right51,right15,right25,right35,right45,right55;
-	double gmM1=gamma-1.;
+	double gmM1=Gamma-1.;
 
 	// Assign the left and right velocities to local variables for convenience
 	uL=qL[1]/qL[0]; uR=qR[1]/qR[0];
@@ -18,7 +19,7 @@ void RoeFlux(const double gamma, const double qL[], const double qR[], double fl
 	wL=qL[3]/qL[0]; wR=qR[3]/qR[0];
 	pL=gmM1* (qL[4]-0.5* (qL[1]*uL+qL[2]*vL+qL[3]*wL));
 	pR=gmM1* (qR[4]-0.5* (qR[1]*uR+qR[2]*vR+qR[3]*wR));
-	aL=sqrt(gamma*pL/qL[0]); aR=sqrt(gamma*pR/qR[0]);
+	aL=sqrt(Gamma*pL/qL[0]); aR=sqrt(Gamma*pR/qR[0]);
 	hL=aL*aL/gmM1+0.5* (uL*uL+vL*vL+wL*wL); hR=aR*aR/gmM1+0.5* (uR*uR+vR*vR+wR*wR);
 
 	// The Roe averaged values
@@ -27,7 +28,7 @@ void RoeFlux(const double gamma, const double qL[], const double qR[], double fl
 	v= (vL+rho*vR) / (1.+rho);
 	w= (wL+rho*wR) / (1.+rho);
 	h= (hL+rho*hR) / (1.+rho);
-	a=sqrt((gamma-1.) * (h-0.5* (u*u+v*v+w*w)));
+	a=sqrt((Gamma-1.) * (h-0.5* (u*u+v*v+w*w)));
 
 	rho=rho*qL[0];
 
@@ -36,7 +37,7 @@ void RoeFlux(const double gamma, const double qL[], const double qR[], double fl
 	if (u>=0) { // Calculate from the left side
 		lambda1=u-a;
 		// Entropy fix
-		//double Dlambda1=0.5*(gamma+1.)*fabs(u-uL);
+		//double Dlambda1=0.5*(Gamma+1.)*fabs(u-uL);
 		double Dlambda1=0.5* (min(a,max(0.,2* (uL-aL-uR+aR))));
 		if (lambda1<= (-0.5*Dlambda1)) {
 			; // do nothing
@@ -59,7 +60,7 @@ void RoeFlux(const double gamma, const double qL[], const double qR[], double fl
 	} else { // Calculate from the right side
 		lambda5=u+a;
 		// Entropy fix
-		//double Dlambda5=0.5*(gamma+1.)*fabs(u-uR);
+		//double Dlambda5=0.5*(Gamma+1.)*fabs(u-uR);
 		double Dlambda5=0.5* (min(a,max(0.,2* (uL+aL-uR-aR))));
 		if (lambda5<= (-0.5*Dlambda5)) {
 			lambda5=0.;
