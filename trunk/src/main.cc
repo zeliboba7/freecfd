@@ -256,78 +256,83 @@ int main(int argc, char *argv[]) {
 			int index;
 			fou();
 
-			MatZeroEntries(impOP);
+			if (input.section["timeMarching"].strings["integrator"]=="backwardEuler") {
+				MatZeroEntries(impOP);
 
-			unsigned int counter=0;
-			for (unsigned int c=0;c<grid.cellCount;++c) {
-				for (int i=0;i<5;++i) {
-					value=grid.cell[c].flux[i];
-			//if (grid.cell[c].centroid.comp[0]>0.23 && grid.cell[c].centroid.comp[0]<0.26) cout << c << "\t" << ff << endl;
-					index=grid.cell[c].globalId*5+i;
-					VecSetValues(rhs,1,&index,&value,INSERT_VALUES);
+				unsigned int counter=0;
+				for (unsigned int c=0;c<grid.cellCount;++c) {
+					for (int i=0;i<5;++i) {
+						value=-1.*grid.cell[c].flux[i]; 
+				//if (grid.cell[c].centroid.comp[0]>0.23 && grid.cell[c].centroid.comp[0]<0.26) cout << c << "\t" << ff << endl;
+						index=grid.cell[c].globalId*5+i;
+						VecSetValues(rhs,1,&index,&value,INSERT_VALUES);
 
-					value=grid.cell[c].volume/dt;
-					if (i==4) {
-						double Mach=fabs(grid.cell[c].v)/sqrt(Gamma*grid.cell[c].p/grid.cell[c].rho);
-						double MachTom2=1./(Mach*Mach);
-// 						value+=0.5*grid.cell[c].v.dot(grid.cell[c].v)*(MachTom2-1.)*grid.cell[c].rho;
-// 						value+=grid.cell[c].v.comp[0]*(1.-MachTom2)*grid.cell[c].rho*grid.cell[c].v.comp[0];
-// 						value+=grid.cell[c].v.comp[1]*(1.-MachTom2)*grid.cell[c].rho*grid.cell[c].v.comp[1];
-// 						value+=grid.cell[c].v.comp[2]*(1.-MachTom2)*grid.cell[c].rho*grid.cell[c].v.comp[2];
-// 						value+=MachTom2*0.5*grid.cell[c].rho*(grid.cell[c].v.dot(grid.cell[c].v))+grid.cell[c].p/(Gamma-1.);
-						value+=0.5*grid.cell[c].v.dot(grid.cell[c].v)*(MachTom2-1.)*grid.cell[c].rho;
-						value+=grid.cell[c].v.comp[0]*(1.-MachTom2)*grid.cell[c].rho*grid.cell[c].v.comp[0];
-						value+=grid.cell[c].v.comp[1]*(1.-MachTom2)*grid.cell[c].rho*grid.cell[c].v.comp[1];
-						value+=grid.cell[c].v.comp[2]*(1.-MachTom2)*grid.cell[c].rho*grid.cell[c].v.comp[2];
-						value+=MachTom2*0.5*grid.cell[c].rho*(grid.cell[c].v.dot(grid.cell[c].v))+grid.cell[c].p/(Gamma-1.);
-
+						value=grid.cell[c].volume/dt;
+	// 					if (i==4) {
+	// 						double Mach=fabs(grid.cell[c].v)/sqrt(Gamma*grid.cell[c].p/grid.cell[c].rho);
+	// 						double MachTom2=1./(Mach*Mach);
+	// // 						value+=0.5*grid.cell[c].v.dot(grid.cell[c].v)*(MachTom2-1.)*grid.cell[c].rho;
+	// // 						value+=grid.cell[c].v.comp[0]*(1.-MachTom2)*grid.cell[c].rho*grid.cell[c].v.comp[0];
+	// // 						value+=grid.cell[c].v.comp[1]*(1.-MachTom2)*grid.cell[c].rho*grid.cell[c].v.comp[1];
+	// // 						value+=grid.cell[c].v.comp[2]*(1.-MachTom2)*grid.cell[c].rho*grid.cell[c].v.comp[2];
+	// // 						value+=MachTom2*0.5*grid.cell[c].rho*(grid.cell[c].v.dot(grid.cell[c].v))+grid.cell[c].p/(Gamma-1.);
+	// 						value+=0.5*grid.cell[c].v.dot(grid.cell[c].v)*(MachTom2-1.)*grid.cell[c].rho;
+	// 						value+=grid.cell[c].v.comp[0]*(1.-MachTom2)*grid.cell[c].rho*grid.cell[c].v.comp[0];
+	// 						value+=grid.cell[c].v.comp[1]*(1.-MachTom2)*grid.cell[c].rho*grid.cell[c].v.comp[1];
+	// 						value+=grid.cell[c].v.comp[2]*(1.-MachTom2)*grid.cell[c].rho*grid.cell[c].v.comp[2];
+	// 						value+=MachTom2*0.5*grid.cell[c].rho*(grid.cell[c].v.dot(grid.cell[c].v))+grid.cell[c].p/(Gamma-1.);
+	// 
+	// 					}
+						MatSetValues(impOP,1,&index,1,&index,&value,INSERT_VALUES);
+						counter++;
 					}
-					MatSetValues(impOP,1,&index,1,&index,&value,INSERT_VALUES);
-					counter++;
 				}
-			}
 
-			MatAssemblyBegin(impOP,MAT_FLUSH_ASSEMBLY);
-			MatAssemblyEnd(impOP,MAT_FLUSH_ASSEMBLY);
+				MatAssemblyBegin(impOP,MAT_FLUSH_ASSEMBLY);
+				MatAssemblyEnd(impOP,MAT_FLUSH_ASSEMBLY);
 
-			//cout << "before" << endl;
-			jac(impOP);
-			//cout << "after" << endl;
-// 			for (unsigned int f=0;f<grid.faceCount;++f) {
-// 				if (grid.face[f].parent!=grid.cellCount-1) assembleConvJac(impOP,f,grid.face[f].parent);
-// 				if (grid.face[f].neighbor!=grid.cellCount-1) assembleConvJac(impOP,f,grid.face[f].neighbor);
-// 			}
+				//cout << "before" << endl;
+				jac(impOP);
+				//cout << "after" << endl;
+	// 			for (unsigned int f=0;f<grid.faceCount;++f) {
+	// 				if (grid.face[f].parent!=grid.cellCount-1) assembleConvJac(impOP,f,grid.face[f].parent);
+	// 				if (grid.face[f].neighbor!=grid.cellCount-1) assembleConvJac(impOP,f,grid.face[f].neighbor);
+	// 			}
 
-			//VecRestoreArray(f,&ff);
-			
-			MatAssemblyBegin(impOP,MAT_FINAL_ASSEMBLY);
-			MatAssemblyEnd(impOP,MAT_FINAL_ASSEMBLY);
-			
-			//MatView(impOP,PETSC_VIEWER_STDOUT_WORLD);
-			//MatView(impOP,PETSC_VIEWER_DRAW_WORLD);
-			
-			VecAssemblyBegin(rhs);
-			VecAssemblyEnd(rhs);
+				//VecRestoreArray(f,&ff);
+				
+				MatAssemblyBegin(impOP,MAT_FINAL_ASSEMBLY);
+				MatAssemblyEnd(impOP,MAT_FINAL_ASSEMBLY);
+				
+				//MatView(impOP,PETSC_VIEWER_STDOUT_WORLD);
+				//MatView(impOP,PETSC_VIEWER_DRAW_WORLD);
+				
+				VecAssemblyBegin(rhs);
+				VecAssemblyEnd(rhs);
 
-			KSPSolve(ksp,rhs,deltaU);
+				KSPSolve(ksp,rhs,deltaU);
 
-			KSPGetIterationNumber(ksp,&nIter);
-	
-			
-			//VecView(deltaU,PETSC_VIEWER_STDOUT_WORLD);
-			VecGetArray(deltaU,&dU);//VecGetArray(rhs,&ff);
-			counter=0;
-			for (unsigned int c=0;c<grid.cellCount;++c) {
-				for (int i=0;i<5;++i) {
-					//if (grid.cell[c].centroid.comp[0]>0.23 && grid.cell[c].centroid.comp[0]<0.26) cout << c << "\t" << dU[counter] << "\t" << ff[counter] << "\t" << grid.cell[c].volume/dt << endl;
-					grid.cell[c].flux[i]=dU[counter];
-					//cout << counter << "\t" << dU[counter] << endl;
-					counter++;
+				KSPGetIterationNumber(ksp,&nIter);
+		
+				
+				//VecView(deltaU,PETSC_VIEWER_STDOUT_WORLD);
+				VecGetArray(deltaU,&dU);//VecGetArray(rhs,&ff);
+				counter=0;
+				for (unsigned int c=0;c<grid.cellCount;++c) {
+					for (int i=0;i<5;++i) {
+						//if (grid.cell[c].centroid.comp[0]>0.23 && grid.cell[c].centroid.comp[0]<0.26) cout << c << "\t" << dU[counter] << "\t" << ff[counter] << "\t" << grid.cell[c].volume/dt << endl;
+						grid.cell[c].flux[i]=dU[counter];
+						//cout << counter << "\t" << dU[counter] << endl;
+						counter++;
+					}
 				}
-			}
-			VecRestoreArray(deltaU,&dU);//VecRestoreArray(rhs,&ff);
-			updateImp(dt);
-			//update(dt);
+				VecRestoreArray(deltaU,&dU);//VecRestoreArray(rhs,&ff);
+				updateImp(dt);
+
+			} // if backwardEuler
+
+			if (input.section["timeMarching"].strings["integrator"]=="forwardEuler") update(dt);
+			
 			//if (input.section["equations"].strings["set"]=="NS") grid.gradients();
 		} else { // if not first order
 
@@ -532,7 +537,7 @@ void updateImp(double dt) {
 		conservative[3] = grid.cell[c].rho * grid.cell[c].v.comp[2];
 		conservative[4] = 0.5 * grid.cell[c].rho * grid.cell[c].v.dot(grid.cell[c].v) + grid.cell[c].p / (Gamma - 1.);
 		for (int i = 0;i < 5;++i) {
-			conservative[i] -= grid.cell[c].flux[i];
+			conservative[i] += grid.cell[c].flux[i];
 			grid.cell[c].flux[i] = 0.;
 		}
 		grid.cell[c].rho = conservative[0];
