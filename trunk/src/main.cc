@@ -183,13 +183,44 @@ int main(int argc, char *argv[]) {
 
 	PetscScalar *dU,*ff,value;
 	VecCreateMPI(PETSC_COMM_WORLD,grid.cellCount*5,grid.globalCellCount*5,&rhs);
+	//VecCreateSeq(PETSC_COMM_WORLD,grid.cellCount*5,&rhs);
 	VecSetFromOptions(rhs);
 	VecDuplicate(rhs,&deltaU);
 	VecSet(deltaU,0.);
 	//VecView(deltaU,PETSC_VIEWER_STDOUT_WORLD);
-	MatCreate(PETSC_COMM_WORLD,&impOP);
-	MatSetSizes(impOP,grid.cellCount*5,grid.cellCount*5,grid.globalCellCount*5,grid.globalCellCount*5);
-	MatSetFromOptions(impOP);
+	unsigned int parent,neighbor,row,col;
+	
+	PetscInt nnz[grid.cellCount*5];
+	for (unsigned int i=0;i<grid.cellCount*5;++i) nnz[i]=15;
+
+// 	for (unsigned int f=0;f<grid.faceCount;++f) {
+// 		parent=grid.face[f].parent; neighbor=grid.face[f].neighbor;
+// 		if (grid.face[f].bc==-1) { // means a real internal face
+// 			for (int i=0;i<5;++i) {
+// 				for (int j=0;j<5;++j) {
+// 					row=grid.cell[parent].globalId*5+j; col=grid.cell[parent].globalId*5+i;
+// 					nnz[row]++;
+// 					row=grid.cell[neighbor].globalId*5+j;
+// 					nnz[row]++;
+//
+// 				} // for j
+// 			} // for i
+//
+// 			for (int i=0;i<5;++i) {
+// 				for (int j=0;j<5;++j) {
+// 					row=grid.cell[neighbor].globalId*5+j; col=grid.cell[neighbor].globalId*5+i;
+// 					nnz[row]++;
+// 					row=grid.cell[parent].globalId*5+j;
+// 					nnz[row]++;
+// 				} // for j
+// 			} // for i
+// 		}
+// 	}
+	
+	//MatCreate(PETSC_COMM_WORLD,&impOP);
+	//MatSetSizes(impOP,grid.cellCount*5,grid.cellCount*5,grid.globalCellCount*5,grid.globalCellCount*5);
+	MatCreateMPIAIJ(PETSC_COMM_WORLD,grid.cellCount*5,grid.cellCount*5,grid.globalCellCount*5,grid.globalCellCount*5,25,PETSC_NULL,0,PETSC_NULL,&impOP);
+	//MatSetFromOptions(impOP);
 	
 	KSPSetOperators(ksp,impOP,impOP,SAME_NONZERO_PATTERN);
 	KSPSetFromOptions(ksp);
