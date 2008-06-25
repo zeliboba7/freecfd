@@ -1,0 +1,23 @@
+equations {set=Euler;}
+
+numericalOptions {order=first; limiter=superbee; sharpeningFactor=0.;}
+
+timeMarching {integrator=backwardEuler; type=CFL; step=0.0001; CFL=500.; numberOfSteps=1000; outFreq=10;}
+
+initialConditions { 
+	region_1(type=box; box_1=[-1,-1,-1]; box_2=[3,3,3]; rho=1.1875; v=[100.0,0.,0.]; p=101300;);
+}
+
+	//BC_2 (type=outlet;); 
+
+boundaryConditions { 
+	BC_1 (type=slip;); 
+	BC_2 (type=outlet;); 
+	BC_3 (type=slip;); 
+	BC_4 (type=inlet; v=[100.,0,0];); 
+	BC_5 (type=slip;); 
+}
+
+fluidProperties {gamma=1.4; viscosity(type=fixed; value=2E-2;);}
+
+solutionFormat {input=tecplot; output=tecplot;}
