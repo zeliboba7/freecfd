@@ -65,7 +65,7 @@ int main(int argc, char *argv[]) {
 	// Initialize PETSC
 	KSP ksp; // linear solver context
 	PC pc; // preconditioner context
-	Vec deltaU,rhs; // solution, residual vectors
+	Vec deltaU,rhs,globalUpdate; // solution, residual vectors
 	Mat impOP; // implicit operator matrix
 	PetscErrorCode ierr;
 
@@ -183,10 +183,14 @@ int main(int argc, char *argv[]) {
 
 	PetscScalar *dU,*ff,value;
 	VecCreateMPI(PETSC_COMM_WORLD,grid.cellCount*5,grid.globalCellCount*5,&rhs);
-	//VecCreateSeq(PETSC_COMM_WORLD,grid.cellCount*5,&rhs);
+	VecCreateSeq(PETSC_COMM_SELF,grid.globalCellCount*5,&globalUpdate);
 	VecSetFromOptions(rhs);
 	VecDuplicate(rhs,&deltaU);
 	VecSet(deltaU,0.);
+	VecSet(globalUpdate,0.);
+	VecScatter scatterContext;
+	VecScatterCreateToAll(deltaU,&scatterContext,&globalUpdate);
+
 	//VecView(deltaU,PETSC_VIEWER_STDOUT_WORLD);
 	unsigned int parent,neighbor,row,col;
 	
@@ -217,8 +221,6 @@ int main(int argc, char *argv[]) {
 // 		}
 // 	}
 	
-	//MatCreate(PETSC_COMM_WORLD,&impOP);
-	//MatSetSizes(impOP,grid.cellCount*5,grid.cellCount*5,grid.globalCellCount*5,grid.globalCellCount*5);
 	MatCreateMPIAIJ(PETSC_COMM_WORLD,grid.cellCount*5,grid.cellCount*5,grid.globalCellCount*5,grid.globalCellCount*5,25,PETSC_NULL,0,PETSC_NULL,&impOP);
 	//MatSetFromOptions(impOP);
 	
@@ -285,12 +287,15 @@ int main(int argc, char *argv[]) {
 		if (input.section["numericalOptions"].strings["order"]=="first") {
 
 			int index;
+
+
+			if (input.section["equations"].strings["set"]=="NS") diff_flux(mu);
 			fou();
 
 			if (input.section["timeMarching"].strings["integrator"]=="backwardEuler") {
 				MatZeroEntries(impOP);
 
-				unsigned int counter=0;
+				PetscInt counter=0;
 				for (unsigned int c=0;c<grid.cellCount;++c) {
 					for (int i=0;i<5;++i) {
 						value=-1.*grid.cell[c].flux[i]; 
@@ -344,20 +349,19 @@ int main(int argc, char *argv[]) {
 				KSPSolve(ksp,rhs,deltaU);
 
 				KSPGetIterationNumber(ksp,&nIter);
-		
-				
-				//VecView(deltaU,PETSC_VIEWER_STDOUT_WORLD);
-				VecGetArray(deltaU,&dU);//VecGetArray(rhs,&ff);
-				counter=0;
+
+				VecScatterBegin(scatterContext,deltaU,globalUpdate,INSERT_VALUES,SCATTER_FORWARD);
+				VecScatterEnd(scatterContext,deltaU,globalUpdate,INSERT_VALUES,SCATTER_FORWARD);
+
+				//VecView(globalUpdate,PETSC_VIEWER_STDOUT_WORLD);
+
 				for (unsigned int c=0;c<grid.cellCount;++c) {
 					for (int i=0;i<5;++i) {
-						//if (grid.cell[c].centroid.comp[0]>0.23 && grid.cell[c].centroid.comp[0]<0.26) cout << c << "\t" << dU[counter] << "\t" << ff[counter] << "\t" << grid.cell[c].volume/dt << endl;
-						grid.cell[c].flux[i]=dU[counter];
-						//cout << counter << "\t" << dU[counter] << endl;
-						counter++;
+						index=grid.cell[c].globalId*5+i;
+						VecGetValues(globalUpdate,1,&index,&grid.cell[c].flux[i]);
 					}
 				}
-				VecRestoreArray(deltaU,&dU);//VecRestoreArray(rhs,&ff);
+
 				updateImp(dt);
 
 			} // if backwardEuler
@@ -486,7 +490,7 @@ int main(int argc, char *argv[]) {
 		cout << "* Wall time: " << timeEnd-timeRef << " seconds" << endl;
 	}
 	//MPI_Finalize();
-
+	VecScatterDestroy(scatterContext);
 	KSPDestroy(ksp);
 	MatDestroy(impOP);
 	VecDestroy(rhs);
