@@ -38,13 +38,13 @@ void fou() {
 		if (grid.face[f].bc>=0) { // means a real boundary face
 			rhoR=rhoL; uNR=uNL; vTR=vTL; wTR=wTL; pR=pL; // outlet condition
 			if (bc.region[grid.face[f].bc].type=="slip") uNR=-uNL;
-			if (bc.region[grid.face[f].bc].type=="noslip") {uNR=-uNL; vTR=vTL=0.; wTR=wTL=0.;}
+			if (bc.region[grid.face[f].bc].type=="noslip") {uNR=-uNL; vTR=0.; wTR=0.;}
 			if (bc.region[grid.face[f].bc].type=="inlet") {
 				uNR=bc.region[grid.face[f].bc].v.dot(grid.face[f].normal);
 				vTR=bc.region[grid.face[f].bc].v.dot(faceTangent1);
 				wTR=bc.region[grid.face[f].bc].v.dot(faceTangent2);
-				//rhoR=bc.region[grid.face[f].bc].rho;
-				//pR=bc.region[grid.face[f].bc].p;
+				rhoR=bc.region[grid.face[f].bc].rho;
+				pR=bc.region[grid.face[f].bc].p;
 			}
 		} else if (grid.face[f].bc==-1) { // internal face
 			uNR=grid.cell[neighbor].v.dot(grid.face[f].normal);
@@ -61,13 +61,13 @@ void fou() {
 			pR=grid.ghost[g].p;
 		}
 		
-		if (grid.face[f].bc>=0 && (bc.region[grid.face[f].bc].type=="outlet" | bc.region[grid.face[f].bc].type=="inlet")) {
-			fluxNormal[0]=rhoR*uNR;
-			fluxNormal[1]=rhoR*uNR*uNR+pR;
-			fluxNormal[2]=rhoR*uNR*vTR;
-			fluxNormal[3]=rhoR*uNR*wTR;
-			fluxNormal[4]=uNR* (0.5*rhoR* (uNR*uNR+vTR*vTR+wTR*wTR) +pR/ (Gamma - 1.) +pR);
-		} else {
+// 		if (grid.face[f].bc>=0 && (bc.region[grid.face[f].bc].type=="outlet" | bc.region[grid.face[f].bc].type=="inlet")) {
+// 			fluxNormal[0]=rhoR*uNR;
+// 			fluxNormal[1]=rhoR*uNR*uNR+pR;
+// 			fluxNormal[2]=rhoR*uNR*vTR;
+// 			fluxNormal[3]=rhoR*uNR*wTR;
+// 			fluxNormal[4]=uNR* (0.5*rhoR* (uNR*uNR+vTR*vTR+wTR*wTR) +pR/ (Gamma - 1.) +pR);
+// 		} else {
 			qL[0]=rhoL;
 			qL[1]=qL[0] * uNL;
 			qL[2]=qL[0] * vTL;
@@ -81,7 +81,7 @@ void fou() {
 			qR[4] = 0.5*qR[0]* (uNR*uNR+vTR*vTR+wTR*wTR) +pR/ (Gamma - 1.);
 
 			RoeFlux(qL, qR, fluxNormal);
-		} 
+		//} 
 
 
 		flux[0] = fluxNormal[0]*grid.face[f].area;

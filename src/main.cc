@@ -288,9 +288,14 @@ int main(int argc, char *argv[]) {
 
 			int index;
 
-
-			if (input.section["equations"].strings["set"]=="NS") diff_flux(mu);
 			fou();
+			
+			if (input.section["equations"].strings["set"]=="NS") {
+				// Calculate all the cell gradients for each variable
+				grid.gradients();
+				// Add diffusive fluxes
+				diff_flux(mu);
+			}
 
 			if (input.section["timeMarching"].strings["integrator"]=="backwardEuler") {
 				MatZeroEntries(impOP);
