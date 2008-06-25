@@ -1,8 +1,8 @@
 equations {set=Euler;}
 
-numericalOptions {order=second; limiter=superbee; sharpeningFactor=0.;}
+numericalOptions {order=first; limiter=superbee; sharpeningFactor=0.;}
 
-timeMarching {type=CFL; step=0.0001; CFL=1.; numberOfSteps=10; outFreq=5;}
+timeMarching {integrator=backwardEuler; type=CFL; step=0.0001; CFL=1.; numberOfSteps=2000; outFreq=5;}
 
 	//region_1(type=box; box_1=[-1,-1,-1]; box_2=[3,3,3]; rho=1.0; v=[0.0,0.,0.]; p=1.0;);
 	//region_2(type=box; box_1=[-1,-1,-1]; box_2=[0.25,3,3]; rho=5; v=[4.730,0.,0.]; p=29.;);
@@ -13,7 +13,7 @@ initialConditions {
 }
 
 boundaryConditions { 
-	BC_1 (type=slip; region=box; box_1=[-1,-1,-1]; box_2=[2,2,2]; pick=override;); 
+	BC_1 (type=slip; region=box; box_1=[-1,-1,-1]; box_2=[5,5,5]; pick=override;); 
 	BC_2 (type=outlet; region=box; box_1=[1.2501,0.0001,-1.]; box_2=[2.,2.,2.]; pick=override;); 
 	BC_3 (type=outlet; region=box; box_1=[-1.00,-0.0001,-1.]; box_2=[0.0001,2.,2.]; pick=override;); 
 }
