@@ -944,7 +944,7 @@ void Grid::gradients(void) {
 					cell[c].grad[1]+=bc.region[face[f].bc].v.comp[0]*areaVec;
 					cell[c].grad[2]+=bc.region[face[f].bc].v.comp[1]*areaVec;
 					cell[c].grad[3]+=bc.region[face[f].bc].v.comp[2]*areaVec;
-					cell[c].grad[4]+=bc.region[face[f].bc].p*areaVec; // FIXME Can you specify everything at inlet???
+					cell[c].grad[4]+=bc.region[face[f].bc].p*areaVec; 
 				} else { // if not an inlet
 					// Find face averaged variables 
 					faceVel=0.;faceRho=0.;faceP=0.;

@@ -63,20 +63,23 @@ void jac(Mat impOP) {
 			for (int i=0;i<5;++i) qNR[i]=qNL[i]; // outlet condition
 
 			if (bc.region[grid.face[f].bc].type=="slip") qNR[1]=-1.*qNL[1];
-			if (bc.region[grid.face[f].bc].type=="noslip") {qNR[1]=-1.*qNL[1]; qNR[2]=qNL[2]=0.; qNR[3]=qNL[3]=0.;}
+			if (bc.region[grid.face[f].bc].type=="noslip") {qNR[1]=-1.*qNL[1]; qNR[2]=0.; qNR[3]=0.;}
 			if (bc.region[grid.face[f].bc].type=="inlet") {
-				qNR[1]=rhoL*bc.region[grid.face[f].bc].v.dot(grid.face[f].normal);
-				qNR[2]=rhoL*bc.region[grid.face[f].bc].v.dot(faceTangent1);
-				qNR[3]=rhoL*bc.region[grid.face[f].bc].v.dot(faceTangent2);
+				rhoR=bc.region[grid.face[f].bc].rho;
+				pR=bc.region[grid.face[f].bc].p;
+				qVR=rhoR*bc.region[grid.face[f].bc].v;
+				qNR[0]=rhoR;
+				qNR[1]=qVR.dot(grid.face[f].normal);
+				qNR[2]=qVR.dot(faceTangent1);
+				qNR[3]=qVR.dot(faceTangent2);
+				qNR[4]=0.5*(qVR.dot(qVR))/rhoR +pR/ (Gamma - 1.);
 			}
 
 		} else { // partition boundary
 			int g=-1*grid.face[f].bc-3;
-
 			rhoR=grid.ghost[g].rho;
 			pR=grid.ghost[g].p;
 			qVR=rhoR*grid.ghost[g].v;
-
 			qNR[0]=rhoR;
 			qNR[1]=qVR.dot(grid.face[f].normal);
 			qNR[2]=qVR.dot(faceTangent1);
