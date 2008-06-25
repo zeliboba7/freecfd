@@ -70,7 +70,21 @@ void jac(Mat impOP) {
 				qNR[3]=rhoL*bc.region[grid.face[f].bc].v.dot(faceTangent2);
 			}
 
+		} else { // partition boundary
+			int g=-1*grid.face[f].bc-3;
+
+			rhoR=grid.ghost[g].rho;
+			pR=grid.ghost[g].p;
+			qVR=rhoR*grid.ghost[g].v;
+
+			qNR[0]=rhoR;
+			qNR[1]=qVR.dot(grid.face[f].normal);
+			qNR[2]=qVR.dot(faceTangent1);
+			qNR[3]=qVR.dot(faceTangent2);
+			qNR[4]=0.5*(qVR.dot(qVR))/rhoR +pR/ (Gamma - 1.);
+			
 		}
+		
 
 		RoeFlux(qNL, qNR, fluxNormal);
 
