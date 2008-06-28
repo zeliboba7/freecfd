@@ -939,26 +939,27 @@ void Grid::gradients(void) {
 			if (face[f].bc>=0) { // if a boundary face
 				areaVec=face[f].area*face[f].normal/cell[c].volume;
 				if (face[f].parent!=c) areaVec*=-1.;
+				// Find face averaged variables
+				faceVel=0.;faceRho=0.;faceP=0.;
+				for (fit=face[f].average.begin();fit!=face[f].average.end();fit++) {
+					if ((*fit).first>=0) { // if contribution is coming from a real cell
+						faceRho+=(*fit).second*cell[(*fit).first].rho;
+						faceVel+=(*fit).second*cell[(*fit).first].v;
+						faceP+=(*fit).second*cell[(*fit).first].p;
+					} else { // if contribution is coming from a ghost cell
+						faceRho+=(*fit).second*ghost[-1*((*fit).first+1)].rho;
+						faceVel+=(*fit).second*ghost[-1*((*fit).first+1)].v;
+						faceP+=(*fit).second*ghost[-1*((*fit).first+1)].p;
+					}
+				}
 				if (bc.region[face[f].bc].type=="inlet") {
 					cell[c].grad[0]+=bc.region[face[f].bc].rho*areaVec;
 					cell[c].grad[1]+=bc.region[face[f].bc].v.comp[0]*areaVec;
 					cell[c].grad[2]+=bc.region[face[f].bc].v.comp[1]*areaVec;
 					cell[c].grad[3]+=bc.region[face[f].bc].v.comp[2]*areaVec;
-					cell[c].grad[4]+=bc.region[face[f].bc].p*areaVec; 
+					//cell[c].grad[4]+=bc.region[face[f].bc].p*areaVec;
+					cell[c].grad[4]+=faceP*areaVec;
 				} else { // if not an inlet
-					// Find face averaged variables 
-					faceVel=0.;faceRho=0.;faceP=0.;
-					for (fit=face[f].average.begin();fit!=face[f].average.end();fit++) {
-						if ((*fit).first>=0) { // if contribution is coming from a real cell
-							faceRho+=(*fit).second*cell[(*fit).first].rho;
-							faceVel+=(*fit).second*cell[(*fit).first].v;
-							faceP+=(*fit).second*cell[(*fit).first].p;
-						} else { // if contribution is coming from a ghost cell
-							faceRho+=(*fit).second*ghost[-1*((*fit).first+1)].rho;
-							faceVel+=(*fit).second*ghost[-1*((*fit).first+1)].v;
-							faceP+=(*fit).second*ghost[-1*((*fit).first+1)].p;
-						}
-					}
 					// These two are interpolated for all boundary types other than inlet
 					cell[c].grad[0]+=faceRho*areaVec;
 					cell[c].grad[4]+=faceP*areaVec;

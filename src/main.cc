@@ -37,7 +37,6 @@ void fou(void);
 void hancock_predictor(double dt, string limiter);
 void hancock_corrector(string limiter);
 void diff_flux(double mu);
-void assembleConvJac(Mat impOP,unsigned int f, unsigned int p);
 void jac(Mat impOP);
 
 // PETSC 
@@ -191,38 +190,12 @@ int main(int argc, char *argv[]) {
 	VecScatter scatterContext;
 	VecScatterCreateToAll(deltaU,&scatterContext,&globalUpdate);
 
-	//VecView(deltaU,PETSC_VIEWER_STDOUT_WORLD);
 	unsigned int parent,neighbor,row,col;
 	
 	PetscInt nnz[grid.cellCount*5];
 	for (unsigned int i=0;i<grid.cellCount*5;++i) nnz[i]=15;
 
-// 	for (unsigned int f=0;f<grid.faceCount;++f) {
-// 		parent=grid.face[f].parent; neighbor=grid.face[f].neighbor;
-// 		if (grid.face[f].bc==-1) { // means a real internal face
-// 			for (int i=0;i<5;++i) {
-// 				for (int j=0;j<5;++j) {
-// 					row=grid.cell[parent].globalId*5+j; col=grid.cell[parent].globalId*5+i;
-// 					nnz[row]++;
-// 					row=grid.cell[neighbor].globalId*5+j;
-// 					nnz[row]++;
-//
-// 				} // for j
-// 			} // for i
-//
-// 			for (int i=0;i<5;++i) {
-// 				for (int j=0;j<5;++j) {
-// 					row=grid.cell[neighbor].globalId*5+j; col=grid.cell[neighbor].globalId*5+i;
-// 					nnz[row]++;
-// 					row=grid.cell[parent].globalId*5+j;
-// 					nnz[row]++;
-// 				} // for j
-// 			} // for i
-// 		}
-// 	}
-	
 	MatCreateMPIAIJ(PETSC_COMM_WORLD,grid.cellCount*5,grid.cellCount*5,grid.globalCellCount*5,grid.globalCellCount*5,25,PETSC_NULL,0,PETSC_NULL,&impOP);
-	//MatSetFromOptions(impOP);
 	
 	KSPSetOperators(ksp,impOP,impOP,SAME_NONZERO_PATTERN);
 	KSPSetFromOptions(ksp);
@@ -231,6 +204,7 @@ int main(int argc, char *argv[]) {
 	// Begin time loop
 	for (int timeStep=restart+1;timeStep<=input.section["timeMarching"].ints["numberOfSteps"]+restart;++timeStep) {
 		int nIter;
+		double rNorm;
 		// TODO partition variable need not be send and received
 		for (unsigned int p=0;p<np;++p) {
 			if (rank!=p) {
@@ -301,46 +275,67 @@ int main(int argc, char *argv[]) {
 				MatZeroEntries(impOP);
 
 				PetscInt counter=0;
+
+				// Variables for preconditioner
+				double Beta,Mach,Mach2,soundSpeed2;
+				double P51,P52,P53,P54,P55,d;
+				PetscInt row,col;
 				for (unsigned int c=0;c<grid.cellCount;++c) {
 					for (int i=0;i<5;++i) {
-						value=-1.*grid.cell[c].flux[i]; 
-				//if (grid.cell[c].centroid.comp[0]>0.23 && grid.cell[c].centroid.comp[0]<0.26) cout << c << "\t" << ff << endl;
 						index=grid.cell[c].globalId*5+i;
+
+						// Fill in right hand side vector
+						value=-1.*grid.cell[c].flux[i];
 						VecSetValues(rhs,1,&index,&value,INSERT_VALUES);
 
-						value=grid.cell[c].volume/dt;
-	// 					if (i==4) {
-	// 						double Mach=fabs(grid.cell[c].v)/sqrt(Gamma*grid.cell[c].p/grid.cell[c].rho);
-	// 						double MachTom2=1./(Mach*Mach);
-	// // 						value+=0.5*grid.cell[c].v.dot(grid.cell[c].v)*(MachTom2-1.)*grid.cell[c].rho;
-	// // 						value+=grid.cell[c].v.comp[0]*(1.-MachTom2)*grid.cell[c].rho*grid.cell[c].v.comp[0];
-	// // 						value+=grid.cell[c].v.comp[1]*(1.-MachTom2)*grid.cell[c].rho*grid.cell[c].v.comp[1];
-	// // 						value+=grid.cell[c].v.comp[2]*(1.-MachTom2)*grid.cell[c].rho*grid.cell[c].v.comp[2];
-	// // 						value+=MachTom2*0.5*grid.cell[c].rho*(grid.cell[c].v.dot(grid.cell[c].v))+grid.cell[c].p/(Gamma-1.);
-	// 						value+=0.5*grid.cell[c].v.dot(grid.cell[c].v)*(MachTom2-1.)*grid.cell[c].rho;
-	// 						value+=grid.cell[c].v.comp[0]*(1.-MachTom2)*grid.cell[c].rho*grid.cell[c].v.comp[0];
-	// 						value+=grid.cell[c].v.comp[1]*(1.-MachTom2)*grid.cell[c].rho*grid.cell[c].v.comp[1];
-	// 						value+=grid.cell[c].v.comp[2]*(1.-MachTom2)*grid.cell[c].rho*grid.cell[c].v.comp[2];
-	// 						value+=MachTom2*0.5*grid.cell[c].rho*(grid.cell[c].v.dot(grid.cell[c].v))+grid.cell[c].p/(Gamma-1.);
-	// 
-	// 					}
-						MatSetValues(impOP,1,&index,1,&index,&value,INSERT_VALUES);
-						counter++;
+						// Preconditioner
+ 						soundSpeed2=Gamma*grid.cell[c].p/grid.cell[c].rho;
+ 						Mach2=grid.cell[c].v.dot(grid.cell[c].v)/soundSpeed2;
+						Mach=sqrt(Mach2);
+						if (Mach<=1.e-5) {
+							Mach=1.e-5;
+						} else if (Mach<1.) {
+							// use local
+						} else {
+							Mach=1.;
+						}
+						
+						Mach2=Mach*Mach;
+						P51=grid.cell[c].v.dot(grid.cell[c].v)/3.*(Mach2-1.);
+						P52=grid.cell[c].v.comp[0]*(1.-1./Mach2);
+						P53=grid.cell[c].v.comp[1]*(1.-1./Mach2);
+						P54=grid.cell[c].v.comp[2]*(1.-1./Mach2);
+						P55=1./Mach2;
+
+						d=grid.cell[c].volume/dt;
+						
+						if (i==5) {
+							value=P51*d;
+							col=index-4;
+							MatSetValues(impOP,1,&index,1,&col,&value,INSERT_VALUES);
+							value=P52*d;
+							col=index-3;
+							MatSetValues(impOP,1,&index,1,&col,&value,INSERT_VALUES);
+							value=P53*d;
+							col=index-2;
+							MatSetValues(impOP,1,&index,1,&col,&value,INSERT_VALUES);
+							value=P54*d;
+							col=index-1;
+							MatSetValues(impOP,1,&index,1,&col,&value,INSERT_VALUES);
+							value=P55*d;
+							col=index;
+							MatSetValues(impOP,1,&index,1,&col,&value,INSERT_VALUES);
+						} else {
+							value=grid.cell[c].volume/dt;
+							MatSetValues(impOP,1,&index,1,&index,&value,INSERT_VALUES);
+						}
 					}
 				}
 
 				MatAssemblyBegin(impOP,MAT_FLUSH_ASSEMBLY);
 				MatAssemblyEnd(impOP,MAT_FLUSH_ASSEMBLY);
 
-				//cout << "before" << endl;
 				jac(impOP);
-				//cout << "after" << endl;
-	// 			for (unsigned int f=0;f<grid.faceCount;++f) {
-	// 				if (grid.face[f].parent!=grid.cellCount-1) assembleConvJac(impOP,f,grid.face[f].parent);
-	// 				if (grid.face[f].neighbor!=grid.cellCount-1) assembleConvJac(impOP,f,grid.face[f].neighbor);
-	// 			}
-
-				//VecRestoreArray(f,&ff);
 				
 				MatAssemblyBegin(impOP,MAT_FINAL_ASSEMBLY);
 				MatAssemblyEnd(impOP,MAT_FINAL_ASSEMBLY);
@@ -354,6 +349,7 @@ int main(int argc, char *argv[]) {
 				KSPSolve(ksp,rhs,deltaU);
 
 				KSPGetIterationNumber(ksp,&nIter);
+				KSPGetResidualNorm(ksp,&rNorm);
 
 				VecScatterBegin(scatterContext,deltaU,globalUpdate,INSERT_VALUES,SCATTER_FORWARD);
 				VecScatterEnd(scatterContext,deltaU,globalUpdate,INSERT_VALUES,SCATTER_FORWARD);
@@ -454,9 +450,8 @@ int main(int argc, char *argv[]) {
 		//if (input.section["equations"].strings["set"]=="NS") diff_flux(mu);
 			
 
-
-		if (rank==0) cout << timeStep << "\t" << setprecision(4) << scientific << time << "\t" << dt << "\t" << nIter << endl;
 		time += dt;
+		if (rank==0) cout << timeStep << "\t" << setprecision(4) << scientific << time << "\t" << dt << "\t" << nIter << "\t" << rNorm << endl;
 		if ((timeStep) % outFreq == 0) {
 			mkdir("./output",S_IRWXU);
 			if (input.section["solutionFormat"].strings["output"]=="vtk") {
@@ -597,65 +592,4 @@ string int2str(int number) {
 	string name = dummy;
 	name.erase(0, name.rfind(" ", name.length()) + 1);
 	return name;
-}
-
-
-void assembleConvJac(Mat impOP, unsigned int f, unsigned int c) {
-			
-	double a2=Gamma-1.;
-	double a3=Gamma-2.;
-	Vec3D normal;
-	normal=grid.face[f].normal;
-	if ((grid.face[f].centroid-grid.cell[c].centroid).dot(normal)<0) normal*=-1;
-	
-	double faceVel=grid.cell[c].v.dot(normal);
-	double phi=0.5*(Gamma-1.)*grid.cell[c].v.dot(grid.cell[c].v);
-	double a1=Gamma/(Gamma-1.)*(grid.cell[c].p/grid.cell[c].rho+phi)-phi;
-	int diag=grid.cell[c].globalId*5;
-	int row=diag;
-	int col;
-	double value;
-
-	double Ac[5][5];
-	
-	Ac[0][0]=0.;
-	Ac[0][1]=normal.comp[0];
-	Ac[0][2]=normal.comp[1];
-	Ac[0][3]=normal.comp[2];
-	Ac[0][4]=0.;
-	
-	Ac[1][0]=normal.comp[0]*phi-grid.cell[c].v.comp[0]*faceVel;
-	Ac[1][1]=faceVel-a3*normal.comp[0]*grid.cell[c].v.comp[0];
-	Ac[1][2]=normal.comp[1]*grid.cell[c].v.comp[0]-a2*normal.comp[0]*grid.cell[c].v.comp[1];
-	Ac[1][3]=normal.comp[2]*grid.cell[c].v.comp[0]-a2*normal.comp[0]*grid.cell[c].v.comp[2];
-	Ac[1][4]=a2*normal.comp[0];
-
-	Ac[2][0]=normal.comp[1]*phi-grid.cell[c].v.comp[1]*faceVel;
-	Ac[2][1]=normal.comp[0]*grid.cell[c].v.comp[1]-a2*normal.comp[1]*grid.cell[c].v.comp[0];
-	Ac[2][2]=faceVel-a3*normal.comp[1]*grid.cell[c].v.comp[1];
-	Ac[2][3]=normal.comp[2]*grid.cell[c].v.comp[1]-a2*normal.comp[1]*grid.cell[c].v.comp[2];
-	Ac[2][4]=a2*normal.comp[1];
-
-	Ac[3][0]=normal.comp[2]*phi-grid.cell[c].v.comp[2]*faceVel;
-	Ac[3][1]=normal.comp[0]*grid.cell[c].v.comp[2]-a2*normal.comp[2]*grid.cell[c].v.comp[0];
-	Ac[3][2]=normal.comp[1]*grid.cell[c].v.comp[2]-a2*normal.comp[2]*grid.cell[c].v.comp[1];
-	Ac[3][3]=faceVel-a3*normal.comp[2]*grid.cell[c].v.comp[2];
-	Ac[3][4]=a2*normal.comp[2];
-
-	Ac[4][0]=faceVel*(phi-a1);
-	Ac[4][1]=normal.comp[0]*a1-a2*grid.cell[c].v.comp[0]*faceVel;
-	Ac[4][2]=normal.comp[1]*a1-a2*grid.cell[c].v.comp[1]*faceVel;
-	Ac[4][3]=normal.comp[2]*a1-a2*grid.cell[c].v.comp[2]*faceVel;
-	Ac[4][4]=Gamma*faceVel;
-	
-	for (int i=0;i<5;++i) {
-		row=diag+i;
-		for (int j=0;j<5;++j) {
-			col=row+j;
-			value=0.5*grid.face[f].area*grid.cell[c].volume*Ac[i][j];
-			MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
-		}
-	}
-
-	return;
 }

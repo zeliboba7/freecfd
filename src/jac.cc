@@ -66,7 +66,8 @@ void jac(Mat impOP) {
 			if (bc.region[grid.face[f].bc].type=="noslip") {qNR[1]=-1.*qNL[1]; qNR[2]=0.; qNR[3]=0.;}
 			if (bc.region[grid.face[f].bc].type=="inlet") {
 				rhoR=bc.region[grid.face[f].bc].rho;
-				pR=bc.region[grid.face[f].bc].p;
+				//pR=bc.region[grid.face[f].bc].p;
+				pR=pL;
 				qVR=rhoR*bc.region[grid.face[f].bc].v;
 				qNR[0]=rhoR;
 				qNR[1]=qVR.dot(grid.face[f].normal);

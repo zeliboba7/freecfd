@@ -20,11 +20,6 @@ void diff_flux(double mu) {
 		parent=grid.face[f].parent; neighbor=grid.face[f].neighbor;
 		areaVec=grid.face[f].normal*grid.face[f].area;
 
-// 		for (unsigned int i=0;i<grid.face[f].cellContributions.indices.size();++i) {
-// 			factor=grid.face[f].cellContributions.data[i];
-// 			averageVel+=grid.cell[grid.face[f].cellContributions.indices[i]].v*factor;
-// 		}
-
 		// Find face averaged variables
 		faceVel=0.; gradUf=0.; gradVf=0.; gradWf=0.;
 		for (fit=grid.face[f].average.begin();fit!=grid.face[f].average.end();fit++) {
@@ -41,7 +36,7 @@ void diff_flux(double mu) {
 			}
 		}
 
-		if (grid.face[f].bc>=0) {	
+		if (grid.face[f].bc>=0) {
 			if (bc.region[grid.face[f].bc].type=="slip") {
 				faceVel-=faceVel.dot(grid.face[f].normal)*grid.face[f].normal;
 			} else if (bc.region[grid.face[f].bc].type=="noslip") {

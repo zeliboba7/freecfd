@@ -44,7 +44,7 @@ void fou() {
 				vTR=bc.region[grid.face[f].bc].v.dot(faceTangent1);
 				wTR=bc.region[grid.face[f].bc].v.dot(faceTangent2);
 				rhoR=bc.region[grid.face[f].bc].rho;
-				pR=bc.region[grid.face[f].bc].p;
+				//pR=bc.region[grid.face[f].bc].p;
 			}
 		} else if (grid.face[f].bc==-1) { // internal face
 			uNR=grid.cell[neighbor].v.dot(grid.face[f].normal);
