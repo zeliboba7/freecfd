@@ -1,6 +1,6 @@
 equations {set=Euler;}
 
-timeMarching {integrator=backwardEuler; type=CFL; step=5.E-4; CFL=50.; numberOfSteps=100; outFreq=5;}
+timeMarching {integrator=backwardEuler; type=CFL; step=5.E-4; CFL=10.; numberOfSteps=100; outFreq=5;}
 
 numericalOptions {order=first; limiter=minmod; sharpeningFactor=0.14;}
 
