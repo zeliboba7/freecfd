@@ -33,7 +33,7 @@ double superbee(double a, double b);
 void update(double dt);
 void updateImp(double dt);
 string int2str(int number) ;
-void inviscid_flux(string limiter);
+void inviscid_flux(string order,string limiter);
 void diff_flux(double mu);
 void jac(Mat impOP);
 
@@ -130,6 +130,7 @@ int main(int argc, char *argv[]) {
 		mu=input.section["fluidProperties"].subsections["viscosity"].doubles["value"];
 	}
 	string limiter=input.section["numericalOptions"].strings["limiter"];
+	string order=input.section["numericalOptions"].strings["order"];
 	double sharpeningFactor=input.section["numericalOptions"].doubles["sharpeningFactor"];
 	
 	// Need a conversion map from globalId to local index
@@ -336,7 +337,7 @@ int main(int argc, char *argv[]) {
 			}
 		}
 		
-		inviscid_flux(limiter);
+		inviscid_flux(order,limiter);
 
 		if (input.section["timeMarching"].strings["integrator"]=="backwardEuler") {
 			MatZeroEntries(impOP);
@@ -351,6 +352,8 @@ int main(int argc, char *argv[]) {
 				for (int i=0;i<5;++i) {
 					index=grid.cell[c].globalId*5+i;
 
+					// Fill in right hand side vector
+					value=-1.*grid.cell[c].flux[i];
 					VecSetValues(rhs,1,&index,&value,INSERT_VALUES);
 
 					// Preconditioner
