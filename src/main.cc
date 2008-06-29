@@ -33,9 +33,7 @@ double superbee(double a, double b);
 void update(double dt);
 void updateImp(double dt);
 string int2str(int number) ;
-void fou(void);
-void hancock_predictor(double dt, string limiter);
-void hancock_corrector(string limiter);
+void inviscid_flux(string limiter);
 void diff_flux(double mu);
 void jac(Mat impOP);
 
@@ -257,122 +255,12 @@ int main(int argc, char *argv[]) {
 			MPI_Allreduce(&dt,&dt,1, MPI_DOUBLE,MPI_MIN,MPI_COMM_WORLD);
 		}
 
+		int index;
 
-		if (input.section["numericalOptions"].strings["order"]=="first") {
-
-			int index;
-
-			fou();
-			
-			if (input.section["equations"].strings["set"]=="NS") {
-				// Calculate all the cell gradients for each variable
-				grid.gradients();
-				// Add diffusive fluxes
-				diff_flux(mu);
-			}
-
-			if (input.section["timeMarching"].strings["integrator"]=="backwardEuler") {
-				MatZeroEntries(impOP);
-
-				PetscInt counter=0;
-
-				// Variables for preconditioner
-				double Beta,Mach,Mach2,soundSpeed2;
-				double P51,P52,P53,P54,P55,d;
-				PetscInt row,col;
-				for (unsigned int c=0;c<grid.cellCount;++c) {
-					for (int i=0;i<5;++i) {
-						index=grid.cell[c].globalId*5+i;
-
-						// Fill in right hand side vector
-						value=-1.*grid.cell[c].flux[i];
-						VecSetValues(rhs,1,&index,&value,INSERT_VALUES);
-
-						// Preconditioner
- 						soundSpeed2=Gamma*grid.cell[c].p/grid.cell[c].rho;
- 						Mach2=grid.cell[c].v.dot(grid.cell[c].v)/soundSpeed2;
-						Mach=sqrt(Mach2);
-						if (Mach<=1.e-5) {
-							Mach=1.e-5;
-						} else if (Mach<1.) {
-							// use local
-						} else {
-							Mach=1.;
-						}
-						
-						Mach2=Mach*Mach;
-						P51=grid.cell[c].v.dot(grid.cell[c].v)/3.*(Mach2-1.);
-						P52=grid.cell[c].v.comp[0]*(1.-1./Mach2);
-						P53=grid.cell[c].v.comp[1]*(1.-1./Mach2);
-						P54=grid.cell[c].v.comp[2]*(1.-1./Mach2);
-						P55=1./Mach2;
-
-						d=grid.cell[c].volume/dt;
-						
-						if (i==5) {
-							value=P51*d;
-							col=index-4;
-							MatSetValues(impOP,1,&index,1,&col,&value,INSERT_VALUES);
-							value=P52*d;
-							col=index-3;
-							MatSetValues(impOP,1,&index,1,&col,&value,INSERT_VALUES);
-							value=P53*d;
-							col=index-2;
-							MatSetValues(impOP,1,&index,1,&col,&value,INSERT_VALUES);
-							value=P54*d;
-							col=index-1;
-							MatSetValues(impOP,1,&index,1,&col,&value,INSERT_VALUES);
-							value=P55*d;
-							col=index;
-							MatSetValues(impOP,1,&index,1,&col,&value,INSERT_VALUES);
-						} else {
-							value=grid.cell[c].volume/dt;
-							MatSetValues(impOP,1,&index,1,&index,&value,INSERT_VALUES);
-						}
-					}
-				}
-
-				MatAssemblyBegin(impOP,MAT_FLUSH_ASSEMBLY);
-				MatAssemblyEnd(impOP,MAT_FLUSH_ASSEMBLY);
-
-				jac(impOP);
+		//Calculate all the cell gradients for each variable
+		if (input.section["equations"].strings["set"]=="NS" |
+			input.section["numericalOptions"].strings["order"]!="first" ) {
 				
-				MatAssemblyBegin(impOP,MAT_FINAL_ASSEMBLY);
-				MatAssemblyEnd(impOP,MAT_FINAL_ASSEMBLY);
-				
-				//MatView(impOP,PETSC_VIEWER_STDOUT_WORLD);
-				//MatView(impOP,PETSC_VIEWER_DRAW_WORLD);
-				
-				VecAssemblyBegin(rhs);
-				VecAssemblyEnd(rhs);
-
-				KSPSolve(ksp,rhs,deltaU);
-
-				KSPGetIterationNumber(ksp,&nIter);
-				KSPGetResidualNorm(ksp,&rNorm);
-
-				VecScatterBegin(scatterContext,deltaU,globalUpdate,INSERT_VALUES,SCATTER_FORWARD);
-				VecScatterEnd(scatterContext,deltaU,globalUpdate,INSERT_VALUES,SCATTER_FORWARD);
-
-				//VecView(globalUpdate,PETSC_VIEWER_STDOUT_WORLD);
-
-				for (unsigned int c=0;c<grid.cellCount;++c) {
-					for (int i=0;i<5;++i) {
-						index=grid.cell[c].globalId*5+i;
-						VecGetValues(globalUpdate,1,&index,&grid.cell[c].flux[i]);
-					}
-				}
-
-				updateImp(dt);
-
-			} // if backwardEuler
-
-			if (input.section["timeMarching"].strings["integrator"]=="forwardEuler") update(dt);
-			
-			//if (input.section["equations"].strings["set"]=="NS") grid.gradients();
-		} else { // if not first order
-
-			// Calculate all the cell gradients for each variable
 			grid.gradients();
 
 			// Update ghost gradients
@@ -407,6 +295,11 @@ int main(int argc, char *argv[]) {
 				}
 			}
 
+			if (input.section["equations"].strings["set"]=="NS") {
+				// Add diffusive fluxes
+				diff_flux(mu);
+			}
+			
 			// Limit gradients
 			grid.limit_gradients(limiter,sharpeningFactor);
 			
@@ -441,14 +334,105 @@ int main(int argc, char *argv[]) {
 					}
 				}
 			}
-
-			hancock_corrector(limiter);
-			//fou();
-			update(dt);
 		}
+		
+		inviscid_flux(limiter);
 
-		//if (input.section["equations"].strings["set"]=="NS") diff_flux(mu);
-			
+		if (input.section["timeMarching"].strings["integrator"]=="backwardEuler") {
+			MatZeroEntries(impOP);
+
+			PetscInt counter=0;
+
+			// Variables for preconditioner
+			double Beta,Mach,Mach2,soundSpeed2;
+			double P51,P52,P53,P54,P55,d;
+			PetscInt row,col;
+			for (unsigned int c=0;c<grid.cellCount;++c) {
+				for (int i=0;i<5;++i) {
+					index=grid.cell[c].globalId*5+i;
+
+					VecSetValues(rhs,1,&index,&value,INSERT_VALUES);
+
+					// Preconditioner
+					soundSpeed2=Gamma*grid.cell[c].p/grid.cell[c].rho;
+					Mach2=grid.cell[c].v.dot(grid.cell[c].v)/soundSpeed2;
+					Mach=sqrt(Mach2);
+					if (Mach<=1.e-5) {
+						Mach=1.e-5;
+					} else if (Mach<1.) {
+						// use local
+					} else {
+						Mach=1.;
+					}
+
+					Mach2=Mach*Mach;
+					P51=grid.cell[c].v.dot(grid.cell[c].v)/3.*(Mach2-1.);
+					P52=grid.cell[c].v.comp[0]*(1.-1./Mach2);
+					P53=grid.cell[c].v.comp[1]*(1.-1./Mach2);
+					P54=grid.cell[c].v.comp[2]*(1.-1./Mach2);
+					P55=1./Mach2;
+
+					d=grid.cell[c].volume/dt;
+
+					if (i==5) {
+						value=P51*d;
+						col=index-4;
+						MatSetValues(impOP,1,&index,1,&col,&value,INSERT_VALUES);
+						value=P52*d;
+						col=index-3;
+						MatSetValues(impOP,1,&index,1,&col,&value,INSERT_VALUES);
+						value=P53*d;
+						col=index-2;
+						MatSetValues(impOP,1,&index,1,&col,&value,INSERT_VALUES);
+						value=P54*d;
+						col=index-1;
+						MatSetValues(impOP,1,&index,1,&col,&value,INSERT_VALUES);
+						value=P55*d;
+						col=index;
+						MatSetValues(impOP,1,&index,1,&col,&value,INSERT_VALUES);
+					} else {
+						value=grid.cell[c].volume/dt;
+						MatSetValues(impOP,1,&index,1,&index,&value,INSERT_VALUES);
+					}
+				}
+			}
+
+			MatAssemblyBegin(impOP,MAT_FLUSH_ASSEMBLY);
+			MatAssemblyEnd(impOP,MAT_FLUSH_ASSEMBLY);
+
+			jac(impOP);
+
+			MatAssemblyBegin(impOP,MAT_FINAL_ASSEMBLY);
+			MatAssemblyEnd(impOP,MAT_FINAL_ASSEMBLY);
+
+			//MatView(impOP,PETSC_VIEWER_STDOUT_WORLD);
+			//MatView(impOP,PETSC_VIEWER_DRAW_WORLD);
+
+			VecAssemblyBegin(rhs);
+			VecAssemblyEnd(rhs);
+
+			KSPSolve(ksp,rhs,deltaU);
+
+			KSPGetIterationNumber(ksp,&nIter);
+			KSPGetResidualNorm(ksp,&rNorm);
+
+			VecScatterBegin(scatterContext,deltaU,globalUpdate,INSERT_VALUES,SCATTER_FORWARD);
+			VecScatterEnd(scatterContext,deltaU,globalUpdate,INSERT_VALUES,SCATTER_FORWARD);
+
+			//VecView(globalUpdate,PETSC_VIEWER_STDOUT_WORLD);
+
+			for (unsigned int c=0;c<grid.cellCount;++c) {
+				for (int i=0;i<5;++i) {
+					index=grid.cell[c].globalId*5+i;
+					VecGetValues(globalUpdate,1,&index,&grid.cell[c].flux[i]);
+				}
+			}
+
+			updateImp(dt);
+
+		} // if backwardEuler
+
+		if (input.section["timeMarching"].strings["integrator"]=="forwardEuler") update(dt);
 
 		time += dt;
 		if (rank==0) cout << timeStep << "\t" << setprecision(4) << scientific << time << "\t" << dt << "\t" << nIter << "\t" << rNorm << endl;

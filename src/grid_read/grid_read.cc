@@ -36,6 +36,7 @@ int main() {
 		std::vector<double> coordX[nZones],coordY[nZones],coordZ[nZones];
 		std::vector<int> zoneCoordMap[nZones];
 		int uniqNodeCount=0;
+		int baseNodeCount=0;
 
 		// Get total number of boundary conditions
 		int totalnBocos=0;
@@ -51,6 +52,7 @@ int main() {
 			// These are the number of cells and nodes in that zone
 			zoneNodeCount[zoneIndex-1]=size[0];
 			zoneCellCount[zoneIndex-1]=size[1];
+			if (zoneIndex==0) baseNodeCount=size[0];
 			// Read number of sections
 			cg_nsections(fileIndex,baseIndex,zoneIndex,&nSections);
 			cg_nbocos(fileIndex,baseIndex,zoneIndex,&nBocos);
@@ -82,14 +84,15 @@ int main() {
 					uniqNodeCount++;
 					zoneCoordMap[0][c]=uniqNodeCount;
 				}
-			}
-			for (int z=0;z<=zoneIndex-2;++z) {
+			} else {
 				for (int c=0;c<coordX[zoneIndex-1].size();++c) {
 					bool foundFlag=false;
-					for (int c2=0;c2<coordX[z].size();++c2) {
-						if (fabs(coordX[zoneIndex-1][c]-coordX[z][c2])<1.e-7 && fabs(coordY[zoneIndex-1][c]-coordY[z][c2])<1.e-7 && fabs(coordZ[zoneIndex-1][c]-coordZ[z][c2])<1.e-7) {
-							zoneCoordMap[zoneIndex-1][c]=zoneCoordMap[z][c2];
-							foundFlag=true;
+					for (int z=0;z<=zoneIndex-2;++z) {				
+						for (int c2=0;c2<coordX[z].size();++c2) {
+							if (fabs(coordX[zoneIndex-1][c]-coordX[z][c2])<1.e-7 && fabs(coordY[zoneIndex-1][c]-coordY[z][c2])<1.e-7 && fabs(coordZ[zoneIndex-1][c]-coordZ[z][c2])<1.e-7) {
+								zoneCoordMap[zoneIndex-1][c]=zoneCoordMap[z][c2];
+								foundFlag=true; break;
+							}
 						}
 					}
 					if (!foundFlag) {
@@ -167,24 +170,31 @@ int main() {
 		file << "ZONE T=\"VOLUME MESH\"  N=" << uniqNodeCount << "  E=" << globalCellCount << endl;
 		file << "DATAPACKING=BLOCK, ZONETYPE=FEBRICK"<< endl;
 
+		int counter=0;
+		
 		for (int zone=0;zone<nZones;++zone) {
 			for (int n=0;n<coordX[zone].size();++n) {
-				if (zone==0 | zoneCoordMap[zone][n]>1200) {
+				if (zone==0 | zoneCoordMap[zone][n]>counter) {
 					file << setw(16) << setprecision(8) << scientific << coordX[zone][n] << endl;
+					counter++;
 				}
 			}
 		}
+		counter=0;
 		for (int zone=0;zone<nZones;++zone) {
 			for (int n=0;n<coordX[zone].size();++n) {
-				if (zone==0 | zoneCoordMap[zone][n]>1200) {
+				if (zone==0 | zoneCoordMap[zone][n]>counter) {
 					file << setw(16) << setprecision(8) << scientific << coordY[zone][n] << endl;
+					counter++;
 				}
 			}
 		}
+		counter=0;
 		for (int zone=0;zone<nZones;++zone) {
 			for (int n=0;n<coordX[zone].size();++n) {
-				if (zone==0 | zoneCoordMap[zone][n]>1200) {
+				if (zone==0 | zoneCoordMap[zone][n]>counter) {
 					file << setw(16) << setprecision(8) << scientific << coordZ[zone][n] << endl;
+					counter++;
 				}
 			}
 		}
