@@ -12,8 +12,8 @@ PETSC_INCLUDE = -I$(PETSC_DIR)/include -I$(PETSC_DIR)/bmake/$(PETSC_ARCH)
 
 SRC= \
 	main.cc grid.cc vec3d.cc RoeFlux.cc  write_tec.cc write_vtk.cc writeTecplotMacro.cc \
-        inputs.cc sparse.cc readInputs.cc initialize.cc setBCs.cc fou.cc read_tec.cc \
-        hancock.cc diffFlux.cc jac.cc
+        inputs.cc sparse.cc readInputs.cc initialize.cc setBCs.cc inviscid_flux.cc read_tec.cc \
+        diffFlux.cc jac.cc
 
 .SUFFIXES: .cc .o
 
