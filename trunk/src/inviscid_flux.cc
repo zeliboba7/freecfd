@@ -1,3 +1,25 @@
+/************************************************************************
+	
+	Copyright 2007-2008 Emre Sozer & Patrick Clark Trizila
+
+	Contact: emresozer@freecfd.com , ptrizila@freecfd.com
+
+	This file is a part of Free CFD
+
+	Free CFD is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    any later version.
+
+    Free CFD is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    For a copy of the GNU General Public License,
+    see <http://www.gnu.org/licenses/>.
+
+*************************************************************************/
 #include <cmath>
 #include "grid.h"
 #include "bc.h"
@@ -9,7 +31,7 @@ extern double Gamma;
 
 void update(double dt);
 
-void RoeFlux(const double qL[], const double qR[], double flux[]);
+void roe_flux(const double qL[], const double qR[], double flux[]);
 
 void inviscid_flux(string order, string limiter) {
 
@@ -17,6 +39,7 @@ void inviscid_flux(string order, string limiter) {
 	Vec3D faceTangent1, faceTangent2, deltaV;
 	double qL[5], qR[5], fluxNormal[5], flux[5];
 	double delta[5];
+	double Mach;
 
 	unsigned int parent, neighbor;
 
@@ -47,6 +70,12 @@ void inviscid_flux(string order, string limiter) {
 		
 		if (grid.face[f].bc>=0) { // means a real boundary face
 			rhoR=rhoL; uNR=uNL; vTR=vTL; wTR=wTL; pR=pL; // outlet condition
+			if (bc.region[grid.face[f].bc].type=="outlet" &&
+				bc.region[grid.face[f].bc].kind=="fixedPressure") {
+ 				// find Mach number
+				Mach=uNL/sqrt(Gamma*pL/rhoL);
+				if (Mach<1.) pR=bc.region[grid.face[f].bc].p;
+			}
 			if (bc.region[grid.face[f].bc].type=="slip") uNR=-uNL;
 			if (bc.region[grid.face[f].bc].type=="noslip") {uNR=-uNL; vTR=0.; wTR=0.;}
 			if (bc.region[grid.face[f].bc].type=="inlet") {
@@ -101,7 +130,7 @@ void inviscid_flux(string order, string limiter) {
 			qR[3] = qR[0] * wTR;
 			qR[4] = 0.5*qR[0]* (uNR*uNR+vTR*vTR+wTR*wTR) +pR/ (Gamma - 1.);
 
-			RoeFlux(qL, qR, fluxNormal);
+			roe_flux(qL, qR, fluxNormal);
 		//} 
 
 

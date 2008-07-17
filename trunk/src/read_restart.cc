@@ -11,12 +11,12 @@ extern Grid grid;
 extern int np, rank;
 extern string int2str(int number) ;
 
-void read_tec(int restart, int global2local[], double &time) {
+void read_restart(int restart, int global2local[], double &time) {
 	
 	fstream file;
 
 	// Read partitionMap
-	string fileName="./output/partitionMap"+int2str(restart)+".dat";
+	string fileName="./restart/"+int2str(restart)+"/partitionMap.dat";
 	int nprocs,cellGlobalId;
 	int ncells[np],nnodes[np];
 	file.open(fileName.c_str(),ios::in);
@@ -32,7 +32,7 @@ void read_tec(int restart, int global2local[], double &time) {
 	}
 	file.close();
 	
-	fileName="./output/out"+int2str(restart)+".tec";
+	fileName="./restart/"+int2str(restart)+"/field.dat";
 	string data="";
 	double dummy;
 	file.open(fileName.c_str(),ios::in);

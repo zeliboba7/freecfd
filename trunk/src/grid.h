@@ -1,3 +1,25 @@
+/************************************************************************
+	
+	Copyright 2007-2008 Emre Sozer & Patrick Clark Trizila
+
+	Contact: emresozer@freecfd.com , ptrizila@freecfd.com
+
+	This file is a part of Free CFD
+
+	Free CFD is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    any later version.
+
+    Free CFD is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    For a copy of the GNU General Public License,
+    see <http://www.gnu.org/licenses/>.
+
+*************************************************************************/
 #ifndef GRID_H
 #define GRID_H
 
@@ -7,6 +29,8 @@
 
 #include <cgnslib.h>
 #include <vector>
+#include <map>
+#include <set>
 #include <mpi.h>
 #include "vec3d.h"
 #include "sparse.h"
@@ -19,6 +43,7 @@ public:
 	std::vector<int> cells;
 	std::vector<int> ghosts;
 	std::map<int,double> average;
+	std::set<int> bcs;
 	Node(double x=0., double y=0., double z=0.);
 };
 

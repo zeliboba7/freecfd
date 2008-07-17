@@ -1,3 +1,25 @@
+/************************************************************************
+	
+	Copyright 2007-2008 Emre Sozer & Patrick Clark Trizila
+
+	Contact: emresozer@freecfd.com , ptrizila@freecfd.com
+
+	This file is a part of Free CFD
+
+	Free CFD is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    any later version.
+
+    Free CFD is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    For a copy of the GNU General Public License,
+    see <http://www.gnu.org/licenses/>.
+
+*************************************************************************/
 #include "inputs.h"
 
 void read_inputs(InputFile &input) {
@@ -15,6 +37,7 @@ void read_inputs(InputFile &input) {
 	input.section["timeMarching"].register_double("CFL");
 	input.section["timeMarching"].register_int("numberOfSteps");
 	input.section["timeMarching"].register_int("outFreq");
+	input.section["timeMarching"].register_int("restartFreq");
 	// defaults
 	input.section["timeMarching"].strings["type"]="CFL";
 	input.section["timeMarching"].doubles["CFL"]=1.;
@@ -37,6 +60,7 @@ void read_inputs(InputFile &input) {
 	input.register_section("boundaryConditions");
 	input.section["boundaryConditions"].register_numberedSubsection("BC");
 	input.section["boundaryConditions"].numberedSubsections["BC"].register_string("type");
+	input.section["boundaryConditions"].numberedSubsections["BC"].register_string("kind");
 	input.section["boundaryConditions"].numberedSubsections["BC"].register_string("region");
 	input.section["boundaryConditions"].numberedSubsections["BC"].register_Vec3D("box_1");
 	input.section["boundaryConditions"].numberedSubsections["BC"].register_Vec3D("box_2");
