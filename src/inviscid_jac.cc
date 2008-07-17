@@ -1,3 +1,25 @@
+/************************************************************************
+	
+	Copyright 2007-2008 Emre Sozer & Patrick Clark Trizila
+
+	Contact: emresozer@freecfd.com , ptrizila@freecfd.com
+
+	This file is a part of Free CFD
+
+	Free CFD is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    any later version.
+
+    Free CFD is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    For a copy of the GNU General Public License,
+    see <http://www.gnu.org/licenses/>.
+
+*************************************************************************/
 #include <cmath>
 #include "grid.h"
 #include "bc.h"
@@ -8,13 +30,14 @@ extern BC bc;
 extern int rank;
 extern double Gamma;
 
-void RoeFlux(const double qL[], const double qR[], double flux[]);
+void roe_flux(const double qL[], const double qR[], double flux[]);
 
-void jac(Mat impOP) {
+void inviscid_jac(Mat impOP) {
 
 	double rhoL,rhoR,pL,pR;
 	Vec3D faceTangent1, faceTangent2, qVL, qVR, deltaV;
 	double qNL[5], qNR[5], fluxNormal[5], flux[5], fluxPlus[5], deltaL[5], deltaR[5];
+	double Mach;
 	
 	unsigned int parent,neighbor,f;
 	double temp[5];
@@ -61,7 +84,14 @@ void jac(Mat impOP) {
 		} else if (grid.face[f].bc>=0) {
 
 			for (int i=0;i<5;++i) qNR[i]=qNL[i]; // outlet condition
-
+			if (bc.region[grid.face[f].bc].type=="outlet" &&
+				bc.region[grid.face[f].bc].kind=="fixedPressure") {
+ 				// find Mach number
+				Mach=(qNL[1]/rhoL)/sqrt(Gamma*pL/rhoL);
+				if (Mach<1.) pR=bc.region[grid.face[f].bc].p;
+				rhoR=rhoL; qVR=qVL;
+				qNR[4]=0.5*(qVR.dot(qVR))/rhoR +pR/ (Gamma - 1.);
+			}
 			if (bc.region[grid.face[f].bc].type=="slip") qNR[1]=-1.*qNL[1];
 			if (bc.region[grid.face[f].bc].type=="noslip") {qNR[1]=-1.*qNL[1]; qNR[2]=0.; qNR[3]=0.;}
 			if (bc.region[grid.face[f].bc].type=="inlet") {
@@ -90,7 +120,7 @@ void jac(Mat impOP) {
 		}
 		
 
-		RoeFlux(qNL, qNR, fluxNormal);
+		roe_flux(qNL, qNR, fluxNormal);
 
 		flux[0] = fluxNormal[0]*grid.face[f].area;
 		flux[1] = (fluxNormal[1]*grid.face[f].normal.comp[0]+fluxNormal[2]*faceTangent1.comp[0]+fluxNormal[3]*faceTangent2.comp[0]) * grid.face[f].area;
@@ -112,7 +142,7 @@ void jac(Mat impOP) {
 				qNL[i]+=deltaL[i];
 			}
 
-			RoeFlux(qNL, qNR, fluxNormal);
+			roe_flux(qNL, qNR, fluxNormal);
 
 			for (int k=0;k<5;++k) qNL[k]=temp[k];
 
@@ -153,7 +183,7 @@ void jac(Mat impOP) {
 					qNR[i]+=deltaR[i];
 				}
 
-				RoeFlux(qNL, qNR, fluxNormal);
+				roe_flux(qNL, qNR, fluxNormal);
 
 				for (int k=0;k<5;++k) qNR[k]=temp[k];
 

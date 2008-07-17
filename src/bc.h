@@ -6,6 +6,7 @@
 class BCregion {
 public:
 	string type;
+	string kind;
 	double rho,p;
 	Vec3D v;
 };

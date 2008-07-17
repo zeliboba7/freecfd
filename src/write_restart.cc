@@ -1,8 +1,32 @@
+/************************************************************************
+	
+	Copyright 2007-2008 Emre Sozer & Patrick Clark Trizila
+
+	Contact: emresozer@freecfd.com , ptrizila@freecfd.com
+
+	This file is a part of Free CFD
+
+	Free CFD is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    any later version.
+
+    Free CFD is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    For a copy of the GNU General Public License,
+    see <http://www.gnu.org/licenses/>.
+
+*************************************************************************/
 #include <iostream>
 #include <fstream>
 #include <string>
 #include <iomanip>
 #include <mpi.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 using namespace std;
 
 #include "grid.h"
@@ -12,23 +36,25 @@ extern Grid grid;
 extern int np, rank;
 extern string int2str(int number) ;
 
-void write_tec(int timeStep, double time) {
+void write_restart(int timeStep, double time) {
 
 	ofstream file;
-	string fileName="./output/out"+int2str(timeStep)+".tec";
+	mkdir("./restart",S_IRWXU);
+	string dirname="./restart/"+int2str(timeStep);
+	mkdir(dirname.c_str(),S_IRWXU);
+	string fileName="./restart/"+int2str(timeStep)+"/field.dat";
 	// Proc 0 creates the output file and writes variable list
 	if (rank==0) {
 		file.open((fileName).c_str(),ios::out); 
 		//file << "VARIABLES = \"x\", \"y\", \"z\",\"rho\",\"u\",\"v\",\"w\",\"p\" " << endl;
-		file << "VARIABLES = \"x\", \"y\", \"z\",\"rho\",\"u\",\"v\",\"w\",\"p\",\"gradu_x\",\"gradp_x\" " << endl;
+		file << "VARIABLES = \"x\", \"y\", \"z\",\"rho\",\"u\",\"v\",\"w\",\"p\"" << endl;
 	} else {
 		file.open((fileName).c_str(),ios::app);
 	}
 
 	// Write header (each proc has its own zone)
 	file << "ZONE, T=\"Partition " << rank << "\"" ;
-	file << ", N=" << grid.nodeCount << ", E=" << grid.cellCount << ", VARLOCATION=([4-10]=CellCentered)" << endl;
-//	file << ", N=" << grid.nodeCount << ", E=" << grid.cellCount << ", VARLOCATION=([4-8]=CellCentered)" << endl;
+	file << ", N=" << grid.nodeCount << ", E=" << grid.cellCount << ", VARLOCATION=([4-8]=CellCentered)" << endl;
 	file << "DATAPACKING=BLOCK, ZONETYPE=FEBRICK, SOLUTIONTIME=" << time << endl;
 
 	// Write coordinates
@@ -44,8 +70,6 @@ void write_tec(int timeStep, double time) {
 	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].v.comp[1] << endl;
 	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].v.comp[2] << endl;
 	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].p << endl;
-	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].grad[1].comp[0] << endl;
-	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].grad[4].comp[0] << endl;
 
 	// Write coonnectivity
 	for (unsigned int c=0;c<grid.cellCount;++c) {
@@ -67,5 +91,19 @@ void write_tec(int timeStep, double time) {
 	}
 	
 	file.close();
+
+	// write partition map
+	for (int p=0;p<np;++p) {
+		if (rank==p) {
+			fileName="./restart/"+int2str(timeStep)+"/partitionMap.dat";
+			if (rank==0) { file.open(fileName.c_str(), ios::out); file << np << endl;}
+			else { file.open(fileName.c_str(), ios::app); }
+			file << grid.nodeCount << "\t" << grid.cellCount << endl;
+			for (unsigned int c=0;c<grid.cellCount;++c) file << grid.cell[c].globalId << endl;
+			file.close();
+		}
+		MPI_Barrier(MPI_COMM_WORLD);
+	}
+
 
 }

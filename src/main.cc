@@ -1,3 +1,26 @@
+/************************************************************************
+	
+	Copyright 2007-2008 Emre Sozer & Patrick Clark Trizila
+
+	Contact: emresozer@freecfd.com , ptrizila@freecfd.com
+
+	This file is a part of Free CFD
+
+	Free CFD is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    any later version.
+
+    Free CFD is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    For a copy of the GNU General Public License,
+    see <http://www.gnu.org/licenses/>.
+
+*************************************************************************/
+
 #include <mpi.h>
 #include <iostream>
 #include <fstream>
@@ -5,13 +28,10 @@
 #include <map>
 #include <cmath>
 #include <iomanip>
-#include <sys/stat.h>
-#include <sys/types.h>
 using namespace std;
 
 #include "grid.h"
 #include "inputs.h"
-#include "sparse.h"
 #include "bc.h"
 
 #include "petscksp.h"
@@ -20,11 +40,9 @@ using namespace std;
 // Function prototypes
 void read_inputs(InputFile &input);
 void initialize(Grid &grid, InputFile &input);
-void write_tec(int timeStep, double time);
-void write_vtk(int timeStep);
-void write_vtk_parallel(int timeStep);
-void read_tec(int restart, int global2local[], double &time);
-void writeTecplotMacro(int restart, int timeStepMax, int outFreq);
+void write_output(int timeStep, double time, InputFile input);
+void write_restart(int timeStep, double time);
+void read_restart(int restart, int global2local[], double &time);
 void set_bcs(Grid& grid, InputFile &input, BC &bc);
 bool within_box(Vec3D centroid, Vec3D box_1, Vec3D box_2);
 double minmod(double a, double b);
@@ -34,13 +52,12 @@ void update(double dt);
 void updateImp(double dt);
 string int2str(int number) ;
 void inviscid_flux(string order,string limiter);
-void diff_flux(double mu);
-void jac(Mat impOP);
+void viscous_flux(double mu);
+void inviscid_jac(Mat impOP);
+void viscous_jac(double mu, Mat impOP);
 
 // PETSC 
 static char help[] = "Free CFD\n";
-//extern PetscErrorCode petscRHS(SNES,Vec,Vec,void*);
-//extern PetscErrorCode petscMAT(SNES,Vec,Mat*,Mat*,MatStructure*,void*);
 
 // Initiate grid class
 Grid grid;
@@ -125,6 +142,7 @@ int main(int argc, char *argv[]) {
 	double CFL= input.section["timeMarching"].doubles["CFL"];
 	int timeStepMax = input.section["timeMarching"].ints["numberOfSteps"];
 	int outFreq = input.section["timeMarching"].ints["outFreq"];
+	int restartFreq = input.section["timeMarching"].ints["restartFreq"];
 	double mu;
 	if (input.section["fluidProperties"].subsections["viscosity"].strings["type"]=="fixed") {
 		mu=input.section["fluidProperties"].subsections["viscosity"].doubles["value"];
@@ -142,7 +160,7 @@ int main(int argc, char *argv[]) {
 	
 	if (restart!=0) {
 		for (int p=0;p<np;++p) {
-			if (rank==p) read_tec(restart,global2local,time);
+			if (rank==p) read_restart(restart,global2local,time);
 			MPI_Barrier(MPI_COMM_WORLD);
 		}
 	}
@@ -165,6 +183,7 @@ int main(int argc, char *argv[]) {
 		unsigned int globalId;
 		double grads[15];
 	};
+	
 	array_of_block_lengths[0]=1;array_of_block_lengths[1]=15;
 	array_of_displacements[1]=extent;
 	MPI_Datatype MPI_GRAD;
@@ -192,19 +211,31 @@ int main(int argc, char *argv[]) {
 	unsigned int parent,neighbor,row,col;
 	
 	PetscInt nnz[grid.cellCount*5];
-	for (unsigned int i=0;i<grid.cellCount*5;++i) nnz[i]=15;
+	for (unsigned int i=0;i<grid.cellCount*5;++i) nnz[i]=50;
 
-	MatCreateMPIAIJ(PETSC_COMM_WORLD,grid.cellCount*5,grid.cellCount*5,grid.globalCellCount*5,grid.globalCellCount*5,25,PETSC_NULL,0,PETSC_NULL,&impOP);
+	MatCreateMPIAIJ(PETSC_COMM_WORLD,grid.cellCount*5,grid.cellCount*5,grid.globalCellCount*5,grid.globalCellCount*5,50,PETSC_NULL,0,PETSC_NULL,&impOP);
 	
 	KSPSetOperators(ksp,impOP,impOP,SAME_NONZERO_PATTERN);
 	KSPSetFromOptions(ksp);
+
+	double CFLramp;
+	if (restart!=0 && input.section["timeMarching"].strings["type"]=="CFLramp") {
+		input.section["timeMarching"].strings["type"]="CFL";
+	}
 	
+	if (input.section["timeMarching"].strings["type"]=="CFLramp") {
+		CFLramp=1.;
+	} else if (input.section["timeMarching"].strings["type"]=="CFL") {
+		CFLramp=CFL;
+	}
+
 	if (rank==0) cout << "[I] Beginning time loop" << endl;
 	// Begin time loop
 	for (int timeStep=restart+1;timeStep<=input.section["timeMarching"].ints["numberOfSteps"]+restart;++timeStep) {
+
 		int nIter;
 		double rNorm;
-		// TODO partition variable need not be send and received
+		// TODO partition variable need not be sent and received
 		for (unsigned int p=0;p<np;++p) {
 			if (rank!=p) {
 				mpiGhost sendBuffer[sendCells[p].size()];
@@ -241,21 +272,28 @@ int main(int argc, char *argv[]) {
 
 // 		cerr << "[DEBUG rank=" << rank << " ] updated ghosts" << endl;
 		
-		if (input.section["timeMarching"].strings["type"]=="CFL") {
+		if (input.section["timeMarching"].strings["type"]=="CFL" |
+			input.section["timeMarching"].strings["type"]=="CFLramp") {
 			// Determine time step with CFL condition
-			//double cellScaleX, cellScaleY, cellScaleZ;
 			double lengthScale;
 			dt=1.E20;
 			for (unsigned int c=0;c<grid.cellCount;++c) {
 				double a=sqrt(Gamma*grid.cell[c].p/grid.cell[c].rho);
 				lengthScale=grid.cell[c].lengthScale;
-				dt=min(dt,CFL*lengthScale/(fabs(grid.cell[c].v.comp[0])+a));
-				dt=min(dt,CFL*lengthScale/(fabs(grid.cell[c].v.comp[1])+a));
-				dt=min(dt,CFL*lengthScale/(fabs(grid.cell[c].v.comp[2])+a));
+				dt=min(dt,CFLramp*lengthScale/(fabs(grid.cell[c].v.comp[0])+a));
+				dt=min(dt,CFLramp*lengthScale/(fabs(grid.cell[c].v.comp[1])+a));
+				dt=min(dt,CFLramp*lengthScale/(fabs(grid.cell[c].v.comp[2])+a));
 			}
 			MPI_Allreduce(&dt,&dt,1, MPI_DOUBLE,MPI_MIN,MPI_COMM_WORLD);
 		}
 
+		if (input.section["timeMarching"].strings["type"]=="CFLramp") {
+			if (CFLramp<CFL) {
+				if (rank==0) cout << "[I] Ramping up CFL, currently at " << fixed << CFLramp << endl;
+				CFLramp*=1.1;
+			} else {CFLramp=CFL;}
+		}
+		
 		int index;
 
 		//Calculate all the cell gradients for each variable
@@ -297,8 +335,8 @@ int main(int argc, char *argv[]) {
 			}
 
 			if (input.section["equations"].strings["set"]=="NS") {
-				// Add diffusive fluxes
-				diff_flux(mu);
+				// Add viscous fluxes
+				viscous_flux(mu);
 			}
 			
 			// Limit gradients
@@ -403,7 +441,11 @@ int main(int argc, char *argv[]) {
 			MatAssemblyBegin(impOP,MAT_FLUSH_ASSEMBLY);
 			MatAssemblyEnd(impOP,MAT_FLUSH_ASSEMBLY);
 
-			jac(impOP);
+			inviscid_jac(impOP);
+
+// 			MatAssemblyBegin(impOP,MAT_FLUSH_ASSEMBLY);
+// 			MatAssemblyEnd(impOP,MAT_FLUSH_ASSEMBLY);
+// 			viscous_jac(mu,impOP);
 
 			MatAssemblyBegin(impOP,MAT_FINAL_ASSEMBLY);
 			MatAssemblyEnd(impOP,MAT_FINAL_ASSEMBLY);
@@ -439,33 +481,9 @@ int main(int argc, char *argv[]) {
 
 		time += dt;
 		if (rank==0) cout << timeStep << "\t" << setprecision(4) << scientific << time << "\t" << dt << "\t" << nIter << "\t" << rNorm << endl;
-		if ((timeStep) % outFreq == 0) {
-			mkdir("./output",S_IRWXU);
-			if (input.section["solutionFormat"].strings["output"]=="vtk") {
-				// Write vtk output file
-				if (rank==0) write_vtk_parallel(timeStep);
-				write_vtk(timeStep);
-			} else if(input.section["solutionFormat"].strings["output"]=="tecplot") {
-				// Write tecplot output file
-				for (int p=0;p<np;++p) {
-					if(rank==p) write_tec(timeStep,time);
-					MPI_Barrier(MPI_COMM_WORLD);
-				}
-			}
-			ofstream file;
-			string fileName;
-			for (int p=0;p<np;++p) {
-				if (rank==p) {
-					fileName="./output/partitionMap"+int2str(timeStep)+".dat";
-					if (rank==0) { file.open(fileName.c_str(), ios::out); file << np << endl;}
-					else { file.open(fileName.c_str(), ios::app); }
-					file << grid.nodeCount << "\t" << grid.cellCount << endl;
-					for (unsigned int c=0;c<grid.cellCount;++c) file << grid.cell[c].globalId << endl;
-					file.close();
-				}
-				MPI_Barrier(MPI_COMM_WORLD);
-			}
-		}
+		if ((timeStep) % restartFreq == 0) write_restart(timeStep,time);
+		if ((timeStep) % outFreq == 0) write_output(timeStep,time,input);
+
 	}
 	//writeTecplotMacro(restart,timeStepMax, outFreq);
 	// Syncronize the processors

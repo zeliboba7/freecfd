@@ -1,3 +1,25 @@
+/************************************************************************
+	
+	Copyright 2007-2008 Emre Sozer & Patrick Clark Trizila
+
+	Contact: emresozer@freecfd.com , ptrizila@freecfd.com
+
+	This file is a part of Free CFD
+
+	Free CFD is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    any later version.
+
+    Free CFD is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    For a copy of the GNU General Public License,
+    see <http://www.gnu.org/licenses/>.
+
+*************************************************************************/
 #include <mpi.h>
 #include <iostream>
 #include <fstream>
@@ -17,6 +39,7 @@ using namespace std;
 extern Grid grid;
 extern BC bc;
 extern int np, rank;
+extern double Gamma;
 
 double superbee(double a, double b);
 double minmod(double a, double b);
@@ -839,12 +862,14 @@ void Grid::nodeAverages() {
 	map<int,double>::iterator it;
 	
 	for (unsigned int n=0;n<nodeCount;++n) {
+		node[n].average.clear();
 		// Add contributions from real cells
 		weightSum=0.;
 		for (unsigned int nc=0;nc<node[n].cells.size();++nc) {
 			c=node[n].cells[nc];
 			node2cell=node[n]-cell[c].centroid;
 			weight=1./(node2cell.dot(node2cell));
+			//weight=1./fabs(node2cell);
 			node[n].average.insert(pair<int,double>(c,weight));
 			weightSum+=weight;
 		}
@@ -853,6 +878,7 @@ void Grid::nodeAverages() {
 			g=node[n].ghosts[ng];
 			node2ghost=node[n]-ghost[g].centroid;
 			weight=1./(node2ghost.dot(node2ghost));
+			//weight=1./fabs(node2ghost);
 			node[n].average.insert(pair<int,double>(-g-1,weight));
 			weightSum+=weight;
 		}
@@ -868,19 +894,33 @@ void Grid::faceAverages() {
 	map<int,double>::iterator it;
 	
 	for (unsigned int f=0;f<faceCount;++f) {
+		face[f].average.clear();
 		// Add contributions from nodes
 		for (unsigned int fn=0;fn<face[f].nodeCount;++fn) {
 			n=face[f].nodes[fn];
 			for ( it=node[n].average.begin() ; it != node[n].average.end(); it++ ) {
 				if (face[f].average.find((*it).first)!=face[f].average.end()) { // if the cell contributing to the node average is already contained in the face average map
-					face[f].average[(*it).first]+=(*it).second/face[f].nodeCount;
-
+					face[f].average[(*it).first]+=(*it).second/double(face[f].nodeCount);
 				} else {
-					face[f].average.insert(pair<int,double>((*it).first,(*it).second/face[f].nodeCount));
+					face[f].average.insert(pair<int,double>((*it).first,(*it).second/double(face[f].nodeCount)));
 				}
-			} 
+			}
 		} // end face node loop
 	} // end face loop
+
+// 	for (unsigned int f=0;f<faceCount;++f) {
+// 		face[f].average.clear();
+// 		unsigned int parent=face[f].parent;
+// 		unsigned int neighbor=face[f].neighbor;
+// 		
+// 		if (face[f].bc==-1) {// internal face
+// 			face[f].average.insert(pair<int,double>(parent,0.5));
+// 			face[f].average.insert(pair<int,double>(neighbor,0.5));
+// 		} else {
+// 			face[f].average.insert(pair<int,double>(parent,1.));
+// 		}
+// 	}
+
 } // end Grid::faceAverages()
 
 void Grid::gradMaps() {
@@ -889,6 +929,7 @@ void Grid::gradMaps() {
 	map<int,double>::iterator it;
 	Vec3D areaVec;
 	for (unsigned int c=0;c<cellCount;++c) {
+		cell[c].gradMap.clear();
 		for (unsigned int cf=0;cf<cell[c].faceCount;++cf) { 
 			f=cell[c].faces[cf];
 			if (face[f].bc<0 ) { // if internal or interpartition face
@@ -917,6 +958,7 @@ void Grid::gradients(void) {
 	unsigned int f;
 	Vec3D faceVel,areaVec;
 	double faceRho,faceP;
+	double Mach;
 	
 	for (unsigned int c=0;c<cellCount;++c) {
 		// Initialize all gradients to zero
@@ -953,25 +995,25 @@ void Grid::gradients(void) {
 					}
 				}
 				if (bc.region[face[f].bc].type=="inlet") {
-					cell[c].grad[0]+=bc.region[face[f].bc].rho*areaVec;
-					cell[c].grad[1]+=bc.region[face[f].bc].v.comp[0]*areaVec;
-					cell[c].grad[2]+=bc.region[face[f].bc].v.comp[1]*areaVec;
-					cell[c].grad[3]+=bc.region[face[f].bc].v.comp[2]*areaVec;
-					//cell[c].grad[4]+=bc.region[face[f].bc].p*areaVec;
-					cell[c].grad[4]+=faceP*areaVec;
-				} else { // if not an inlet
-					// These two are interpolated for all boundary types other than inlet
-					cell[c].grad[0]+=faceRho*areaVec;
-					cell[c].grad[4]+=faceP*areaVec;
-					// Kill the wall normal component for slip
-					if (bc.region[face[f].bc].type=="slip") faceVel-=faceVel.dot(face[f].normal)*face[f].normal;
-					// Simply don't add face velocity gradient contributions for noslip
-					if (bc.region[face[f].bc].type!="noslip") {
-						cell[c].grad[1]+=faceVel.comp[0]*areaVec;
-						cell[c].grad[2]+=faceVel.comp[1]*areaVec;
-						cell[c].grad[3]+=faceVel.comp[2]*areaVec;
-					}
-				} // end if inlet or not
+					faceRho=bc.region[face[f].bc].rho;
+					faceVel=bc.region[face[f].bc].v;
+				}
+				if (bc.region[grid.face[f].bc].type=="outlet" &&
+					bc.region[grid.face[f].bc].kind=="fixedPressure") {
+					// find Mach number
+					Mach=(cell[c].v.dot(face[f].normal))/sqrt(Gamma*cell[c].p/cell[c].rho);
+					if (Mach<1.) faceP=bc.region[face[f].bc].p;
+				}
+				// Kill the wall normal component for slip, pressure and rho is extrapolated
+				if (bc.region[face[f].bc].type=="slip") faceVel-=faceVel.dot(face[f].normal)*face[f].normal;
+				// Kill the velocity for no-slip, pressure and rho is extrapolated
+				if (bc.region[face[f].bc].type=="noslip") faceVel=0.;
+
+				cell[c].grad[0]+=faceRho*areaVec;
+				cell[c].grad[1]+=faceVel.comp[0]*areaVec;
+				cell[c].grad[2]+=faceVel.comp[1]*areaVec;
+				cell[c].grad[3]+=faceVel.comp[2]*areaVec;
+				cell[c].grad[4]+=faceP*areaVec;
 			} // end if a boundary face
 		} // end cell face loop
 	} // end cell loop
