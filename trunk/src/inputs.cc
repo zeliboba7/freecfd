@@ -13,7 +13,7 @@ InputFile::InputFile(string fName) {
 	fileName=fName;
 	fstream file;
 	file.open(fileName.c_str());
-	if (file.is_open() && rank==0) cout << "* Found input file " << fileName << endl;
+	if (file.is_open() && rank==0) cout << "[I] Found input file " << fileName << endl;
 	file.close();
 }
 

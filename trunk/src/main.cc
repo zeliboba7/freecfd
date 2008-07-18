@@ -21,7 +21,6 @@
 
 *************************************************************************/
 
-#include <mpi.h>
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -33,9 +32,8 @@ using namespace std;
 #include "grid.h"
 #include "inputs.h"
 #include "bc.h"
-
-#include "petscksp.h"
-
+#include "mpi_functions.h"
+#include "petsc_functions.h"
 
 // Function prototypes
 void read_inputs(InputFile &input);
@@ -53,11 +51,11 @@ void updateImp(double dt);
 string int2str(int number) ;
 void inviscid_flux(string order,string limiter);
 void viscous_flux(double mu);
-void inviscid_jac(Mat impOP);
-void viscous_jac(double mu, Mat impOP);
-
-// PETSC 
-static char help[] = "Free CFD\n";
+void inviscid_jac(void);
+void viscous_jac(double mu);
+void linear_system_initialize(void);
+void get_dt(string type);
+void get_CFL(void);
 
 // Initiate grid class
 Grid grid;
@@ -65,28 +63,12 @@ Grid grid;
 BC bc;
 
 int np, rank;
-double Gamma,dt;
+double Gamma,dt,CFL,CFLtarget;
 
 int main(int argc, char *argv[]) {
 
 	// Initialize mpi
-	MPI_Init(&argc,&argv);
-	// Find the number of processors
-	MPI_Comm_size(MPI_COMM_WORLD, &np);
-	// Find current processor rank
-	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-	// Initialize PETSC
-	KSP ksp; // linear solver context
-	PC pc; // preconditioner context
-	Vec deltaU,rhs,globalUpdate; // solution, residual vectors
-	Mat impOP; // implicit operator matrix
-	PetscErrorCode ierr;
-
-	PetscInitialize(&argc,&argv,(char *)0,help);
-
-	//Create nonlinear solver context
-	KSPCreate(PETSC_COMM_WORLD,&ksp);
+	mpi_init(argc,argv);
 
 	string inputFileName, gridFileName;
 	inputFileName.assign(argv[1]);
@@ -99,47 +81,13 @@ int main(int argc, char *argv[]) {
 
 	InputFile input(inputFileName);
 	read_inputs(input);
-	grid.read(gridFileName);
-	
-	vector<unsigned int> sendCells[np];
-	unsigned int recvCount[np];
-	{
-		int maxGhost=grid.globalCellCount/np*2;		
-		unsigned int ghosts2receive[np][maxGhost],ghosts2send[np][maxGhost];
-		for (unsigned int p=0;p<np;++p) {
-			ghosts2receive[p][0]=0;
-		}
-		for (unsigned int g=0; g<grid.ghostCount; ++g) {
-			unsigned int p=grid.ghost[g].partition;
-			ghosts2receive[p][ghosts2receive[p][0]+1]=grid.ghost[g].globalId;
-			++ghosts2receive[p][0];
-		}
-		//if (rank==0) for (int p=0;p<np;++p) for (int g=0;g<ghosts2receive[p][0];++g) cout << p << "\t" << ghosts2receive[p][0] << "\t" << ghosts2receive[p][g+1] << endl;
-		for (unsigned int p=0;p<np;++p) {
-			MPI_Alltoall(ghosts2receive,maxGhost,MPI_UNSIGNED,ghosts2send,maxGhost,MPI_UNSIGNED,MPI_COMM_WORLD);
-		}
-		//if (rank==0) for (int p=0;p<np;++p) for (int g=0;g<ghosts2send[p][0];++g) cout << p << "\t" << ghosts2send[p][0] << "\t" << ghosts2send[p][g+1] << endl;
-		// Transfer data to more efficient containers
-		for (unsigned int p=0;p<np;++p) {
-			for (unsigned int i=1;i<=ghosts2send[p][0];++i) sendCells[p].push_back(ghosts2send[p][i]);
-			recvCount[p]=ghosts2receive[p][0];
-		}
-	} // end scope
-	
-	initialize(grid,input);
-	if (rank==0) cout << "[I] Applied initial conditions" << endl;
-
-	set_bcs(grid,input,bc);
-	if (rank==0) cout << "[I] Set boundary conditions" << endl;
-	
-	grid.nodeAverages();
-	grid.faceAverages();
-	grid.gradMaps();
-	
 	double time = 0.;
 	Gamma = input.section["fluidProperties"].doubles["gamma"];
 	dt = input.section["timeMarching"].doubles["step"];
-	double CFL= input.section["timeMarching"].doubles["CFL"];
+	CFLtarget= input.section["timeMarching"].doubles["CFL"];
+	if (restart!=0 && input.section["timeMarching"].strings["type"]=="CFLramp") {
+		input.section["timeMarching"].strings["type"]="CFL";
+	}
 	int timeStepMax = input.section["timeMarching"].ints["numberOfSteps"];
 	int outFreq = input.section["timeMarching"].ints["outFreq"];
 	int restartFreq = input.section["timeMarching"].ints["restartFreq"];
@@ -151,12 +99,26 @@ int main(int argc, char *argv[]) {
 	string order=input.section["numericalOptions"].strings["order"];
 	double sharpeningFactor=input.section["numericalOptions"].doubles["sharpeningFactor"];
 	
-	// Need a conversion map from globalId to local index
-	int global2local[grid.globalCellCount];
-	for (unsigned int c=0;c<grid.globalCellCount;++c) global2local[c]=-1;
-	for (unsigned int c=0;c<grid.cellCount;++c) {
-		global2local[grid.cell[c].globalId]=c;
-	}
+	grid.read(gridFileName);
+	
+	// Hand shake with other processors
+	// (agree on which cells' data to be shared)
+	mpi_handshake();
+	// Map global cell id's to local id's
+	// Fills in array global2local[globalID]=localId
+	// If the queried globalId is not on this partition, returns -1 as localId
+	// If the queried globalId belongs to a ghost cell, return local ghost id
+	mpi_map_global2local();
+	
+	initialize(grid,input);
+	if (rank==0) cout << "[I] Applied initial conditions" << endl;
+
+	set_bcs(grid,input,bc);
+	if (rank==0) cout << "[I] Set boundary conditions" << endl;
+	
+	grid.nodeAverages();
+	grid.faceAverages();
+	grid.gradMaps();
 	
 	if (restart!=0) {
 		for (int p=0;p<np;++p) {
@@ -164,327 +126,84 @@ int main(int argc, char *argv[]) {
 			MPI_Barrier(MPI_COMM_WORLD);
 		}
 	}
-	
-	struct mpiGhost {
-		unsigned int partition,globalId;
-		double vars[5];
-	};
-	
-	int array_of_block_lengths[2]={2,5};
-	MPI_Aint extent;
-	MPI_Type_extent(MPI_UNSIGNED,&extent);
-	MPI_Aint array_of_displacements[2]={0,2*extent};
-	MPI_Datatype array_of_types[2]={MPI_UNSIGNED,MPI_DOUBLE};
-	MPI_Datatype MPI_GHOST;
-	MPI_Type_struct(2,array_of_block_lengths,array_of_displacements,array_of_types,&MPI_GHOST);
-	MPI_Type_commit(&MPI_GHOST);
-	
-	struct mpiGrad {
-		unsigned int globalId;
-		double grads[15];
-	};
-	
-	array_of_block_lengths[0]=1;array_of_block_lengths[1]=15;
-	array_of_displacements[1]=extent;
-	MPI_Datatype MPI_GRAD;
-	MPI_Type_struct(2,array_of_block_lengths,array_of_displacements,array_of_types,&MPI_GRAD);
-	MPI_Type_commit(&MPI_GRAD);
-	
-	for (unsigned int g=0;g<grid.ghostCount;++g) {
-		global2local[grid.ghost[g].globalId]=g;
-	}
-	
+
+	// Initialize petsc
+	petsc_init(argc,argv);
+
 	MPI_Barrier(MPI_COMM_WORLD);
 	double timeRef, timeEnd;
 	timeRef=MPI_Wtime();
 
-	PetscScalar *dU,*ff,value;
-	VecCreateMPI(PETSC_COMM_WORLD,grid.cellCount*5,grid.globalCellCount*5,&rhs);
-	VecCreateSeq(PETSC_COMM_SELF,grid.globalCellCount*5,&globalUpdate);
-	VecSetFromOptions(rhs);
-	VecDuplicate(rhs,&deltaU);
-	VecSet(deltaU,0.);
-	VecSet(globalUpdate,0.);
-	VecScatter scatterContext;
-	VecScatterCreateToAll(deltaU,&scatterContext,&globalUpdate);
-
-	unsigned int parent,neighbor,row,col;
+	unsigned int parent,neighbor;
 	
-	PetscInt nnz[grid.cellCount*5];
-	for (unsigned int i=0;i<grid.cellCount*5;++i) nnz[i]=50;
-
-	MatCreateMPIAIJ(PETSC_COMM_WORLD,grid.cellCount*5,grid.cellCount*5,grid.globalCellCount*5,grid.globalCellCount*5,50,PETSC_NULL,0,PETSC_NULL,&impOP);
-	
-	KSPSetOperators(ksp,impOP,impOP,SAME_NONZERO_PATTERN);
-	KSPSetFromOptions(ksp);
-
 	double CFLramp;
-	if (restart!=0 && input.section["timeMarching"].strings["type"]=="CFLramp") {
-		input.section["timeMarching"].strings["type"]="CFL";
-	}
+
 	
-	if (input.section["timeMarching"].strings["type"]=="CFLramp") {
-		CFLramp=1.;
-	} else if (input.section["timeMarching"].strings["type"]=="CFL") {
-		CFLramp=CFL;
-	}
+	if (input.section["timeMarching"].strings["type"]=="CFLramp") CFL=1.;
+	if (input.section["timeMarching"].strings["type"]=="CFL") CFL=CFLtarget;
 
 	if (rank==0) cout << "[I] Beginning time loop" << endl;
+	
+	/*****************************************************************************************/
 	// Begin time loop
+	/*****************************************************************************************/
+	
 	for (int timeStep=restart+1;timeStep<=input.section["timeMarching"].ints["numberOfSteps"]+restart;++timeStep) {
 
-		int nIter;
-		double rNorm;
-		// TODO partition variable need not be sent and received
-		for (unsigned int p=0;p<np;++p) {
-			if (rank!=p) {
-				mpiGhost sendBuffer[sendCells[p].size()];
-				mpiGhost recvBuffer[recvCount[p]];
-				int id;
-				for (unsigned int g=0;g<sendCells[p].size();++g)	{
-					id=global2local[sendCells[p][g]];
-					sendBuffer[g].partition=rank;
-					sendBuffer[g].globalId=grid.cell[id].globalId;
-					sendBuffer[g].vars[0]=grid.cell[id].rho;
-					sendBuffer[g].vars[1]=grid.cell[id].v.comp[0];
-					sendBuffer[g].vars[2]=grid.cell[id].v.comp[1];
-					sendBuffer[g].vars[3]=grid.cell[id].v.comp[2];
-					sendBuffer[g].vars[4]=grid.cell[id].p;
-				}
+		int nIter; // Number of linear solver iterations
+		double rNorm; // Residual norm of the linear solver
 
-				int tag=rank; // tag is set to source
-				MPI_Sendrecv(sendBuffer,sendCells[p].size(),MPI_GHOST,p,0,recvBuffer,recvCount[p],MPI_GHOST,p,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-		
-				for (unsigned int g=0;g<recvCount[p];++g) {
-					id=global2local[recvBuffer[g].globalId];
-					grid.ghost[id].partition=recvBuffer[g].partition;
-					// TODO is it necessary to overwrite gloabalId?
-					grid.ghost[id].globalId=recvBuffer[g].globalId;
-					grid.ghost[id].rho=recvBuffer[g].vars[0];
-					grid.ghost[id].v.comp[0]=recvBuffer[g].vars[1];
-					grid.ghost[id].v.comp[1]=recvBuffer[g].vars[2];
-					grid.ghost[id].v.comp[2]=recvBuffer[g].vars[3];
-					grid.ghost[id].p=recvBuffer[g].vars[4];
-				}
-				
-			}
-		}
+		// Update the primitive variables of the ghost cells
+		mpi_update_ghost_primitives();
 
-// 		cerr << "[DEBUG rank=" << rank << " ] updated ghosts" << endl;
-		
-		if (input.section["timeMarching"].strings["type"]=="CFL" |
-			input.section["timeMarching"].strings["type"]=="CFLramp") {
-			// Determine time step with CFL condition
-			double lengthScale;
-			dt=1.E20;
-			for (unsigned int c=0;c<grid.cellCount;++c) {
-				double a=sqrt(Gamma*grid.cell[c].p/grid.cell[c].rho);
-				lengthScale=grid.cell[c].lengthScale;
-				dt=min(dt,CFLramp*lengthScale/(fabs(grid.cell[c].v.comp[0])+a));
-				dt=min(dt,CFLramp*lengthScale/(fabs(grid.cell[c].v.comp[1])+a));
-				dt=min(dt,CFLramp*lengthScale/(fabs(grid.cell[c].v.comp[2])+a));
-			}
-			MPI_Allreduce(&dt,&dt,1, MPI_DOUBLE,MPI_MIN,MPI_COMM_WORLD);
-		}
+		// Get time step (will handle fixed, CFL and CFLramp)
+		get_dt(input.section["timeMarching"].strings["type"]);	
 
-		if (input.section["timeMarching"].strings["type"]=="CFLramp") {
-			if (CFLramp<CFL) {
-				if (rank==0) cout << "[I] Ramping up CFL, currently at " << fixed << CFLramp << endl;
-				CFLramp*=1.1;
-			} else {CFLramp=CFL;}
-		}
-		
-		int index;
-
-		//Calculate all the cell gradients for each variable
+		// Gradient are calculated for NS and/or second order schemes
 		if (input.section["equations"].strings["set"]=="NS" |
-			input.section["numericalOptions"].strings["order"]!="first" ) {
-				
+			input.section["numericalOptions"].strings["order"]=="second" ) {
+			// Calculate all the cell gradients for each variable
 			grid.gradients();
-
-			// Update ghost gradients
-			for (unsigned int p=0;p<np;++p) {
-				mpiGrad sendBuffer[sendCells[p].size()];
-				mpiGrad recvBuffer[recvCount[p]];
-				int id;
-				for (unsigned int g=0;g<sendCells[p].size();++g) {
-					id=global2local[sendCells[p][g]];
-					sendBuffer[g].globalId=grid.cell[id].globalId;
-					int count=0;
-					for (unsigned int var=0;var<5;++var) {
-						for (unsigned int comp=0;comp<3;++comp) {
-							sendBuffer[g].grads[count]=grid.cell[id].grad[var].comp[comp];
-							count++;
-						}
-					}
-				}
-
-				int tag=rank; // tag is set to source
-				MPI_Sendrecv(sendBuffer,sendCells[p].size(),MPI_GRAD,p,0,recvBuffer,recvCount[p],MPI_GRAD,p,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-		
-				for (unsigned int g=0;g<recvCount[p];++g) {
-					id=global2local[recvBuffer[g].globalId];
-					int count=0;
-					for (unsigned int var=0;var<5;++var) {
-						for (unsigned int comp=0;comp<3;++comp) {
-							grid.ghost[id].grad[var].comp[comp]=recvBuffer[g].grads[count];
-							count++;
-						}
-					}
-				}
-			}
-
-			if (input.section["equations"].strings["set"]=="NS") {
-				// Add viscous fluxes
-				viscous_flux(mu);
-			}
-			
-			// Limit gradients
-			grid.limit_gradients(limiter,sharpeningFactor);
-			
-			// Send limited gradients
-			for (unsigned int p=0;p<np;++p) {
-				mpiGrad sendBuffer[sendCells[p].size()];
-				mpiGrad recvBuffer[recvCount[p]];
-				int id;
-				for (unsigned int g=0;g<sendCells[p].size();++g) {
-					id=global2local[sendCells[p][g]];
-					sendBuffer[g].globalId=grid.cell[id].globalId;
-					int count=0;
-					for (unsigned int var=0;var<5;++var) {
-						for (unsigned int comp=0;comp<3;++comp) {
-							sendBuffer[g].grads[count]=grid.cell[id].limited_grad[var].comp[comp];
-							count++;
-						}
-					}
-				}
-
-				int tag=rank; // tag is set to source
-				MPI_Sendrecv(sendBuffer,sendCells[p].size(),MPI_GRAD,p,0,recvBuffer,recvCount[p],MPI_GRAD,p,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-		
-				for (unsigned int g=0;g<recvCount[p];++g) {
-					id=global2local[recvBuffer[g].globalId];
-					int count=0;
-					for (unsigned int var=0;var<5;++var) {
-						for (unsigned int comp=0;comp<3;++comp) {
-							grid.ghost[id].limited_grad[var].comp[comp]=recvBuffer[g].grads[count];
-							count++;
-						}
-					}
-				}
-			}
+			// Update gradients of the ghost cells
+			mpi_update_ghost_gradients();
 		}
+		// Add viscous fluxes
+		if (input.section["equations"].strings["set"]=="NS") viscous_flux(mu);
 		
+		// Limit gradients (limited gradients are stored separately)
+		grid.limit_gradients(limiter,sharpeningFactor);
+		// Update limited gradients of the ghost cells
+		mpi_update_ghost_limited_gradients();
+
+		// Add inviscid fluxes
 		inviscid_flux(order,limiter);
 
+		// If implicit time integration, form and solve linear system
 		if (input.section["timeMarching"].strings["integrator"]=="backwardEuler") {
-			MatZeroEntries(impOP);
-
-			PetscInt counter=0;
-
-			// Variables for preconditioner
-			double Beta,Mach,Mach2,soundSpeed2;
-			double P51,P52,P53,P54,P55,d;
-			PetscInt row,col;
-			for (unsigned int c=0;c<grid.cellCount;++c) {
-				for (int i=0;i<5;++i) {
-					index=grid.cell[c].globalId*5+i;
-
-					// Fill in right hand side vector
-					value=-1.*grid.cell[c].flux[i];
-					VecSetValues(rhs,1,&index,&value,INSERT_VALUES);
-
-					// Preconditioner
-					soundSpeed2=Gamma*grid.cell[c].p/grid.cell[c].rho;
-					Mach2=grid.cell[c].v.dot(grid.cell[c].v)/soundSpeed2;
-					Mach=sqrt(Mach2);
-					if (Mach<=1.e-5) {
-						Mach=1.e-5;
-					} else if (Mach<1.) {
-						// use local
-					} else {
-						Mach=1.;
-					}
-
-					Mach2=Mach*Mach;
-					P51=grid.cell[c].v.dot(grid.cell[c].v)/3.*(Mach2-1.);
-					P52=grid.cell[c].v.comp[0]*(1.-1./Mach2);
-					P53=grid.cell[c].v.comp[1]*(1.-1./Mach2);
-					P54=grid.cell[c].v.comp[2]*(1.-1./Mach2);
-					P55=1./Mach2;
-
-					d=grid.cell[c].volume/dt;
-
-					if (i==5) {
-						value=P51*d;
-						col=index-4;
-						MatSetValues(impOP,1,&index,1,&col,&value,INSERT_VALUES);
-						value=P52*d;
-						col=index-3;
-						MatSetValues(impOP,1,&index,1,&col,&value,INSERT_VALUES);
-						value=P53*d;
-						col=index-2;
-						MatSetValues(impOP,1,&index,1,&col,&value,INSERT_VALUES);
-						value=P54*d;
-						col=index-1;
-						MatSetValues(impOP,1,&index,1,&col,&value,INSERT_VALUES);
-						value=P55*d;
-						col=index;
-						MatSetValues(impOP,1,&index,1,&col,&value,INSERT_VALUES);
-					} else {
-						value=grid.cell[c].volume/dt;
-						MatSetValues(impOP,1,&index,1,&index,&value,INSERT_VALUES);
-					}
-				}
-			}
-
-			MatAssemblyBegin(impOP,MAT_FLUSH_ASSEMBLY);
-			MatAssemblyEnd(impOP,MAT_FLUSH_ASSEMBLY);
-
-			inviscid_jac(impOP);
-
-// 			MatAssemblyBegin(impOP,MAT_FLUSH_ASSEMBLY);
-// 			MatAssemblyEnd(impOP,MAT_FLUSH_ASSEMBLY);
-// 			viscous_jac(mu,impOP);
-
-			MatAssemblyBegin(impOP,MAT_FINAL_ASSEMBLY);
-			MatAssemblyEnd(impOP,MAT_FINAL_ASSEMBLY);
-
-			//MatView(impOP,PETSC_VIEWER_STDOUT_WORLD);
-			//MatView(impOP,PETSC_VIEWER_DRAW_WORLD);
-
-			VecAssemblyBegin(rhs);
-			VecAssemblyEnd(rhs);
-
-			KSPSolve(ksp,rhs,deltaU);
-
-			KSPGetIterationNumber(ksp,&nIter);
-			KSPGetResidualNorm(ksp,&rNorm);
-
-			VecScatterBegin(scatterContext,deltaU,globalUpdate,INSERT_VALUES,SCATTER_FORWARD);
-			VecScatterEnd(scatterContext,deltaU,globalUpdate,INSERT_VALUES,SCATTER_FORWARD);
-
-			//VecView(globalUpdate,PETSC_VIEWER_STDOUT_WORLD);
-
-			for (unsigned int c=0;c<grid.cellCount;++c) {
-				for (int i=0;i<5;++i) {
-					index=grid.cell[c].globalId*5+i;
-					VecGetValues(globalUpdate,1,&index,&grid.cell[c].flux[i]);
-				}
-			}
-
+			linear_system_initialize();
+			inviscid_jac();
+			//viscous_jac(mu);
+			petsc_solve(nIter,rNorm);
 			updateImp(dt);
-
 		} // if backwardEuler
 
+		// If explicit time integration, update
 		if (input.section["timeMarching"].strings["integrator"]=="forwardEuler") update(dt);
 
+		// Advance physical time
 		time += dt;
-		if (rank==0) cout << timeStep << "\t" << setprecision(4) << scientific << time << "\t" << dt << "\t" << nIter << "\t" << rNorm << endl;
+		if (input.section["timeMarching"].strings["type"]=="fixed") get_CFL();
+		if (timeStep==(restart+1)) if (rank==0) cout << "step" << "\t" << "time" << "\t\t" << "dt" << "\t\t" << "CFL" << "\t\t" << "nIter" << "\t" << "rNorm" << endl;
+		if (rank==0) cout << timeStep << "\t" << setprecision(4) << scientific << time << "\t" << dt << "\t" << CFL << "\t" << nIter << "\t" << rNorm << endl;
 		if ((timeStep) % restartFreq == 0) write_restart(timeStep,time);
 		if ((timeStep) % outFreq == 0) write_output(timeStep,time,input);
 
 	}
+
+	/*****************************************************************************************/
+	// End time loop
+	/*****************************************************************************************/
+	
 	//writeTecplotMacro(restart,timeStepMax, outFreq);
 	// Syncronize the processors
 	MPI_Barrier(MPI_COMM_WORLD);
@@ -494,13 +213,6 @@ int main(int argc, char *argv[]) {
 		timeEnd=MPI_Wtime();
 		cout << "* Wall time: " << timeEnd-timeRef << " seconds" << endl;
 	}
-	//MPI_Finalize();
-	VecScatterDestroy(scatterContext);
-	KSPDestroy(ksp);
-	MatDestroy(impOP);
-	VecDestroy(rhs);
-	VecDestroy(deltaU);
-	PetscFinalize();
 		
 	return 0;
 }
@@ -598,3 +310,50 @@ string int2str(int number) {
 	name.erase(0, name.rfind(" ", name.length()) + 1);
 	return name;
 }
+
+void get_dt(string type) {
+
+	if (type=="fixed") return;
+	
+	if (type=="CFL" | type=="CFLramp") {
+		// Determine time step with CFL condition
+		double lengthScale;
+		dt=1.E20;
+		for (unsigned int c=0;c<grid.cellCount;++c) {
+			double a=sqrt(Gamma*grid.cell[c].p/grid.cell[c].rho);
+			lengthScale=grid.cell[c].lengthScale;
+			dt=min(dt,CFL*lengthScale/(fabs(grid.cell[c].v.comp[0])+a));
+			dt=min(dt,CFL*lengthScale/(fabs(grid.cell[c].v.comp[1])+a));
+			dt=min(dt,CFL*lengthScale/(fabs(grid.cell[c].v.comp[2])+a));
+		}
+		MPI_Allreduce(&dt,&dt,1, MPI_DOUBLE,MPI_MIN,MPI_COMM_WORLD);
+	}
+
+	if (type=="CFLramp") {
+		if (CFL<CFLtarget) {
+			CFL*=1.1;
+		} else {
+			CFL=CFLtarget;
+		}
+	}
+	
+	return;
+} // end get_dt
+
+void get_CFL(void) {
+
+	// Determine time step with CFL condition
+	double lengthScale;
+	CFL=0.;
+	for (unsigned int c=0;c<grid.cellCount;++c) {
+		double a=sqrt(Gamma*grid.cell[c].p/grid.cell[c].rho);
+		lengthScale=grid.cell[c].lengthScale;
+		CFL=max(CFL,(fabs(grid.cell[c].v.comp[0])+a)*dt/lengthScale);
+		CFL=max(CFL,(fabs(grid.cell[c].v.comp[1])+a)*dt/lengthScale);
+		CFL=max(CFL,(fabs(grid.cell[c].v.comp[2])+a)*dt/lengthScale);;
+	}
+	MPI_Allreduce(&CFL,&CFL,1, MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
+
+	return;
+}
+

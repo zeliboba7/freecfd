@@ -53,12 +53,12 @@ int Grid::read(string fname) {
 	fileName=fname;
 	file.open(fileName.c_str());
 	if (file.is_open()) {
-		if (rank==0) cout << "* Found grid file " << fileName  << endl;
+		if (rank==0) cout << "[I] Found grid file " << fileName  << endl;
 		file.close();
 		ReadCGNS();
 		return 1;
 	} else {
-		if (rank==0) cerr << "[!!] Grid file "<< fileName << " could not be found." << endl;
+		if (rank==0) cerr << "[E] Grid file "<< fileName << " could not be found." << endl;
 		return 0;
 	}
 }
@@ -81,7 +81,7 @@ int Grid::ReadCGNS() {
 	// Read number of bases
 	cg_nbases(fileIndex,&nBases);
 
-	if (rank==0) cout << "Number of Bases= " << nBases << endl;
+	if (rank==0) cout << "[I] Number of Bases= " << nBases << endl;
 
 	//for (int baseIndex=1;baseIndex<=nBases;++baseIndex) {
 	// For now assuming there is only one base as I don't know in which cases there would be more
@@ -89,7 +89,7 @@ int Grid::ReadCGNS() {
 	// Read number of zones
 	cg_nzones(fileIndex,baseIndex,&nZones);
 	int zoneNodeCount[nZones],zoneCellCount[nZones];
-	if (rank==0) cout << "Number of Zones= " << nZones << endl;
+	if (rank==0) cout << "[I] Number of Zones= " << nZones << endl;
 	std::vector<int> elemConnIndex,elemConnectivity;
 	std::vector<ElementType_t> elemTypes;
 	std::vector<double> coordX[nZones],coordY[nZones],coordZ[nZones];
@@ -112,11 +112,11 @@ int Grid::ReadCGNS() {
 		// Read number of sections
 		cg_nsections(fileIndex,baseIndex,zoneIndex,&nSections);
 		cg_nbocos(fileIndex,baseIndex,zoneIndex,&nBocos);
-		if (rank==0) cout << "In Zone " << zoneName << endl;
-		if (rank==0) cout << "...Number of Nodes= " << size[0] << endl;
-		if (rank==0) cout << "...Number of Cells= " << size[1] << endl;
-		if (rank==0) cout << "...Number of Sections= " << nSections << endl;
-		if (rank==0) cout << "...Number of Boundary Conditions= " << nBocos << endl;
+		if (rank==0) cout << "[I] In Zone " << zoneName << endl;
+		if (rank==0) cout << "[I] ...Number of Nodes= " << size[0] << endl;
+		if (rank==0) cout << "[I] ...Number of Cells= " << size[1] << endl;
+		if (rank==0) cout << "[I] ...Number of Sections= " << nSections << endl;
+		if (rank==0) cout << "[I] ...Number of Boundary Conditions= " << nBocos << endl;
 			
 		// Read the node coordinates
 		int nodeStart[3],nodeEnd[3];
@@ -188,7 +188,7 @@ int Grid::ReadCGNS() {
 				// Only pick the volume elements
 
 			if (elemType==TETRA_4 | elemType==PENTA_6 | elemType==HEXA_8 ) {
-				cout << "   ...Found Volume Section " << sectionName << endl;
+				if (rank==0) cout << "[I]    ...Found Volume Section " << sectionName << endl;
 					// elements array serves as an start index for connectivity list elemConnectivity
 
 				for (int elem=0;elem<=(elemEnd-elemStart);++elem) {
@@ -207,7 +207,7 @@ int Grid::ReadCGNS() {
 					}
 				}
 				if (bcFlag) {
-					cout << "   ...Found BC Section " << sectionName << endl;
+					if (rank==0) cout << "[I]    ...Found BC Section " << sectionName << endl;
 					for (int elem=0;elem<=(elemEnd-elemStart);++elem) {
 						bocos[bocoCount].push_back(bocoConnectivity[bocoCount].size());
 						for (int n=0;n<elemNodeCount;++n) bocoConnectivity[bocoCount].push_back(zoneCoordMap[zoneIndex-1][elemNodes[elem][n]-1]);
@@ -219,7 +219,7 @@ int Grid::ReadCGNS() {
 	} // for zone
 	//} // for base
 
-	if (rank==0) cout << "Total Node Count= " << globalNodeCount << endl;
+	if (rank==0) cout << "[I] Total Node Count= " << globalNodeCount << endl;
 	// Merge coordinates of the zones
 	double x[globalNodeCount],y[globalNodeCount],z[globalNodeCount];
 	int counter=0;
@@ -241,7 +241,7 @@ int Grid::ReadCGNS() {
 		}
 	}
 	if (counter!=globalNodeCount) cerr << "[E] counter is different from globalNodeCount" << endl;
-	if (rank==0) cout << "Total Cell Count= " << globalCellCount << endl;
+	if (rank==0) cout << "[I] Total Cell Count= " << globalCellCount << endl;
 	// Store element node counts
 	int elemNodeCount[globalCellCount];
 	for (unsigned int c=0;c<globalCellCount-1;++c) {
@@ -353,7 +353,7 @@ int Grid::ReadCGNS() {
 		otherCellCounts[cellMap[c]]+=1;
 		if (cellMap[c]==rank) ++cellCount;
 	}
-	cout << "* Processor " << rank << " has " << cellCount << " cells" << endl;
+	cout << "[I rank=" << rank << "] Number of Cells= " << cellCount << endl;
 		
 	//node.reserve(nodeCount/np);
 	face.reserve(cellCount);
@@ -397,8 +397,8 @@ int Grid::ReadCGNS() {
 		}
 	}
 
-	cout << "* Processor " << rank << " has created its cells and nodes" << endl;
-
+	cout << "[I rank=" << rank << "] created cells and nodes" << endl;
+	
 	//Create the Mesh2Dual inputs
 	//idxtype elmdist [np+1] (stays the same size)
 	eptr = new idxtype[cellCount+1];
@@ -445,7 +445,7 @@ int Grid::ReadCGNS() {
 		}
 	}
 
-	cout << "* Processor " << rank << " has computed its node-cell connectivity" << endl;
+	cout << "[I rank=" << rank << "] computed node-cell connectivity" << endl;
 	
 	// Construct the list of neighboring cells for each cell
 	int c2;
@@ -610,7 +610,7 @@ int Grid::ReadCGNS() {
 	
 	if (rank==0) {
 		timeEnd=MPI_Wtime();
-		cout << "* Processor 0 took " << timeEnd-timeRef << " sec to find its faces" << endl;
+		cout << "[I rank=" << rank << "] Time spent on finding faces= " << timeEnd-timeRef << " sec" << endl;
 	}
 	
 	// Determine and mark faces adjacent to other partitions
@@ -734,8 +734,8 @@ int Grid::ReadCGNS() {
 		
 		
 	} // if (np!=1) 
-	
-	cout << "* Processor " << rank << " has " << ghostCount << " ghost cells at partition boundaries" << endl;
+
+	cout << "[I rank=" << rank << "] Number of Inter-Partition Ghost Cells= " << ghostCount << endl;
 	
 // Now loop through faces and calculate centroids and areas
 	for (unsigned int f=0;f<faceCount;++f) {
@@ -774,7 +774,8 @@ int Grid::ReadCGNS() {
 		cell[c].volume=volume;
 		totalVolume+=volume;
 	}
-	cout << "* Processor " << rank << " Total Volume: " << totalVolume << endl;
+	
+	cout << "[I rank=" << rank << "] Total Volume= " << totalVolume << endl;
 	return 0;
 
 }

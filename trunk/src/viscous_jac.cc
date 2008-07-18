@@ -23,7 +23,7 @@
 #include <cmath>
 #include "grid.h"
 #include "bc.h"
-#include "petscksp.h"
+#include "petsc_functions.h"
 
 extern Grid grid;
 extern BC bc;
@@ -32,7 +32,7 @@ extern double Gamma;
 
 void roe_flux(const double qL[], const double qR[], double flux[]);
 
-void viscous_jac(double mu, Mat impOP) {
+void viscous_jac(double mu) {
 
 	int row,col;
 	PetscScalar value;

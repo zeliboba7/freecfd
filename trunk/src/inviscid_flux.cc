@@ -69,7 +69,25 @@ void inviscid_flux(string order, string limiter) {
 		wTL=(grid.cell[parent].v+deltaV).dot(faceTangent2);
 		
 		if (grid.face[f].bc>=0) { // means a real boundary face
-			rhoR=rhoL; uNR=uNL; vTR=vTL; wTR=wTL; pR=pL; // outlet condition
+			// Find face averaged variables
+			Vec3D faceVel=0.;
+			map<int,double>::iterator fit;
+			rhoR=0.;pR=0.;
+			for (fit=grid.face[f].average.begin();fit!=grid.face[f].average.end();fit++) {
+				if ((*fit).first>=0) { // if contribution is coming from a real cell
+					rhoR+=(*fit).second*grid.cell[(*fit).first].rho;
+					faceVel+=(*fit).second*grid.cell[(*fit).first].v;
+					pR+=(*fit).second*grid.cell[(*fit).first].p;
+				} else { // if contribution is coming from a ghost cell
+					rhoR+=(*fit).second*grid.ghost[-1*((*fit).first+1)].rho;
+					faceVel+=(*fit).second*grid.ghost[-1*((*fit).first+1)].v;
+					pR+=(*fit).second*grid.ghost[-1*((*fit).first+1)].p;
+				}
+			}
+			uNR=faceVel.dot(grid.face[f].normal);
+			vTR=faceVel.dot(faceTangent1);
+			wTR=faceVel.dot(faceTangent2);
+			//rhoR=rhoL; uNR=uNL; vTR=vTL; wTR=wTL; pR=pL; // outlet condition
 			if (bc.region[grid.face[f].bc].type=="outlet" &&
 				bc.region[grid.face[f].bc].kind=="fixedPressure") {
  				// find Mach number

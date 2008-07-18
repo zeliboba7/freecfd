@@ -23,7 +23,7 @@
 #include <cmath>
 #include "grid.h"
 #include "bc.h"
-#include "petscksp.h"
+#include "petsc_functions.h"
 
 extern Grid grid;
 extern BC bc;
@@ -32,7 +32,7 @@ extern double Gamma;
 
 void roe_flux(const double qL[], const double qR[], double flux[]);
 
-void inviscid_jac(Mat impOP) {
+void inviscid_jac(void) {
 
 	double rhoL,rhoR,pL,pR;
 	Vec3D faceTangent1, faceTangent2, qVL, qVR, deltaV;
@@ -82,8 +82,29 @@ void inviscid_jac(Mat impOP) {
 			qNR[4]=0.5*(qVR.dot(qVR))/rhoR +pR/ (Gamma - 1.);
 
 		} else if (grid.face[f].bc>=0) {
+			// Find face averaged variables
+			map<int,double>::iterator fit;
+			rhoR=0.;pR=0.;qVR=0.;
+			for (fit=grid.face[f].average.begin();fit!=grid.face[f].average.end();fit++) {
+				if ((*fit).first>=0) { // if contribution is coming from a real cell
+					rhoR+=(*fit).second*grid.cell[(*fit).first].rho;
+					qVR+=(*fit).second*grid.cell[(*fit).first].v;
+					pR+=(*fit).second*grid.cell[(*fit).first].p;
+				} else { // if contribution is coming from a ghost cell
+					rhoR+=(*fit).second*grid.ghost[-1*((*fit).first+1)].rho;
+					qVR+=(*fit).second*grid.ghost[-1*((*fit).first+1)].v;
+					pR+=(*fit).second*grid.ghost[-1*((*fit).first+1)].p;
+				}
+			}
+			qVR*=rhoR;
 
-			for (int i=0;i<5;++i) qNR[i]=qNL[i]; // outlet condition
+			qNR[0]=rhoR;
+			qNR[1]=qVR.dot(grid.face[f].normal);
+			qNR[2]=qVR.dot(faceTangent1);
+			qNR[3]=qVR.dot(faceTangent2);
+			qNR[4]=0.5*(qVR.dot(qVR))/rhoR +pR/ (Gamma - 1.);
+			
+			//for (int i=0;i<5;++i) qNR[i]=qNL[i]; // outlet condition
 			if (bc.region[grid.face[f].bc].type=="outlet" &&
 				bc.region[grid.face[f].bc].kind=="fixedPressure") {
  				// find Mach number
@@ -206,7 +227,9 @@ void inviscid_jac(Mat impOP) {
 		} // if internal faces		
 		
 	} // for faces
-	
+
+	MatAssemblyBegin(impOP,MAT_FLUSH_ASSEMBLY);
+	MatAssemblyEnd(impOP,MAT_FLUSH_ASSEMBLY);
 
 	return;
 } // end function

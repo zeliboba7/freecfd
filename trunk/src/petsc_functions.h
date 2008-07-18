@@ -20,39 +20,24 @@
     see <http://www.gnu.org/licenses/>.
 
 *************************************************************************/
-#ifndef MPI_FUNCTIONS_H
-#define MPI_FUNCTIONS_H
+#ifndef PETSC_FUNCTIONS_H
+#define PETSC_FUNCTIONS_H
 
+#include "petscksp.h"
 #include <mpi.h>
 #include <vector>
 using namespace std;
 
 #include "grid.h"
-
+ 
+extern KSP ksp; // linear solver context
+extern Vec deltaU,rhs,globalUpdate; // solution, residual vectors
+extern Mat impOP; // implicit operator matrix
 extern Grid grid;
 extern int np, rank;
 
-extern std::vector<unsigned int> *sendCells;
-extern unsigned int *recvCount;
-extern int *global2local;
-extern MPI_Datatype MPI_GRAD;
-extern MPI_Datatype MPI_GHOST;
-	
-void mpi_init(int argc, char *argv[]);
-void mpi_handshake(void);
-void mpi_map_global2local(void);
-void mpi_update_ghost_primitives(void);
-void mpi_update_ghost_gradients(void);
-void mpi_update_ghost_limited_gradients(void);
-
-struct mpiGhost {
-	unsigned int globalId;
-	double vars[5];
-};
-	
-struct mpiGrad {
-	unsigned int globalId;
-	double grads[15];
-};
+void petsc_init(int argc, char *argv[]);
+void petsc_solve(int &nIter,double &rNorm);
+void petsc_finalize(void);
 
 #endif
