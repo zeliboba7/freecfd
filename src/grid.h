@@ -33,7 +33,6 @@
 #include <set>
 #include <mpi.h>
 #include "vec3d.h"
-#include "sparse.h"
 using namespace std;
 
 
