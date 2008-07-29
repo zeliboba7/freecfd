@@ -39,6 +39,7 @@ extern Grid grid;
 extern BC bc;
 extern int np, rank;
 extern double Gamma;
+extern double Pref;
 extern string int2str(int number) ;
 void write_tec(int timeStep, double time);
 void write_vtk(int timeStep);
@@ -46,11 +47,11 @@ void write_vtk_parallel(int timeStep);
 
 void write_output(int timeStep, double time, InputFile input) {
 	mkdir("./output",S_IRWXU);
-	if (input.section["solutionFormat"].strings["output"]=="vtk") {
+	if (input.section["output"].strings["format"]=="vtk") {
 		// Write vtk output file
 		if (rank==0) write_vtk_parallel(timeStep);
 		write_vtk(timeStep);
-	} else if(input.section["solutionFormat"].strings["output"]=="tecplot") {
+	} else if(input.section["output"].strings["format"]=="tecplot") {
 		// Write tecplot output file
 		for (int p=0;p<np;++p) {
 			if(rank==p) write_tec(timeStep,time);
@@ -115,7 +116,7 @@ void write_tec(int timeStep, double time) {
 			if (count_p>0) p_node/=double(count_p);
 		}
 		
-		Ma=sqrt((v_node.dot(v_node))/(Gamma*p_node/rho_node));
+		Ma=sqrt((v_node.dot(v_node))/(Gamma*(p_node+Pref)/rho_node));
 					
 		file << setw(16) << setprecision(8) << scientific;
 		file << grid.node[n].comp[0] << "\t";

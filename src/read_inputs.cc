@@ -36,13 +36,10 @@ void read_inputs(InputFile &input) {
 	input.section["timeMarching"].register_double("step");
 	input.section["timeMarching"].register_double("CFL");
 	input.section["timeMarching"].register_int("numberOfSteps");
-	input.section["timeMarching"].register_int("outFreq");
-	input.section["timeMarching"].register_int("restartFreq");
 	// defaults
 	input.section["timeMarching"].strings["type"]="CFL";
 	input.section["timeMarching"].doubles["CFL"]=1.;
 	input.section["timeMarching"].ints["numberOfSteps"]=100;
-	input.section["timeMarching"].ints["outFreq"]=10;
 	input.read_section("timeMarching");
 
 	input.register_section("initialConditions");
@@ -72,6 +69,7 @@ void read_inputs(InputFile &input) {
 
 	input.register_section("fluidProperties");
 	input.section["fluidProperties"].register_double("gamma");
+	input.section["fluidProperties"].register_double("Pref");
 	input.section["fluidProperties"].register_subsection("viscosity");
 	input.section["fluidProperties"].subsections["viscosity"].register_string("type");
 	input.section["fluidProperties"].subsections["viscosity"].register_double("value");
@@ -80,6 +78,7 @@ void read_inputs(InputFile &input) {
 	input.read_section("fluidProperties");
 
 	input.register_section("numericalOptions");
+	input.section["numericalOptions"].register_string("flux");
 	input.section["numericalOptions"].register_string("order");
 	input.section["numericalOptions"].register_string("limiter");
 	input.section["numericalOptions"].register_double("sharpeningFactor");
@@ -89,12 +88,16 @@ void read_inputs(InputFile &input) {
 	input.section["numericalOptions"].doubles["sharpeningFactor"]=0.;
 	input.read_section("numericalOptions");
 
-	input.register_section("solutionFormat");
-	input.section["solutionFormat"].register_string("input");
-	input.section["solutionFormat"].register_string("output");
-	// defaults
-	input.section["solutionFormat"].strings["input"]="vtk";
-	input.section["solutionFormat"].strings["output"]="vtk";
-	input.read_section("solutionFormat");
+	input.register_section("linearSolver");
+	input.section["linearSolver"].register_double("relTolerance");
+	input.section["linearSolver"].register_double("absTolerance");
+	input.section["linearSolver"].register_int("maxIterations");
+	input.read_section("linearSolver");
+	
+	input.register_section("output");
+	input.section["output"].register_string("format");
+	input.section["output"].register_int("outFreq");
+	input.section["output"].register_int("restartFreq");
+	input.read_section("output");
 
 }

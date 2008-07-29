@@ -752,7 +752,7 @@ int Grid::ReadCGNS() {
 		areaVec+=0.5* (face[f].node(face[f].nodeCount-1)-centroid).cross(face[f].node(0)-centroid);
 		if (areaVec.dot(centroid-cell[face[f].parent].centroid) <0.) {
 			// [TBM] Need to swap the face and reflect the area vector
-		//	cout << "face " << f << " should be swapped" << endl;
+			cout << "face " << f << " should be swapped" << endl;
 		}
 		face[f].area=fabs(areaVec);
 		face[f].normal=areaVec/face[f].area;
