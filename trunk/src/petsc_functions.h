@@ -36,7 +36,7 @@ extern Mat impOP; // implicit operator matrix
 extern Grid grid;
 extern int np, rank;
 
-void petsc_init(int argc, char *argv[]);
+void petsc_init(int argc, char *argv[],double rtol,double abstol,int maxits);
 void petsc_solve(int &nIter,double &rNorm);
 void petsc_finalize(void);
 

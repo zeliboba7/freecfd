@@ -28,10 +28,11 @@ extern Grid grid;
 extern BC bc;
 extern int rank;
 extern double Gamma;
+extern double Pref;
 
 void update(double dt);
 
-void roe_flux(const double qL[], const double qR[], double flux[]);
+void face_flux(double qL[], double qR[], double flux[]);
 
 void inviscid_flux(string order, string limiter) {
 
@@ -87,14 +88,16 @@ void inviscid_flux(string order, string limiter) {
 			uNR=faceVel.dot(grid.face[f].normal);
 			vTR=faceVel.dot(faceTangent1);
 			wTR=faceVel.dot(faceTangent2);
-			//rhoR=rhoL; uNR=uNL; vTR=vTL; wTR=wTL; pR=pL; // outlet condition
+			
 			if (bc.region[grid.face[f].bc].type=="outlet" &&
 				bc.region[grid.face[f].bc].kind=="fixedPressure") {
  				// find Mach number
-				Mach=uNL/sqrt(Gamma*pL/rhoL);
+				Mach=uNL/sqrt(Gamma*(pL+Pref)/rhoL);
 				if (Mach<1.) pR=bc.region[grid.face[f].bc].p;
 			}
-			if (bc.region[grid.face[f].bc].type=="slip") uNR=-uNL;
+			if (bc.region[grid.face[f].bc].type=="slip") {
+				rhoR=rhoL; uNR=-1.*uNL; vTR=vTL; wTR=wTL; pR=pL;
+			}
 			if (bc.region[grid.face[f].bc].type=="noslip") {uNR=-uNL; vTR=0.; wTR=0.;}
 			if (bc.region[grid.face[f].bc].type=="inlet") {
 				uNR=bc.region[grid.face[f].bc].v.dot(grid.face[f].normal);
@@ -129,27 +132,20 @@ void inviscid_flux(string order, string limiter) {
 			wTR=(grid.ghost[g].v+deltaV).dot(faceTangent2);
 		}
 		
-// 		if (grid.face[f].bc>=0 && (bc.region[grid.face[f].bc].type=="outlet" | bc.region[grid.face[f].bc].type=="inlet")) {
-// 			fluxNormal[0]=rhoR*uNR;
-// 			fluxNormal[1]=rhoR*uNR*uNR+pR;
-// 			fluxNormal[2]=rhoR*uNR*vTR;
-// 			fluxNormal[3]=rhoR*uNR*wTR;
-// 			fluxNormal[4]=uNR* (0.5*rhoR* (uNR*uNR+vTR*vTR+wTR*wTR) +pR/ (Gamma - 1.) +pR);
-// 		} else {
-			qL[0]=rhoL;
-			qL[1]=qL[0] * uNL;
-			qL[2]=qL[0] * vTL;
-			qL[3]=qL[0] * wTL;
-			qL[4]=0.5*qL[0]* (uNL*uNL+vTL*vTL+wTL*wTL) +pL/ (Gamma - 1.);
+		qL[0]=rhoL;
+		qL[1]=qL[0] * uNL;
+		qL[2]=qL[0] * vTL;
+		qL[3]=qL[0] * wTL;
+		qL[4]=0.5*qL[0]* (uNL*uNL+vTL*vTL+wTL*wTL) +(pL)/ (Gamma - 1.);
 
-			qR[0] = rhoR;
-			qR[1] = qR[0] * uNR;
-			qR[2] = qR[0] * vTR;
-			qR[3] = qR[0] * wTR;
-			qR[4] = 0.5*qR[0]* (uNR*uNR+vTR*vTR+wTR*wTR) +pR/ (Gamma - 1.);
+		qR[0] = rhoR;
+		qR[1] = qR[0] * uNR;
+		qR[2] = qR[0] * vTR;
+		qR[3] = qR[0] * wTR;
+		qR[4] = 0.5*qR[0]* (uNR*uNR+vTR*vTR+wTR*wTR) +(pR)/ (Gamma - 1.);
 
-			roe_flux(qL, qR, fluxNormal);
-		//} 
+		face_flux(qL, qR, fluxNormal);
+
 
 
 		flux[0] = fluxNormal[0]*grid.face[f].area;

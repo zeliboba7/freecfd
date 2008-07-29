@@ -29,7 +29,7 @@ Vec deltaU,rhs,globalUpdate; // solution, residual vectors
 Mat impOP; // implicit operator matrix
 VecScatter scatterContext;
 
-void petsc_init(int argc, char *argv[]) {
+void petsc_init(int argc, char *argv[],double rtol,double abstol,int maxits) {
 	// Initialize petsc
 	PetscInitialize(&argc,&argv,(char *)0,help);
 	PC pc; // preconditioner context
@@ -50,6 +50,7 @@ void petsc_init(int argc, char *argv[]) {
 	MatCreateMPIAIJ(PETSC_COMM_WORLD,grid.cellCount*5,grid.cellCount*5,grid.globalCellCount*5,grid.globalCellCount*5,50,PETSC_NULL,0,PETSC_NULL,&impOP);
 	
 	KSPSetOperators(ksp,impOP,impOP,SAME_NONZERO_PATTERN);
+	KSPSetTolerances(ksp,rtol,abstol,1.e10,maxits);
 	KSPSetFromOptions(ksp);
 
 	return;

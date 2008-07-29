@@ -64,6 +64,8 @@ BC bc;
 
 int np, rank;
 double Gamma,dt,CFL,CFLtarget;
+double Pref;
+string fluxFunction;
 
 int main(int argc, char *argv[]) {
 
@@ -89,15 +91,17 @@ int main(int argc, char *argv[]) {
 		input.section["timeMarching"].strings["type"]="CFL";
 	}
 	int timeStepMax = input.section["timeMarching"].ints["numberOfSteps"];
-	int outFreq = input.section["timeMarching"].ints["outFreq"];
-	int restartFreq = input.section["timeMarching"].ints["restartFreq"];
 	double mu;
 	if (input.section["fluidProperties"].subsections["viscosity"].strings["type"]=="fixed") {
 		mu=input.section["fluidProperties"].subsections["viscosity"].doubles["value"];
 	}
+	Pref=input.section["fluidProperties"].doubles["Pref"];
 	string limiter=input.section["numericalOptions"].strings["limiter"];
 	string order=input.section["numericalOptions"].strings["order"];
 	double sharpeningFactor=input.section["numericalOptions"].doubles["sharpeningFactor"];
+	int outFreq = input.section["output"].ints["outFreq"];
+	int restartFreq = input.section["output"].ints["restartFreq"];
+	fluxFunction=input.section["numericalOptions"].strings["flux"];
 	
 	grid.read(gridFileName);
 	
@@ -128,7 +132,10 @@ int main(int argc, char *argv[]) {
 	}
 
 	// Initialize petsc
-	petsc_init(argc,argv);
+	petsc_init(argc,argv,
+				input.section["linearSolver"].doubles["relTolerance"],
+				input.section["linearSolver"].doubles["absTolerance"],
+				input.section["linearSolver"].ints["maxIterations"]);
 
 	MPI_Barrier(MPI_COMM_WORLD);
 	double timeRef, timeEnd;
@@ -181,7 +188,7 @@ int main(int argc, char *argv[]) {
 		// If implicit time integration, form and solve linear system
 		if (input.section["timeMarching"].strings["integrator"]=="backwardEuler") {
 			linear_system_initialize();
-			inviscid_jac();
+			//inviscid_jac();
 			//viscous_jac(mu);
 			petsc_solve(nIter,rNorm);
 			updateImp(dt);
@@ -264,7 +271,7 @@ void update(double dt) {
 		conservative[1] = grid.cell[c].rho * grid.cell[c].v.comp[0];
 		conservative[2] = grid.cell[c].rho * grid.cell[c].v.comp[1];
 		conservative[3] = grid.cell[c].rho * grid.cell[c].v.comp[2];
-		conservative[4] = 0.5 * grid.cell[c].rho * grid.cell[c].v.dot(grid.cell[c].v) + grid.cell[c].p / (Gamma - 1.);
+		conservative[4] = 0.5 * grid.cell[c].rho * grid.cell[c].v.dot(grid.cell[c].v) + (grid.cell[c].p+Pref) / (Gamma - 1.);
 		for (int i = 0;i < 5;++i) {
 			conservative[i] -= dt / grid.cell[c].volume * grid.cell[c].flux[i];
 			grid.cell[c].flux[i] = 0.;
@@ -273,7 +280,7 @@ void update(double dt) {
 		grid.cell[c].v.comp[0] = conservative[1] / conservative[0];
 		grid.cell[c].v.comp[1] = conservative[2] / conservative[0];
 		grid.cell[c].v.comp[2] = conservative[3] / conservative[0];
-		grid.cell[c].p = (conservative[4] - 0.5 * conservative[0] * grid.cell[c].v.dot(grid.cell[c].v)) * (Gamma - 1.);
+		grid.cell[c].p = (conservative[4] - 0.5 * conservative[0] * grid.cell[c].v.dot(grid.cell[c].v)) * (Gamma - 1.)-Pref;
 	} // cell loop
 	return;
 }
@@ -281,22 +288,15 @@ void update(double dt) {
 
 void updateImp(double dt) {
 
-	double conservative[5];
 	for (unsigned int c = 0;c < grid.cellCount;++c) {
-		conservative[0] = grid.cell[c].rho;
-		conservative[1] = grid.cell[c].rho * grid.cell[c].v.comp[0];
-		conservative[2] = grid.cell[c].rho * grid.cell[c].v.comp[1];
-		conservative[3] = grid.cell[c].rho * grid.cell[c].v.comp[2];
-		conservative[4] = 0.5 * grid.cell[c].rho * grid.cell[c].v.dot(grid.cell[c].v) + grid.cell[c].p / (Gamma - 1.);
+		grid.cell[c].rho +=grid.cell[c].flux[0];
+		grid.cell[c].v.comp[0] +=grid.cell[c].flux[1];
+		grid.cell[c].v.comp[1] +=grid.cell[c].flux[2];
+		grid.cell[c].v.comp[2] +=grid.cell[c].flux[3];
+		grid.cell[c].p += grid.cell[c].flux[4];
 		for (int i = 0;i < 5;++i) {
-			conservative[i] += grid.cell[c].flux[i];
 			grid.cell[c].flux[i] = 0.;
 		}
-		grid.cell[c].rho = conservative[0];
-		grid.cell[c].v.comp[0] = conservative[1] / conservative[0];
-		grid.cell[c].v.comp[1] = conservative[2] / conservative[0];
-		grid.cell[c].v.comp[2] = conservative[3] / conservative[0];
-		grid.cell[c].p = (conservative[4] - 0.5 * conservative[0] * grid.cell[c].v.dot(grid.cell[c].v)) * (Gamma - 1.);
 	} // cell loop
 	return;
 }
@@ -320,7 +320,7 @@ void get_dt(string type) {
 		double lengthScale;
 		dt=1.E20;
 		for (unsigned int c=0;c<grid.cellCount;++c) {
-			double a=sqrt(Gamma*grid.cell[c].p/grid.cell[c].rho);
+			double a=sqrt(Gamma*(grid.cell[c].p+Pref)/grid.cell[c].rho);
 			lengthScale=grid.cell[c].lengthScale;
 			dt=min(dt,CFL*lengthScale/(fabs(grid.cell[c].v.comp[0])+a));
 			dt=min(dt,CFL*lengthScale/(fabs(grid.cell[c].v.comp[1])+a));
@@ -346,7 +346,7 @@ void get_CFL(void) {
 	double lengthScale;
 	CFL=0.;
 	for (unsigned int c=0;c<grid.cellCount;++c) {
-		double a=sqrt(Gamma*grid.cell[c].p/grid.cell[c].rho);
+		double a=sqrt(Gamma*(grid.cell[c].p+Pref)/grid.cell[c].rho);
 		lengthScale=grid.cell[c].lengthScale;
 		CFL=max(CFL,(fabs(grid.cell[c].v.comp[0])+a)*dt/lengthScale);
 		CFL=max(CFL,(fabs(grid.cell[c].v.comp[1])+a)*dt/lengthScale);
