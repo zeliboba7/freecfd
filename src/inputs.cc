@@ -8,7 +8,11 @@ using namespace std;
 
 extern int np, rank;
 
-InputFile::InputFile(string fName) {
+InputFile::InputFile(void) {
+	;
+}
+
+void InputFile::setFile(string fName) {
 	// Check if the input file exists
 	fileName=fName;
 	fstream file;
