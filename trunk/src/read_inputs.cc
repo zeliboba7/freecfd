@@ -32,6 +32,7 @@ void read_inputs(InputFile &input) {
 
 	input.register_section("timeMarching");
 	input.section["timeMarching"].register_string("integrator");
+	input.section["timeMarching"].register_string("preconditioner");
 	input.section["timeMarching"].register_string("type");
 	input.section["timeMarching"].register_double("step");
 	input.section["timeMarching"].register_double("CFL");
@@ -81,6 +82,7 @@ void read_inputs(InputFile &input) {
 	input.section["numericalOptions"].register_string("flux");
 	input.section["numericalOptions"].register_string("order");
 	input.section["numericalOptions"].register_string("limiter");
+	input.section["numericalOptions"].register_double("Minf");
 	input.section["numericalOptions"].register_double("sharpeningFactor");
 	// defaults
 	input.section["numericalOptions"].strings["order"]="first";

@@ -52,7 +52,8 @@ class InputFile {
 public:
 	string fileName;
 	map<string,Section> section;
-	InputFile(string);
+	InputFile(void);
+	void setFile(string);
 	void read(void);
 	int search(fstream&,string);
 	void register_section(string sectionName);

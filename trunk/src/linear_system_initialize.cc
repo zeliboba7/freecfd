@@ -22,11 +22,14 @@
 *************************************************************************/
 #include "petsc_functions.h"
 #include "bc.h"
+#include "inputs.h"
 
 extern double Gamma,dt;
 extern double Pref;
+extern double CFL;
 extern BC bc;
-
+extern InputFile input;
+		
 void preconditioner_cm91(unsigned int c, double P[][5]);
 void preconditioner_ws95(unsigned int c, double P[][5]);
 void preconditioner_none(unsigned int c, double P[][5]);
@@ -38,7 +41,7 @@ void linear_system_initialize() {
 
 	PetscInt counter=0;
 
-	double d;
+	double d,lengthScale,dtLocal,a;
 	double P [5][5]; // preconditioner
 
 	PetscInt row,col;
@@ -46,9 +49,25 @@ void linear_system_initialize() {
 			
 	for (unsigned int c=0;c<grid.cellCount;++c) {
 
-		preconditioner_cm91(c,P);
+		if (input.section["timeMarching"].strings["preconditioner"]=="cm91") {
+			preconditioner_cm91(c,P);
+		} else {
+			preconditioner_none(c,P);
+		}
 
-		d=grid.cell[c].volume/dt;
+		if (input.section["timeMarching"].strings["type"]=="CFLlocal") {
+			// Determine time step with CFL condition
+			lengthScale;
+			dtLocal=1.E20;
+			a=sqrt(Gamma*(grid.cell[c].p+Pref)/grid.cell[c].rho);
+			lengthScale=grid.cell[c].lengthScale;
+			dtLocal=min(dtLocal,CFL*lengthScale/(fabs(grid.cell[c].v.comp[0])+a));
+			dtLocal=min(dtLocal,CFL*lengthScale/(fabs(grid.cell[c].v.comp[1])+a));
+			dtLocal=min(dtLocal,CFL*lengthScale/(fabs(grid.cell[c].v.comp[2])+a));
+			d=grid.cell[c].volume/dtLocal;
+		} else {
+			d=grid.cell[c].volume/dt;
+		}
 
 		
 		for (int i=0;i<5;++i) {
@@ -129,9 +148,9 @@ void preconditioner_cm91(unsigned int c, double P[][5]) {
 
 	Mach2=Mach*Mach;
 
-	//a2=max(1.e-5,q2);
+	beta=max(1.e-5,q2);
 			
-	beta=a2;
+	//beta=a2;
 	
 	e=0.5*q2+a2/(Gamma*(Gamma - 1.));
 	

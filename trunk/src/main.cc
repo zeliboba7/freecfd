@@ -61,6 +61,7 @@ void get_CFL(void);
 Grid grid;
 // Allocate container for boundary conditions
 BC bc;
+InputFile input;
 
 int np, rank;
 double Gamma,dt,CFL,CFLtarget;
@@ -81,8 +82,9 @@ int main(int argc, char *argv[]) {
 	int restart=0;
 	if (argc>2) restart=atoi(argv[2]);
 
-	InputFile input(inputFileName);
+	input.setFile(inputFileName);
 	read_inputs(input);
+	
 	double time = 0.;
 	Gamma = input.section["fluidProperties"].doubles["gamma"];
 	dt = input.section["timeMarching"].doubles["step"];
@@ -148,6 +150,7 @@ int main(int argc, char *argv[]) {
 	
 	if (input.section["timeMarching"].strings["type"]=="CFLramp") CFL=1.;
 	if (input.section["timeMarching"].strings["type"]=="CFL") CFL=CFLtarget;
+	if (input.section["timeMarching"].strings["type"]=="CFLlocal") CFL=CFLtarget;
 
 	if (rank==0) cout << "[I] Beginning time loop" << endl;
 	
@@ -188,7 +191,7 @@ int main(int argc, char *argv[]) {
 		// If implicit time integration, form and solve linear system
 		if (input.section["timeMarching"].strings["integrator"]=="backwardEuler") {
 			linear_system_initialize();
-			//inviscid_jac();
+			inviscid_jac();
 			//viscous_jac(mu);
 			petsc_solve(nIter,rNorm);
 			updateImp(dt);
