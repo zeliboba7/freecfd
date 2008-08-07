@@ -40,6 +40,7 @@ void petsc_init(int argc, char *argv[],double rtol,double abstol,int maxits) {
 	VecCreateSeq(PETSC_COMM_SELF,grid.globalCellCount*5,&globalUpdate);
 	VecSetFromOptions(rhs);
 	VecDuplicate(rhs,&deltaU);
+	VecSet(rhs,0.);
 	VecSet(deltaU,0.);
 	VecSet(globalUpdate,0.);
 
@@ -47,7 +48,7 @@ void petsc_init(int argc, char *argv[],double rtol,double abstol,int maxits) {
 
 	//PetscScalar *dU,*ff,value;
 	
-	MatCreateMPIAIJ(PETSC_COMM_WORLD,grid.cellCount*5,grid.cellCount*5,grid.globalCellCount*5,grid.globalCellCount*5,50,PETSC_NULL,0,PETSC_NULL,&impOP);
+	MatCreateMPIAIJ(PETSC_COMM_WORLD,grid.cellCount*5,grid.cellCount*5,grid.globalCellCount*5,grid.globalCellCount*5,150,PETSC_NULL,0,PETSC_NULL,&impOP);
 	
 	KSPSetOperators(ksp,impOP,impOP,SAME_NONZERO_PATTERN);
 	KSPSetTolerances(ksp,rtol,abstol,1.e10,maxits);
@@ -79,6 +80,9 @@ void petsc_solve(int &nIter,double &rNorm) {
 			VecGetValues(globalUpdate,1,&index,&grid.cell[c].flux[i]);
 		}
 	}
+
+	VecSet(rhs,0.);
+	
 	return;
 } // end petsc_solve
 

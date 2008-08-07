@@ -40,6 +40,7 @@ extern Grid grid;
 extern BC bc;
 extern int np, rank;
 extern double Gamma;
+extern double Pref;
 
 double superbee(double a, double b);
 double minmod(double a, double b);
@@ -913,7 +914,7 @@ void Grid::faceAverages() {
 // 		face[f].average.clear();
 // 		unsigned int parent=face[f].parent;
 // 		unsigned int neighbor=face[f].neighbor;
-// 		
+// 
 // 		if (face[f].bc==-1) {// internal face
 // 			face[f].average.insert(pair<int,double>(parent,0.5));
 // 			face[f].average.insert(pair<int,double>(neighbor,0.5));
@@ -998,12 +999,14 @@ void Grid::gradients(void) {
 				if (bc.region[face[f].bc].type=="inlet") {
 					faceRho=bc.region[face[f].bc].rho;
 					faceVel=bc.region[face[f].bc].v;
+					//faceP=cell[face[f].parent].p;
+					//faceP=bc.region[face[f].bc].p;
 				}
 				if (bc.region[grid.face[f].bc].type=="outlet" &&
 					bc.region[grid.face[f].bc].kind=="fixedPressure") {
 					// find Mach number
-					Mach=(cell[c].v.dot(face[f].normal))/sqrt(Gamma*cell[c].p/cell[c].rho);
-					if (Mach<1.) faceP=bc.region[face[f].bc].p;
+// 					Mach=(cell[c].v.dot(face[f].normal))/sqrt(Gamma*(cell[c].p+Pref)/cell[c].rho);
+// 					if (Mach<1.) faceP=bc.region[face[f].bc].p;
 				}
 				// Kill the wall normal component for slip, pressure and rho is extrapolated
 				if (bc.region[face[f].bc].type=="slip") faceVel-=faceVel.dot(face[f].normal)*face[f].normal;

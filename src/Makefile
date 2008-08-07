@@ -11,9 +11,9 @@ PETSC_LIBS = -L$(PETSC_DIR)/lib/$(PETSC_ARCH) -lpetscsnes -lpetscksp -lpetscdm -
 PETSC_INCLUDE = -I$(PETSC_DIR)/include -I$(PETSC_DIR)/bmake/$(PETSC_ARCH)
 
 SRC= \
-	main.cc grid.cc vec3d.cc face_flux.cc  write_output.cc write_restart.cc \
-	inputs.cc sparse.cc read_inputs.cc initialize.cc set_bcs.cc inviscid_flux.cc read_restart.cc \
-	viscous_flux.cc inviscid_jac.cc viscous_jac.cc mpi_functions.cc petsc_functions.cc \
+	main.cc grid.cc vec3d.cc inviscid_flux_function.cc  write_output.cc write_restart.cc \
+	inputs.cc read_inputs.cc initialize.cc set_bcs.cc inviscid_face_flux.cc read_restart.cc \
+	viscous_flux.cc assemble_linear_system.cc viscous_jac.cc mpi_functions.cc petsc_functions.cc \
 	linear_system_initialize.cc
 
 .SUFFIXES: .cc .o

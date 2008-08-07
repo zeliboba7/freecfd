@@ -44,13 +44,14 @@ void viscous_jac(double mu) {
 	map<int,double>::iterator fit;
 	map<int,Vec3D> stencil;
 	map<int,Vec3D>::iterator git,sit;
-	
+				
 	for (int i=0; i<4; ++i) viscousFlux[i]=0.;
 	
 	for (unsigned int f=0;f<grid.faceCount;++f) {
 		parent=grid.face[f].parent; neighbor=grid.face[f].neighbor;
 		areaVec=grid.face[f].normal*grid.face[f].area;
 
+		// Use a map for the cells involved viscous fluxes and store contributions
 		stencil.clear();
 		
 		for (fit=grid.face[f].average.begin();fit!=grid.face[f].average.end();fit++) {
@@ -66,51 +67,96 @@ void viscous_jac(double mu) {
 				} // end gradMap loop	
 		}
 
-		row=grid.cell[parent].globalId*5+1;
+		
 		for (sit=stencil.begin();sit!=stencil.end(); sit++ ) {
-			col=grid.cell[(*sit).first].globalId*5+1; //rho*u
-			value=(*sit).second.comp[1]; // du/dy
-			value*=mu*areaVec.comp[1]; //tau_xy.dot.areaVec
+			row=grid.cell[parent].globalId*5+1; // viscous_flux_x
+			col=grid.cell[(*sit).first].globalId*5+1; //u
+			// (viscous_flux_x due to u)=4/3*mu*du/dx*Ax+mu*du/dy*Ay+mu*du/dz*Az
+			//                          =1/3*mu*du/dx*Ax+mu*(gradU.A)
+			// grad_contributions=(*sit).second
+			// Hence total contribution to viscous_flux_x by u components
+			value=1./3.*mu*(*sit).second.comp[0]*areaVec.comp[0]
+					+mu*((*sit).second.dot(areaVec));
 			MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
+			//===================================================================
+			row=grid.cell[parent].globalId*5+1; // viscous_flux_x
+			col=grid.cell[(*sit).first].globalId*5+2; //v
+			// (viscous_flux_x due to v)=-2/3*mu*dv/dy*Ax+mu*dv/dx*Ay
+			// grad_contributions=(*sit).second
+			// Hence total contribution to viscous_flux_x by v components
+			value=-2./3.*mu*(*sit).second.comp[1]*areaVec.comp[0]
+					+mu*(*sit).second.comp[0]*areaVec.comp[1];
+			MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
+			//===================================================================
+			row=grid.cell[parent].globalId*5+1; // viscous_flux_x
+			col=grid.cell[(*sit).first].globalId*5+3; //w
+			// (viscous_flux_x due to w)=-2/3*mu*dw/dz*Ax+mu*dw/dx*Az
+			// grad_contributions=(*sit).second
+			// Hence total contribution to viscous_flux_x by w components
+			value=-2./3.*mu*(*sit).second.comp[2]*areaVec.comp[0]
+					+mu*(*sit).second.comp[0]*areaVec.comp[2];
+			MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
+			//===================================================================
+			row=grid.cell[parent].globalId*5+2; // viscous_flux_y
+			col=grid.cell[(*sit).first].globalId*5+2; //v
+			// (viscous_flux_y due to v)=mu*dv/dx*Ax+4/3*mu*dv/dy*Ay+mu*dv/dz*Az
+			//                          =1/3*mu*dv/dy*Ay+mu*(gradV.A)
+			// grad_contributions=(*sit).second
+			// Hence total contribution to viscous_flux_y by v components
+			value=1./3.*mu*(*sit).second.comp[1]*areaVec.comp[1]
+					+mu*((*sit).second.dot(areaVec));
+			MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
+			//===================================================================
+			row=grid.cell[parent].globalId*5+2; // viscous_flux_y
+			col=grid.cell[(*sit).first].globalId*5+1; //u
+			// (viscous_flux_y due to u)=-2/3*mu*du/dx*Ay+mu*du/dy*Ax
+			// grad_contributions=(*sit).second
+			// Hence total contribution to viscous_flux_y by u components
+			value=-2./3.*mu*(*sit).second.comp[0]*areaVec.comp[1]
+					+mu*(*sit).second.comp[1]*areaVec.comp[0];
+			MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
+			//===================================================================
+			row=grid.cell[parent].globalId*5+2; // viscous_flux_y
+			col=grid.cell[(*sit).first].globalId*5+3; //w
+			// (viscous_flux_y due to w)=-2/3*mu*dw/dz*Ay+mu*dw/dy*Az
+			// grad_contributions=(*sit).second
+			// Hence total contribution to viscous_flux_y by w components
+			value=-2./3.*mu*(*sit).second.comp[2]*areaVec.comp[1]
+					+mu*(*sit).second.comp[1]*areaVec.comp[2];
+			MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
+			//===================================================================
+			row=grid.cell[parent].globalId*5+3; // viscous_flux_z
+			col=grid.cell[(*sit).first].globalId*5+3; //w
+			// (viscous_flux_z due to w)=mu*dw/dx*Ax+mu*dw/dy*Ay+4/3*mu*dw/dz*Az
+			//                          =1/3*mu*dw/dz*Az+mu*(gradV.A)
+			// grad_contributions=(*sit).second
+			// Hence total contribution to viscous_flux_z by w components
+			value=1./3.*mu*(*sit).second.comp[2]*areaVec.comp[2]
+					+mu*((*sit).second.dot(areaVec));
+			MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
+			//===================================================================
+			row=grid.cell[parent].globalId*5+3; // viscous_flux_z
+			col=grid.cell[(*sit).first].globalId*5+1; //u
+			// (viscous_flux_z due to u)=-2/3*mu*du/dx*Az+mu*du/dz*Ax
+			// grad_contributions=(*sit).second
+			// Hence total contribution to viscous_flux_z by u components
+			value=-2./3.*mu*(*sit).second.comp[0]*areaVec.comp[2]
+					+mu*(*sit).second.comp[2]*areaVec.comp[0];
+			MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
+			//===================================================================
+			row=grid.cell[parent].globalId*5+3; // viscous_flux_z
+			col=grid.cell[(*sit).first].globalId*5+2; //v
+			// (viscous_flux_z due to v)=-2/3*mu*dv/dy*Az+mu*dv/dz*Ay
+			// grad_contributions=(*sit).second
+			// Hence total contribution to viscous_flux_z by v components
+			value=-2./3.*mu*(*sit).second.comp[1]*areaVec.comp[2]
+					+mu*(*sit).second.comp[2]*areaVec.comp[1];
+			MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
+			//===================================================================
+
 		} 
 		
 	}
-
-// 		if (grid.face[f].bc>=0) {
-// 			if (bc.region[grid.face[f].bc].type=="slip") {
-// 				faceVel-=faceVel.dot(grid.face[f].normal)*grid.face[f].normal;
-// 			} else if (bc.region[grid.face[f].bc].type=="noslip") {
-// 				faceVel=0.;
-// 			} else if (bc.region[grid.face[f].bc].type=="inlet") {
-// 				faceVel=bc.region[grid.face[f].bc].v;
-// 			}
-// 		}
-// 		
-// 		tau_x.comp[0]=2./3.*mu* (2.*gradUf.comp[0]-gradVf.comp[1]-gradWf.comp[2]);
-// 		tau_x.comp[1]=mu* (gradUf.comp[1]+gradVf.comp[0]);
-// 		tau_x.comp[2]=mu* (gradUf.comp[2]+gradWf.comp[0]);
-// 		tau_y.comp[0]=tau_x.comp[1];
-// 		tau_y.comp[1]=2./3.*mu* (2.*gradVf.comp[1]-gradUf.comp[0]-gradWf.comp[2]);
-// 		tau_y.comp[2]=mu* (gradVf.comp[2]+gradWf.comp[1]);
-// 		tau_z.comp[0]=tau_x.comp[2];
-// 		tau_z.comp[1]=tau_y.comp[2];
-// 		tau_z.comp[2]=2./3.*mu* (2.*gradWf.comp[2]-gradUf.comp[0]-gradVf.comp[1]);
-// 
-// 		viscousFlux[0]=tau_x.dot(areaVec);
-// 		viscousFlux[1]=tau_y.dot(areaVec);
-// 		viscousFlux[2]=tau_z.dot(areaVec);
-// 		viscousFlux[3]=tau_x.dot(faceVel)*areaVec.comp[0]+tau_y.dot(faceVel)*areaVec.comp[1]+tau_z.dot(faceVel) *areaVec.comp[2];
-// 
-// 		for (int i = 0;i <4;++i) {
-// 			grid.cell[parent].flux[i+1] -= viscousFlux[i];
-// 			if (grid.face[f].bc==-1) {  // internal face
-// 				grid.cell[neighbor].flux[i+1] += viscousFlux[i];
-// 			}
-// 		} // for i
-// 		
-// 	} // for face f
-// 	
-// 	//MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
 
 	return;
 } // end function

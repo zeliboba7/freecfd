@@ -49,8 +49,8 @@ void linear_system_initialize() {
 			
 	for (unsigned int c=0;c<grid.cellCount;++c) {
 
-		if (input.section["timeMarching"].strings["preconditioner"]=="cm91") {
-			preconditioner_cm91(c,P);
+		if (input.section["timeMarching"].strings["preconditioner"]=="ws95") {
+			preconditioner_ws95(c,P);
 		} else {
 			preconditioner_none(c,P);
 		}
@@ -72,10 +72,6 @@ void linear_system_initialize() {
 		
 		for (int i=0;i<5;++i) {
 			row=grid.cell[c].globalId*5+i;
-
-			value=-1.*grid.cell[c].flux[i];
-			VecSetValues(rhs,1,&row,&value,INSERT_VALUES);
-			
 			for (int j=0;j<5;++j) {
 				col=grid.cell[c].globalId*5+j;
 				value=P[i][j]*d;
@@ -93,8 +89,7 @@ void linear_system_initialize() {
 
 void preconditioner_none(unsigned int c, double P[][5]) {
 
-	double q2,a2;
-	double rho,u,v,w,p;
+	double rho,u,v,w,p,q2;
 	
 	rho=grid.cell[c].rho;
 	u=grid.cell[c].v.comp[0];
@@ -102,7 +97,6 @@ void preconditioner_none(unsigned int c, double P[][5]) {
 	w=grid.cell[c].v.comp[2];
 	p=grid.cell[c].p;
 	q2=grid.cell[c].v.dot(grid.cell[c].v);
-	a2=Gamma*(p+Pref)/rho;
 
 	for (int i=0;i<5;++i) for (int j=0;j<5;++j) P[i][j]=0.;
 	// Conservative to primite Jacobian
@@ -187,51 +181,70 @@ void preconditioner_ws95(unsigned int c, double P[][5]) {
 	u=grid.cell[c].v.comp[0];
 	v=grid.cell[c].v.comp[1];
 	w=grid.cell[c].v.comp[2];
-	p=grid.cell[c].p;
+	p=grid.cell[c].p+Pref;
 	q2=grid.cell[c].v.dot(grid.cell[c].v);
-	a2=Gamma*(p+Pref)/rho;
+	a2=Gamma*p/rho;
 	H=0.5*q2+a2/(Gamma - 1.);
-	a=sqrt(a2); q=sqrt(q2);
+// 	a=sqrt(a2); q=sqrt(q2);
 
-	Umax=1.;
-	vis=1.225e-2;
-	epsilon=1.e-5;
-	R=287.;
-	cp=Gamma*R/(Gamma-1.);
-	rhoT=-1.*R*rho*rho/(p+Pref);
-
-	if (q<epsilon*a) {
-		Ur=epsilon*a;
-	} else if (q<a) {
-		Ur=q;
-	} else {
-		Ur=a;
-	}
-
-	//Ur=max(Ur,vis/(rho*grid.cell[c].lengthScale));
-	Ur=max(q,vis/(rho*grid.cell[c].lengthScale));
-
-	theta=1./(Ur*Ur)-rhoT/(rho*cp);
+// 	Umax=1.;
+// 	vis=1.225e-2;
+// 	epsilon=1.e-5;
+// 	R=287.;
+// 	cp=Gamma*R/(Gamma-1.);
+// 	rhoT=-1.*R*rho*rho/(p+Pref);
+// 
+// 	if (q<epsilon*a) {
+// 		Ur=epsilon*a;
+// 	} else if (q<a) {
+// 		Ur=q;
+// 	} else {
+// 		Ur=a;
+// 	}
+// 
+// 	//Ur=max(Ur,vis/(rho*grid.cell[c].lengthScale));
+// 	Ur=max(q,vis/(rho*grid.cell[c].lengthScale));
+// 
+// 	theta=1./(Ur*Ur)-rhoT/(rho*cp);
 	
 	for (int i=0;i<5;++i) for (int j=0;j<5;++j) P[i][j]=0.;
 	
-	P[0][0]=theta;
-	P[0][4]=rhoT;
-	P[1][0]=u*theta;
+// 	P[0][0]=theta;
+// 	P[0][4]=rhoT;
+// 	P[1][0]=u*theta;
+// 	P[1][1]=rho;
+// 	P[1][4]=u*rhoT;
+// 	P[2][0]=v*theta;
+// 	P[2][2]=rho;
+// 	P[2][4]=v*rhoT;
+// 	P[3][0]=w*theta;
+// 	P[3][3]=rho;
+// 	P[3][4]=w*rhoT;
+// 	P[4][0]=theta*H-1.;
+// 	P[4][1]=rho*u;
+// 	P[4][2]=rho*v;
+// 	P[4][3]=rho*w;
+// 	P[4][4]=rhoT*H+rho*cp;
+
+	P[0][0]=1.;
+	P[0][4]=-1.*rho/p;
+
+	P[1][0]=u;
 	P[1][1]=rho;
-	P[1][4]=u*rhoT;
-	P[2][0]=v*theta;
+	P[1][4]=-1.*rho*u/p;
+	P[2][0]=v;
 	P[2][2]=rho;
-	P[2][4]=v*rhoT;
-	P[3][0]=w*theta;
+	P[2][4]=-1.*rho*v/p;
+	P[3][0]=w;
 	P[3][3]=rho;
-	P[3][4]=w*rhoT;
-	P[4][0]=theta*H-1.;
+	P[3][4]=-1.*rho*w/p;
+	
+	P[4][0]=0.5*q2;
 	P[4][1]=rho*u;
 	P[4][2]=rho*v;
 	P[4][3]=rho*w;
-	P[4][4]=rhoT*H+rho*cp;
-
+	P[4][4]=-1.*rho*H/p;
+	
 	return;
 }
 
