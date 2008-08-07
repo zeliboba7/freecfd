@@ -24,6 +24,7 @@
 #include<string>
 #include "grid.h"
 #include "bc.h"
+#include "petsc_functions.h"
 
 extern Grid grid;
 extern BC bc;
@@ -35,6 +36,13 @@ void viscous_flux(double mu) {
 	double viscousFlux[4];
 	int parent, neighbor;
 	map<int,double>::iterator fit;
+	Vec3D p2n; // parent to neighbor distance
+	Vec3D p2nUnit;
+	double p2nNorm;
+	Vec3D neighborV;
+
+	PetscInt row;
+	PetscScalar value;
 	
 	for (int i=0; i<4; ++i) viscousFlux[i]=0.;
 	
@@ -58,6 +66,8 @@ void viscous_flux(double mu) {
 			}
 		}
 
+
+		
 		if (grid.face[f].bc>=0) {
 			if (bc.region[grid.face[f].bc].type=="slip") {
 				faceVel-=faceVel.dot(grid.face[f].normal)*grid.face[f].normal;
@@ -67,7 +77,26 @@ void viscous_flux(double mu) {
 				//cout << parent << "\t" << grid.cell[parent].v << "\t" << grid.cell[parent].grad[1] << endl;
 				faceVel=bc.region[grid.face[f].bc].v;
 			}
+			p2n=(grid.face[f].centroid-grid.cell[parent].centroid).dot(grid.face[f].normal);
+			neighborV=faceVel;
+			
+		} else {
+			p2n=grid.cell[neighbor].centroid-grid.cell[parent].centroid;
+			neighborV=grid.cell[neighbor].v;
 		}
+
+		p2nNorm=fabs(p2n);
+		p2nUnit=p2n/p2nNorm;
+		// Replace the face normal directional derivative
+// 		gradUf-=gradUf.dot(p2nUnit)*p2nUnit;
+// 		gradUf+=((neighborV.comp[0]-grid.cell[parent].v.comp[0])/p2nNorm)*p2nUnit;
+// 
+// 		gradVf-=gradVf.dot(p2nUnit)*p2nUnit;
+// 		gradVf+=((neighborV.comp[1]-grid.cell[parent].v.comp[1])/p2nNorm)*p2nUnit;
+// 
+// 		gradWf-=gradWf.dot(p2nUnit)*p2nUnit;
+// 		gradWf+=((neighborV.comp[2]-grid.cell[parent].v.comp[2])/p2nNorm)*p2nUnit;
+
 		
 		tau_x.comp[0]=2./3.*mu* (2.*gradUf.comp[0]-gradVf.comp[1]-gradWf.comp[2]);
 		tau_x.comp[1]=mu* (gradUf.comp[1]+gradVf.comp[0]);
@@ -90,6 +119,24 @@ void viscous_flux(double mu) {
 				grid.cell[neighbor].flux[i+1] += viscousFlux[i];
 			}
 		} // for i
+		
+// 		for (int i = 0;i <4;++i) {
+// 			grid.cell[parent].flux[i+1] -= viscousFlux[i];
+// 			if (grid.face[f].bc==-1) {  // internal face
+// 				grid.cell[neighbor].flux[i+1] += viscousFlux[i];
+// 			}
+// 		} // for i
+		
+		for (int i = 0;i <4;++i) {
+			row=grid.cell[parent].globalId*5+i+1;
+			value=viscousFlux[i];
+			VecSetValues(rhs,1,&row,&value,ADD_VALUES);
+			if (grid.face[f].bc==-1) { // TODO what if a ghost face??
+				row=grid.cell[neighbor].globalId*5+i+1;
+				value*=-1.;
+				VecSetValues(rhs,1,&row,&value,ADD_VALUES);
+			}
+		}
 		
 	} // for face f
 

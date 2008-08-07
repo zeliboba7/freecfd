@@ -102,7 +102,7 @@ void write_tec(int timeStep, double time) {
 		count_rho=0; count_v=0; count_p=0;
 		for (sit=grid.node[n].bcs.begin();sit!=grid.node[n].bcs.end();sit++) {
 			if (bc.region[(*sit)].type=="inlet") {
-				rho_node=bc.region[(*sit)].rho;
+				//rho_node=bc.region[(*sit)].rho;
 				v_node=bc.region[(*sit)].v;
 				count_rho++; count_v++;
 			}

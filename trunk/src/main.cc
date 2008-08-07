@@ -49,9 +49,12 @@ double superbee(double a, double b);
 void update(double dt);
 void updateImp(double dt);
 string int2str(int number) ;
-void inviscid_flux(string order,string limiter);
+
+void assemble_linear_system(void);
+
+
 void viscous_flux(double mu);
-void inviscid_jac(void);
+
 void viscous_jac(double mu);
 void linear_system_initialize(void);
 void get_dt(string type);
@@ -178,21 +181,20 @@ int main(int argc, char *argv[]) {
 			mpi_update_ghost_gradients();
 		}
 		// Add viscous fluxes
-		if (input.section["equations"].strings["set"]=="NS") viscous_flux(mu);
+		//if (input.section["equations"].strings["set"]=="NS") viscous_flux(mu);
 		
 		// Limit gradients (limited gradients are stored separately)
-		grid.limit_gradients(limiter,sharpeningFactor);
-		// Update limited gradients of the ghost cells
-		mpi_update_ghost_limited_gradients();
-
-		// Add inviscid fluxes
-		inviscid_flux(order,limiter);
+		if (input.section["numericalOptions"].strings["order"]=="second" ) {
+			grid.limit_gradients(limiter,sharpeningFactor);
+			// Update limited gradients of the ghost cells
+			mpi_update_ghost_limited_gradients();
+		}
 
 		// If implicit time integration, form and solve linear system
 		if (input.section["timeMarching"].strings["integrator"]=="backwardEuler") {
 			linear_system_initialize();
-			inviscid_jac();
-			//viscous_jac(mu);
+			assemble_linear_system();
+			if (input.section["equations"].strings["set"]=="NS") viscous_flux(mu);
 			petsc_solve(nIter,rNorm);
 			updateImp(dt);
 		} // if backwardEuler
