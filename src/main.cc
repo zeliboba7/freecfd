@@ -34,6 +34,7 @@ using namespace std;
 #include "bc.h"
 #include "mpi_functions.h"
 #include "petsc_functions.h"
+#include "probe.h"
 
 // Function prototypes
 void read_inputs(InputFile &input);
@@ -49,16 +50,13 @@ double superbee(double a, double b);
 void update(double dt);
 void updateImp(double dt);
 string int2str(int number) ;
-
 void assemble_linear_system(void);
-
-
 void viscous_flux(double mu);
-
 void viscous_jac(double mu);
 void linear_system_initialize(void);
 void get_dt(string type);
 void get_CFL(void);
+void set_probes(void);
 
 // Initiate grid class
 Grid grid;
@@ -66,10 +64,11 @@ Grid grid;
 BC bc;
 InputFile input;
 
-int np, rank;
+int np, Rank;
 double Gamma,dt,CFL,CFLtarget;
 double Pref;
 string fluxFunction;
+vector<Probe> probes;
 
 int main(int argc, char *argv[]) {
 
@@ -107,6 +106,8 @@ int main(int argc, char *argv[]) {
 	int outFreq = input.section["output"].ints["outFreq"];
 	int restartFreq = input.section["output"].ints["restartFreq"];
 	fluxFunction=input.section["numericalOptions"].strings["flux"];
+	int probeFreq=input.section["probes"].ints["frequency"];
+	int probeCount=input.section["probes"].numberedSubsections["probe"].count;
 	
 	grid.read(gridFileName);
 	
@@ -120,10 +121,12 @@ int main(int argc, char *argv[]) {
 	mpi_map_global2local();
 	
 	initialize(grid,input);
-	if (rank==0) cout << "[I] Applied initial conditions" << endl;
+	if (Rank==0) cout << "[I] Applied initial conditions" << endl;
 
 	set_bcs(grid,input,bc);
-	if (rank==0) cout << "[I] Set boundary conditions" << endl;
+	if (Rank==0) cout << "[I] Set boundary conditions" << endl;
+
+	set_probes();
 	
 	grid.nodeAverages();
 	grid.faceAverages();
@@ -131,7 +134,7 @@ int main(int argc, char *argv[]) {
 	
 	if (restart!=0) {
 		for (int p=0;p<np;++p) {
-			if (rank==p) read_restart(restart,global2local,time);
+			if (Rank==p) read_restart(restart,global2local,time);
 			MPI_Barrier(MPI_COMM_WORLD);
 		}
 	}
@@ -155,7 +158,7 @@ int main(int argc, char *argv[]) {
 	if (input.section["timeMarching"].strings["type"]=="CFL") CFL=CFLtarget;
 	if (input.section["timeMarching"].strings["type"]=="CFLlocal") CFL=CFLtarget;
 
-	if (rank==0) cout << "[I] Beginning time loop" << endl;
+	if (Rank==0) cout << "[I] Beginning time loop" << endl;
 	
 	/*****************************************************************************************/
 	// Begin time loop
@@ -205,10 +208,22 @@ int main(int argc, char *argv[]) {
 		// Advance physical time
 		time += dt;
 		if (input.section["timeMarching"].strings["type"]=="fixed") get_CFL();
-		if (timeStep==(restart+1)) if (rank==0) cout << "step" << "\t" << "time" << "\t\t" << "dt" << "\t\t" << "CFL" << "\t\t" << "nIter" << "\t" << "rNorm" << endl;
-		if (rank==0) cout << timeStep << "\t" << setprecision(4) << scientific << time << "\t" << dt << "\t" << CFL << "\t" << nIter << "\t" << rNorm << endl;
+		if (timeStep==(restart+1)) if (Rank==0) cout << "step" << "\t" << "time" << "\t\t" << "dt" << "\t\t" << "CFL" << "\t\t" << "nIter" << "\t" << "rNorm" << endl;
+		if (Rank==0) cout << timeStep << "\t" << setprecision(4) << scientific << time << "\t" << dt << "\t" << CFL << "\t" << nIter << "\t" << rNorm << endl;
 		if ((timeStep) % restartFreq == 0) write_restart(timeStep,time);
 		if ((timeStep) % outFreq == 0) write_output(timeStep,time,input);
+		
+		if ((timeStep) % probeFreq == 0 && Rank==0) {
+			string fileName;
+			for (int p=0;p<probes.size();++p) {
+				unsigned int c=probes[p].nearestCell;
+				fileName="probe"+int2str(probes[p].id)+".dat";
+				ofstream file;
+				file.open((fileName).c_str(),ios::app);
+				file << timeStep << setw(16) << setprecision(8)  << "\t" << time << "\t" << grid.cell[c].rho << "\t" << grid.cell[c].v.comp[0] << "\t" << grid.cell[c].v.comp[1] << "\t" << grid.cell[c].v.comp[2] << "\t" << grid.cell[c].p << endl;
+				file.close();
+			}
+		}
 
 	}
 
@@ -221,7 +236,7 @@ int main(int argc, char *argv[]) {
 	MPI_Barrier(MPI_COMM_WORLD);
 
 	// Report the wall time
-	if (rank==0) {
+	if (Rank==0) {
 		timeEnd=MPI_Wtime();
 		cout << "* Wall time: " << timeEnd-timeRef << " seconds" << endl;
 	}

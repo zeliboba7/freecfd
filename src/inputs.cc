@@ -6,7 +6,7 @@ using namespace std;
 #include "vec3d.h"
 #include "inputs.h"
 
-extern int np, rank;
+extern int np, Rank;
 
 InputFile::InputFile(void) {
 	;
@@ -17,7 +17,7 @@ void InputFile::setFile(string fName) {
 	fileName=fName;
 	fstream file;
 	file.open(fileName.c_str());
-	if (file.is_open() && rank==0) cout << "[I] Found input file " << fileName << endl;
+	if (file.is_open() && Rank==0) cout << "[I] Found input file " << fileName << endl;
 	file.close();
 }
 

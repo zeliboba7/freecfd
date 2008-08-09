@@ -33,8 +33,8 @@ void mpi_init(int argc, char *argv[]) {
 	MPI_Init(&argc,&argv);
 	// Find the number of processors
 	MPI_Comm_size(MPI_COMM_WORLD, &np);
-	// Find current processor rank
-	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+	// Find current processor Rank
+	MPI_Comm_rank(MPI_COMM_WORLD, &Rank);
 	
 	sendCells = new vector<unsigned int> [np];
 	recvCount = new unsigned int [np];
@@ -105,7 +105,7 @@ void mpi_map_global2local(void) {
 void mpi_update_ghost_primitives(void) {
 	
 	for (unsigned int p=0;p<np;++p) {
-		if (rank!=p) {
+		if (Rank!=p) {
 			mpiGhost sendBuffer[sendCells[p].size()];
 			mpiGhost recvBuffer[recvCount[p]];
 			int id;
@@ -119,7 +119,7 @@ void mpi_update_ghost_primitives(void) {
 				sendBuffer[g].vars[4]=grid.cell[id].p;
 			}
 
-			int tag=rank; // tag is set to source
+			int tag=Rank; // tag is set to source
 			MPI_Sendrecv(sendBuffer,sendCells[p].size(),MPI_GHOST,p,0,recvBuffer,recvCount[p],MPI_GHOST,p,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
 
 			for (unsigned int g=0;g<recvCount[p];++g) {
@@ -154,7 +154,7 @@ void mpi_update_ghost_gradients(void) {
 			}
 		}
 
-		int tag=rank; // tag is set to source
+		int tag=Rank; // tag is set to source
 		MPI_Sendrecv(sendBuffer,sendCells[p].size(),MPI_GRAD,p,0,recvBuffer,recvCount[p],MPI_GRAD,p,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
 
 		for (unsigned int g=0;g<recvCount[p];++g) {
@@ -189,7 +189,7 @@ void mpi_update_ghost_limited_gradients(void) {
 			}
 		}
 
-		int tag=rank; // tag is set to source
+		int tag=Rank; // tag is set to source
 		MPI_Sendrecv(sendBuffer,sendCells[p].size(),MPI_GRAD,p,0,recvBuffer,recvCount[p],MPI_GRAD,p,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
 
 		for (unsigned int g=0;g<recvCount[p];++g) {

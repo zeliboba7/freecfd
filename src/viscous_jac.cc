@@ -27,7 +27,7 @@
 
 extern Grid grid;
 extern BC bc;
-extern int rank;
+extern int Rank;
 extern double Gamma;
 
 void roe_flux(const double qL[], const double qR[], double flux[]);

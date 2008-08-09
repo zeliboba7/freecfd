@@ -3,7 +3,7 @@
 #include "inputs.h"
 #include "bc.h"
 
-extern int rank;
+extern int Rank;
 
 bool within_box(Vec3D centroid, Vec3D box_1, Vec3D box_2);
 
