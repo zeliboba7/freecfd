@@ -37,7 +37,7 @@ using namespace std;
 
 extern Grid grid;
 extern BC bc;
-extern int np, rank;
+extern int np, Rank;
 extern double Gamma;
 extern double Pref;
 extern string int2str(int number) ;
@@ -49,12 +49,12 @@ void write_output(int timeStep, double time, InputFile input) {
 	mkdir("./output",S_IRWXU);
 	if (input.section["output"].strings["format"]=="vtk") {
 		// Write vtk output file
-		if (rank==0) write_vtk_parallel(timeStep);
+		if (Rank==0) write_vtk_parallel(timeStep);
 		write_vtk(timeStep);
 	} else if(input.section["output"].strings["format"]=="tecplot") {
 		// Write tecplot output file
 		for (int p=0;p<np;++p) {
-			if(rank==p) write_tec(timeStep,time);
+			if(Rank==p) write_tec(timeStep,time);
 			MPI_Barrier(MPI_COMM_WORLD);
 		}
 	}
@@ -66,7 +66,7 @@ void write_tec(int timeStep, double time) {
 	ofstream file;
 	string fileName="./output/out"+int2str(timeStep)+".dat";
 	// Proc 0 creates the output file and writes variable list
-	if (rank==0) {
+	if (Rank==0) {
 		file.open((fileName).c_str(),ios::out); 
 		file << "VARIABLES = \"x\", \"y\", \"z\",\"rho\",\"u\",\"v\",\"w\",\"p\",\"Ma\" " << endl;
 	} else {
@@ -74,7 +74,7 @@ void write_tec(int timeStep, double time) {
 	}
 
 	// Write header (each proc has its own zone)
-	file << "ZONE, T=\"Partition " << rank << "\"" ;
+	file << "ZONE, T=\"Partition " << Rank << "\"" ;
 	file << ", N=" << grid.nodeCount << ", E=" << grid.cellCount << endl;
 	file << "DATAPACKING=POINT, ZONETYPE=FEBRICK, SOLUTIONTIME=" << time << endl;
 
@@ -157,7 +157,7 @@ void write_tec(int timeStep, double time) {
 void write_vtk(int timeStep) {
 
 	string filePath="./output/"+int2str(timeStep);
-	string fileName=filePath+"/proc"+int2str(rank)+".vtu";
+	string fileName=filePath+"/proc"+int2str(Rank)+".vtu";
 		
 	mkdir(filePath.c_str(),S_IRWXU);
 	

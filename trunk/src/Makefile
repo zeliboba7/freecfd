@@ -14,7 +14,7 @@ SRC= \
 	main.cc grid.cc vec3d.cc inviscid_flux_function.cc  write_output.cc write_restart.cc \
 	inputs.cc read_inputs.cc initialize.cc set_bcs.cc inviscid_face_flux.cc read_restart.cc \
 	viscous_flux.cc assemble_linear_system.cc viscous_jac.cc mpi_functions.cc petsc_functions.cc \
-	linear_system_initialize.cc
+	linear_system_initialize.cc probes.cc kdtree2.cc
 
 .SUFFIXES: .cc .o
 

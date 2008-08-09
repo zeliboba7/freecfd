@@ -30,7 +30,7 @@ using namespace std;
 #include "grid.h"
 
 extern Grid grid;
-extern int np, rank;
+extern int np, Rank;
 
 extern std::vector<unsigned int> *sendCells;
 extern unsigned int *recvCount;

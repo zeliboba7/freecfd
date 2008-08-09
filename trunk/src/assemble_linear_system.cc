@@ -29,7 +29,7 @@
 extern Grid grid;
 extern BC bc;
 extern InputFile input;
-extern int rank;
+extern int Rank;
 extern double Gamma;
 extern double Pref;
 

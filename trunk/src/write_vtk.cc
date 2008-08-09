@@ -11,13 +11,13 @@ using namespace std;
 #include <cgnslib.h>
 
 extern Grid grid;
-extern int np, rank;
+extern int np, Rank;
 extern string int2str(int number) ;
 
 void write_vtk(int timeStep) {
 
 	string filePath="./output/"+int2str(timeStep);
-	string fileName=filePath+"/proc"+int2str(rank)+".vtu";
+	string fileName=filePath+"/proc"+int2str(Rank)+".vtu";
 		
 	mkdir(filePath.c_str(),S_IRWXU);
 	

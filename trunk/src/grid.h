@@ -33,6 +33,7 @@
 #include <set>
 #include <mpi.h>
 #include "vec3d.h"
+#include "kdtree2.h"
 using namespace std;
 
 

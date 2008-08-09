@@ -20,24 +20,20 @@
     see <http://www.gnu.org/licenses/>.
 
 *************************************************************************/
-#ifndef PETSC_FUNCTIONS_H
-#define PETSC_FUNCTIONS_H
+#ifndef PROBE_H
+#define PROBE_H
 
-#include "petscksp.h"
+#include <fstream>
 #include <mpi.h>
-#include <vector>
 using namespace std;
+#include "vec3d.h"
 
-#include "grid.h"
- 
-extern KSP ksp; // linear solver context
-extern Vec deltaU,rhs,globalUpdate; // solution, residual vectors
-extern Mat impOP; // implicit operator matrix
-extern Grid grid;
-extern int np, Rank;
-
-void petsc_init(int argc, char *argv[],double rtol,double abstol,int maxits);
-void petsc_solve(int &nIter,double &rNorm);
-void petsc_finalize(void);
+class Probe {
+	public:
+		int id;
+		int Rank;
+		unsigned int nearestCell;
+		Vec3D coord;
+};
 
 #endif

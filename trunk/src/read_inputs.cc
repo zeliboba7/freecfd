@@ -102,4 +102,11 @@ void read_inputs(InputFile &input) {
 	input.section["output"].register_int("restartFreq");
 	input.read_section("output");
 
+	input.register_section("probes");
+	input.section["probes"].register_int("frequency");
+	input.section["probes"].register_numberedSubsection("probe");
+	input.section["probes"].numberedSubsections["probe"].register_Vec3D("coord");
+	input.read_section("probes");
+
+	
 }

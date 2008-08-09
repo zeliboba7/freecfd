@@ -33,7 +33,7 @@ using namespace std;
 #include <cgnslib.h>
 
 extern Grid grid;
-extern int np, rank;
+extern int np, Rank;
 extern string int2str(int number) ;
 
 void write_restart(int timeStep, double time) {
@@ -44,7 +44,7 @@ void write_restart(int timeStep, double time) {
 	mkdir(dirname.c_str(),S_IRWXU);
 	string fileName="./restart/"+int2str(timeStep)+"/field.dat";
 	// Proc 0 creates the output file and writes variable list
-	if (rank==0) {
+	if (Rank==0) {
 		file.open((fileName).c_str(),ios::out); 
 		//file << "VARIABLES = \"x\", \"y\", \"z\",\"rho\",\"u\",\"v\",\"w\",\"p\" " << endl;
 		file << "VARIABLES = \"x\", \"y\", \"z\",\"rho\",\"u\",\"v\",\"w\",\"p\"" << endl;
@@ -53,7 +53,7 @@ void write_restart(int timeStep, double time) {
 	}
 
 	// Write header (each proc has its own zone)
-	file << "ZONE, T=\"Partition " << rank << "\"" ;
+	file << "ZONE, T=\"Partition " << Rank << "\"" ;
 	file << ", N=" << grid.nodeCount << ", E=" << grid.cellCount << ", VARLOCATION=([4-8]=CellCentered)" << endl;
 	file << "DATAPACKING=BLOCK, ZONETYPE=FEBRICK, SOLUTIONTIME=" << time << endl;
 
@@ -94,9 +94,9 @@ void write_restart(int timeStep, double time) {
 
 	// write partition map
 	for (int p=0;p<np;++p) {
-		if (rank==p) {
+		if (Rank==p) {
 			fileName="./restart/"+int2str(timeStep)+"/partitionMap.dat";
-			if (rank==0) { file.open(fileName.c_str(), ios::out); file << np << endl;}
+			if (Rank==0) { file.open(fileName.c_str(), ios::out); file << np << endl;}
 			else { file.open(fileName.c_str(), ios::app); }
 			file << grid.nodeCount << "\t" << grid.cellCount << endl;
 			for (unsigned int c=0;c<grid.cellCount;++c) file << grid.cell[c].globalId << endl;

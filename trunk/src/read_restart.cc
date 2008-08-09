@@ -8,7 +8,7 @@ using namespace std;
 #include <cgnslib.h>
 
 extern Grid grid;
-extern int np, rank;
+extern int np, Rank;
 extern string int2str(int number) ;
 
 void read_restart(int restart, int global2local[], double &time) {

@@ -38,7 +38,7 @@ using namespace std;
 
 extern Grid grid;
 extern BC bc;
-extern int np, rank;
+extern int np, Rank;
 extern double Gamma;
 extern double Pref;
 
@@ -54,19 +54,17 @@ int Grid::read(string fname) {
 	fileName=fname;
 	file.open(fileName.c_str());
 	if (file.is_open()) {
-		if (rank==0) cout << "[I] Found grid file " << fileName  << endl;
+		if (Rank==0) cout << "[I] Found grid file " << fileName  << endl;
 		file.close();
 		ReadCGNS();
 		return 1;
 	} else {
-		if (rank==0) cerr << "[E] Grid file "<< fileName << " could not be found." << endl;
+		if (Rank==0) cerr << "[E] Grid file "<< fileName << " could not be found." << endl;
 		return 0;
 	}
 }
 
 int Grid::ReadCGNS() {
-
-
 
 	int fileIndex,baseIndex,zoneIndex,sectionIndex,nBases,nZones,nSections,nBocos;
 	char zoneName[20],sectionName[20]; //baseName[20]
@@ -82,21 +80,22 @@ int Grid::ReadCGNS() {
 	// Read number of bases
 	cg_nbases(fileIndex,&nBases);
 
-	if (rank==0) cout << "[I] Number of Bases= " << nBases << endl;
+	// Number of bases is typically 1 
+	if (Rank==0) cout << "[I] Number of Bases= " << nBases << endl;
 
 	//for (int baseIndex=1;baseIndex<=nBases;++baseIndex) {
-	// For now assuming there is only one base as I don't know in which cases there would be more
+	// TODO For now assuming there is only one base as I don't know in which cases there would be more
 	baseIndex=1;
-	// Read number of zones
+	// Read number of zones (number of blocks in the grid)
 	cg_nzones(fileIndex,baseIndex,&nZones);
 	int zoneNodeCount[nZones],zoneCellCount[nZones];
-	if (rank==0) cout << "[I] Number of Zones= " << nZones << endl;
+	if (Rank==0) cout << "[I] Number of Zones= " << nZones << endl;
 	std::vector<int> elemConnIndex,elemConnectivity;
 	std::vector<ElementType_t> elemTypes;
 	std::vector<double> coordX[nZones],coordY[nZones],coordZ[nZones];
 	std::vector<int> zoneCoordMap[nZones];
 
-	// Get total number of boundary conditions
+	// Add to the total number of boundary condition regions in the whole domain
 	int totalnBocos=0;
 	for (int zoneIndex=1;zoneIndex<=nZones;++zoneIndex) {
 		cg_nbocos(fileIndex,baseIndex,zoneIndex,&nBocos);
@@ -113,11 +112,11 @@ int Grid::ReadCGNS() {
 		// Read number of sections
 		cg_nsections(fileIndex,baseIndex,zoneIndex,&nSections);
 		cg_nbocos(fileIndex,baseIndex,zoneIndex,&nBocos);
-		if (rank==0) cout << "[I] In Zone " << zoneName << endl;
-		if (rank==0) cout << "[I] ...Number of Nodes= " << size[0] << endl;
-		if (rank==0) cout << "[I] ...Number of Cells= " << size[1] << endl;
-		if (rank==0) cout << "[I] ...Number of Sections= " << nSections << endl;
-		if (rank==0) cout << "[I] ...Number of Boundary Conditions= " << nBocos << endl;
+		if (Rank==0) cout << "[I] In Zone " << zoneName << endl;
+		if (Rank==0) cout << "[I] ...Number of Nodes= " << size[0] << endl;
+		if (Rank==0) cout << "[I] ...Number of Cells= " << size[1] << endl;
+		if (Rank==0) cout << "[I] ...Number of Sections= " << nSections << endl;
+		if (Rank==0) cout << "[I] ...Number of Boundary Conditions= " << nBocos << endl;
 			
 		// Read the node coordinates
 		int nodeStart[3],nodeEnd[3];
@@ -132,16 +131,22 @@ int Grid::ReadCGNS() {
 			coordX[zoneIndex-1].push_back(x[i]);
 			coordY[zoneIndex-1].push_back(y[i]);
 			coordZ[zoneIndex-1].push_back(z[i]);
+			// This map takes in zone index and node number within that zone
+			// Returns the global index of that node
+			// It is initialized to -1 for now
 			zoneCoordMap[zoneIndex-1].push_back(-1);
 		}
 
 		// In case there are multiple connected zones, collapse the repeated nodes and fix the node numbering
-		if (zoneIndex==1) {
+		if (zoneIndex==1) { // If the first zone
 			for (int c=0;c<coordX[0].size();++c) {
+				// Global node count is incremented as new nodes are found.
+				// When in the first zone, every node is new.
 				zoneCoordMap[0][c]=globalNodeCount;
 				globalNodeCount++;
 			}
 		}
+		// Scan the coordinates of all the other zones before this one for duplicates
 		for (int z=0;z<zoneIndex-1;++z) {
 			for (int c=0;c<coordX[zoneIndex-1].size();++c) {
 				bool foundFlag=false;
@@ -158,17 +163,19 @@ int Grid::ReadCGNS() {
 			}
 		}
 
+		// Read eement ranges for all the boundary condition regions within the current zone
 		int bc_range[nBocos][2];
 		for (int bocoIndex=1;bocoIndex<=nBocos;++bocoIndex) {
 			int dummy;
 			cg_boco_read(fileIndex,baseIndex,zoneIndex,bocoIndex,bc_range[bocoIndex-1],&dummy);
 		} // for boco
 			
-			// Loop sections within the zone
+		// Loop sections within the zone
+		// These include connectivities of cells and bonudary faces
 		for (int sectionIndex=1;sectionIndex<=nSections;++sectionIndex) {
 			ElementType_t elemType;
 			int elemNodeCount,elemStart,elemEnd,nBndCells,parentFlag;
-				// Read the section 
+			// Read the section
 			cg_section_read(fileIndex,baseIndex,zoneIndex,sectionIndex,sectionName,&elemType,&elemStart,&elemEnd,&nBndCells,&parentFlag);
 
 			switch (elemType) {
@@ -184,22 +191,22 @@ int Grid::ReadCGNS() {
 					elemNodeCount=8; break;
 			} //switch
 			int elemNodes[elemEnd-elemStart+1][elemNodeCount];
-				// Read element node connectivities
+
+			// Read element node connectivities
 			cg_elements_read(fileIndex,baseIndex,zoneIndex,sectionIndex,*elemNodes,0);
-				// Only pick the volume elements
 
+			// Only pick the volume elements
 			if (elemType==TETRA_4 | elemType==PENTA_6 | elemType==HEXA_8 ) {
-				if (rank==0) cout << "[I]    ...Found Volume Section " << sectionName << endl;
-					// elements array serves as an start index for connectivity list elemConnectivity
-
+				if (Rank==0) cout << "[I]    ...Found Volume Section " << sectionName << endl;
+				// elements array serves as a start index for connectivity list elemConnectivity
 				for (int elem=0;elem<=(elemEnd-elemStart);++elem) {
 					elemConnIndex.push_back(elemConnectivity.size());
 					elemTypes.push_back(elemType);
 					for (int n=0;n<elemNodeCount;++n) elemConnectivity.push_back(zoneCoordMap[zoneIndex-1][elemNodes[elem][n]-1]);
 				}
-
 				globalCellCount+=(elemEnd-elemStart+1);
-			} else {
+			} else { // If not a volume element
+				// Check if a boundary condition section
 				bool bcFlag=false;
 				for (int nbc=0;nbc<nBocos;++nbc) {
 					if (elemStart==bc_range[nbc][0] && elemEnd==bc_range[nbc][1]) {
@@ -208,7 +215,7 @@ int Grid::ReadCGNS() {
 					}
 				}
 				if (bcFlag) {
-					if (rank==0) cout << "[I]    ...Found BC Section " << sectionName << endl;
+					if (Rank==0) cout << "[I]    ...Found BC Section " << sectionName << endl;
 					for (int elem=0;elem<=(elemEnd-elemStart);++elem) {
 						bocos[bocoCount].push_back(bocoConnectivity[bocoCount].size());
 						for (int n=0;n<elemNodeCount;++n) bocoConnectivity[bocoCount].push_back(zoneCoordMap[zoneIndex-1][elemNodes[elem][n]-1]);
@@ -220,7 +227,7 @@ int Grid::ReadCGNS() {
 	} // for zone
 	//} // for base
 
-	if (rank==0) cout << "[I] Total Node Count= " << globalNodeCount << endl;
+	if (Rank==0) cout << "[I] Total Node Count= " << globalNodeCount << endl;
 	// Merge coordinates of the zones
 	double x[globalNodeCount],y[globalNodeCount],z[globalNodeCount];
 	int counter=0;
@@ -242,7 +249,7 @@ int Grid::ReadCGNS() {
 		}
 	}
 	if (counter!=globalNodeCount) cerr << "[E] counter is different from globalNodeCount" << endl;
-	if (rank==0) cout << "[I] Total Cell Count= " << globalCellCount << endl;
+	if (Rank==0) cout << "[I] Total Cell Count= " << globalCellCount << endl;
 	// Store element node counts
 	int elemNodeCount[globalCellCount];
 	for (unsigned int c=0;c<globalCellCount-1;++c) {
@@ -253,8 +260,8 @@ int Grid::ReadCGNS() {
 	// Initialize the partition sizes
 	cellCount=floor(globalCellCount/np);
 	int baseCellCount=cellCount;
-	unsigned int offset=rank*cellCount;
-	if (rank==np-1) cellCount=cellCount+globalCellCount-np*cellCount;
+	unsigned int offset=Rank*cellCount;
+	if (Rank==np-1) cellCount=cellCount+globalCellCount-np*cellCount;
 
 	//Implementing Parmetis
 	/* ParMETIS_V3_PartMeshKway(idxtype *elmdist, idxtype *eptr, idxtype *eind, idxtype *elmwgt, int *wgtflag, int *numflag, int *ncon, int * ncommonnodes, int *nparts, float *tpwgts, float *ubvec, int *options, int *edgecut, idxtype *part, MPI_Comm) */
@@ -352,9 +359,9 @@ int Grid::ReadCGNS() {
 	
 	for (unsigned int c=0;c<globalCellCount;++c) {
 		otherCellCounts[cellMap[c]]+=1;
-		if (cellMap[c]==rank) ++cellCount;
+		if (cellMap[c]==Rank) ++cellCount;
 	}
-	cout << "[I rank=" << rank << "] Number of Cells= " << cellCount << endl;
+	cout << "[I Rank=" << Rank << "] Number of Cells= " << cellCount << endl;
 		
 	//node.reserve(nodeCount/np);
 	face.reserve(cellCount);
@@ -371,7 +378,7 @@ int Grid::ReadCGNS() {
 	nodeCount=0;
 	
 	for (unsigned int c=0;c<globalCellCount;++c) {
-		if (cellMap[c]==rank) {
+		if (cellMap[c]==Rank) {
 			unsigned int cellNodes[elemNodeCount[c]];
 			for (unsigned int n=0;n<elemNodeCount[c];++n) {
 
@@ -398,7 +405,7 @@ int Grid::ReadCGNS() {
 		}
 	}
 
-	cout << "[I rank=" << rank << "] created cells and nodes" << endl;
+	cout << "[I Rank=" << Rank << "] created cells and nodes" << endl;
 	
 	//Create the Mesh2Dual inputs
 	//idxtype elmdist [np+1] (stays the same size)
@@ -446,7 +453,7 @@ int Grid::ReadCGNS() {
 		}
 	}
 
-	cout << "[I rank=" << rank << "] computed node-cell connectivity" << endl;
+	cout << "[I Rank=" << Rank << "] computed node-cell connectivity" << endl;
 	
 	// Construct the list of neighboring cells for each cell
 	int c2;
@@ -500,12 +507,12 @@ int Grid::ReadCGNS() {
 
 	int boundaryFaceCount[totalnBocos];
 	for (int boco=0;boco<totalnBocos;++boco) boundaryFaceCount[boco]=0;
-
 	
-	// Loop through all the cells
+	
 	double timeRef, timeEnd;
-	if (rank==0) timeRef=MPI_Wtime();
-	
+	if (Rank==0) timeRef=MPI_Wtime();
+
+	// Loop through all the cells
 	for (unsigned int c=0;c<cellCount;++c) {
 		// Loop through the faces of the current cell
 		for (unsigned int cf=0;cf<cell[c].faceCount;++cf) {
@@ -548,9 +555,14 @@ int Grid::ReadCGNS() {
 			// Find the neighbor cell
 			bool internal=false;
 			bool unique=true;
+			// Loop cells neighboring the the first node of the current face
 			for (unsigned int nc=0;nc<node[tempNodes[0]].cells.size();++nc) {
+				// i is the neighbor cell index
 				unsigned int i=node[tempNodes[0]].cells[nc];
+				// if neighbor cell is not the current cell itself, and it has the same nodes as the face
 				if (i!=c && cell[i].HaveNodes(tempFace.nodeCount,tempNodes)) {
+					// if the neighbor cell index is smaller then the current cell index,
+					// it has already been processed
 					if (i>c) {
 						tempFace.neighbor=i;
 						internal=true;
@@ -561,20 +573,20 @@ int Grid::ReadCGNS() {
 			}
 			if (unique) {
 				for (unsigned int fn=0;fn<tempFace.nodeCount;++fn) tempFace.nodes.push_back(tempNodes[fn]);
-				if (!internal) {
+				if (!internal) { // the face is either at inter-partition or boundary
 					bool match;
-					std::set<int> fnodes,bfnodes;
+					std::set<int> fnodes,bfnodes; // face nodes, boundary face nodes
 					std::set<int>::iterator fnodes_it,bfnodes_it;
 					for (unsigned int i=0;i<tempFace.nodeCount;++i) fnodes.insert(tempFace.node(i).globalId);
 					tempFace.bc=-2; // unassigned boundary face
 					int bfnodeCount;
-					for (int boco=0;boco<totalnBocos;++boco) { // for each boundary condition region defined in grid file
-						for (int bf=0;bf<bocos[boco].size();++bf) { // for each boundary face in current region
-							if (bocoConnectivity[boco][bocos[boco][bf]]!=-1) {
-								if (bf==bocos[boco].size()-1) { bfnodeCount=bocoConnectivity[boco].size()-bocos[boco][bf]; } else { bfnodeCount=bocos[boco][bf+1]-bocos[boco][bf]; }
+					for (int breg=0;breg<totalnBocos;++breg) { // for each boundary condition region defined in grid file
+						for (int bf=0;bf<bocos[breg].size();++bf) { // for each boundary face in current region
+							if (bocoConnectivity[breg][bocos[breg][bf]]!=-1) {
+								if (bf==bocos[breg].size()-1) { bfnodeCount=bocoConnectivity[breg].size()-bocos[breg][bf]; } else { bfnodeCount=bocos[breg][bf+1]-bocos[breg][bf]; }
 								if (bfnodeCount==tempFace.nodeCount) { // if boco face and temp face has the same number of nodes
 									bfnodes.clear();
-									for (unsigned int i=0;i<tempFace.nodeCount;++i) bfnodes.insert(bocoConnectivity[boco][bocos[boco][bf]+i]);
+									for (unsigned int i=0;i<tempFace.nodeCount;++i) bfnodes.insert(bocoConnectivity[breg][bocos[breg][bf]+i]);
 									match=true;
 									fnodes_it=fnodes.begin(); bfnodes_it=bfnodes.begin();
 									for (unsigned int i=0;i<tempFace.nodeCount;++i) {
@@ -585,9 +597,9 @@ int Grid::ReadCGNS() {
 										fnodes_it++;bfnodes_it++;
 									}
 									if (match) {
-										tempFace.bc=boco;
-										boundaryFaceCount[boco]++;
-										bocoConnectivity[boco][bocos[boco][bf]]=-1; // this is destroying the bocos array
+										tempFace.bc=breg;
+										boundaryFaceCount[breg]++;
+										bocoConnectivity[breg][bocos[breg][bf]]=-1; // this is destroying the bocos array
 										break;
 									}
 								} // if same number of nodes
@@ -606,12 +618,12 @@ int Grid::ReadCGNS() {
 		} //for face cf
 	} // for cells c
 
-	cout << "[I rank=" << rank << "] Number of Faces=" << faceCount << endl;
-	for (int boco=0;boco<totalnBocos;++boco) cout << "[I rank=" << rank << "] Number of Faces on BC_" << boco+1 << "=" << boundaryFaceCount[boco] << endl;
+	cout << "[I Rank=" << Rank << "] Number of Faces=" << faceCount << endl;
+	for (int boco=0;boco<totalnBocos;++boco) cout << "[I Rank=" << Rank << "] Number of Faces on BC_" << boco+1 << "=" << boundaryFaceCount[boco] << endl;
 	
-	if (rank==0) {
+	if (Rank==0) {
 		timeEnd=MPI_Wtime();
-		cout << "[I rank=" << rank << "] Time spent on finding faces= " << timeEnd-timeRef << " sec" << endl;
+		cout << "[I Rank=" << Rank << "] Time spent on finding faces= " << timeEnd-timeRef << " sec" << endl;
 	}
 	
 	// Determine and mark faces adjacent to other partitions
@@ -657,7 +669,7 @@ int Grid::ReadCGNS() {
 					metisIndex=adjncy[xadj[parent]+adjCount];
 					gg=metis2global[metisIndex];
 
-					if (metisIndex<cellCountOffset[rank] || metisIndex>=(cellCount+cellCountOffset[rank])) {
+					if (metisIndex<cellCountOffset[Rank] || metisIndex>=(cellCount+cellCountOffset[Rank])) {
 						matchCount=0;
 						for (unsigned int fn=0;fn<face[f].nodeCount;++fn) {
 							set<int> tempSet;
@@ -736,7 +748,7 @@ int Grid::ReadCGNS() {
 		
 	} // if (np!=1) 
 
-	cout << "[I rank=" << rank << "] Number of Inter-Partition Ghost Cells= " << ghostCount << endl;
+	cout << "[I Rank=" << Rank << "] Number of Inter-Partition Ghost Cells= " << ghostCount << endl;
 	
 // Now loop through faces and calculate centroids and areas
 	for (unsigned int f=0;f<faceCount;++f) {
@@ -776,7 +788,7 @@ int Grid::ReadCGNS() {
 		totalVolume+=volume;
 	}
 	
-	cout << "[I rank=" << rank << "] Total Volume= " << totalVolume << endl;
+	cout << "[I Rank=" << Rank << "] Total Volume= " << totalVolume << endl;
 	return 0;
 
 }
@@ -811,7 +823,7 @@ int Cell::Construct(const ElementType_t elemType, unsigned int nodeList[]) {
 	type=elemType;
 	nodes.reserve(nodeCount);
 	if (nodeCount==0) {
-		cerr << "[!! proc " << rank << " ] Number of nodes of the cell must be specified before allocation" << endl;
+		cerr << "[!! proc " << Rank << " ] Number of nodes of the cell must be specified before allocation" << endl;
 		return -1;
 	} else {
 		centroid=0.;
@@ -895,9 +907,8 @@ void Grid::faceAverages() {
 	unsigned int n;
 	map<int,double>::iterator it;
 	
-	for (unsigned int f=0;f<faceCount;++f) {
+ 	for (unsigned int f=0;f<faceCount;++f) {
 		face[f].average.clear();
-		// Add contributions from nodes
 		for (unsigned int fn=0;fn<face[f].nodeCount;++fn) {
 			n=face[f].nodes[fn];
 			for ( it=node[n].average.begin() ; it != node[n].average.end(); it++ ) {
@@ -909,19 +920,6 @@ void Grid::faceAverages() {
 			}
 		} // end face node loop
 	} // end face loop
-
-// 	for (unsigned int f=0;f<faceCount;++f) {
-// 		face[f].average.clear();
-// 		unsigned int parent=face[f].parent;
-// 		unsigned int neighbor=face[f].neighbor;
-// 
-// 		if (face[f].bc==-1) {// internal face
-// 			face[f].average.insert(pair<int,double>(parent,0.5));
-// 			face[f].average.insert(pair<int,double>(neighbor,0.5));
-// 		} else {
-// 			face[f].average.insert(pair<int,double>(parent,1.));
-// 		}
-// 	}
 
 } // end Grid::faceAverages()
 
