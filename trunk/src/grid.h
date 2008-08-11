@@ -31,9 +31,9 @@
 #include <vector>
 #include <map>
 #include <set>
+#include <list>
 #include <mpi.h>
 #include "vec3d.h"
-#include "kdtree2.h"
 using namespace std;
 
 
