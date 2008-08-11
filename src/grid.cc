@@ -406,7 +406,58 @@ int Grid::ReadCGNS() {
 	}
 
 	cout << "[I Rank=" << Rank << "] created cells and nodes" << endl;
-	
+
+	// Create a mapping from node globalId's to node local id's
+	int nodeGlobal2local [grid.globalNodeCount];
+	// Initialize the array to -1 (meaning not in current partition)
+	for (unsigned int n=0;n<grid.globalNodeCount;++n) nodeGlobal2local[n]=-1;
+	// If the queried globalId is not on this partition, returns -1 as localId
+	for (unsigned int n=0;n<grid.nodeCount;++n) {
+		nodeGlobal2local[grid.node[n].globalId]=n;
+	}
+
+	// This stores the bc region numbers that 'some' nodes touch to
+	// Those 'some' nodes happen to be the first nodes in each bc face connectivity list
+	std::map<unsigned int, vector<int> > bNodeRegions;
+	// For those 'some' nodes, this stores the conn list of the corresponsing bc faces
+	std::map<unsigned int, vector<set<unsigned int> > > bNodeRegionNodeSets;
+	// Mark nodes that touch boundaries and store which boundary(s) in node.bc set
+	for (int breg=0;breg<totalnBocos;++breg) { // for each boundary condition region defined in grid file
+		int bfnodeCount;
+		for (int bf=0;bf<bocos[breg].size();++bf) { // for each boundary face in current region
+			if (bocoConnectivity[breg][bocos[breg][bf]]!=-1) {
+				// Get number of nodes of the boundary face
+				if (bf==bocos[breg].size()-1) {
+					bfnodeCount=bocoConnectivity[breg].size()-bocos[breg][bf];
+				} else {
+					bfnodeCount=bocos[breg][bf+1]-bocos[breg][bf];
+				}
+				unsigned int faceNode;
+				// See if the face is on the current partition
+				bool onCurrent=true;
+				for (unsigned int i=0;i<bfnodeCount;++i) {
+					faceNode=nodeGlobal2local[ bocoConnectivity[breg][bocos[breg][bf]+i] ];
+					if (faceNode<0) {
+						onCurrent=false;
+						break;
+					}
+				}
+				if (onCurrent) {
+					// Grab the first node of the the boundary face
+					faceNode=nodeGlobal2local[ bocoConnectivity[breg][bocos[breg][bf]] ];
+					bNodeRegions[faceNode].push_back(breg);
+					std::set<unsigned int> nodeSet;
+					nodeSet.clear();
+					for (unsigned int i=0;i<bfnodeCount;++i) {
+						nodeSet.insert(nodeGlobal2local[ bocoConnectivity[breg][bocos[breg][bf]+i] ]);
+						
+					}
+					bNodeRegionNodeSets[faceNode].push_back(nodeSet);
+				}
+			}
+		}
+	}
+
 	//Create the Mesh2Dual inputs
 	//idxtype elmdist [np+1] (stays the same size)
 	eptr = new idxtype[cellCount+1];
@@ -555,7 +606,7 @@ int Grid::ReadCGNS() {
 			// Find the neighbor cell
 			bool internal=false;
 			bool unique=true;
-			// Loop cells neighboring the the first node of the current face
+			// Loop cells neighboring the first node of the current face
 			for (unsigned int nc=0;nc<node[tempNodes[0]].cells.size();++nc) {
 				// i is the neighbor cell index
 				unsigned int i=node[tempNodes[0]].cells[nc];
@@ -574,39 +625,36 @@ int Grid::ReadCGNS() {
 			if (unique) {
 				for (unsigned int fn=0;fn<tempFace.nodeCount;++fn) tempFace.nodes.push_back(tempNodes[fn]);
 				if (!internal) { // the face is either at inter-partition or boundary
-					bool match;
-					std::set<int> fnodes,bfnodes; // face nodes, boundary face nodes
-					std::set<int>::iterator fnodes_it,bfnodes_it;
-					for (unsigned int i=0;i<tempFace.nodeCount;++i) fnodes.insert(tempFace.node(i).globalId);
-					tempFace.bc=-2; // unassigned boundary face
-					int bfnodeCount;
-					for (int breg=0;breg<totalnBocos;++breg) { // for each boundary condition region defined in grid file
-						for (int bf=0;bf<bocos[breg].size();++bf) { // for each boundary face in current region
-							if (bocoConnectivity[breg][bocos[breg][bf]]!=-1) {
-								if (bf==bocos[breg].size()-1) { bfnodeCount=bocoConnectivity[breg].size()-bocos[breg][bf]; } else { bfnodeCount=bocos[breg][bf+1]-bocos[breg][bf]; }
-								if (bfnodeCount==tempFace.nodeCount) { // if boco face and temp face has the same number of nodes
-									bfnodes.clear();
-									for (unsigned int i=0;i<tempFace.nodeCount;++i) bfnodes.insert(bocoConnectivity[breg][bocos[breg][bf]+i]);
-									match=true;
-									fnodes_it=fnodes.begin(); bfnodes_it=bfnodes.begin();
-									for (unsigned int i=0;i<tempFace.nodeCount;++i) {
-										if (*fnodes_it!=*bfnodes_it) { // if the sets are not equivalent
-											match=false;
-											break;
-										}
-										fnodes_it++;bfnodes_it++;
+					// Unassigned boundary face, as the bc faces and inter-partition faces are found,
+					// this will be overwritten. At the end, there should be no face with this value.
+					tempFace.bc=-2; 
+					// Loop the current face nodes
+					for (unsigned int i=0;i<tempFace.nodeCount;++i) {
+						unsigned int nn=tempNodes[i];
+						bool match;
+						// Find if this node has the boundary region data
+						// If the face is at a boundary, one of the nodes should have this
+						if(bNodeRegions.find(nn)!=bNodeRegions.end()) {
+							// Loop through the different boundary regions assigned for that node					
+							for (int j=0;j<bNodeRegions[nn].size();++j) {
+								// Loop the current face nodes
+								match=true;
+								for (int k=0;k<tempFace.nodeCount;++k) {
+									// if the current face node is not in the current boundary face's node list
+									if (bNodeRegionNodeSets[nn][j].find(tempNodes[k])==bNodeRegionNodeSets[nn][j].end()) {
+ 										match=false;
+ 										break;
 									}
-									if (match) {
-										tempFace.bc=breg;
-										boundaryFaceCount[breg]++;
-										bocoConnectivity[breg][bocos[breg][bf]]=-1; // this is destroying the bocos array
-										break;
-									}
-								} // if same number of nodes
-							} // if boundary face is not already assigned 
-						} // for boco face
-						if (tempFace.bc!=-2) break;
-					} // for boco
+								}
+								if (match) {
+									tempFace.bc=bNodeRegions[nn][j];
+									boundaryFaceCount[bNodeRegions[nn][j]]++;
+									break;
+								}
+							} // For each boundary regions that node belongs to
+							if (match) break;
+						} // if node has the boundary region data
+					} // for tempFace nodes
 				} // if not internal
 				
 				face.push_back(tempFace);

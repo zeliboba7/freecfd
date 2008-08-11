@@ -1,0 +1,35 @@
+equations {set=NS;}
+
+numericalOptions {flux=AUSMplusUP; Minf=0.01; order=second; limiter=superbee; sharpeningFactor=0.;}
+
+timeMarching {integrator=backwardEuler; preconditioner=none; type=fixed; step=2.15e-3; CFL=300.; numberOfSteps=10000;}
+
+linearSolver {relTolerance=1.e-4 absTolerance=1.e-12; maxIterations=5;}
+
+initialConditions {
+	region_1(type=box; box_1=[-100,-100,-100]; box_2=[100,100,100]; rho=1.225; v=[0.,0.,0.]; p=0.;);
+}
+
+   bc1 wall
+   bc2&5 symetry planes
+   bc3 inlet
+   bc4 top&bottom
+   bc6 exit
+   
+boundaryConditions {
+	BC_1 (type=noslip;);
+	BC_2 (type=slip;); 
+	BC_3 (type=inlet; rho=1.225; v=[3.38,0.,0.]; p=0.;); 
+	BC_4 (type=outlet;); 
+	BC_5 (type=slip;); 
+	BC_6 (type=outlet;);
+}
+
+fluidProperties {Pref=1.e5; gamma=1.4; viscosity(type=fixed; value=2.7603e-2;);}
+
+output {format=tecplot; outFreq=50; restartFreq=100; }
+
+probes { frequency=1;
+	probe_1 (coord=[0.,1.1,0.];);
+	probe_2 (coord=[1.5,0.,0.];);
+}
