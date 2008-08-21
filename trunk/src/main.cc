@@ -51,9 +51,7 @@ void update(double dt);
 void updateImp(double dt);
 string int2str(int number) ;
 void assemble_linear_system(void);
-void viscous_flux(double mu);
-void viscous_jac(double mu);
-void linear_system_initialize(void);
+void initialize_linear_system(void);
 void get_dt(string type);
 void get_CFL(void);
 void set_probes(void);
@@ -168,7 +166,7 @@ int main(int argc, char *argv[]) {
 
 		int nIter; // Number of linear solver iterations
 		double rNorm; // Residual norm of the linear solver
-
+/*
 		// Update the primitive variables of the ghost cells
 		mpi_update_ghost_primitives();
 
@@ -179,12 +177,14 @@ int main(int argc, char *argv[]) {
 		if (input.section["equations"].strings["set"]=="NS" |
 			input.section["numericalOptions"].strings["order"]=="second" ) {
 			// Calculate all the cell gradients for each variable
-			grid.gradients();
-			// Update gradients of the ghost cells
+*/
+		
+		grid.gradients();
+		
+		/*	
+		// Update gradients of the ghost cells
 			mpi_update_ghost_gradients();
 		}
-		// Add viscous fluxes
-		//if (input.section["equations"].strings["set"]=="NS") viscous_flux(mu);
 		
 		// Limit gradients (limited gradients are stored separately)
 		if (input.section["numericalOptions"].strings["order"]=="second" ) {
@@ -195,22 +195,24 @@ int main(int argc, char *argv[]) {
 
 		// If implicit time integration, form and solve linear system
 		if (input.section["timeMarching"].strings["integrator"]=="backwardEuler") {
-			linear_system_initialize();
+			initialize_linear_system();
 			assemble_linear_system();
-			if (input.section["equations"].strings["set"]=="NS") viscous_flux(mu);
 			petsc_solve(nIter,rNorm);
 			updateImp(dt);
 		} // if backwardEuler
 
 		// If explicit time integration, update
-		if (input.section["timeMarching"].strings["integrator"]=="forwardEuler") update(dt);
+		//if (input.section["timeMarching"].strings["integrator"]=="forwardEuler") update(dt);
 
 		// Advance physical time
 		time += dt;
 		if (input.section["timeMarching"].strings["type"]=="fixed") get_CFL();
 		if (timeStep==(restart+1)) if (Rank==0) cout << "step" << "\t" << "time" << "\t\t" << "dt" << "\t\t" << "CFL" << "\t\t" << "nIter" << "\t" << "rNorm" << endl;
 		if (Rank==0) cout << timeStep << "\t" << setprecision(4) << scientific << time << "\t" << dt << "\t" << CFL << "\t" << nIter << "\t" << rNorm << endl;
+		
 		if ((timeStep) % restartFreq == 0) write_restart(timeStep,time);
+
+		
 		if ((timeStep) % outFreq == 0) write_output(timeStep,time,input);
 		
 		if ((timeStep) % probeFreq == 0 && Rank==0) {
@@ -224,6 +226,18 @@ int main(int argc, char *argv[]) {
 				file.close();
 			}
 		}
+
+		// Flush boundary forces
+		for (int i=0;i<input.section["boundaryConditions"].numberedSubsections["BC"].count;++i) {
+			bc.region[i].rho;
+			cout << "BC_" << i+1 << " momentum flux:  " << bc.region[i].momentum << endl;
+			//cout << i+1 << "\t" << bc.region[i].area << endl;
+			bc.region[i].momentum=0.;
+		}
+		*/
+
+		write_restart(timeStep,time);
+
 
 	}
 
@@ -314,7 +328,9 @@ void updateImp(double dt) {
 		grid.cell[c].v.comp[1] +=grid.cell[c].flux[2];
 		grid.cell[c].v.comp[2] +=grid.cell[c].flux[3];
 		grid.cell[c].p += grid.cell[c].flux[4];
-		for (int i = 0;i < 5;++i) {
+ 		grid.cell[c].k += grid.cell[c].flux[5];
+ 		grid.cell[c].omega += grid.cell[c].flux[6];
+		for (int i = 0;i < 7;++i) {
 			grid.cell[c].flux[i] = 0.;
 		}
 	} // cell loop
@@ -350,11 +366,7 @@ void get_dt(string type) {
 	}
 
 	if (type=="CFLramp") {
-		if (CFL<CFLtarget) {
-			CFL*=1.1;
-		} else {
-			CFL=CFLtarget;
-		}
+		CFL=min(CFL*1.1,CFLtarget);
 	}
 	
 	return;

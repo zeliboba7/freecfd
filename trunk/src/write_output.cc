@@ -68,7 +68,7 @@ void write_tec(int timeStep, double time) {
 	// Proc 0 creates the output file and writes variable list
 	if (Rank==0) {
 		file.open((fileName).c_str(),ios::out); 
-		file << "VARIABLES = \"x\", \"y\", \"z\",\"rho\",\"u\",\"v\",\"w\",\"p\",\"Ma\" " << endl;
+		file << "VARIABLES = \"x\", \"y\", \"z\",\"rho\",\"u\",\"v\",\"w\",\"p\",\"Ma\",\"k\",\"omega\" " << endl;
 	} else {
 		file.open((fileName).c_str(),ios::app);
 	}
@@ -81,30 +81,37 @@ void write_tec(int timeStep, double time) {
 	// Write variables
 	map<int,double>::iterator it;
 	set<int>::iterator sit;
-	double rho_node,p_node;
+	double rho_node,p_node,k_node,omega_node;
     Vec3D v_node;
-	int count_rho,count_v,count_p;
+	int count_rho,count_v,count_p,count_k,count_omega;
 	double Ma;
 	for (unsigned int n=0;n<grid.nodeCount;++n) {
-		rho_node=0.;v_node=0.;p_node=0.;
+		rho_node=0.;v_node=0.;p_node=0.;k_node=0.;omega_node=0.;
 		for ( it=grid.node[n].average.begin() ; it != grid.node[n].average.end(); it++ ) {
 			if ((*it).first>=0) { // if contribution is coming from a real cell
 				rho_node+=(*it).second*grid.cell[(*it).first].rho;
 				v_node+=(*it).second*grid.cell[(*it).first].v;
 				p_node+=(*it).second*grid.cell[(*it).first].p;
+				k_node+=(*it).second*grid.cell[(*it).first].k;
+				omega_node+=(*it).second*grid.cell[(*it).first].omega;
 			} else { // if contribution is coming from a ghost cell
 				rho_node+=(*it).second*grid.ghost[-1*((*it).first+1)].rho;
 				v_node+=(*it).second*grid.ghost[-1*((*it).first+1)].v;
 				p_node+=(*it).second*grid.ghost[-1*((*it).first+1)].p;
+				k_node+=(*it).second*grid.ghost[-1*((*it).first+1)].k;
+				omega_node+=(*it).second*grid.ghost[-1*((*it).first+1)].omega;
 			}
 		}
 		
-		count_rho=0; count_v=0; count_p=0;
+		count_rho=0; count_v=0; count_p=0; count_k=0; count_omega=0;
 		for (sit=grid.node[n].bcs.begin();sit!=grid.node[n].bcs.end();sit++) {
 			if (bc.region[(*sit)].type=="inlet") {
-				//rho_node=bc.region[(*sit)].rho;
+				rho_node=bc.region[(*sit)].rho;
 				v_node=bc.region[(*sit)].v;
+				k_node=bc.region[(*sit)].k;
+				omega_node=bc.region[(*sit)].omega;
 				count_rho++; count_v++;
+				count_k++; count_omega++;
 			}
 			if (bc.region[(*sit)].type=="noslip") {
 				if (count_v==0) v_node=0.;
@@ -114,6 +121,8 @@ void write_tec(int timeStep, double time) {
 			if (count_rho>0) rho_node/=double(count_rho);
 			if (count_v>0) v_node/=double(count_v);
 			if (count_p>0) p_node/=double(count_p);
+			if (count_k>0) k_node/=double(count_k);
+			if (count_omega>0) omega_node/=double(count_omega);
 		}
 		
 		Ma=sqrt((v_node.dot(v_node))/(Gamma*(p_node+Pref)/rho_node));
@@ -128,6 +137,8 @@ void write_tec(int timeStep, double time) {
 		file << v_node.comp[2] << "\t";
 		file << p_node << "\t";
 		file << Ma << "\t";
+		file << k_node << "\t";
+		file << omega_node << "\t";
 		file << endl;
 	}
 

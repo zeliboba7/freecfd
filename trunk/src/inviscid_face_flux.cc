@@ -30,18 +30,16 @@ extern int Rank;
 extern double Gamma;
 extern double Pref;
 
-void update(double dt);
-
 void inviscid_flux_function(unsigned int f, double qL[], double qR[], double flux[]);
 
 void inviscid_face_flux(unsigned int f,string order,string limiter,double flux[], int perturb_state=-1, int perturb_var=0, double perturb_value=0.) {
 
-	double rhoL,rhoR,pL,pR;
+	double rhoL,rhoR,pL,pR,kL,kR,omegaL,omegaR;
 	Vec3D vL,vR,faceTangent1,faceTangent2,deltaV;
 	double Mach;
-	double delta[5];
+	double delta[7];
 	unsigned int parent,neighbor;
-	double qNL[5], qNR[5], fluxNormal[5];
+	double qNL[7], qNR[7], fluxNormal[7];
 	
 	parent=grid.face[f].parent; neighbor=grid.face[f].neighbor;
 	// Take 2 nodes of the face to find a vector in the face plane
@@ -51,9 +49,11 @@ void inviscid_face_flux(unsigned int f,string order,string limiter,double flux[]
 	faceTangent2= (grid.face[f].normal).cross(faceTangent1);
 
 	if (order=="second") {
-		for (unsigned int i=0;i<5;++i) delta[i]=(grid.face[f].centroid-grid.cell[parent].centroid).dot(grid.cell[parent].limited_grad[i]);
+		for (unsigned int i=0;i<7;++i) {
+			delta[i]=(grid.face[f].centroid-grid.cell[parent].centroid).dot(grid.cell[parent].limited_grad[i]);
+		}
 	} else {
-		for (unsigned int i=0;i<5;++i) delta[i]=0.;
+		for (unsigned int i=0;i<7;++i) delta[i]=0.;
 	}
 
 	if (perturb_state==0) delta[perturb_var]+=perturb_value; // perturb left state
@@ -62,35 +62,47 @@ void inviscid_face_flux(unsigned int f,string order,string limiter,double flux[]
 	
 	// Set left primitive variables
 	rhoL=grid.cell[parent].rho+delta[0];
-	pL=grid.cell[parent].p+delta[4];
 	vL=grid.cell[parent].v+deltaV;
+	pL=grid.cell[parent].p+delta[4];
+	kL=grid.cell[parent].k+delta[5];
+	omegaL=grid.cell[parent].omega+delta[6];
+	
 
 	// Set right primitive variables
 	if (grid.face[f].bc==-1) { // means an internal face
 		if (order=="second") {
-			for (unsigned int i=0;i<5;++i) delta[i]=(grid.face[f].centroid-grid.cell[neighbor].centroid).dot(grid.cell[neighbor].limited_grad[i]);
+			for (unsigned int i=0;i<7;++i) {
+				delta[i]=(grid.face[f].centroid-grid.cell[neighbor].centroid).dot(grid.cell[neighbor].limited_grad[i]);
+			}
 		}
 		if (perturb_state==1) delta[perturb_var]+=perturb_value; // perturb left state
+
 		deltaV.comp[0]=delta[1]; deltaV.comp[1]=delta[2]; deltaV.comp[2]=delta[3];
 		rhoR=grid.cell[neighbor].rho+delta[0];
 		pR=grid.cell[neighbor].p+delta[4];
 		vR=grid.cell[neighbor].v+deltaV;
+		kR=grid.cell[neighbor].k+delta[5];
+		omegaR=grid.cell[neighbor].omega+delta[6];
 		
 	} else if (grid.face[f].bc>=0) { // means a boundary face
 		// find Mach number
 		Mach=(vL.dot(grid.face[f].normal))/sqrt(Gamma*(pL+Pref)/rhoL);
 		// Find face averaged variables
 		map<int,double>::iterator fit;
-		rhoR=0.;pR=0.;vR=0.;
+		rhoR=0.;pR=0.;vR=0.;kR=0.;omegaR=0.;
 		for (fit=grid.face[f].average.begin();fit!=grid.face[f].average.end();fit++) {
 			if ((*fit).first>=0) { // if contribution is coming from a real cell
 				rhoR+=(*fit).second*grid.cell[(*fit).first].rho;
 				vR+=(*fit).second*grid.cell[(*fit).first].v;
 				pR+=(*fit).second*grid.cell[(*fit).first].p;
+				kR+=(*fit).second*grid.cell[(*fit).first].k;
+				omegaR+=(*fit).second*grid.cell[(*fit).first].omega;
 			} else { // if contribution is coming from a ghost cell
 				rhoR+=(*fit).second*grid.ghost[-1*((*fit).first+1)].rho;
 				vR+=(*fit).second*grid.ghost[-1*((*fit).first+1)].v;
 				pR+=(*fit).second*grid.ghost[-1*((*fit).first+1)].p;
+				kR+=(*fit).second*grid.ghost[-1*((*fit).first+1)].k;
+				omegaR+=(*fit).second*grid.ghost[-1*((*fit).first+1)].omega;
 			}
 		}
 		if (bc.region[grid.face[f].bc].type=="outlet") {
@@ -102,28 +114,37 @@ void inviscid_face_flux(unsigned int f,string order,string limiter,double flux[]
 			rhoR=rhoL;
 			vR=vL-2.*vL.dot(grid.face[f].normal)*grid.face[f].normal;
 			pR=pL;
+			kR=kL;
+			omegaR=omegaL;
 		}
 		if (bc.region[grid.face[f].bc].type=="noslip") {
 			rhoR=rhoL;
 			vR=-1.*vL;
 			pR=pL;
+			kR=kL;
+			omegaR=omegaL;
 		}
 		if (bc.region[grid.face[f].bc].type=="inlet") {
 			rhoR=bc.region[grid.face[f].bc].rho;
 			vR=bc.region[grid.face[f].bc].v;
 			if (Mach<=-1.) pR=bc.region[grid.face[f].bc].p;
+			kR=bc.region[grid.face[f].bc].k;
+			omegaR=bc.region[grid.face[f].bc].omega;
 		}
 	} else { // partition boundary
 		int g=-1*grid.face[f].bc-3;
 		if (order=="second") {
-			for (unsigned int i=0;i<5;++i) 
-			delta[i]=(grid.face[f].centroid-grid.ghost[g].centroid).dot(grid.ghost[g].limited_grad[i]);
+			for (unsigned int i=0;i<7;++i) {
+				delta[i]=(grid.face[f].centroid-grid.ghost[g].centroid).dot(grid.ghost[g].limited_grad[i]);
+			}
 		}
 		if (perturb_state==1) delta[perturb_var]+=perturb_value; // perturb right state
 		deltaV.comp[0]=delta[1]; deltaV.comp[1]=delta[2]; deltaV.comp[2]=delta[3];
 		rhoR=grid.ghost[g].rho+delta[0];
 		pR=grid.ghost[g].p+delta[4];
 		vR=grid.ghost[g].v+deltaV;
+		kR=grid.ghost[g].k+delta[5];
+		omegaR=grid.ghost[g].omega+delta[6];
 	}
 
 	qNL[0]=rhoL;
@@ -131,20 +152,26 @@ void inviscid_face_flux(unsigned int f,string order,string limiter,double flux[]
 	qNL[2]=rhoL*vL.dot(faceTangent1);
 	qNL[3]=rhoL*vL.dot(faceTangent2);
 	qNL[4]=0.5*rhoL*vL.dot(vL)+pL/(Gamma - 1.);
+	qNL[5]=rhoL*kL;
+	qNL[6]=rhoL*omegaL;
 
 	qNR[0]=rhoR;
 	qNR[1]=rhoR*vR.dot(grid.face[f].normal);
 	qNR[2]=rhoR*vR.dot(faceTangent1);
 	qNR[3]=rhoR*vR.dot(faceTangent2);
 	qNR[4]=0.5*rhoR*vR.dot(vR)+pR/(Gamma - 1.);
-		
+	qNR[5]=rhoR*kR;
+	qNR[6]=rhoR*omegaR;
+	
 	inviscid_flux_function(f,qNL,qNR,fluxNormal);
 
-	flux[0] = fluxNormal[0]*grid.face[f].area;
-	flux[1] = (fluxNormal[1]*grid.face[f].normal.comp[0]+fluxNormal[2]*faceTangent1.comp[0]+fluxNormal[3]*faceTangent2.comp[0]) * grid.face[f].area;
-	flux[2] = (fluxNormal[1]*grid.face[f].normal.comp[1]+fluxNormal[2]*faceTangent1.comp[1]+fluxNormal[3]*faceTangent2.comp[1]) * grid.face[f].area;
-	flux[3] = (fluxNormal[1]*grid.face[f].normal.comp[2]+fluxNormal[2]*faceTangent1.comp[2]+fluxNormal[3]*faceTangent2.comp[2]) * grid.face[f].area;
-	flux[4] = fluxNormal[4]*grid.face[f].area;
+	flux[0] -= fluxNormal[0]*grid.face[f].area;
+	flux[1] -= (fluxNormal[1]*grid.face[f].normal.comp[0]+fluxNormal[2]*faceTangent1.comp[0]+fluxNormal[3]*faceTangent2.comp[0]) * grid.face[f].area;
+	flux[2] -= (fluxNormal[1]*grid.face[f].normal.comp[1]+fluxNormal[2]*faceTangent1.comp[1]+fluxNormal[3]*faceTangent2.comp[1]) * grid.face[f].area;
+	flux[3] -= (fluxNormal[1]*grid.face[f].normal.comp[2]+fluxNormal[2]*faceTangent1.comp[2]+fluxNormal[3]*faceTangent2.comp[2]) * grid.face[f].area;
+	flux[4] -= fluxNormal[4]*grid.face[f].area;
+	flux[5] -= fluxNormal[5]*grid.face[f].area;
+	flux[6] -= fluxNormal[6]*grid.face[f].area;
 
 	return;
 } // end function
