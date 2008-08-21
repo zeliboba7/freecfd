@@ -21,23 +21,31 @@
 
 *************************************************************************/
 #include "petsc_functions.h"
+#include "inputs.h"
+
+extern InputFile input;
 
 static char help[] = "Free CFD\n - A free general purpose computational fluid dynamics code";
-
 KSP ksp; // linear solver context
 Vec deltaU,rhs,globalUpdate; // solution, residual vectors
 Mat impOP; // implicit operator matrix
 VecScatter scatterContext;
 
 void petsc_init(int argc, char *argv[],double rtol,double abstol,int maxits) {
+
+	int nSolVar=5; // Basic equations to solve
+
+	if (input.section["turbulence"].strings["model"]!="none") nSolVar+=2;
+
+	
 	// Initialize petsc
 	PetscInitialize(&argc,&argv,(char *)0,help);
 	PC pc; // preconditioner context
 	PetscErrorCode ierr;
 	//Create nonlinear solver context
 	KSPCreate(PETSC_COMM_WORLD,&ksp);
-	VecCreateMPI(PETSC_COMM_WORLD,grid.cellCount*5,grid.globalCellCount*5,&rhs);
-	VecCreateSeq(PETSC_COMM_SELF,grid.globalCellCount*5,&globalUpdate);
+	VecCreateMPI(PETSC_COMM_WORLD,grid.cellCount*nSolVar,grid.globalCellCount*nSolVar,&rhs);
+	VecCreateSeq(PETSC_COMM_SELF,grid.globalCellCount*nSolVar,&globalUpdate);
 	VecSetFromOptions(rhs);
 	VecDuplicate(rhs,&deltaU);
 	VecSet(rhs,0.);
@@ -48,7 +56,7 @@ void petsc_init(int argc, char *argv[],double rtol,double abstol,int maxits) {
 
 	//PetscScalar *dU,*ff,value;
 	
-	MatCreateMPIAIJ(PETSC_COMM_WORLD,grid.cellCount*5,grid.cellCount*5,grid.globalCellCount*5,grid.globalCellCount*5,150,PETSC_NULL,0,PETSC_NULL,&impOP);
+	MatCreateMPIAIJ(PETSC_COMM_WORLD,grid.cellCount*nSolVar,grid.cellCount*nSolVar,grid.globalCellCount*nSolVar,grid.globalCellCount*nSolVar,150,PETSC_NULL,0,PETSC_NULL,&impOP);
 	
 	KSPSetOperators(ksp,impOP,impOP,SAME_NONZERO_PATTERN);
 	KSPSetTolerances(ksp,rtol,abstol,1.e10,maxits);
@@ -58,6 +66,10 @@ void petsc_init(int argc, char *argv[],double rtol,double abstol,int maxits) {
 } // end petsc_init
 
 void petsc_solve(int &nIter,double &rNorm) {
+
+	int nSolVar=5; // Basic equations to solve
+
+	if (input.section["turbulence"].strings["model"]!="none") nSolVar+=2;
 	
 	MatAssemblyBegin(impOP,MAT_FINAL_ASSEMBLY);
 	MatAssemblyEnd(impOP,MAT_FINAL_ASSEMBLY);
@@ -75,8 +87,8 @@ void petsc_solve(int &nIter,double &rNorm) {
 
 	int index;
 	for (unsigned int c=0;c<grid.cellCount;++c) {
-		for (int i=0;i<5;++i) {
-			index=grid.cell[c].globalId*5+i;
+		for (int i=0;i<nSolVar;++i) {
+			index=grid.cell[c].globalId*nSolVar+i;
 			VecGetValues(globalUpdate,1,&index,&grid.cell[c].flux[i]);
 		}
 	}

@@ -48,21 +48,10 @@ double p_split_5_plus (double Mach);
 double p_split_5_minus (double Mach);
 
 void inviscid_flux_function(unsigned int f,double qL[],double qR[], double flux[]) {
-// 	if (grid.face[f].bc>=0 && bc.region[grid.face[f].bc].type=="inlet") {
-// 		double uR,vR,wR,pR,hR,aR;
-// 		uR=qR[1]/qR[0]; vR=qR[2]/qR[0]; wR=qR[3]/qR[0];
-// 		pR=(Gamma-1.)*(qR[4]-0.5* (qR[1]*uR+qR[2]*vR+qR[3]*wR));
-// 		aR=sqrt(Gamma*(pR+Pref)/qR[0]);
-// 		hR=aR*aR/(Gamma-1.)+0.5*(uR*uR+vR*vR+wR*wR);
-// 		flux[0]=qR[0]*uR;
-// 		flux[1]=qR[1]*uR+pR;
-// 		flux[2]=qR[1]*vR;
-// 		flux[3]=qR[1]*wR;
-// 		flux[4]=qR[1]*hR;
-// 	} else {
-		if (fluxFunction=="Roe") roe_flux(qL, qR, flux);
-		if (fluxFunction=="AUSMplusUP") AUSMplusUP_flux(qL, qR, flux);
-	//}
+
+	if (fluxFunction=="Roe") roe_flux(qL, qR, flux);
+	if (fluxFunction=="AUSMplusUP") AUSMplusUP_flux(qL, qR, flux);
+
 	return;
 } // end face flux
 
@@ -147,6 +136,8 @@ void roe_flux(double qL[], double qR[], double flux[]) {
 		flux[4]=uR*(qR[4]+pR+Gamma/(Gamma-1.)*Pref)-lambda5*alpha5*right55;
 	}
 
+	flux[5]=0.; flux[6]=0.; // TODO need to look how to do turbulence convective fluxes in Roe solver
+
 	return;
 } // end roe_flux
 
@@ -159,6 +150,7 @@ void AUSMplusUP_flux(double qL[], double qR[], double flux[]) {
 	double rho,u,p,a,M,mdot,Mbar2,Mo2;
 	double aL_hat,aR_hat,Ht,aL_star,aR_star;
 	double rhoL,rhoR,uL,uR,vL,vR,wL,wR,pL,pR,aL,aR,aL2,aR2,ML,MR,HL,HR;
+	double kL,kR,omegaL,omegaR;
 	double gmM1=Gamma-1.;
 	double fa=0.;
 
@@ -170,6 +162,8 @@ void AUSMplusUP_flux(double qL[], double qR[], double flux[]) {
 	wL=qL[3]/rhoL; wR=qR[3]/rhoR;
 	pL=gmM1*(qL[4]-0.5*(qL[1]*uL+qL[2]*vL+qL[3]*wL));
 	pR=gmM1*(qR[4]-0.5*(qR[1]*uR+qR[2]*vR+qR[3]*wR));
+	kL=qL[5]/qL[0]; kR=qR[5]/qR[0];
+	omegaL=qL[6]/qL[0]; omegaR=qR[6]/qR[0];
 	aL2=Gamma*(pL+Pref)/rhoL; aR2=Gamma*(pR+Pref)/rhoR;
 	HL=aL2/gmM1+0.5*(uL*uL+vL*vL+wL*wL); HR=aR2/gmM1+0.5*(uR*uR+vR*vR+wR*wR);
 	aL=sqrt(aL2); aR=sqrt(aR2);
@@ -214,11 +208,15 @@ void AUSMplusUP_flux(double qL[], double qR[], double flux[]) {
 		flux[2]=mdot*vL;
 		flux[3]=mdot*wL;
 		flux[4]=mdot*HL;
+		flux[5]=mdot*kL;
+		flux[6]=mdot*omegaL;
 	} else { //if (M<0.) { // Calculate from the right side
 		flux[1]=mdot*uR+p;
 		flux[2]=mdot*vR;
 		flux[3]=mdot*wR;
 		flux[4]=mdot*HR;
+		flux[5]=mdot*kR;
+		flux[6]=mdot*omegaR;
 	}
 
 	return;

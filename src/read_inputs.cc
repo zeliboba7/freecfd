@@ -53,6 +53,8 @@ void read_inputs(InputFile &input) {
 	input.section["initialConditions"].numberedSubsections["region"].register_double("radius");
 	input.section["initialConditions"].numberedSubsections["region"].register_Vec3D("v");
 	input.section["initialConditions"].numberedSubsections["region"].register_double("p");
+	input.section["initialConditions"].numberedSubsections["region"].register_double("k");
+	input.section["initialConditions"].numberedSubsections["region"].register_double("omega");
 	input.read_section("initialConditions");
 
 	input.register_section("boundaryConditions");
@@ -65,6 +67,8 @@ void read_inputs(InputFile &input) {
 	input.section["boundaryConditions"].numberedSubsections["BC"].register_string("pick");
 	input.section["boundaryConditions"].numberedSubsections["BC"].register_double("rho");
 	input.section["boundaryConditions"].numberedSubsections["BC"].register_double("p");
+	input.section["boundaryConditions"].numberedSubsections["BC"].register_double("k");
+	input.section["boundaryConditions"].numberedSubsections["BC"].register_double("omega");
 	input.section["boundaryConditions"].numberedSubsections["BC"].register_Vec3D("v");
 	input.read_section("boundaryConditions");
 
@@ -107,6 +111,10 @@ void read_inputs(InputFile &input) {
 	input.section["probes"].register_numberedSubsection("probe");
 	input.section["probes"].numberedSubsections["probe"].register_Vec3D("coord");
 	input.read_section("probes");
+
+	input.register_section("turbulence");
+	input.section["turbulence"].register_string("model");
+	input.read_section("turbulence");
 
 	
 }

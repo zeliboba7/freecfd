@@ -20,25 +20,25 @@
     see <http://www.gnu.org/licenses/>.
 
 *************************************************************************/
-#ifndef BC_H
-#define BC_H
+#ifndef STATE_CACHE_H
+#define STATE_CACHE_H
 
-#include <vector>
+#include "vec3d.h"
 
-class BCregion {
-public:
-	string type;
-	string kind;
-	double rho,p,k,omega;
-	Vec3D v;
-	Vec3D momentum;
-	Vec3D areaVec;
-	double area;
+class Cell_State {
+	public:
+		double rho,p,a,H,k,omega;
+		Vec3D v,vN;
 };
 
-class BC {
-public:
-	vector<BCregion> region;
+class Face_State {
+	public:
+		double rho,p,k,omega;
+		Vec3D v;
+		Vec3D gradU,gradV,gradW,gradK,gradOmega;
+		Vec3D normal,tangent1,tangent2,left2right;
+		double area;
+		int bc;
 };
 
 #endif

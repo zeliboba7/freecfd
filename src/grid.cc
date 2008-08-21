@@ -753,8 +753,7 @@ int Grid::ReadCGNS() {
 							face[f].bc=-1*ghostGlobal2local[gg]-3;
 						} 
 					}
-				}
-					
+				}	
 			}
 		}
 
@@ -791,26 +790,23 @@ int Grid::ReadCGNS() {
 			} // end cell node loop
 			cell[c].ghostCount=cell[c].ghosts.size();
 		} // end cell loop
-		
-		
-		
 	} // if (np!=1) 
 
 	cout << "[I Rank=" << Rank << "] Number of Inter-Partition Ghost Cells= " << ghostCount << endl;
 	
-// Now loop through faces and calculate centroids and areas
+	// Now loop through faces and calculate centroids and areas
 	for (unsigned int f=0;f<faceCount;++f) {
 		Vec3D centroid=0.;
 		Vec3D areaVec=0.;
 		for (unsigned int n=0;n<face[f].nodeCount;++n) {
 			centroid+=face[f].node(n);
 		}
-		centroid/=face[f].nodeCount;
+		centroid/=double(face[f].nodeCount);
 		face[f].centroid=centroid;
 		for (unsigned int n=0;n<face[f].nodeCount-1;++n) {
 			areaVec+=0.5* (face[f].node(n)-centroid).cross(face[f].node(n+1)-centroid);
 		}
-		areaVec+=0.5* (face[f].node(face[f].nodeCount-1)-centroid).cross(face[f].node(0)-centroid);
+		areaVec+=0.5*(face[f].node(face[f].nodeCount-1)-centroid).cross(face[f].node(0)-centroid);
 		if (areaVec.dot(centroid-cell[face[f].parent].centroid) <0.) {
 			// [TBM] Need to swap the face and reflect the area vector
 			cout << "face " << f << " should be swapped" << endl;
@@ -818,8 +814,8 @@ int Grid::ReadCGNS() {
 		face[f].area=fabs(areaVec);
 		face[f].normal=areaVec/face[f].area;
 	}
-
-// Loop through the cells and calculate the volumes and length scales
+			
+	// Loop through the cells and calculate the volumes and length scales
 	double totalVolume=0.;
 	for (unsigned int c=0;c<cellCount;++c) {
 		cell[c].lengthScale=1.e20;
@@ -932,6 +928,8 @@ void Grid::nodeAverages() {
 			node2cell=node[n]-cell[c].centroid;
 			weight=1./(node2cell.dot(node2cell));
 			//weight=1./fabs(node2cell);
+			//weight=cell[c].lengthScale*cell[c].lengthScale*cell[c].lengthScale;
+			//weight=1.;
 			node[n].average.insert(pair<int,double>(c,weight));
 			weightSum+=weight;
 		}
@@ -945,7 +943,7 @@ void Grid::nodeAverages() {
 			weightSum+=weight;
 		}
 		for ( it=node[n].average.begin() ; it != node[n].average.end(); it++ ) {
-			(*it).second/=weightSum;
+			node[n].average[(*it).first]/=weightSum;
 		}
 	}
 } // end Grid::nodeAverages()
@@ -954,19 +952,56 @@ void Grid::faceAverages() {
 
 	unsigned int n;
 	map<int,double>::iterator it;
-	
+	map<int,double>::iterator fit;
+	bool simple;
+	set<int>::iterator bcit;
+	double cell2face;
+
  	for (unsigned int f=0;f<faceCount;++f) {
 		face[f].average.clear();
+		simple=false;
+		// if one of the face nodes is touching a boundary other than slip,
+		// switch to simpler averaging
 		for (unsigned int fn=0;fn<face[f].nodeCount;++fn) {
 			n=face[f].nodes[fn];
-			for ( it=node[n].average.begin() ; it != node[n].average.end(); it++ ) {
-				if (face[f].average.find((*it).first)!=face[f].average.end()) { // if the cell contributing to the node average is already contained in the face average map
-					face[f].average[(*it).first]+=(*it).second/double(face[f].nodeCount);
-				} else {
-					face[f].average.insert(pair<int,double>((*it).first,(*it).second/double(face[f].nodeCount)));
+			for (bcit=node[n].bcs.begin();bcit!=node[n].bcs.end();bcit++) {
+				if (bc.region[*bcit].type!="slip") {
+					simple=true;
+					break;
+				}
+			}
+		}
+		// This method averages the parent and neighbor cell values
+		if (simple) {
+			unsigned int c;
+			double weightSum=0.;
+			double weight;
+			for (int i=0;i<2;++i) {
+				if (i==0) { c=face[f].parent; } else { c=face[f].neighbor;}
+				cell2face=(cell[c].centroid-face[f].centroid).dot(face[f].normal);
+				//cell2face=fabs(cell[c].centroid-face[f].centroid);
+				weight=1./(cell2face*cell2face);
+				weightSum+=weight;
+				face[f].average.insert(pair<int,double>(c,weight));
+			}
+			for (fit=face[f].average.begin();fit!=face[f].average.end();fit++) {
+				face[f].average[(*fit).first]/=weightSum;
+			}
+			
+		} else { // This method uses node based averaging
+			for (unsigned int fn=0;fn<face[f].nodeCount;++fn) {
+				n=face[f].nodes[fn];
+				for ( it=node[n].average.begin() ; it != node[n].average.end(); it++ ) {
+					if (face[f].average.find((*it).first)!=face[f].average.end()) { // if the cell contributing to the node average is already contained in the face average map
+						face[f].average[(*it).first]+=(*it).second/double(face[f].nodeCount);
+					} else {
+						face[f].average.insert(pair<int,double>((*it).first,(*it).second/double(face[f].nodeCount)));
+					}
 				}
 			}
 		} // end face node loop
+
+				
 	} // end face loop
 
 } // end Grid::faceAverages()
@@ -978,12 +1013,12 @@ void Grid::gradMaps() {
 	Vec3D areaVec;
 	for (unsigned int c=0;c<cellCount;++c) {
 		cell[c].gradMap.clear();
-		for (unsigned int cf=0;cf<cell[c].faceCount;++cf) { 
+		for (unsigned int cf=0;cf<cell[c].faceCount;++cf) {
 			f=cell[c].faces[cf];
 			if (face[f].bc<0 ) { // if internal or interpartition face
 				areaVec=face[f].normal*face[f].area/cell[c].volume;
 				if (face[f].parent!=c) areaVec*=-1.;
-				for ( it=face[f].average.begin() ; it != face[f].average.end(); it++ ) {
+				for (it=face[f].average.begin();it!=face[f].average.end();it++) {
 					if (cell[c].gradMap.find((*it).first)!=cell[c].gradMap.end()) { // if the cell contributing to the face average is already contained in the cell gradient map
 						cell[c].gradMap[(*it).first]+=(*it).second*areaVec;
 					} else {
@@ -1005,49 +1040,103 @@ void Grid::gradients(void) {
 	map<int,double>::iterator fit;
 	unsigned int f;
 	Vec3D faceVel,areaVec;
-	double faceRho,faceP;
+	double faceRho,faceP,faceK,faceOmega;
 	double Mach;
 	
 	for (unsigned int c=0;c<cellCount;++c) {
 		// Initialize all gradients to zero
-		for (unsigned int i=0;i<5;++i) cell[c].grad[i]=0.;
+		for (unsigned int i=0;i<7;++i) cell[c].grad[i]=0.;
 		// Add internal and interpartition face contributions
 		for (it=cell[c].gradMap.begin();it!=cell[c].gradMap.end(); it++ ) {
 			if ((*it).first>=0) { // if contribution is coming from a real cell
 				cell[c].grad[0]+=(*it).second*cell[(*it).first].rho;
 				for (unsigned int i=1;i<4;++i) cell[c].grad[i]+=(*it).second*cell[(*it).first].v.comp[i-1];
 				cell[c].grad[4]+=(*it).second*cell[(*it).first].p;
+				cell[c].grad[5]+=(*it).second*cell[(*it).first].k;
+				cell[c].grad[6]+=(*it).second*cell[(*it).first].omega;
 			} else { // if contribution is coming from a ghost cell
 				cell[c].grad[0]+=(*it).second*ghost[-1*((*it).first+1)].rho;
 				for (unsigned int i=1;i<4;++i) cell[c].grad[i]+=(*it).second*ghost[-1*((*it).first+1)].v.comp[i-1];
 				cell[c].grad[4]+=(*it).second*ghost[-1*((*it).first+1)].p;
+				cell[c].grad[5]+=(*it).second*ghost[-1*((*it).first+1)].k;
+				cell[c].grad[6]+=(*it).second*ghost[-1*((*it).first+1)].omega;
 			}
 		} // end gradMap loop
+
 		// Add boundary face contributions
 		for (unsigned int cf=0;cf<cell[c].faceCount;++cf) {
 			f=cell[c].faces[cf];
 			if (face[f].bc>=0) { // if a boundary face
 				areaVec=face[f].area*face[f].normal/cell[c].volume;
 				if (face[f].parent!=c) areaVec*=-1.;
-				// Find face averaged variables
-				faceVel=0.;faceRho=0.;faceP=0.;
-				for (fit=face[f].average.begin();fit!=face[f].average.end();fit++) {
+			
+				if (bc.region[face[f].bc].type!="slip") {
+					// First extrapolate everything to the boundary
+					// Loop the cells neighboring the current cells
+					double dist=1.e20;
+					unsigned int ec; // extrapolation cell
+					for (int nc=0;nc<cell[c].neighborCells.size();++nc) {
+						unsigned int nci=cell[c].neighborCells[nc];
+						// If the neighbor cell centroid is farther away from the boundary
+						// than the current cell
+						if ((cell[c].centroid-cell[nci].centroid).dot(face[f].normal)>0) {
+							// Find the cell with minimum normal distance to face normal
+							// i.e the cell best aligned with the face normal
+							Vec3D nc2face;
+							nc2face=face[f].centroid-cell[nci].centroid;
+							nc2face/=fabs(nc2face);
+							double dist2=fabs(nc2face-nc2face.dot(face[f].normal)*face[f].normal);
+							if (dist2<dist) {
+								dist=dist2;
+								ec=nci;
+							}
+						} // if deeper than the current cell
+					} // for neighbor cells
+									// Find face averaged variables
+					faceVel=0.;faceRho=0.;faceP=0.;faceK=0.;faceOmega=0.;
+					//double ec2c=fabs((cell[c].centroid-cell[ec].centroid).dot(face[f].normal));
+					double ec2c=fabs(cell[c].centroid-cell[ec].centroid);
+					//faceRho=cell[c].rho+((cell[c].rho-cell[ec].rho)/ec2c)*(face[f].centroid-cell[c].centroid).dot(face[f].normal);
+					faceRho=cell[c].rho+((cell[c].rho-cell[ec].rho)/ec2c)*fabs(face[f].centroid-cell[c].centroid);
+					//cout << c << "\t" << cell[c].rho << "\t" << faceRho << endl;
+					if (c==102) {
+						cout << f << "\t" << "\t" << face[f].normal << "\t" << faceRho << endl;
+						cout << ec << "\t" << cell[ec].rho << endl;
+						cout << c << "\t" << cell[c].rho << endl;
+						cout << ec2c << "\t" << fabs(face[f].centroid-cell[c].centroid) << endl;
+						cout << endl;
+					}
+				} // if not slip
+				
+
+				
+/*				for (fit=face[f].average.begin();fit!=face[f].average.end();fit++) {
 					if ((*fit).first>=0) { // if contribution is coming from a real cell
 						faceRho+=(*fit).second*cell[(*fit).first].rho;
 						faceVel+=(*fit).second*cell[(*fit).first].v;
 						faceP+=(*fit).second*cell[(*fit).first].p;
+						faceK+=(*fit).second*cell[(*fit).first].k;
+						faceOmega+=(*fit).second*cell[(*fit).first].omega;
 					} else { // if contribution is coming from a ghost cell
 						faceRho+=(*fit).second*ghost[-1*((*fit).first+1)].rho;
 						faceVel+=(*fit).second*ghost[-1*((*fit).first+1)].v;
 						faceP+=(*fit).second*ghost[-1*((*fit).first+1)].p;
+						faceK+=(*fit).second*ghost[-1*((*fit).first+1)].k;
+						faceOmega+=(*fit).second*ghost[-1*((*fit).first+1)].omega;
 					}
-				}
+				}*/
+				
 				if (bc.region[face[f].bc].type=="inlet") {
 					faceRho=bc.region[face[f].bc].rho;
 					faceVel=bc.region[face[f].bc].v;
+					faceK=bc.region[face[f].bc].k;
+					faceOmega=bc.region[face[f].bc].omega;
 					//faceP=cell[face[f].parent].p;
 					//faceP=bc.region[face[f].bc].p;
 				}
+
+				//if (bc.region[grid.face[f].bc].type=="outlet") cout << faceRho << endl;
+				
 				if (bc.region[grid.face[f].bc].type=="outlet" &&
 					bc.region[grid.face[f].bc].kind=="fixedPressure") {
 					// find Mach number
@@ -1059,6 +1148,12 @@ void Grid::gradients(void) {
 				// Kill the velocity for no-slip, pressure and rho is extrapolated
 				if (bc.region[face[f].bc].type=="noslip") faceVel=0.;
 
+// 				if (c==0) {
+// 					cout << f << "\t" << "\t" << face[f].normal << "\t" << faceRho << endl;
+// 					cout << cell[c].grad[0] << endl;
+// 					cout << faceRho*areaVec << endl;
+// 					cout << endl;
+// 				}
 				cell[c].grad[0]+=faceRho*areaVec;
 				cell[c].grad[1]+=faceVel.comp[0]*areaVec;
 				cell[c].grad[2]+=faceVel.comp[1]*areaVec;
@@ -1073,16 +1168,16 @@ void Grid::gradients(void) {
 void Grid::limit_gradients(string limiter, double sharpeningFactor) {
 	
 	unsigned int neighbor,g;
-	Vec3D maxGrad[5],minGrad[5];
+	Vec3D maxGrad[7],minGrad[7];
 	
 	for (unsigned int c=0;c<cellCount;++c) {
 
 		// Initialize min and max to current cells values
-		for (unsigned int i=0;i<5;++i) maxGrad[i]=minGrad[i]=cell[c].grad[i];
+		for (unsigned int i=0;i<7;++i) maxGrad[i]=minGrad[i]=cell[c].grad[i];
 		// Find extremes in neighboring real cells
 		for (unsigned int cc=0;cc<cell[c].neighborCellCount;++cc) {
 			neighbor=cell[c].neighborCells[cc];
-			for (unsigned int var=0;var<5;++var) {
+			for (unsigned int var=0;var<7;++var) {
 				for (unsigned int comp=0;comp<3;++comp) {
 					maxGrad[var].comp[comp]=max(maxGrad[var].comp[comp],(1.-sharpeningFactor)*cell[neighbor].grad[var].comp[comp]+sharpeningFactor*cell[c].grad[var].comp[comp]);
 					minGrad[var].comp[comp]=min(minGrad[var].comp[comp],(1.-sharpeningFactor)*cell[neighbor].grad[var].comp[comp]+sharpeningFactor*cell[c].grad[var].comp[comp]);
@@ -1092,15 +1187,15 @@ void Grid::limit_gradients(string limiter, double sharpeningFactor) {
 		// Find extremes in neighboring ghost cells
 		for (unsigned int cg=0;cg<cell[c].ghostCount;++cg) {
 			g=cell[c].ghosts[cg];
-			for (unsigned int var=0;var<5;++var) {
+			for (unsigned int var=0;var<7;++var) {
 				for (unsigned int comp=0;comp<3;++comp) {
 					maxGrad[var].comp[comp]=max(maxGrad[var].comp[comp],(1.-sharpeningFactor)*ghost[g].grad[var].comp[comp]+sharpeningFactor*cell[c].grad[var].comp[comp]);
 					minGrad[var].comp[comp]=min(minGrad[var].comp[comp],(1.-sharpeningFactor)*ghost[g].grad[var].comp[comp]+sharpeningFactor*cell[c].grad[var].comp[comp]);
 				}
 			}
 		}
-		if(limiter=="superbee") for (unsigned int var=0;var<5;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].limited_grad[var].comp[comp]=superbee(maxGrad[var].comp[comp],minGrad[var].comp[comp]);
-		if(limiter=="minmod") for (unsigned int var=0;var<5;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].limited_grad[var].comp[comp]=minmod(maxGrad[var].comp[comp],minGrad[var].comp[comp]);
+		if(limiter=="superbee") for (unsigned int var=0;var<7;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].limited_grad[var].comp[comp]=superbee(maxGrad[var].comp[comp],minGrad[var].comp[comp]);
+		if(limiter=="minmod") for (unsigned int var=0;var<7;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].limited_grad[var].comp[comp]=minmod(maxGrad[var].comp[comp],minGrad[var].comp[comp]);
 
 	}
 

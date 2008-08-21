@@ -47,7 +47,8 @@ void write_restart(int timeStep, double time) {
 	if (Rank==0) {
 		file.open((fileName).c_str(),ios::out); 
 		//file << "VARIABLES = \"x\", \"y\", \"z\",\"rho\",\"u\",\"v\",\"w\",\"p\" " << endl;
-		file << "VARIABLES = \"x\", \"y\", \"z\",\"rho\",\"u\",\"v\",\"w\",\"p\"" << endl;
+		//file << "VARIABLES = \"x\", \"y\", \"z\",\"rho\",\"u\",\"v\",\"w\",\"p\"" << endl;
+		file << "VARIABLES = \"x\", \"y\", \"z\",\"rho\",\"grad_x\",\"grad_y\",\"grad_z\" " << endl;
 	} else {
 		file.open((fileName).c_str(),ios::app);
 	}
@@ -66,10 +67,16 @@ void write_restart(int timeStep, double time) {
 
 	// Write variables
 	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].rho << endl;
+	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].grad[0].comp[0] << endl;
+	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].grad[0].comp[1] << endl;
+	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].grad[0].comp[2] << endl;
+	
+	/*
 	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].v.comp[0] << endl;
 	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].v.comp[1] << endl;
 	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].v.comp[2] << endl;
 	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].p << endl;
+	*/
 
 	// Write coonnectivity
 	for (unsigned int c=0;c<grid.cellCount;++c) {

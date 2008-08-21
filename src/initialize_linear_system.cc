@@ -30,19 +30,24 @@ extern double CFL;
 extern BC bc;
 extern InputFile input;
 		
-void preconditioner_cm91(unsigned int c, double P[][5]);
-void preconditioner_ws95(unsigned int c, double P[][5]);
-void preconditioner_none(unsigned int c, double P[][5]);
-void mat_print(double P[][5]);
+void preconditioner_cm91(unsigned int c, double P[][7]);
+void preconditioner_ws95(unsigned int c, double P[][7]);
+void preconditioner_none(unsigned int c, double P[][7]);
+void mat_print(double P[][7]);
 
-void linear_system_initialize() {
+void initialize_linear_system() {
 
+	int nSolVar=5; // Basic equations to solve
+
+	if (input.section["turbulence"].strings["model"]!="none") nSolVar+=2;
+
+	
 	MatZeroEntries(impOP);
 
 	PetscInt counter=0;
 
 	double d,lengthScale,dtLocal,a;
-	double P [5][5]; // preconditioner
+	double P [7][7]; // preconditioner
 
 	PetscInt row,col;
 	PetscScalar value;
@@ -68,28 +73,24 @@ void linear_system_initialize() {
 		} else {
 			d=grid.cell[c].volume/dt;
 		}
-
 		
-		for (int i=0;i<5;++i) {
-			row=grid.cell[c].globalId*5+i;
-			for (int j=0;j<5;++j) {
-				col=grid.cell[c].globalId*5+j;
+		for (int i=0;i<nSolVar;++i) {
+			row=grid.cell[c].globalId*nSolVar+i;
+			for (int j=0;j<nSolVar;++j) {
+				col=grid.cell[c].globalId*nSolVar+j;
 				value=P[i][j]*d;
-				MatSetValues(impOP,1,&row,1,&col,&value,INSERT_VALUES);
+				MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
 			}
 		}
 			
 	}
 
-	MatAssemblyBegin(impOP,MAT_FLUSH_ASSEMBLY);
-	MatAssemblyEnd(impOP,MAT_FLUSH_ASSEMBLY);
-
 	return;
 }
 
-void preconditioner_none(unsigned int c, double P[][5]) {
+void preconditioner_none(unsigned int c, double P[][7]) {
 
-	double rho,u,v,w,p,q2;
+	double rho,u,v,w,p,q2,k,omega;
 	
 	rho=grid.cell[c].rho;
 	u=grid.cell[c].v.comp[0];
@@ -97,8 +98,10 @@ void preconditioner_none(unsigned int c, double P[][5]) {
 	w=grid.cell[c].v.comp[2];
 	p=grid.cell[c].p;
 	q2=grid.cell[c].v.dot(grid.cell[c].v);
+	k=grid.cell[c].k;
+	omega=grid.cell[c].omega;
 
-	for (int i=0;i<5;++i) for (int j=0;j<5;++j) P[i][j]=0.;
+	for (int i=0;i<7;++i) for (int j=0;j<7;++j) P[i][j]=0.;
 	// Conservative to primite Jacobian
 	P[0][0]=1.;
 	P[1][0]=u; P[1][1]=rho;
@@ -111,13 +114,16 @@ void preconditioner_none(unsigned int c, double P[][5]) {
 	P[4][3]=rho*w;
 	P[4][4]=1./(Gamma-1.);
 
+	P[5][0]=k; P[5][5]=rho;
+	P[6][0]=omega; P[6][6]=rho;
+
 	return;
 }
 
-void preconditioner_cm91(unsigned int c, double P[][5]) {
+void preconditioner_cm91(unsigned int c, double P[][7]) {
 
 	double Mach,Mach2,a2;
-	double rho,u,v,w,p,e,d,q2;
+	double rho,u,v,w,p,k,omega,e,d,q2;
 	double beta;
 	double gm1=Gamma-1.;
 	double R=287.;
@@ -127,6 +133,8 @@ void preconditioner_cm91(unsigned int c, double P[][5]) {
 	v=grid.cell[c].v.comp[1];
 	w=grid.cell[c].v.comp[2];
 	p=grid.cell[c].p;
+	k=grid.cell[c].k;
+	omega=grid.cell[c].omega;
 	q2=grid.cell[c].v.dot(grid.cell[c].v);
 	a2=Gamma*(p+Pref)/rho;
 	Mach2=q2/a2;
@@ -148,7 +156,7 @@ void preconditioner_cm91(unsigned int c, double P[][5]) {
 	
 	e=0.5*q2+a2/(Gamma*(Gamma - 1.));
 	
-	for (int i=0;i<5;++i) for (int j=0;j<5;++j) P[i][j]=0.;
+	for (int i=0;i<7;++i) for (int j=0;j<7;++j) P[i][j]=0.;
 
 	P[0][0]=1./(beta*Mach2);
 	
@@ -167,14 +175,16 @@ void preconditioner_cm91(unsigned int c, double P[][5]) {
 	P[4][3]=rho*w;
 	P[4][4]=Gamma*rho*R/(Gamma-1.);
 
+	P[5][0]=k; P[5][5]=rho;
+	P[6][0]=omega; P[6][6]=rho;
 	
 	return;
 }
 
-void preconditioner_ws95(unsigned int c, double P[][5]) {
+void preconditioner_ws95(unsigned int c, double P[][7]) {
 
 	double Umax,Ur,theta,vis;
-	double rho,u,v,w,p,H,q2,a2,q,a,epsilon,rhoT,R,cp;
+	double rho,u,v,w,p,H,q2,a2,q,a,k,omega,rhoT,R,cp;
 	double temp [5][5];
 				
 	rho=grid.cell[c].rho;
@@ -182,6 +192,8 @@ void preconditioner_ws95(unsigned int c, double P[][5]) {
 	v=grid.cell[c].v.comp[1];
 	w=grid.cell[c].v.comp[2];
 	p=grid.cell[c].p+Pref;
+	k=grid.cell[c].k;
+	omega=grid.cell[c].omega;
 	q2=grid.cell[c].v.dot(grid.cell[c].v);
 	a2=Gamma*p/rho;
 	H=0.5*q2+a2/(Gamma - 1.);
@@ -207,7 +219,7 @@ void preconditioner_ws95(unsigned int c, double P[][5]) {
 // 
 // 	theta=1./(Ur*Ur)-rhoT/(rho*cp);
 	
-	for (int i=0;i<5;++i) for (int j=0;j<5;++j) P[i][j]=0.;
+	for (int i=0;i<7;++i) for (int j=0;j<7;++j) P[i][j]=0.;
 	
 // 	P[0][0]=theta;
 // 	P[0][4]=rhoT;
@@ -244,6 +256,9 @@ void preconditioner_ws95(unsigned int c, double P[][5]) {
 	P[4][2]=rho*v;
 	P[4][3]=rho*w;
 	P[4][4]=-1.*rho*H/p;
+
+	P[5][0]=k; P[5][5]=rho;
+	P[6][0]=omega; P[6][6]=rho;
 	
 	return;
 }

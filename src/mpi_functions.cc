@@ -39,7 +39,7 @@ void mpi_init(int argc, char *argv[]) {
 	sendCells = new vector<unsigned int> [np];
 	recvCount = new unsigned int [np];
 	// Commit custom communication datatypes
-	int array_of_block_lengths[2]={1,5};
+	int array_of_block_lengths[2]={1,7};
 	MPI_Aint extent;
 	MPI_Type_extent(MPI_UNSIGNED,&extent);
 	MPI_Aint array_of_displacements[2]={0,extent};
@@ -47,7 +47,7 @@ void mpi_init(int argc, char *argv[]) {
 	MPI_Type_struct(2,array_of_block_lengths,array_of_displacements,array_of_types,&MPI_GHOST);
 	MPI_Type_commit(&MPI_GHOST);
 	
-	array_of_block_lengths[0]=1;array_of_block_lengths[1]=15;
+	array_of_block_lengths[0]=1;array_of_block_lengths[1]=21;
 	MPI_Type_struct(2,array_of_block_lengths,array_of_displacements,array_of_types,&MPI_GRAD);
 	MPI_Type_commit(&MPI_GRAD);
 
@@ -117,6 +117,8 @@ void mpi_update_ghost_primitives(void) {
 				sendBuffer[g].vars[2]=grid.cell[id].v.comp[1];
 				sendBuffer[g].vars[3]=grid.cell[id].v.comp[2];
 				sendBuffer[g].vars[4]=grid.cell[id].p;
+				sendBuffer[g].vars[5]=grid.cell[id].k;
+				sendBuffer[g].vars[6]=grid.cell[id].omega;
 			}
 
 			int tag=Rank; // tag is set to source
@@ -129,6 +131,8 @@ void mpi_update_ghost_primitives(void) {
 				grid.ghost[id].v.comp[1]=recvBuffer[g].vars[2];
 				grid.ghost[id].v.comp[2]=recvBuffer[g].vars[3];
 				grid.ghost[id].p=recvBuffer[g].vars[4];
+				grid.ghost[id].k=recvBuffer[g].vars[5];
+				grid.ghost[id].omega=recvBuffer[g].vars[6];
 			}
 		}
 	}
@@ -146,7 +150,7 @@ void mpi_update_ghost_gradients(void) {
 			id=global2local[sendCells[p][g]];
 			sendBuffer[g].globalId=grid.cell[id].globalId;
 			int count=0;
-			for (unsigned int var=0;var<5;++var) {
+			for (unsigned int var=0;var<7;++var) {
 				for (unsigned int comp=0;comp<3;++comp) {
 					sendBuffer[g].grads[count]=grid.cell[id].grad[var].comp[comp];
 					count++;
@@ -160,7 +164,7 @@ void mpi_update_ghost_gradients(void) {
 		for (unsigned int g=0;g<recvCount[p];++g) {
 			id=global2local[recvBuffer[g].globalId];
 			int count=0;
-			for (unsigned int var=0;var<5;++var) {
+			for (unsigned int var=0;var<7;++var) {
 				for (unsigned int comp=0;comp<3;++comp) {
 					grid.ghost[id].grad[var].comp[comp]=recvBuffer[g].grads[count];
 					count++;
@@ -181,7 +185,7 @@ void mpi_update_ghost_limited_gradients(void) {
 			id=global2local[sendCells[p][g]];
 			sendBuffer[g].globalId=grid.cell[id].globalId;
 			int count=0;
-			for (unsigned int var=0;var<5;++var) {
+			for (unsigned int var=0;var<7;++var) {
 				for (unsigned int comp=0;comp<3;++comp) {
 					sendBuffer[g].grads[count]=grid.cell[id].limited_grad[var].comp[comp];
 					count++;
@@ -195,7 +199,7 @@ void mpi_update_ghost_limited_gradients(void) {
 		for (unsigned int g=0;g<recvCount[p];++g) {
 			id=global2local[recvBuffer[g].globalId];
 			int count=0;
-			for (unsigned int var=0;var<5;++var) {
+			for (unsigned int var=0;var<7;++var) {
 				for (unsigned int comp=0;comp<3;++comp) {
 					grid.ghost[id].limited_grad[var].comp[comp]=recvBuffer[g].grads[count];
 					count++;

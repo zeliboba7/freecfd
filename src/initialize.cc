@@ -39,6 +39,8 @@ void initialize(Grid &grid, InputFile &input) {
 					grid.cell[c].rho = region.doubles[r]["rho"];
 					grid.cell[c].v = region.Vec3Ds[r]["v"];
 					grid.cell[c].p = region.doubles[r]["p"];
+					grid.cell[c].k = region.doubles[r]["k"];
+					grid.cell[c].omega = region.doubles[r]["omega"];
 				}
 			}
 		} else if (region.strings[r]["type"]=="circle") {
@@ -58,6 +60,8 @@ void initialize(Grid &grid, InputFile &input) {
 					grid.cell[c].v.comp[0]= (region.Vec3Ds[r]["v"].comp[0]*center2cell).comp[0];
 					grid.cell[c].v.comp[1]= (region.Vec3Ds[r]["v"].comp[0]*center2cell).comp[1];
 					grid.cell[c].p = region.doubles[r]["p"];
+					grid.cell[c].k = region.doubles[r]["k"];
+					grid.cell[c].omega = region.doubles[r]["omega"];
 				}
 			}
 		} else if (region.strings[r]["type"]=="sphere") {
@@ -76,16 +80,23 @@ void initialize(Grid &grid, InputFile &input) {
 					grid.cell[c].rho = region.doubles[r]["rho"];
 					grid.cell[c].v = region.Vec3Ds[r]["v"].comp[0]*center2cellUnit;
 					grid.cell[c].p = region.doubles[r]["p"];
+					grid.cell[c].k = region.doubles[r]["k"];
+					grid.cell[c].omega = region.doubles[r]["omega"];
 				}
 			}
 		}
 	}
 
 	for (unsigned int c=0;c<grid.cellCount;++c) {
-		for (unsigned int i=0;i<5;++i) {
+		for (unsigned int i=0;i<7;++i) {
 			grid.cell[c].flux[i]=0.;
 		}
 	}
 
+	for (unsigned int c=0;c<grid.cellCount;++c) {
+		grid.cell[c].rho=2.*grid.cell[c].centroid.comp[0]+2.;
+		//grid.cell[c].rho=1.;
+	}
+	
 	return;
 }

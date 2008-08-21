@@ -71,11 +71,10 @@ public:
 	std::vector<int> faces;
 	std::vector<int> neighborCells;
 	std::vector<int> ghosts;
-	double rho;
-	Vec3D v,grad[5],limited_grad[5];
+	double rho,p,k,omega;
+	Vec3D v,grad[7],limited_grad[7];
 	std::map<int,Vec3D> gradMap;
-	double p;
-	double flux[5];
+	double flux[7];
 	Cell(void);
 	int Construct(const ElementType_t elemType,unsigned int nodeList[]);
 	bool HaveNodes(unsigned int &nodelistsize, unsigned int nodelist[]) ;
@@ -89,8 +88,8 @@ public:
 	unsigned int globalId;
 	std::vector<unsigned int> cells;
 	double rho;
-	Vec3D v,centroid,grad[5],limited_grad[5];
-	double p;
+	Vec3D v,centroid,grad[7],limited_grad[7];
+	double p,k,omega;
 };
 
 class Grid {

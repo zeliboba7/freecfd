@@ -16,7 +16,12 @@ void set_bcs(Grid& grid, InputFile &input, BC &bc) {
 		bcRegion.kind=bcSection.strings[b]["kind"];
 		bcRegion.rho=bcSection.doubles[b]["rho"];
 		bcRegion.p=bcSection.doubles[b]["p"];
+		bcRegion.k=bcSection.doubles[b]["k"];
+		bcRegion.omega=bcSection.doubles[b]["omega"];
 		bcRegion.v=bcSection.Vec3Ds[b]["v"];
+		bcRegion.area=0.;
+		bcRegion.areaVec=0.;
+		bcRegion.momentum=0.;
 		bc.region.push_back(bcRegion);
 		if (bcSection.strings[b]["region"]=="box") {
 			Vec3D box_1=bcSection.Vec3Ds[b]["box_1"];
@@ -44,5 +49,14 @@ void set_bcs(Grid& grid, InputFile &input, BC &bc) {
 		}
 	}
 
+	// Integrate boundary areas
+	for (unsigned int f=0;f<grid.faceCount;++f) {
+		int bcIndex=grid.face[f].bc;
+		if (bcIndex>=0) {
+			bc.region[bcIndex].area+=grid.face[f].area;
+			bc.region[bcIndex].areaVec+=grid.face[f].area*grid.face[f].normal;
+		}
+	}
+	
 	return;
 }
