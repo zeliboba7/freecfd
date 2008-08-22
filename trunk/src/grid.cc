@@ -36,6 +36,9 @@ using namespace std;
 #include "grid.h"
 #include "bc.h"
 
+#define EPS 1e-10
+
+				 
 extern Grid grid;
 extern BC bc;
 extern int np, Rank;
@@ -44,6 +47,7 @@ extern double Pref;
 
 double superbee(double a, double b);
 double minmod(double a, double b);
+int gelimd(double **a,double *b,double *x, int n);
 
 Grid::Grid() {
 	;
@@ -822,7 +826,6 @@ int Grid::ReadCGNS() {
 		double volume=0.,height;
 		unsigned int f;
 		for (unsigned int cf=0;cf<cell[c].faceCount;++cf) {
-			// FIXME Is this a generic volume formula?
 			f=cell[c].faces[cf];
 			height=fabs(face[f].normal.dot(face[f].centroid-cell[c].centroid));
 			volume+=1./3.*face[f].area*height;
@@ -832,7 +835,7 @@ int Grid::ReadCGNS() {
 		totalVolume+=volume;
 	}
 	
-	cout << "[I Rank=" << Rank << "] Total Volume= " << totalVolume << endl;
+	cout << "[I Rank=" << Rank << "] Total Volume= " << setw(16) << setprecision(8) << scientific << totalVolume << endl;
 	return 0;
 
 }
@@ -914,38 +917,85 @@ Node& Face::node(int n) {
 
 void Grid::nodeAverages() {
 	
-	unsigned int c,g;
-	double weight=0.,weightSum;
-	Vec3D node2cell,node2ghost;
-	map<int,double>::iterator it;
+	double **a;
+	double *b;
+	double *weights;
 	
 	for (unsigned int n=0;n<nodeCount;++n) {
-		node[n].average.clear();
-		// Add contributions from real cells
-		weightSum=0.;
-		for (unsigned int nc=0;nc<node[n].cells.size();++nc) {
-			c=node[n].cells[nc];
-			node2cell=node[n]-cell[c].centroid;
-			weight=1./(node2cell.dot(node2cell));
-			//weight=1./fabs(node2cell);
-			//weight=cell[c].lengthScale*cell[c].lengthScale*cell[c].lengthScale;
-			//weight=1.;
-			node[n].average.insert(pair<int,double>(c,weight));
-			weightSum+=weight;
+		string method;
+		Vec3D p1p2,p1p3;
+		Vec3D planeNormal;
+		if (node[n].cells.size()>=4) { // Candidate for tetra interpolation
+			// Pick first 3 points a calculate the normal of the plane they form
+			p1p2=cell[node[n].cells[1]].centroid-cell[node[n].cells[0]].centroid;
+			p1p3=cell[node[n].cells[2]].centroid-cell[node[n].cells[0]].centroid;
+			planeNormal=(p1p2.cross(p1p3)).norm();
+			method="tri";
+			// Check the remaining neighbor cell centroids
+			for (int nc=3;nc<node[n].cells.size();++nc) {
+				// If the centroid lies on the plane fomed by first three
+				if (fabs(planeNormal.dot((cell[node[n].cells[nc]].centroid-cell[node[n].cells[0]].centroid).norm()))>1.e-7) {
+					method="tetra";
+					// Finding on off-plane point is enough
+					// That means tetra method can be used
+					break;
+				}
+			}
 		}
-		// Add contributions from ghost cells		
-		for (unsigned int ng=0;ng<node[n].ghosts.size();++ng) {
-			g=node[n].ghosts[ng];
-			node2ghost=node[n]-ghost[g].centroid;
-			weight=1./(node2ghost.dot(node2ghost));
-			//weight=1./fabs(node2ghost);
-			node[n].average.insert(pair<int,double>(-g-1,weight));
-			weightSum+=weight;
-		}
-		for ( it=node[n].average.begin() ; it != node[n].average.end(); it++ ) {
-			node[n].average[(*it).first]/=weightSum;
-		}
+		else if (node[n].cells.size()==3) { method="tri";}
+		else if (node[n].cells.size()==2) { method="line";}
+		else if (node[n].cells.size()==1) { method="point";}
+
+		// TODO implement tetra method
+		if (method=="tri") {
+			// Work on plane coordinates
+			// p1 is coordinate origin: cell[node[n].cells[0]].centroid
+			// pp is the node point projected onto the plane
+			Vec3D pp,origin,basis1,basis2;
+			origin=cell[node[n].cells[0]].centroid;
+			basis1=p1p2.norm();
+			basis2=-1.*(p1p2.cross(planeNormal)).norm();
+			// Project the node point to the plane
+			pp=node[n]-origin;
+			pp-=pp.dot(planeNormal)*planeNormal;
+			pp+=origin;
+			// Form the linear system
+			a = new double* [3];
+			for (int i=0;i<3;++i) a[i]=new double[3];
+			b = new double[3];
+			weights= new double [3];
+			a[0][0]=(cell[node[n].cells[0]].centroid).dot(basis1);
+			a[0][1]=(cell[node[n].cells[1]].centroid).dot(basis1);
+			a[0][2]=(cell[node[n].cells[2]].centroid).dot(basis1);
+			a[1][0]=(cell[node[n].cells[0]].centroid).dot(basis2);
+			a[1][1]=(cell[node[n].cells[1]].centroid).dot(basis2);
+			a[1][2]=(cell[node[n].cells[2]].centroid).dot(basis2);
+			a[2][0]=1.;
+			a[2][1]=1.;
+			a[2][2]=1.;
+			b[0]=pp.dot(basis1);
+			b[1]=pp.dot(basis2);
+			b[2]=1.;
+			// Solve the 3x3 linear system by Gaussion Elimination
+			gelimd(a,b,weights,3);
+			// Insert the weights
+			node[n].average.clear();
+			for (int i=0;i<3;++i) node[n].average.insert(pair<int,double>(node[n].cells[i],weights[i]));
+// DEBUG
+// 			double nodeValue=0.;
+// 			for (int i=0;i<3;++i) { nodeValue+=weights[i]*cell[node[n].cells[i]].rho;}
+// 			cout <<  2.*node[n].comp[0]+2. << "\t" << nodeValue << "\t" << endl;
+// 			double weightSumCheck=0.;
+//			map<int,double>::iterator it;
+// 			for ( it=node[n].average.begin() ; it != node[n].average.end(); it++ ) {
+// 				weightSumCheck+=(*it).second;
+// 			}
+//			cout << setw(16) << setprecision(8) << scientific << weightSumCheck << endl;
+
+		}	
 	}
+	
+
 } // end Grid::nodeAverages()
 
 void Grid::faceAverages() {
@@ -956,6 +1006,8 @@ void Grid::faceAverages() {
 	bool simple;
 	set<int>::iterator bcit;
 	double cell2face;
+	double weightSum;
+	double weight,weightSumCheck;
 
  	for (unsigned int f=0;f<faceCount;++f) {
 		face[f].average.clear();
@@ -974,13 +1026,13 @@ void Grid::faceAverages() {
 		// This method averages the parent and neighbor cell values
 		if (simple) {
 			unsigned int c;
-			double weightSum=0.;
-			double weight;
+			weightSum=0.;
 			for (int i=0;i<2;++i) {
 				if (i==0) { c=face[f].parent; } else { c=face[f].neighbor;}
 				cell2face=(cell[c].centroid-face[f].centroid).dot(face[f].normal);
 				//cell2face=fabs(cell[c].centroid-face[f].centroid);
-				weight=1./(cell2face*cell2face);
+				//weight=1./(cell2face*cell2face);
+				//weight=cell[c].volume;
 				weightSum+=weight;
 				face[f].average.insert(pair<int,double>(c,weight));
 			}
@@ -989,16 +1041,26 @@ void Grid::faceAverages() {
 			}
 			
 		} else { // This method uses node based averaging
+			weightSum=0.;
 			for (unsigned int fn=0;fn<face[f].nodeCount;++fn) {
 				n=face[f].nodes[fn];
+				weight=fabs(node[n]-face[f].centroid);
+				weight*=weight;
+				weightSum+=weight;
 				for ( it=node[n].average.begin() ; it != node[n].average.end(); it++ ) {
 					if (face[f].average.find((*it).first)!=face[f].average.end()) { // if the cell contributing to the node average is already contained in the face average map
-						face[f].average[(*it).first]+=(*it).second/double(face[f].nodeCount);
+						face[f].average[(*it).first]+=weight*(*it).second;
 					} else {
-						face[f].average.insert(pair<int,double>((*it).first,(*it).second/double(face[f].nodeCount)));
+						face[f].average.insert(pair<int,double>((*it).first,weight*(*it).second));
 					}
 				}
 			}
+			weightSumCheck=0.;
+			for ( fit=face[f].average.begin() ; fit != face[f].average.end(); fit++ ) {
+				(*fit).second/=weightSum;
+				weightSumCheck+=(*fit).second;
+			}
+			//cout << setw(16) << setprecision(8) << scientific << weightSumCheck << endl;
 		} // end face node loop
 
 				
@@ -1159,8 +1221,24 @@ void Grid::gradients(void) {
 				cell[c].grad[2]+=faceVel.comp[1]*areaVec;
 				cell[c].grad[3]+=faceVel.comp[2]*areaVec;
 				cell[c].grad[4]+=faceP*areaVec;
+
 			} // end if a boundary face
 		} // end cell face loop
+
+		for (unsigned int cf=0;cf<cell[c].faceCount;++cf) {
+			f=cell[c].faces[cf];
+			set<int>::iterator bcit;
+			for (unsigned int fn=0;fn<face[f].nodeCount;++fn) {
+				unsigned int n=face[f].nodes[fn];
+				for (bcit=node[n].bcs.begin();bcit!=node[n].bcs.end();bcit++) {
+					if (bc.region[*bcit].type!="slip") {
+						cell[c].grad[0].comp[0]=2.;
+						cell[c].grad[0].comp[1]=0.;
+					}
+				}
+			}
+		}
+		
 	} // end cell loop
  	
 } // end Grid::gradients(void)
@@ -1200,3 +1278,42 @@ void Grid::limit_gradients(string limiter, double sharpeningFactor) {
 	}
 
 } // end Grid::limit_gradients(string limiter, double sharpeningFactor)
+
+int gelimd(double **a,double *b,double *x, int n)
+{
+	double tmp,pvt,*t;
+	int i,j,k,itmp;
+
+	for (i=0;i<n;i++) {             // outer loop on rows
+		pvt = a[i][i];              // get pivot value
+		if (fabs(pvt) < EPS) {
+			for (j=i+1;j<n;j++) {
+				if(fabs(pvt = a[j][i]) >= EPS) break;
+			}
+			if (fabs(pvt) < EPS) return 1;     // nowhere to run!
+			t=a[j];                 // swap matrix rows...
+			a[j]=a[i];
+			a[i]=t;
+			tmp=b[j];               // ...and result vector
+			b[j]=b[i];
+			b[i]=tmp;
+		}
+// (virtual) Gaussian elimination of column
+		for (k=i+1;k<n;k++) {       // alt: for (k=n-1;k>i;k--)
+			tmp = a[k][i]/pvt;
+			for (j=i+1;j<n;j++) {   // alt: for (j=n-1;j>i;j--)
+				a[k][j] -= tmp*a[i][j];
+			}
+			b[k] -= tmp*b[i];
+		}
+	}
+// Do back substitution
+	for (i=n-1;i>=0;i--) {
+		x[i]=b[i];
+		for (j=n-1;j>i;j--) {
+			x[i] -= a[i][j]*x[j];
+		}
+		x[i] /= a[i][i];
+	}
+	return 0;
+}
