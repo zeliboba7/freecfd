@@ -26,6 +26,10 @@ Vec3D Vec3D::cross(const Vec3D &right) {
 	return temp;
 }
 
+Vec3D Vec3D::norm(void) {
+	return (*this)/=fabs(*this);
+}
+
 Vec3D &Vec3D::operator= (const Vec3D &right) {
 	comp[0]=right.comp[0];
 	comp[1]=right.comp[1];

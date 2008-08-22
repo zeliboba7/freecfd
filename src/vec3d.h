@@ -10,6 +10,7 @@ public:
 	Vec3D(double x=0., double y=0., double z=0.);
 	double dot(const Vec3D &right);
 	Vec3D cross(const Vec3D &right);
+	Vec3D norm(void);
 	Vec3D &operator= (const Vec3D &);
 	Vec3D &operator= (const double &);
 	Vec3D &operator*= (const double &);
