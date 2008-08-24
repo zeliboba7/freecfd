@@ -36,6 +36,8 @@ extern Grid grid;
 extern int np, Rank;
 extern string int2str(int number) ;
 
+extern bool grad_test; // DEBUG
+
 void write_restart(int timeStep, double time) {
 
 	ofstream file;
@@ -66,18 +68,20 @@ void write_restart(int timeStep, double time) {
 	}
 
 	// Write variables
-	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].rho << endl;
-	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].grad[0].comp[0] << endl;
-	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].grad[0].comp[1] << endl;
-	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].grad[0].comp[2] << endl;
+	if (grad_test) { // DEBUG
+		for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].rho << endl; // DEBUG
+		for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].grad[0].comp[0] << endl; // DEBUG
+		for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].grad[0].comp[1] << endl; // DEBUG
+		for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].grad[0].comp[2] << endl; // DEBUG
+	} else {// DEBUG
 	
-	/*
 	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].v.comp[0] << endl;
 	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].v.comp[1] << endl;
 	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].v.comp[2] << endl;
 	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].p << endl;
-	*/
 
+	} // DEBUG
+	
 	// Write coonnectivity
 	for (unsigned int c=0;c<grid.cellCount;++c) {
 		if (grid.cell[c].type==PENTA_6) {
