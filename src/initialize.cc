@@ -22,6 +22,7 @@
 *************************************************************************/
 #include "grid.h"
 #include "inputs.h"
+extern bool grad_test;// DEBUG
 
 bool within_box(Vec3D centroid, Vec3D box_1, Vec3D box_2);
 
@@ -71,7 +72,7 @@ void initialize(Grid &grid, InputFile &input) {
 			Vec3D unitX, unitY, unitZ;
 			unitX.comp[0]=1.; unitX.comp[1]=0.;unitX.comp[2]=0.;
 			unitY.comp[1]=0.; unitY.comp[1]=1.;unitY.comp[2]=0.;
-			unitZ.comp[2]=0.; unitZ.comp[1]=0.;unitZ.comp[2]=1.;			
+			unitZ.comp[2]=0.; unitZ.comp[1]=0.;unitZ.comp[2]=1.;
 			for (unsigned int c = 0;c < grid.cellCount;++c) {
 				center2cell= grid.cell[c].centroid-center;
 				center2cellUnit=center2cell/fabs(center2cell);
@@ -93,10 +94,12 @@ void initialize(Grid &grid, InputFile &input) {
 		}
 	}
 
-	for (unsigned int c=0;c<grid.cellCount;++c) {
-		grid.cell[c].rho=2.*grid.cell[c].centroid.comp[0]+2.;
-		//grid.cell[c].rho=1.;
-	}
+	if (grad_test) { // DEBUG
+		for (unsigned int c=0;c<grid.cellCount;++c) { // DEBUG
+			grid.cell[c].rho=2.*grid.cell[c].centroid.comp[0]*grid.cell[c].centroid.comp[0]+2.; // DEBUG
+			//grid.cell[c].rho=1.; // DEBUG
+		}// DEBUG
+	}// DEBUG
 	
 	return;
 }

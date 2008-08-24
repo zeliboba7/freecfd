@@ -68,6 +68,8 @@ double Pref;
 string fluxFunction;
 vector<Probe> probes;
 
+bool grad_test=false; // DEBUG
+
 int main(int argc, char *argv[]) {
 
 	// Initialize mpi
@@ -166,7 +168,11 @@ int main(int argc, char *argv[]) {
 
 		int nIter; // Number of linear solver iterations
 		double rNorm; // Residual norm of the linear solver
-/*
+if (grad_test) { // DEBUG
+	grid.gradients(); // DEBUG
+	write_restart(timeStep,time); // DEBUG
+	break;
+} else {
 		// Update the primitive variables of the ghost cells
 		mpi_update_ghost_primitives();
 
@@ -177,12 +183,8 @@ int main(int argc, char *argv[]) {
 		if (input.section["equations"].strings["set"]=="NS" |
 			input.section["numericalOptions"].strings["order"]=="second" ) {
 			// Calculate all the cell gradients for each variable
-*/
-		
-		grid.gradients();
-		
-		/*	
-		// Update gradients of the ghost cells
+			grid.gradients();
+			// Update gradients of the ghost cells
 			mpi_update_ghost_gradients();
 		}
 		
@@ -234,9 +236,7 @@ int main(int argc, char *argv[]) {
 			//cout << i+1 << "\t" << bc.region[i].area << endl;
 			bc.region[i].momentum=0.;
 		}
-		*/
-
-		write_restart(timeStep,time);
+}// DEBUG
 
 
 	}

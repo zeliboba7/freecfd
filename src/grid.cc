@@ -922,19 +922,35 @@ void Grid::nodeAverages() {
 	double *weights;
 	
 	for (unsigned int n=0;n<nodeCount;++n) {
+		set<int> stencil; //interpolation stencil
+		set<int>::iterator sit,sit1,sit2;
+		int c1,c2,c3,c4;
+		// Initialize stencil to nearest neighbor cells
+		for (int nc=0;nc<node[n].cells.size();++nc) stencil.insert(node[n].cells[nc]);
 		string method;
-		Vec3D p1p2,p1p3;
 		Vec3D planeNormal;
-		if (node[n].cells.size()>=4) { // Candidate for tetra interpolation
-			// Pick first 3 points a calculate the normal of the plane they form
-			p1p2=cell[node[n].cells[1]].centroid-cell[node[n].cells[0]].centroid;
-			p1p3=cell[node[n].cells[2]].centroid-cell[node[n].cells[0]].centroid;
-			planeNormal=(p1p2.cross(p1p3)).norm();
+		// if stencil doesn't have at least 4 points, expand it to include 2nd nearest neighbor cells
+		if (stencil.size()<4) {
+			for (int nc=0;nc<node[n].cells.size();++nc) {
+				int ncell=node[n].cells[nc];
+				for (int cc=0;cc<cell[ncell].neighborCells.size();++cc) {
+					stencil.insert(cell[ncell].neighborCells[cc]);
+				}
+			}
+		}
+		if (stencil.size()>=4) { // Candidate for tetra interpolation
+			// Pick first 3 points in the stencil
+			sit=stencil.begin();
+			c1=*sit; sit++;
+			c2=*sit; sit++;
+			c3=*sit;
+			// Calculate the normal vector of the plane they form
+			planeNormal=((cell[c2].centroid-cell[c1].centroid).cross(cell[c3].centroid-cell[c2].centroid)).norm();
+			// Check the remaining stencil cell centroids to see if they are on the same plane too
 			method="tri";
-			// Check the remaining neighbor cell centroids
-			for (int nc=3;nc<node[n].cells.size();++nc) {
+			for (sit=sit;sit!=stencil.end();sit++) {
 				// If the centroid lies on the plane fomed by first three
-				if (fabs(planeNormal.dot((cell[node[n].cells[nc]].centroid-cell[node[n].cells[0]].centroid).norm()))>1.e-7) {
+				if (fabs(planeNormal.dot((cell[*sit].centroid-cell[*(stencil.begin())].centroid).norm()))>1.e-7) {
 					method="tetra";
 					// Finding on off-plane point is enough
 					// That means tetra method can be used
@@ -942,60 +958,114 @@ void Grid::nodeAverages() {
 				}
 			}
 		}
-		else if (node[n].cells.size()==3) { method="tri";}
-		else if (node[n].cells.size()==2) { method="line";}
-		else if (node[n].cells.size()==1) { method="point";}
+		else if (stencil.size()==3) { method="tri";}
+		else if (stencil.size()==2) { method="line";}
+		else if (stencil.size()==1) { method="point";}
 
 		// TODO implement tetra method
 		if (method=="tri") {
+			// Find out best combination neigboring cells for triangulation
+			double edgeRatio,bestEdgeRatio=0.; // smallest edge length / largest edge length
+			double edge1,edge2,edge3,maxEdge,minEdge;
+			for (sit=stencil.begin();sit!=stencil.end();sit++) {
+				sit1=sit; sit1++;
+				for (sit1=sit1;sit1!=stencil.end();sit1++) {
+					sit2=sit; sit2++;
+					for (sit2=sit2;sit2!=stencil.end();sit2++) {
+						edge1=fabs(cell[*sit].centroid-cell[*sit1].centroid);
+						edge2=fabs(cell[*sit].centroid-cell[*sit2].centroid);
+						edge3=fabs(cell[*sit1].centroid-cell[*sit2].centroid);
+						maxEdge=max(edge1,edge2); maxEdge=max(maxEdge,edge3);
+						minEdge=min(edge1,edge2); minEdge=min(minEdge,edge3);
+						edgeRatio=minEdge/maxEdge; // always smaller than 1, ideal is 1
+						// TODO this criteria is not good, even a zero area triangle might return 0.5 (3 points on the same line)
+						// Switch to area/perimeter^2
+						if (edgeRatio>bestEdgeRatio) {
+							bestEdgeRatio=edgeRatio;
+							c1=*sit;
+							c2=*sit1;
+							c3=*sit2;
+						}
+					}
+				}
+			}
+			// 
 			// Work on plane coordinates
-			// p1 is coordinate origin: cell[node[n].cells[0]].centroid
 			// pp is the node point projected onto the plane
 			Vec3D pp,origin,basis1,basis2;
-			origin=cell[node[n].cells[0]].centroid;
-			basis1=p1p2.norm();
-			basis2=-1.*(p1p2.cross(planeNormal)).norm();
-			// Project the node point to the plane
-			pp=node[n]-origin;
-			pp-=pp.dot(planeNormal)*planeNormal;
-			pp+=origin;
-			// Form the linear system
-			a = new double* [3];
-			for (int i=0;i<3;++i) a[i]=new double[3];
-			b = new double[3];
-			weights= new double [3];
-			a[0][0]=(cell[node[n].cells[0]].centroid).dot(basis1);
-			a[0][1]=(cell[node[n].cells[1]].centroid).dot(basis1);
-			a[0][2]=(cell[node[n].cells[2]].centroid).dot(basis1);
-			a[1][0]=(cell[node[n].cells[0]].centroid).dot(basis2);
-			a[1][1]=(cell[node[n].cells[1]].centroid).dot(basis2);
-			a[1][2]=(cell[node[n].cells[2]].centroid).dot(basis2);
-			a[2][0]=1.;
-			a[2][1]=1.;
-			a[2][2]=1.;
-			b[0]=pp.dot(basis1);
-			b[1]=pp.dot(basis2);
-			b[2]=1.;
-			// Solve the 3x3 linear system by Gaussion Elimination
-			gelimd(a,b,weights,3);
-			// Insert the weights
+			origin=cell[c1].centroid;
+			basis1=(cell[c2].centroid-origin).norm();
+			planeNormal=(basis1.cross((cell[c3].centroid-origin).norm()));
+			// If the plane normal magnitude is zero, then
+			// the 3 points do not form a plane but a line
+			if (fabs(planeNormal)<1.e-7) {
+				method="line";
+			}
+			if (method!="line") { // If method is not switched to line
+				// Normalize the plane normal vector
+				planeNormal/=fabs(planeNormal);
+				basis2=-1.*(basis1.cross(planeNormal)).norm();
+				// Project the node point to the plane
+				pp=node[n]-origin;
+				pp-=pp.dot(planeNormal)*planeNormal;
+				pp+=origin;
+				// Form the linear system
+				a = new double* [3];
+				for (int i=0;i<3;++i) a[i]=new double[3];
+				b = new double[3];
+				weights= new double [3];
+				a[0][0]=(cell[c1].centroid).dot(basis1);
+				a[0][1]=(cell[c2].centroid).dot(basis1);
+				a[0][2]=(cell[c3].centroid).dot(basis1);
+				a[1][0]=(cell[c1].centroid).dot(basis2);
+				a[1][1]=(cell[c2].centroid).dot(basis2);
+				a[1][2]=(cell[c3].centroid).dot(basis2);
+				a[2][0]=1.;
+				a[2][1]=1.;
+				a[2][2]=1.;
+				b[0]=pp.dot(basis1);
+				b[1]=pp.dot(basis2);
+				b[2]=1.;
+				// Solve the 3x3 linear system by Gaussion Elimination
+				gelimd(a,b,weights,3);
+				// Insert the weights
+				node[n].average.clear();
+				node[n].average.insert(pair<int,double>(c1,weights[0]));
+				node[n].average.insert(pair<int,double>(c2,weights[1]));
+				node[n].average.insert(pair<int,double>(c3,weights[2]));
+			} // end if method is not switched to line
+		} // end if method is tri
+		if (method=="line") {
+			// Chose the closest 2 points in stencil
+			double distanceMin=1.e20;
+			double distance;
+			for (sit=stencil.begin();sit!=stencil.end();sit++) {
+				distance=fabs(node[n]-cell[*sit].centroid);
+				if (distance<distanceMin) {
+					distanceMin=distance;
+					sit2=sit1;
+					sit1=sit;
+				}
+			}
+			Vec3D pp,p1,p2,direction;
+			double a,weight1,weight2;
+			p1=cell[*sit1].centroid;
+			p2=cell[*sit2].centroid;
+			direction=(p2-p1).norm();
+			a=(node[n]-p1).dot(direction)/fabs(p2-p1);
+			weight1=a;
+			weight2=1.-a;
 			node[n].average.clear();
-			for (int i=0;i<3;++i) node[n].average.insert(pair<int,double>(node[n].cells[i],weights[i]));
-// DEBUG
-// 			double nodeValue=0.;
-// 			for (int i=0;i<3;++i) { nodeValue+=weights[i]*cell[node[n].cells[i]].rho;}
-// 			cout <<  2.*node[n].comp[0]+2. << "\t" << nodeValue << "\t" << endl;
-// 			double weightSumCheck=0.;
-//			map<int,double>::iterator it;
-// 			for ( it=node[n].average.begin() ; it != node[n].average.end(); it++ ) {
-// 				weightSumCheck+=(*it).second;
-// 			}
-//			cout << setw(16) << setprecision(8) << scientific << weightSumCheck << endl;
-
-		}	
-	}
+			node[n].average.insert(pair<int,double>(*sit1,weight1));
+			node[n].average.insert(pair<int,double>(*sit2,weight2));
+		} // end if method is line
+		if (method=="point") {
+			node[n].average.clear();
+			node[n].average.insert(pair<int,double>(*(stencil.begin()),1.));
+		} // end if method is point
+	} // node loop
 	
-
+	return;
 } // end Grid::nodeAverages()
 
 void Grid::faceAverages() {
@@ -1017,12 +1087,13 @@ void Grid::faceAverages() {
 		for (unsigned int fn=0;fn<face[f].nodeCount;++fn) {
 			n=face[f].nodes[fn];
 			for (bcit=node[n].bcs.begin();bcit!=node[n].bcs.end();bcit++) {
-				if (bc.region[*bcit].type!="slip") {
+				if (bc.region[*bcit].type!="symmetry") {
 					simple=true;
 					break;
 				}
 			}
 		}
+		simple=false;
 		// This method averages the parent and neighbor cell values
 		if (simple) {
 			unsigned int c;
@@ -1131,48 +1202,9 @@ void Grid::gradients(void) {
 			if (face[f].bc>=0) { // if a boundary face
 				areaVec=face[f].area*face[f].normal/cell[c].volume;
 				if (face[f].parent!=c) areaVec*=-1.;
-			
-				if (bc.region[face[f].bc].type!="slip") {
-					// First extrapolate everything to the boundary
-					// Loop the cells neighboring the current cells
-					double dist=1.e20;
-					unsigned int ec; // extrapolation cell
-					for (int nc=0;nc<cell[c].neighborCells.size();++nc) {
-						unsigned int nci=cell[c].neighborCells[nc];
-						// If the neighbor cell centroid is farther away from the boundary
-						// than the current cell
-						if ((cell[c].centroid-cell[nci].centroid).dot(face[f].normal)>0) {
-							// Find the cell with minimum normal distance to face normal
-							// i.e the cell best aligned with the face normal
-							Vec3D nc2face;
-							nc2face=face[f].centroid-cell[nci].centroid;
-							nc2face/=fabs(nc2face);
-							double dist2=fabs(nc2face-nc2face.dot(face[f].normal)*face[f].normal);
-							if (dist2<dist) {
-								dist=dist2;
-								ec=nci;
-							}
-						} // if deeper than the current cell
-					} // for neighbor cells
-									// Find face averaged variables
-					faceVel=0.;faceRho=0.;faceP=0.;faceK=0.;faceOmega=0.;
-					//double ec2c=fabs((cell[c].centroid-cell[ec].centroid).dot(face[f].normal));
-					double ec2c=fabs(cell[c].centroid-cell[ec].centroid);
-					//faceRho=cell[c].rho+((cell[c].rho-cell[ec].rho)/ec2c)*(face[f].centroid-cell[c].centroid).dot(face[f].normal);
-					faceRho=cell[c].rho+((cell[c].rho-cell[ec].rho)/ec2c)*fabs(face[f].centroid-cell[c].centroid);
-					//cout << c << "\t" << cell[c].rho << "\t" << faceRho << endl;
-					if (c==102) {
-						cout << f << "\t" << "\t" << face[f].normal << "\t" << faceRho << endl;
-						cout << ec << "\t" << cell[ec].rho << endl;
-						cout << c << "\t" << cell[c].rho << endl;
-						cout << ec2c << "\t" << fabs(face[f].centroid-cell[c].centroid) << endl;
-						cout << endl;
-					}
-				} // if not slip
-				
 
-				
-/*				for (fit=face[f].average.begin();fit!=face[f].average.end();fit++) {
+				faceVel=0.;faceRho=0.;faceP=0.;faceK=0.;faceOmega=0.;
+				for (fit=face[f].average.begin();fit!=face[f].average.end();fit++) {
 					if ((*fit).first>=0) { // if contribution is coming from a real cell
 						faceRho+=(*fit).second*cell[(*fit).first].rho;
 						faceVel+=(*fit).second*cell[(*fit).first].v;
@@ -1186,7 +1218,7 @@ void Grid::gradients(void) {
 						faceK+=(*fit).second*ghost[-1*((*fit).first+1)].k;
 						faceOmega+=(*fit).second*ghost[-1*((*fit).first+1)].omega;
 					}
-				}*/
+				}
 				
 				if (bc.region[face[f].bc].type=="inlet") {
 					faceRho=bc.region[face[f].bc].rho;
@@ -1196,8 +1228,6 @@ void Grid::gradients(void) {
 					//faceP=cell[face[f].parent].p;
 					//faceP=bc.region[face[f].bc].p;
 				}
-
-				//if (bc.region[grid.face[f].bc].type=="outlet") cout << faceRho << endl;
 				
 				if (bc.region[grid.face[f].bc].type=="outlet" &&
 					bc.region[grid.face[f].bc].kind=="fixedPressure") {
@@ -1205,17 +1235,11 @@ void Grid::gradients(void) {
 // 					Mach=(cell[c].v.dot(face[f].normal))/sqrt(Gamma*(cell[c].p+Pref)/cell[c].rho);
 // 					if (Mach<1.) faceP=bc.region[face[f].bc].p;
 				}
-				// Kill the wall normal component for slip, pressure and rho is extrapolated
-				if (bc.region[face[f].bc].type=="slip") faceVel-=faceVel.dot(face[f].normal)*face[f].normal;
+				// Kill the wall normal component for slip or symmetry, pressure and rho is extrapolated
+				if (bc.region[face[f].bc].type=="slip" | bc.region[face[f].bc].type=="symmetry") faceVel-=faceVel.dot(face[f].normal)*face[f].normal;
 				// Kill the velocity for no-slip, pressure and rho is extrapolated
 				if (bc.region[face[f].bc].type=="noslip") faceVel=0.;
 
-// 				if (c==0) {
-// 					cout << f << "\t" << "\t" << face[f].normal << "\t" << faceRho << endl;
-// 					cout << cell[c].grad[0] << endl;
-// 					cout << faceRho*areaVec << endl;
-// 					cout << endl;
-// 				}
 				cell[c].grad[0]+=faceRho*areaVec;
 				cell[c].grad[1]+=faceVel.comp[0]*areaVec;
 				cell[c].grad[2]+=faceVel.comp[1]*areaVec;
@@ -1224,20 +1248,6 @@ void Grid::gradients(void) {
 
 			} // end if a boundary face
 		} // end cell face loop
-
-		for (unsigned int cf=0;cf<cell[c].faceCount;++cf) {
-			f=cell[c].faces[cf];
-			set<int>::iterator bcit;
-			for (unsigned int fn=0;fn<face[f].nodeCount;++fn) {
-				unsigned int n=face[f].nodes[fn];
-				for (bcit=node[n].bcs.begin();bcit!=node[n].bcs.end();bcit++) {
-					if (bc.region[*bcit].type!="slip") {
-						cell[c].grad[0].comp[0]=2.;
-						cell[c].grad[0].comp[1]=0.;
-					}
-				}
-			}
-		}
 		
 	} // end cell loop
  	
