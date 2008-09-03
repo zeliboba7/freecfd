@@ -48,9 +48,8 @@ void write_restart(int timeStep, double time) {
 	// Proc 0 creates the output file and writes variable list
 	if (Rank==0) {
 		file.open((fileName).c_str(),ios::out); 
-		//file << "VARIABLES = \"x\", \"y\", \"z\",\"rho\",\"u\",\"v\",\"w\",\"p\" " << endl;
-		//file << "VARIABLES = \"x\", \"y\", \"z\",\"rho\",\"u\",\"v\",\"w\",\"p\"" << endl;
-		file << "VARIABLES = \"x\", \"y\", \"z\",\"rho\",\"grad_x\",\"grad_y\",\"grad_z\" " << endl;
+		if (!grad_test) file << "VARIABLES = \"x\", \"y\", \"z\",\"rho\",\"u\",\"v\",\"w\",\"p\" " << endl; // DEBUG
+		if (grad_test) file << "VARIABLES = \"x\", \"y\", \"z\",\"rho\",\"grad_x\",\"grad_y\",\"grad_z\" " << endl; // DEBUG
 	} else {
 		file.open((fileName).c_str(),ios::app);
 	}
@@ -74,7 +73,7 @@ void write_restart(int timeStep, double time) {
 		for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].grad[0].comp[1] << endl; // DEBUG
 		for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].grad[0].comp[2] << endl; // DEBUG
 	} else {// DEBUG
-	
+		for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].rho << endl;
 	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].v.comp[0] << endl;
 	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].v.comp[1] << endl;
 	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].v.comp[2] << endl;

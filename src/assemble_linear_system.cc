@@ -258,7 +258,7 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face,unsi
 			right.omega=left.omega;
 			if (bc.region[face.bc].kind=="fixedPressure") {
 				double Mach=(left.v.dot(face.normal))/left.a;
-				if (Mach<1.) right.p=bc.region[face.bc].p;
+				//if (Mach<1.) right.p=bc.region[face.bc].p-0.5*right.rho*right.v.dot(right.v);
 			}
 		} else if (bc.region[face.bc].type=="slip" | bc.region[face.bc].type=="symmetry") {
 			right.rho=left.rho;
@@ -378,9 +378,20 @@ void left_state_perturb(Cell_State &left,Cell_State &right,Face_State &face,unsi
 		left.vN.comp[1]=left.v.dot(face.tangent1);
 		left.vN.comp[2]=left.v.dot(face.tangent2);
 		if (face.bc>=0) {
-			if (bc.region[face.bc].type=="outlet")  { right.v.comp[0]+=epsilon; }
+			if (bc.region[face.bc].type=="outlet")  {
+				right.v.comp[0]+=epsilon;
+				if (bc.region[face.bc].kind=="fixedPressure") {
+					double Mach=(left.v.dot(face.normal))/left.a;
+					if (Mach<1.) {
+						//right.p=bc.region[face.bc].p-0.5*right.rho*right.v.dot(right.v);
+						//right.a=sqrt(Gamma*(right.p+Pref)/right.rho);
+
+					}
+				}
+			}
 			else if (bc.region[face.bc].type=="slip" | bc.region[face.bc].type=="symmetry") { right.v=left.v-2.*left.v.dot(face.normal)*face.normal; }
 			else if (bc.region[face.bc].type=="noslip") { right.v.comp[0]-=epsilon; }
+			
 			right.H=right.a*right.a/(Gamma-1.)+0.5*right.v.dot(right.v);
 			right.vN.comp[0]=right.v.dot(face.normal);
 			right.vN.comp[1]=right.v.dot(face.tangent1);
@@ -393,9 +404,19 @@ void left_state_perturb(Cell_State &left,Cell_State &right,Face_State &face,unsi
 		left.vN.comp[1]=left.v.dot(face.tangent1);
 		left.vN.comp[2]=left.v.dot(face.tangent2);
 		if (face.bc>=0) {
-			if (bc.region[face.bc].type=="outlet")  { right.v.comp[1]+=epsilon; }
+			if (bc.region[face.bc].type=="outlet")  {
+				right.v.comp[1]+=epsilon;				
+				if (bc.region[face.bc].kind=="fixedPressure") {
+					double Mach=(left.v.dot(face.normal))/left.a;
+					if (Mach<1.) {
+						//right.p=bc.region[face.bc].p-0.5*right.rho*right.v.dot(right.v);
+						//right.a=sqrt(Gamma*(right.p+Pref)/right.rho);
+					}
+				}
+			}
 			else if (bc.region[face.bc].type=="slip" | bc.region[face.bc].type=="symmetry") { right.v=left.v-2.*left.v.dot(face.normal)*face.normal; }
 			else if (bc.region[face.bc].type=="noslip") { right.v.comp[1]-=epsilon; }
+			
 			right.H=right.a*right.a/(Gamma-1.)+0.5*right.v.dot(right.v);
 			right.vN.comp[0]=right.v.dot(face.normal);
 			right.vN.comp[1]=right.v.dot(face.tangent1);
@@ -408,9 +429,19 @@ void left_state_perturb(Cell_State &left,Cell_State &right,Face_State &face,unsi
 		left.vN.comp[1]=left.v.dot(face.tangent1);
 		left.vN.comp[2]=left.v.dot(face.tangent2);
 		if (face.bc>=0) {
-			if (bc.region[face.bc].type=="outlet")  { right.v.comp[2]+=epsilon; }
+			if (bc.region[face.bc].type=="outlet")  {
+				right.v.comp[2]+=epsilon;
+				if (bc.region[face.bc].kind=="fixedPressure") {
+					double Mach=(left.v.dot(face.normal))/left.a;
+					if (Mach<1.) {
+						//right.p=bc.region[face.bc].p-0.5*right.rho*right.v.dot(right.v);
+						//right.a=sqrt(Gamma*(right.p+Pref)/right.rho);
+					}
+				}
+			}
 			else if (bc.region[face.bc].type=="slip"  | bc.region[face.bc].type=="symmetry") { right.v=left.v-2.*left.v.dot(face.normal)*face.normal; }
 			else if (bc.region[face.bc].type=="noslip") { right.v.comp[2]-=epsilon; }
+			
 			right.H=right.a*right.a/(Gamma-1.)+0.5*right.v.dot(right.v);
 			right.vN.comp[0]=right.v.dot(face.normal);
 			right.vN.comp[1]=right.v.dot(face.tangent1);
@@ -424,9 +455,12 @@ void left_state_perturb(Cell_State &left,Cell_State &right,Face_State &face,unsi
 			if (bc.region[face.bc].type=="outlet") {
 				if (bc.region[face.bc].kind=="fixedPressure") {
 					double Mach=(left.v.dot(face.normal))/left.a;
-					if (Mach<1.) right.p=bc.region[face.bc].p;
+					if (Mach>=1.) {
+						right.p=left.p;
+					}
+				} else {
+					right.p=left.p;
 				}
-				right.a=sqrt(Gamma*(right.p+Pref)/right.rho);
 			} else if (bc.region[face.bc].type=="inlet") {
 				double Mach=(left.v.dot(face.normal))/left.a;
 				right.p=left.p;
@@ -444,7 +478,8 @@ void left_state_perturb(Cell_State &left,Cell_State &right,Face_State &face,unsi
 		left.omega+=epsilon;
 		if (face.bc>=0 && bc.region[face.bc].type!="inlet") right.omega+=epsilon;
 	}
-	
+
+
 	return;
 } // end left_state_perturb
 

@@ -110,6 +110,7 @@ public:
 	void gradMaps();
 	void gradients();
 	void limit_gradients(string limiter, double sharpeningFactor);
+	void lengthScales(void);
 };
 
 #endif

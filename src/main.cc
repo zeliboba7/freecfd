@@ -127,7 +127,8 @@ int main(int argc, char *argv[]) {
 	if (Rank==0) cout << "[I] Set boundary conditions" << endl;
 
 	set_probes();
-	
+
+	grid.lengthScales();
 	grid.nodeAverages();
 	grid.faceAverages();
 	grid.gradMaps();
