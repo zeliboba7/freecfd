@@ -390,6 +390,9 @@ int Grid::ReadCGNS() {
 					Node temp;
 					temp.id=nodeCount;
 					temp.globalId=elemConnectivity[elemConnIndex[c]+n];
+// 					if (z[temp.globalId]>0) {z[temp.globalId]=0.1;} // DEBUG
+// 					else {z[temp.globalId]=-0.1;} // DEBUG
+//					z[temp.globalId]*=50.;
 					temp.comp[0]=x[temp.globalId];
 					temp.comp[1]=y[temp.globalId];
 					temp.comp[2]=z[temp.globalId];
@@ -802,34 +805,44 @@ int Grid::ReadCGNS() {
 	for (unsigned int f=0;f<faceCount;++f) {
 		Vec3D centroid=0.;
 		Vec3D areaVec=0.;
+		Vec3D patchCentroid,patchArea;
+		// Find an approxiamate centroid (true centroid for triangle)
 		for (unsigned int n=0;n<face[f].nodeCount;++n) {
 			centroid+=face[f].node(n);
 		}
 		centroid/=double(face[f].nodeCount);
-		face[f].centroid=centroid;
-		for (unsigned int n=0;n<face[f].nodeCount-1;++n) {
-			areaVec+=0.5* (face[f].node(n)-centroid).cross(face[f].node(n+1)-centroid);
+		
+		// Sum the area as a patch of triangles formed by connected two nodes and an interior point
+		face[f].centroid=0.;
+		areaVec=0.;
+		int next;
+		for (unsigned int n=0;n<face[f].nodeCount;++n) {
+			next=n+1;
+			if (next==face[f].nodeCount) next=0;
+			patchArea=0.5*(face[f].node(n)-centroid).cross(face[f].node(next)-centroid);
+			patchCentroid=1./3.*(face[f].node(n)+face[f].node(next)+centroid);
+			face[f].centroid+=patchCentroid*fabs(patchArea);
+			areaVec+=patchArea;
+			
 		}
-		areaVec+=0.5*(face[f].node(face[f].nodeCount-1)-centroid).cross(face[f].node(0)-centroid);
-		if (areaVec.dot(centroid-cell[face[f].parent].centroid) <0.) {
+		if (areaVec.dot(centroid-cell[face[f].parent].centroid) <=0.) {
 			// [TBM] Need to swap the face and reflect the area vector
 			cout << "face " << f << " should be swapped" << endl;
 		}
 		face[f].area=fabs(areaVec);
+		face[f].centroid/=face[f].area;
 		face[f].normal=areaVec/face[f].area;
 	}
 			
-	// Loop through the cells and calculate the volumes and length scales
+	// Loop through the cells and calculate the volumes
 	double totalVolume=0.;
 	for (unsigned int c=0;c<cellCount;++c) {
-		cell[c].lengthScale=1.e20;
 		double volume=0.,height;
 		unsigned int f;
 		for (unsigned int cf=0;cf<cell[c].faceCount;++cf) {
 			f=cell[c].faces[cf];
 			height=fabs(face[f].normal.dot(face[f].centroid-cell[c].centroid));
 			volume+=1./3.*face[f].area*height;
-			cell[c].lengthScale=min(cell[c].lengthScale,height);
 		}
 		cell[c].volume=volume;
 		totalVolume+=volume;
@@ -878,7 +891,7 @@ int Cell::Construct(const ElementType_t elemType, unsigned int nodeList[]) {
 			nodes.push_back(nodeList[i]);
 			centroid+=node(i);
 		}
-		centroid/=nodeCount;
+		centroid/=double(nodeCount);
 		return 0;
 	}
 }
@@ -914,6 +927,21 @@ Face& Cell::face(int f) {
 Node& Face::node(int n) {
 	return grid.node[nodes[n]];
 };
+
+class InterpolationTriangle {
+	public:
+		unsigned int c1,c2,c3;
+		Vec3D cv1,cv2,cv3,centroid;
+		double edge1,edge2,edge3;
+		double perimeter;
+		double area;
+		double minEdge,maxEdge;
+		double distance;
+		double quality;
+		double cw1,cw2,cw3;
+		double weight;
+};
+
 
 void Grid::nodeAverages() {
 	
@@ -964,44 +992,55 @@ void Grid::nodeAverages() {
 
 		// TODO implement tetra method
 		if (method=="tri") {
+			vector<InterpolationTriangle> triangles;
 			// Find out best combination neigboring cells for triangulation
-			double edgeRatio,bestEdgeRatio=0.; // smallest edge length / largest edge length
-			double edge1,edge2,edge3,maxEdge,minEdge;
+			double edge1,edge2,edge3,maxEdge,minEdge,perimeter,area;
+			double areaEquil,quality,moment;
+			double minMoment=1.e20,bestQuality=0.;
+			Vec3D p1,p2,p3,centroid;
+			unsigned int cq1,cq2,cq3;
+			bool foundOne=false;
+			// Loop through the stencil and construct triangle combinations
+			double weightSum=0.;
 			for (sit=stencil.begin();sit!=stencil.end();sit++) {
 				sit1=sit; sit1++;
 				for (sit1=sit1;sit1!=stencil.end();sit1++) {
 					sit2=sit; sit2++;
 					for (sit2=sit2;sit2!=stencil.end();sit2++) {
-						edge1=fabs(cell[*sit].centroid-cell[*sit1].centroid);
-						edge2=fabs(cell[*sit].centroid-cell[*sit2].centroid);
-						edge3=fabs(cell[*sit1].centroid-cell[*sit2].centroid);
-						maxEdge=max(edge1,edge2); maxEdge=max(maxEdge,edge3);
-						minEdge=min(edge1,edge2); minEdge=min(minEdge,edge3);
-						edgeRatio=minEdge/maxEdge; // always smaller than 1, ideal is 1
-						// TODO this criteria is not good, even a zero area triangle might return 0.5 (3 points on the same line)
-						// Switch to area/perimeter^2
-						if (edgeRatio>bestEdgeRatio) {
-							bestEdgeRatio=edgeRatio;
-							c1=*sit;
-							c2=*sit1;
-							c3=*sit2;
+						InterpolationTriangle temp;
+						temp.c1=*sit;
+						temp.c2=*sit1;
+						temp.c3=*sit2;
+						temp.cv1=cell[*sit].centroid;
+						temp.cv2=cell[*sit1].centroid;
+						temp.cv3=cell[*sit2].centroid;
+						temp.centroid=(temp.cv1+temp.cv2+temp.cv3)/3.;
+						temp.area=0.5*fabs((temp.cv2-temp.cv1).cross(temp.cv3-temp.cv1));
+						temp.edge1=fabs(temp.cv1-temp.cv2);
+						temp.edge2=fabs(temp.cv1-temp.cv3);
+						temp.edge3=fabs(temp.cv2-temp.cv3);
+						temp.perimeter=temp.edge1+temp.edge2+temp.edge3;
+						temp.maxEdge=max(temp.edge1,temp.edge2); temp.maxEdge=max(temp.maxEdge,temp.edge3);
+						temp.minEdge=min(temp.edge1,temp.edge2); temp.minEdge=min(temp.minEdge,temp.edge3);
+						temp.quality=temp.area/((temp.perimeter*temp.perimeter/9.)*sqrt(3.)/4.);
+						temp.distance=fabs(node[n]-temp.centroid);
+						temp.weight=temp.quality/(temp.distance*temp.distance);
+						if (temp.quality>1.e-7) {
+							triangles.push_back(temp);
+							weightSum+=temp.weight;
 						}
 					}
 				}
-			}
-			// 
-			// Work on plane coordinates
-			// pp is the node point projected onto the plane
-			Vec3D pp,origin,basis1,basis2;
-			origin=cell[c1].centroid;
-			basis1=(cell[c2].centroid-origin).norm();
-			planeNormal=(basis1.cross((cell[c3].centroid-origin).norm()));
-			// If the plane normal magnitude is zero, then
-			// the 3 points do not form a plane but a line
-			if (fabs(planeNormal)<1.e-7) {
-				method="line";
-			}
-			if (method!="line") { // If method is not switched to line
+			} // Loop through stencil
+			if (triangles.size()==0) cerr << "[E] An interpolation triangle couldn't be found for node " << n << endl;
+			// Now loop over the triangles and store interpolation weights
+			for (int t=0;t<triangles.size();++t) {
+				triangles[t].weight/=weightSum;
+				
+				Vec3D pp,origin,basis1,basis2;
+				origin=cell[triangles[t].c1].centroid;
+				basis1=(cell[triangles[t].c2].centroid-origin).norm();
+				planeNormal=(basis1.cross((cell[triangles[t].c3].centroid-origin).norm()));
 				// Normalize the plane normal vector
 				planeNormal/=fabs(planeNormal);
 				basis2=-1.*(basis1.cross(planeNormal)).norm();
@@ -1014,12 +1053,12 @@ void Grid::nodeAverages() {
 				for (int i=0;i<3;++i) a[i]=new double[3];
 				b = new double[3];
 				weights= new double [3];
-				a[0][0]=(cell[c1].centroid).dot(basis1);
-				a[0][1]=(cell[c2].centroid).dot(basis1);
-				a[0][2]=(cell[c3].centroid).dot(basis1);
-				a[1][0]=(cell[c1].centroid).dot(basis2);
-				a[1][1]=(cell[c2].centroid).dot(basis2);
-				a[1][2]=(cell[c3].centroid).dot(basis2);
+				a[0][0]=(cell[triangles[t].c1].centroid).dot(basis1);
+				a[0][1]=(cell[triangles[t].c2].centroid).dot(basis1);
+				a[0][2]=(cell[triangles[t].c3].centroid).dot(basis1);
+				a[1][0]=(cell[triangles[t].c1].centroid).dot(basis2);
+				a[1][1]=(cell[triangles[t].c2].centroid).dot(basis2);
+				a[1][2]=(cell[triangles[t].c3].centroid).dot(basis2);
 				a[2][0]=1.;
 				a[2][1]=1.;
 				a[2][2]=1.;
@@ -1028,12 +1067,40 @@ void Grid::nodeAverages() {
 				b[2]=1.;
 				// Solve the 3x3 linear system by Gaussion Elimination
 				gelimd(a,b,weights,3);
-				// Insert the weights
-				node[n].average.clear();
-				node[n].average.insert(pair<int,double>(c1,weights[0]));
-				node[n].average.insert(pair<int,double>(c2,weights[1]));
-				node[n].average.insert(pair<int,double>(c3,weights[2]));
-			} // end if method is not switched to line
+				triangles[t].cw1=weights[0];
+				triangles[t].cw2=weights[1];
+				triangles[t].cw3=weights[2];
+			}
+
+			node[n].average.clear();
+			for (int t=0;t<triangles.size();++t) {
+				if (node[n].average.find(triangles[t].c1)!=node[n].average.end()) { // if the cell contributing to the node average is already contained in the map
+					node[n].average[triangles[t].c1]+=triangles[t].weight*triangles[t].cw1;
+				} else {
+					node[n].average.insert(pair<int,double>(triangles[t].c1,triangles[t].weight*triangles[t].cw1));
+				}
+				
+				if (node[n].average.find(triangles[t].c2)!=node[n].average.end()) { // if the cell contributing to the node average is already contained in the map
+					node[n].average[triangles[t].c2]+=triangles[t].weight*triangles[t].cw2;
+				} else {
+					node[n].average.insert(pair<int,double>(triangles[t].c2,triangles[t].weight*triangles[t].cw2));
+				}
+				
+				if (node[n].average.find(triangles[t].c3)!=node[n].average.end()) { // if the cell contributing to the node average is already contained in the map
+					node[n].average[triangles[t].c3]+=triangles[t].weight*triangles[t].cw3;
+				} else {
+					node[n].average.insert(pair<int,double>(triangles[t].c3,triangles[t].weight*triangles[t].cw3));
+				}
+				
+			}
+
+// 				// Insert the weights
+// 			node[n].average.clear();
+// 			node[n].average.insert(pair<int,double>(triangles[0].c1,triangles[0].cw1));
+// 			node[n].average.insert(pair<int,double>(triangles[0].c2,triangles[0].cw2));
+// 			node[n].average.insert(pair<int,double>(triangles[0].c3,triangles[0].cw3));
+			
+
 		} // end if method is tri
 		if (method=="line") {
 			// Chose the closest 2 points in stencil
@@ -1063,6 +1130,15 @@ void Grid::nodeAverages() {
 			node[n].average.clear();
 			node[n].average.insert(pair<int,double>(*(stencil.begin()),1.));
 		} // end if method is point
+		
+		if (method!="tri") cout << method << endl;
+		std::map<int,double>::iterator it;
+		double avg=0.;
+		for ( it=node[n].average.begin() ; it != node[n].average.end(); it++ ) {
+			avg+=(*it).second*cell[(*it).first].rho;
+		}
+// 		if (fabs(avg-2.*node[n].comp[0]-2.)>1.e-7) cout << 2.*node[n].comp[0]+2. << "\t" << avg << endl;
+
 	} // node loop
 	
 	return;
@@ -1073,68 +1149,57 @@ void Grid::faceAverages() {
 	unsigned int n;
 	map<int,double>::iterator it;
 	map<int,double>::iterator fit;
-	bool simple;
-	set<int>::iterator bcit;
-	double cell2face;
-	double weightSum;
-	double weight,weightSumCheck;
 
  	for (unsigned int f=0;f<faceCount;++f) {
+		double weightSumCheck;
+		vector<double> nodeWeights;
+		// Mid point of the face
+		Vec3D mid=0.,patchArea;
+		double patchRatio;
+		for (unsigned int fn=0;fn<face[f].nodeCount;++fn) {
+			nodeWeights.push_back(0.);
+			mid+=face[f].node(fn);
+		}
+		mid/=double(face[f].nodeCount);
+		// Get node weights
+		int next;
+		for (unsigned int fn=0;fn<face[f].nodeCount;++fn) {
+			next=fn+1;
+			if (next==face[f].nodeCount) next=0;
+			patchArea=0.5*(face[f].node(fn)-mid).cross(face[f].node(next)-mid);
+			patchRatio=fabs(patchArea)/face[f].area;
+			for (unsigned int fnn=0;fnn<face[f].nodeCount;++fnn) {
+				nodeWeights[fnn]+=(1./double(3*face[f].nodeCount))*patchRatio;
+			}
+			nodeWeights[fn]+=patchRatio/3.;
+			nodeWeights[next]+=patchRatio/3.;
+		}
+
 		face[f].average.clear();
-		simple=false;
-		// if one of the face nodes is touching a boundary other than slip,
-		// switch to simpler averaging
 		for (unsigned int fn=0;fn<face[f].nodeCount;++fn) {
 			n=face[f].nodes[fn];
-			for (bcit=node[n].bcs.begin();bcit!=node[n].bcs.end();bcit++) {
-				if (bc.region[*bcit].type!="symmetry") {
-					simple=true;
-					break;
+			for ( it=node[n].average.begin() ; it != node[n].average.end(); it++ ) {
+				if (face[f].average.find((*it).first)!=face[f].average.end()) { // if the cell contributing to the node average is already contained in the face average map
+					face[f].average[(*it).first]+=nodeWeights[fn]*(*it).second;
+				} else {
+					face[f].average.insert(pair<int,double>((*it).first,nodeWeights[fn]*(*it).second));
 				}
 			}
 		}
-		simple=false;
-		// This method averages the parent and neighbor cell values
-		if (simple) {
-			unsigned int c;
-			weightSum=0.;
-			for (int i=0;i<2;++i) {
-				if (i==0) { c=face[f].parent; } else { c=face[f].neighbor;}
-				cell2face=(cell[c].centroid-face[f].centroid).dot(face[f].normal);
-				//cell2face=fabs(cell[c].centroid-face[f].centroid);
-				//weight=1./(cell2face*cell2face);
-				//weight=cell[c].volume;
-				weightSum+=weight;
-				face[f].average.insert(pair<int,double>(c,weight));
-			}
-			for (fit=face[f].average.begin();fit!=face[f].average.end();fit++) {
-				face[f].average[(*fit).first]/=weightSum;
-			}
-			
-		} else { // This method uses node based averaging
-			weightSum=0.;
-			for (unsigned int fn=0;fn<face[f].nodeCount;++fn) {
-				n=face[f].nodes[fn];
-				weight=fabs(node[n]-face[f].centroid);
-				weight*=weight;
-				weightSum+=weight;
-				for ( it=node[n].average.begin() ; it != node[n].average.end(); it++ ) {
-					if (face[f].average.find((*it).first)!=face[f].average.end()) { // if the cell contributing to the node average is already contained in the face average map
-						face[f].average[(*it).first]+=weight*(*it).second;
-					} else {
-						face[f].average.insert(pair<int,double>((*it).first,weight*(*it).second));
-					}
-				}
-			}
-			weightSumCheck=0.;
-			for ( fit=face[f].average.begin() ; fit != face[f].average.end(); fit++ ) {
-				(*fit).second/=weightSum;
-				weightSumCheck+=(*fit).second;
-			}
-			//cout << setw(16) << setprecision(8) << scientific << weightSumCheck << endl;
-		} // end face node loop
-
-				
+// 		weightSumCheck=0.;
+// 		for ( fit=face[f].average.begin() ; fit != face[f].average.end(); fit++ ) {
+// 			//(*fit).second/=double(face[f].nodeCount);
+// 			weightSumCheck+=(*fit).second;
+// 		}
+// 
+// 		cout << nodeWeights.size() << "\t" << weightSumCheck << endl;
+		//cout << setw(16) << setprecision(8) << scientific << weightSumCheck << endl;
+// 		std::map<int,double>::iterator it;
+// 		double avg=0.;
+// 		for ( it=face[f].average.begin() ; it != face[f].average.end(); it++ ) {
+// 			avg+=(*it).second*cell[(*it).first].rho;
+// 		}
+// 		if (fabs(avg-2.*face[f].centroid.comp[0]-2.)>1.e-8) cout << 2.*face[f].centroid.comp[0]+2. << "\t" << avg << endl;
 	} // end face loop
 
 } // end Grid::faceAverages()
@@ -1196,11 +1261,12 @@ void Grid::gradients(void) {
 			}
 		} // end gradMap loop
 
-		// Add boundary face contributions
+ 		// Add boundary face contributions
+
 		for (unsigned int cf=0;cf<cell[c].faceCount;++cf) {
 			f=cell[c].faces[cf];
 			if (face[f].bc>=0) { // if a boundary face
-				areaVec=face[f].area*face[f].normal/cell[c].volume;
+				areaVec=face[f].normal*face[f].area/cell[c].volume;
 				if (face[f].parent!=c) areaVec*=-1.;
 
 				faceVel=0.;faceRho=0.;faceP=0.;faceK=0.;faceOmega=0.;
@@ -1219,7 +1285,9 @@ void Grid::gradients(void) {
 						faceOmega+=(*fit).second*ghost[-1*((*fit).first+1)].omega;
 					}
 				}
-				
+
+				//cout << 2.*face[f].centroid.comp[0]+2. << "\t" << faceRho << endl;
+
 				if (bc.region[face[f].bc].type=="inlet") {
 					faceRho=bc.region[face[f].bc].rho;
 					faceVel=bc.region[face[f].bc].v;
@@ -1228,15 +1296,22 @@ void Grid::gradients(void) {
 					//faceP=cell[face[f].parent].p;
 					//faceP=bc.region[face[f].bc].p;
 				}
-				
+
 				if (bc.region[grid.face[f].bc].type=="outlet" &&
 					bc.region[grid.face[f].bc].kind=="fixedPressure") {
 					// find Mach number
 // 					Mach=(cell[c].v.dot(face[f].normal))/sqrt(Gamma*(cell[c].p+Pref)/cell[c].rho);
 // 					if (Mach<1.) faceP=bc.region[face[f].bc].p;
+					faceP=bc.region[face[f].bc].p;//-0.5*faceRho*faceVel.dot(faceVel);
 				}
 				// Kill the wall normal component for slip or symmetry, pressure and rho is extrapolated
-				if (bc.region[face[f].bc].type=="slip" | bc.region[face[f].bc].type=="symmetry") faceVel-=faceVel.dot(face[f].normal)*face[f].normal;
+				if (bc.region[face[f].bc].type=="slip") faceVel-=faceVel.dot(face[f].normal)*face[f].normal;
+				if (bc.region[face[f].bc].type=="symmetry") {
+					faceRho=cell[face[f].parent].rho;
+					faceVel=cell[face[f].parent].v;
+					faceP=cell[face[f].parent].p;
+					faceVel-=faceVel.dot(face[f].normal)*face[f].normal;
+				}
 				// Kill the velocity for no-slip, pressure and rho is extrapolated
 				if (bc.region[face[f].bc].type=="noslip") faceVel=0.;
 
@@ -1248,8 +1323,10 @@ void Grid::gradients(void) {
 
 			} // end if a boundary face
 		} // end cell face loop
-		
+		//cout << cell[c].grad[0].comp[0] << endl;
+		//cout << c << "\t" << areaVecSum/cell[c].volume << endl;
 	} // end cell loop
+	
  	
 } // end Grid::gradients(void)
 
@@ -1327,3 +1404,24 @@ int gelimd(double **a,double *b,double *x, int n)
 	}
 	return 0;
 }
+
+void Grid::lengthScales(void) {
+	// Loop through the cells and calculate length scales
+	for (unsigned int c=0;c<cellCount;++c) {
+		cell[c].lengthScale=1.e20;
+		double height;
+		unsigned int f;
+		for (unsigned int cf=0;cf<cell[c].faceCount;++cf) {
+			f=cell[c].faces[cf];
+			height=fabs(face[f].normal.dot(face[f].centroid-cell[c].centroid));
+			bool skipScale=false;
+			if (face[f].bc>=0) {
+				if (bc.region[face[f].bc].type=="symmetry") {
+					skipScale=true;
+				}
+			}
+			if (skipScale==false) cell[c].lengthScale=min(cell[c].lengthScale,height);
+		}
+	}
+	return;
+} // end Grid::lengthScales

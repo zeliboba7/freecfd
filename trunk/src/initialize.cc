@@ -96,6 +96,7 @@ void initialize(Grid &grid, InputFile &input) {
 
 	if (grad_test) { // DEBUG
 		for (unsigned int c=0;c<grid.cellCount;++c) { // DEBUG
+			//grid.cell[c].rho=2.*grid.cell[c].centroid.comp[0]+2.; // DEBUG
 			grid.cell[c].rho=2.*grid.cell[c].centroid.comp[0]*grid.cell[c].centroid.comp[0]+2.; // DEBUG
 			//grid.cell[c].rho=1.; // DEBUG
 		}// DEBUG
