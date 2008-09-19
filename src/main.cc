@@ -232,8 +232,7 @@ if (grad_test) { // DEBUG
 
 		// Flush boundary forces
 		for (int i=0;i<input.section["boundaryConditions"].numberedSubsections["BC"].count;++i) {
-			bc.region[i].rho;
-			cout << "BC_" << i+1 << " momentum flux:  " << bc.region[i].momentum << endl;
+			//cout << "BC_" << i+1 << " momentum flux:  " << bc.region[i].momentum << endl;
 			//cout << i+1 << "\t" << bc.region[i].area << endl;
 			bc.region[i].momentum=0.;
 		}
