@@ -114,10 +114,10 @@ void assemble_linear_system(void) {
 		// Think of a better (cheaper) way to do this
 		for (int m=0;m<7;++m) {
 			flux[m]=0.;
-			face_state_adjust(left,right,face,f,m);
+			//face_state_adjust(left,right,face,f,m); // TODO do we need this here?
 		}
-		convective_face_flux(left,right,face,f,flux);
-		diffusive_face_flux(left,right,face,f,flux);
+		//convective_face_flux(left,right,face,f,flux);
+		//diffusive_face_flux(left,right,face,f,flux);
 
 		for (int i=0;i<nSolVar;++i) {
 
@@ -148,7 +148,7 @@ void assemble_linear_system(void) {
 				}
 			} // for j
 
-			if (face.bc==-1) {
+			if (face.bc==-1) { // TODO what if a ghost face??
 
 				// Flush face fluxes
 				for (int m=0;m<7;++m) fluxPlus[m]=0.;
@@ -258,7 +258,7 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face,unsi
 			right.omega=left.omega;
 			if (bc.region[face.bc].kind=="fixedPressure") {
 				double Mach=(left.v.dot(face.normal))/left.a;
-				//if (Mach<1.) right.p=bc.region[face.bc].p-0.5*right.rho*right.v.dot(right.v);
+				if (Mach<1.) right.p=bc.region[face.bc].p;
 			}
 		} else if (bc.region[face.bc].type=="slip" | bc.region[face.bc].type=="symmetry") {
 			right.rho=left.rho;
@@ -385,12 +385,11 @@ void left_state_perturb(Cell_State &left,Cell_State &right,Face_State &face,unsi
 					if (Mach<1.) {
 						//right.p=bc.region[face.bc].p-0.5*right.rho*right.v.dot(right.v);
 						//right.a=sqrt(Gamma*(right.p+Pref)/right.rho);
-
 					}
 				}
-			}
-			else if (bc.region[face.bc].type=="slip" | bc.region[face.bc].type=="symmetry") { right.v=left.v-2.*left.v.dot(face.normal)*face.normal; }
-			else if (bc.region[face.bc].type=="noslip") { right.v.comp[0]-=epsilon; }
+			} else if (bc.region[face.bc].type=="slip" | bc.region[face.bc].type=="symmetry") {
+				right.v=left.v-2.*left.v.dot(face.normal)*face.normal;
+			} else if (bc.region[face.bc].type=="noslip") { right.v=left.v; }
 			
 			right.H=right.a*right.a/(Gamma-1.)+0.5*right.v.dot(right.v);
 			right.vN.comp[0]=right.v.dot(face.normal);
@@ -415,7 +414,7 @@ void left_state_perturb(Cell_State &left,Cell_State &right,Face_State &face,unsi
 				}
 			}
 			else if (bc.region[face.bc].type=="slip" | bc.region[face.bc].type=="symmetry") { right.v=left.v-2.*left.v.dot(face.normal)*face.normal; }
-			else if (bc.region[face.bc].type=="noslip") { right.v.comp[1]-=epsilon; }
+			else if (bc.region[face.bc].type=="noslip") { right.v=left.v; }
 			
 			right.H=right.a*right.a/(Gamma-1.)+0.5*right.v.dot(right.v);
 			right.vN.comp[0]=right.v.dot(face.normal);
@@ -440,7 +439,7 @@ void left_state_perturb(Cell_State &left,Cell_State &right,Face_State &face,unsi
 				}
 			}
 			else if (bc.region[face.bc].type=="slip"  | bc.region[face.bc].type=="symmetry") { right.v=left.v-2.*left.v.dot(face.normal)*face.normal; }
-			else if (bc.region[face.bc].type=="noslip") { right.v.comp[2]-=epsilon; }
+			else if (bc.region[face.bc].type=="noslip") { right.v=left.v; }
 			
 			right.H=right.a*right.a/(Gamma-1.)+0.5*right.v.dot(right.v);
 			right.vN.comp[0]=right.v.dot(face.normal);
