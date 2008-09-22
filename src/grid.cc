@@ -49,6 +49,8 @@ double superbee(double a, double b);
 double minmod(double a, double b);
 int gelimd(double **a,double *b,double *x, int n);
 
+extern GridRawData raw;
+
 Grid::Grid() {
 	;
 }
@@ -61,6 +63,8 @@ int Grid::read(string fname) {
 		if (Rank==0) cout << "[I] Found grid file " << fileName  << endl;
 		file.close();
 		ReadCGNS();
+		ReadCGNS2();
+		Partition();
 		return 1;
 	} else {
 		if (Rank==0) cerr << "[E] Grid file "<< fileName << " could not be found." << endl;
@@ -390,9 +394,6 @@ int Grid::ReadCGNS() {
 					Node temp;
 					temp.id=nodeCount;
 					temp.globalId=elemConnectivity[elemConnIndex[c]+n];
-// 					if (z[temp.globalId]>0) {z[temp.globalId]=0.1;} // DEBUG
-// 					else {z[temp.globalId]=-0.1;} // DEBUG
-//					z[temp.globalId]*=50.;
 					temp.comp[0]=x[temp.globalId];
 					temp.comp[1]=y[temp.globalId];
 					temp.comp[2]=z[temp.globalId];

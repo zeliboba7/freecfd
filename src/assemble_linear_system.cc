@@ -114,10 +114,10 @@ void assemble_linear_system(void) {
 		// Think of a better (cheaper) way to do this
 		for (int m=0;m<7;++m) {
 			flux[m]=0.;
-			//face_state_adjust(left,right,face,f,m); // TODO do we need this here?
+			face_state_adjust(left,right,face,f,m); // TODO do we need this here?
 		}
-		//convective_face_flux(left,right,face,f,flux);
-		//diffusive_face_flux(left,right,face,f,flux);
+		convective_face_flux(left,right,face,f,flux);
+		diffusive_face_flux(left,right,face,f,flux);
 
 		for (int i=0;i<nSolVar;++i) {
 
@@ -125,6 +125,7 @@ void assemble_linear_system(void) {
 			for (int m=0;m<7;++m) fluxPlus[m]=0.;
 			// Perturb left variable
 			left_state_perturb(left,right,face,f,i,epsilon);
+			if (face.bc==-1) right_state_update(left,right,face,f);
 			// Adjust face averages and gradients (crude)
 			face_state_adjust(left,right,face,f,i);
 
@@ -133,6 +134,7 @@ void assemble_linear_system(void) {
 
 			// Restore
 			left_state_perturb(left,right,face,f,i,-1.*epsilon);
+			if (face.bc==-1) right_state_update(left,right,face,f);
 			face_state_adjust(left,right,face,f,i);
 
 			// Add change of flux (flux Jacobian) to implicit operator
@@ -207,10 +209,13 @@ void left_state_update(Cell_State &left,Face_State &face,unsigned int f) {
 	
 	// Set left primitive variables
 	left.rho=grid.cell[parent].rho+delta[0];
-	left.v=grid.cell[parent].v+deltaV;
+	left.v_center=grid.cell[parent].v;
+	left.v=left.v_center+deltaV;
 	left.p=grid.cell[parent].p+delta[4];
-	left.k=grid.cell[parent].k+delta[5];
-	left.omega=grid.cell[parent].omega+delta[6];
+	left.k_center=grid.cell[parent].k;
+	left.k=left.k_center+delta[5];
+	left.omega_center=grid.cell[parent].omega;
+	left.omega=left.omega_center+delta[6];
 	left.a=sqrt(Gamma*(left.p+Pref)/left.rho);
 	left.H=left.a*left.a/(Gamma-1.)+0.5*left.v.dot(left.v);
 
@@ -243,19 +248,25 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face,unsi
 
 		// Set right primitive variables
 		right.rho=grid.cell[neighbor].rho+delta[0];
-		right.v=grid.cell[neighbor].v+deltaV;
+		right.v_center=grid.cell[neighbor].v;
+		right.v=right.v_center+deltaV;
 		right.p=grid.cell[neighbor].p+delta[4];
-		right.k=grid.cell[neighbor].k+delta[5];
-		right.omega=grid.cell[neighbor].omega+delta[6];
+		right.k_center=grid.cell[neighbor].k;
+		right.k=right.k_center+delta[5];
+		right.omega_center=grid.cell[neighbor].omega;
+		right.omega=right.omega_center+delta[6];
 		
 	} else if (face.bc>=0) { // boundary face
 
 		if (bc.region[face.bc].type=="outlet") {
 			right.rho=left.rho;
 			right.v=left.v;
+			right.v_center=left.v_center;
 			right.p=left.p;
 			right.k=left.k;
+			right.k_center=left.k_center;
 			right.omega=left.omega;
+			right.omega_center=left.omega_center;
 			if (bc.region[face.bc].kind=="fixedPressure") {
 				double Mach=(left.v.dot(face.normal))/left.a;
 				if (Mach<1.) right.p=bc.region[face.bc].p;
@@ -263,23 +274,32 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face,unsi
 		} else if (bc.region[face.bc].type=="slip" | bc.region[face.bc].type=="symmetry") {
 			right.rho=left.rho;
 			right.v=left.v-2.*left.v.dot(face.normal)*face.normal;
+			right.v_center=left.v_center-2.*left.v_center.dot(face.normal)*face.normal;
 			right.p=left.p;
 			right.k=left.k;
+			right.k_center=left.k_center;
 			right.omega=left.omega;
+			right.omega_center=left.omega_center;
 		} else if (bc.region[face.bc].type=="noslip") {
 			right.rho=left.rho;
 			right.v=-1.*left.v;
+			right.v_center=-1.*left.v_center;
 			right.p=left.p;
 			right.k=left.k;
+			right.k_center=left.k_center;
 			right.omega=left.omega;
+			right.omega_center=left.omega_center;
 		} else if (bc.region[face.bc].type=="inlet") {
 			double Mach=(left.v.dot(face.normal))/left.a;
 			right.rho=bc.region[face.bc].rho;
 			right.v=bc.region[face.bc].v;
+			right.v_center=right.v;
 			right.p=left.p;
 			if (Mach<=-1.) right.p=bc.region[face.bc].p;
 			right.k=bc.region[face.bc].k;
 			right.omega=bc.region[face.bc].omega;
+			right.k_center=right.k;
+			right.omega_center=right.omega;
 		}
 
 	} else { // partition boundary
@@ -366,116 +386,37 @@ void left_state_perturb(Cell_State &left,Cell_State &right,Face_State &face,unsi
 		left.rho+=epsilon;
 		left.a=sqrt(Gamma*(left.p+Pref)/left.rho);
 		left.H=left.a*left.a/(Gamma-1.)+0.5*left.v.dot(left.v);
-		if (face.bc>=0 && bc.region[face.bc].type!="inlet") {
-			right.rho+=epsilon;
-			right.a=sqrt(Gamma*(right.p+Pref)/right.rho);
-			right.H=right.a*right.a/(Gamma-1.)+0.5*right.v.dot(right.v);
-		}
 	} else if (var==1) { // perturb u
 		left.v.comp[0]+=epsilon;
+		left.v_center.comp[0]+=epsilon;
 		left.H=left.a*left.a/(Gamma-1.)+0.5*left.v.dot(left.v);
 		left.vN.comp[0]=left.v.dot(face.normal);
 		left.vN.comp[1]=left.v.dot(face.tangent1);
 		left.vN.comp[2]=left.v.dot(face.tangent2);
-		if (face.bc>=0) {
-			if (bc.region[face.bc].type=="outlet")  {
-				right.v.comp[0]+=epsilon;
-				if (bc.region[face.bc].kind=="fixedPressure") {
-					double Mach=(left.v.dot(face.normal))/left.a;
-					if (Mach<1.) {
-						//right.p=bc.region[face.bc].p-0.5*right.rho*right.v.dot(right.v);
-						//right.a=sqrt(Gamma*(right.p+Pref)/right.rho);
-					}
-				}
-			} else if (bc.region[face.bc].type=="slip" | bc.region[face.bc].type=="symmetry") {
-				right.v=left.v-2.*left.v.dot(face.normal)*face.normal;
-			} else if (bc.region[face.bc].type=="noslip") { right.v=left.v; }
-			
-			right.H=right.a*right.a/(Gamma-1.)+0.5*right.v.dot(right.v);
-			right.vN.comp[0]=right.v.dot(face.normal);
-			right.vN.comp[1]=right.v.dot(face.tangent1);
-			right.vN.comp[2]=right.v.dot(face.tangent2);
-		}
 	} else if (var==2) { // perturb v
 		left.v.comp[1]+=epsilon;
+		left.v_center.comp[1]+=epsilon;
 		left.H=left.a*left.a/(Gamma-1.)+0.5*left.v.dot(left.v);
 		left.vN.comp[0]=left.v.dot(face.normal);
 		left.vN.comp[1]=left.v.dot(face.tangent1);
 		left.vN.comp[2]=left.v.dot(face.tangent2);
-		if (face.bc>=0) {
-			if (bc.region[face.bc].type=="outlet")  {
-				right.v.comp[1]+=epsilon;				
-				if (bc.region[face.bc].kind=="fixedPressure") {
-					double Mach=(left.v.dot(face.normal))/left.a;
-					if (Mach<1.) {
-						//right.p=bc.region[face.bc].p-0.5*right.rho*right.v.dot(right.v);
-						//right.a=sqrt(Gamma*(right.p+Pref)/right.rho);
-					}
-				}
-			}
-			else if (bc.region[face.bc].type=="slip" | bc.region[face.bc].type=="symmetry") { right.v=left.v-2.*left.v.dot(face.normal)*face.normal; }
-			else if (bc.region[face.bc].type=="noslip") { right.v=left.v; }
-			
-			right.H=right.a*right.a/(Gamma-1.)+0.5*right.v.dot(right.v);
-			right.vN.comp[0]=right.v.dot(face.normal);
-			right.vN.comp[1]=right.v.dot(face.tangent1);
-			right.vN.comp[2]=right.v.dot(face.tangent2);
-		}
 	} else if (var==3) { // perturb w
 		left.v.comp[2]+=epsilon;
+		left.v_center.comp[2]+=epsilon;
 		left.H=left.a*left.a/(Gamma-1.)+0.5*left.v.dot(left.v);
 		left.vN.comp[0]=left.v.dot(face.normal);
 		left.vN.comp[1]=left.v.dot(face.tangent1);
 		left.vN.comp[2]=left.v.dot(face.tangent2);
-		if (face.bc>=0) {
-			if (bc.region[face.bc].type=="outlet")  {
-				right.v.comp[2]+=epsilon;
-				if (bc.region[face.bc].kind=="fixedPressure") {
-					double Mach=(left.v.dot(face.normal))/left.a;
-					if (Mach<1.) {
-						//right.p=bc.region[face.bc].p-0.5*right.rho*right.v.dot(right.v);
-						//right.a=sqrt(Gamma*(right.p+Pref)/right.rho);
-					}
-				}
-			}
-			else if (bc.region[face.bc].type=="slip"  | bc.region[face.bc].type=="symmetry") { right.v=left.v-2.*left.v.dot(face.normal)*face.normal; }
-			else if (bc.region[face.bc].type=="noslip") { right.v=left.v; }
-			
-			right.H=right.a*right.a/(Gamma-1.)+0.5*right.v.dot(right.v);
-			right.vN.comp[0]=right.v.dot(face.normal);
-			right.vN.comp[1]=right.v.dot(face.tangent1);
-			right.vN.comp[2]=right.v.dot(face.tangent2);
-		}
 	} else if (var==4) { // perturb p
 		left.p+=epsilon;
 		left.a=sqrt(Gamma*(left.p+Pref)/left.rho);
 		left.H=left.a*left.a/(Gamma-1.)+0.5*left.v.dot(left.v);
-		if (face.bc>=0) {
-			if (bc.region[face.bc].type=="outlet") {
-				if (bc.region[face.bc].kind=="fixedPressure") {
-					double Mach=(left.v.dot(face.normal))/left.a;
-					if (Mach>=1.) {
-						right.p=left.p;
-					}
-				} else {
-					right.p=left.p;
-				}
-			} else if (bc.region[face.bc].type=="inlet") {
-				double Mach=(left.v.dot(face.normal))/left.a;
-				right.p=left.p;
-				if (Mach<=-1.) right.p=bc.region[face.bc].p;
-			} else {
-				right.p+=epsilon;
-			}
-			right.a=sqrt(Gamma*(right.p+Pref)/right.rho);
-			right.H=right.a*right.a/(Gamma-1.)+0.5*right.v.dot(right.v);
-		}
 	} else if (var==5) { // perturb k
 		left.k+=epsilon;
-		if (face.bc>=0 && bc.region[face.bc].type!="inlet") right.k+=epsilon;
+		left.k_center+=epsilon;
 	} else if (var==6) { // perturb omega
 		left.omega+=epsilon;
-		if (face.bc>=0 && bc.region[face.bc].type!="inlet") right.omega+=epsilon;
+		left.omega_center+=epsilon;
 	}
 
 
@@ -492,18 +433,21 @@ void right_state_perturb(Cell_State &right,Face_State &face,int var,double epsil
 		right.H=right.a*right.a/(Gamma-1.)+0.5*right.v.dot(right.v);
 	} else if (var==1) { // perturb u
 		right.v.comp[0]+=epsilon;
+		right.v_center.comp[0]+=epsilon;
 		right.H=right.a*right.a/(Gamma-1.)+0.5*right.v.dot(right.v);
 		right.vN.comp[0]=right.v.dot(face.normal);
 		right.vN.comp[1]=right.v.dot(face.tangent1);
 		right.vN.comp[2]=right.v.dot(face.tangent2);
 	} else if (var==2) { // perturb v
 		right.v.comp[1]+=epsilon;
+		right.v_center.comp[1]+=epsilon;
 		right.H=right.a*right.a/(Gamma-1.)+0.5*right.v.dot(right.v);
 		right.vN.comp[0]=right.v.dot(face.normal);
 		right.vN.comp[1]=right.v.dot(face.tangent1);
 		right.vN.comp[2]=right.v.dot(face.tangent2);
 	} else if (var==3) { // perturb w
 		right.v.comp[2]+=epsilon;
+		right.v_center.comp[2]+=epsilon;
 		right.H=right.a*right.a/(Gamma-1.)+0.5*right.v.dot(right.v);
 		right.vN.comp[0]=right.v.dot(face.normal);
 		right.vN.comp[1]=right.v.dot(face.tangent1);
@@ -514,8 +458,10 @@ void right_state_perturb(Cell_State &right,Face_State &face,int var,double epsil
 		right.H=right.a*right.a/(Gamma-1.)+0.5*right.v.dot(right.v);
 	} else if (var==5) { // perturb k
 		right.k+=epsilon;
+		right.k_center+=epsilon;
 	} else if (var==6) { // perturb omega
 		right.omega+=epsilon;
+		right.omega_center+=epsilon;
 	}
 	
 	return;
@@ -539,17 +485,17 @@ void face_state_adjust(Cell_State &left,Cell_State &right,Face_State &face,unsig
 		case 1 : // u
 			face.v.comp[0]=0.5*(left.v.comp[0]+right.v.comp[0]);
 			face.gradU-=face.gradU.dot(direction)*direction;
-			face.gradU+=((right.v.comp[0]-left.v.comp[0])/distance)*direction;
+			face.gradU+=((right.v_center.comp[0]-left.v_center.comp[0])/distance)*direction;
 			break;
 		case 2 : // v
 			face.v.comp[1]=0.5*(left.v.comp[1]+right.v.comp[1]);
 			face.gradV-=face.gradV.dot(direction)*direction;
-			face.gradV+=((right.v.comp[1]-left.v.comp[1])/distance)*direction;
+			face.gradV+=((right.v_center.comp[1]-left.v_center.comp[1])/distance)*direction;
 			break;
 		case 3 : // w
 			face.v.comp[2]=0.5*(left.v.comp[2]+right.v.comp[2]);
 			face.gradW-=face.gradW.dot(direction)*direction;
-			face.gradW+=((right.v.comp[2]-left.v.comp[2])/distance)*direction;
+			face.gradW+=((right.v_center.comp[2]-left.v_center.comp[2])/distance)*direction;
 			break;
 		case 4 : // p
 			face.p=0.5*(left.p+right.p);
@@ -557,12 +503,12 @@ void face_state_adjust(Cell_State &left,Cell_State &right,Face_State &face,unsig
 		case 5 : // k
 			face.k=0.5*(left.k+right.k);
 			face.gradK-=face.gradK.dot(direction)*direction;
-			face.gradK+=((right.k-left.k)/distance)*direction;
+			face.gradK+=((right.k_center-left.k_center)/distance)*direction;
 			break;
 		case 6 : // omega
 			face.omega=0.5*(left.omega+right.omega);
 			face.gradOmega-=face.gradOmega.dot(direction)*direction;
-			face.gradOmega+=((right.omega-left.omega)/distance)*direction;
+			face.gradOmega+=((right.omega_center-left.omega_center)/distance)*direction;
 			break;
 	}
 
