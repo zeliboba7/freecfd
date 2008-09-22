@@ -101,9 +101,11 @@ public:
 	std::vector<Face> face;
 	std::vector<Cell> cell;
 	std::vector<Ghost> ghost;
-	int ReadCGNS();
 	Grid();
 	int read(string);
+	int ReadCGNS();
+	int ReadCGNS2();
+	int Partition();
 	int face_exists(int &parentCell);
 	void nodeAverages();
 	void faceAverages();
@@ -111,6 +113,16 @@ public:
 	void gradients();
 	void limit_gradients(string limiter, double sharpeningFactor);
 	void lengthScales(void);
+};
+
+
+class GridRawData { // The data will be destroyed after processing
+public:
+	std::vector<double> x,y,z;
+	std::vector<int> cellConnIndex,cellConnectivity;
+	std::vector< vector<int> > bocoConnIndex,bocoConnectivity;
+	std::map<string,int> bocoNameMap;
+	std::vector<unsigned int> cellMap;
 };
 
 #endif

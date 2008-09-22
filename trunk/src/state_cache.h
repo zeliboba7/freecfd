@@ -27,8 +27,8 @@
 
 class Cell_State {
 	public:
-		double rho,p,a,H,k,omega;
-		Vec3D v,vN;
+		double rho,p,a,H,k,omega,k_center,omega_center;
+		Vec3D v,v_center,vN;
 };
 
 class Face_State {
