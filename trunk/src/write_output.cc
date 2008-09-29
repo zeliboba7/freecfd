@@ -144,7 +144,7 @@ void write_tec(int timeStep, double time) {
 
 	// Write coonnectivity
 	for (unsigned int c=0;c<grid.cellCount;++c) {
-		if (grid.cell[c].type==PENTA_6) {
+		if (grid.cell[c].nodeCount==6) {
 			file << grid.cell[c].nodes[0]+1 << "\t" ;
 			file << grid.cell[c].nodes[1]+1 << "\t" ;
 			file << grid.cell[c].nodes[2]+1 << "\t" ;
@@ -153,7 +153,7 @@ void write_tec(int timeStep, double time) {
 			file << grid.cell[c].nodes[4]+1 << "\t" ;
 			file << grid.cell[c].nodes[5]+1 << "\t" ;
 			file << grid.cell[c].nodes[5]+1 << "\t" ;
-		} else if (grid.cell[c].type==HEXA_8) {
+		} else if (grid.cell[c].nodeCount==8) {
 			for (unsigned int i=0;i<8;++i) {
 				file << grid.cell[c].nodes[i]+1 << "\t";
 			}

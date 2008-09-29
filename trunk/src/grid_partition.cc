@@ -30,16 +30,15 @@
 #include<cmath>
 using namespace std;
 
-#include <parmetis.h>
-
 
 #include "grid.h"
 
 extern Grid grid;
 extern int np, Rank;
 extern GridRawData raw;
+IndexMaps maps;
 
-int Grid::Partition() {
+int Grid::partition() {
 
 	// Initialize the partition sizes
 	// This is just a simple manual partitioning to be able to use parmetis afterwards
@@ -86,7 +85,7 @@ int Grid::Partition() {
 	int wgtflag=0; // no weights associated with elem or edges
 	int numflag=0; // C-style numbering
 	int ncon=1; // # of weights or constraints
-	int ncommonnodes; ncommonnodes=3; // set to 3 for tetrahedra or mixed type
+	int ncommonnodes=3; // set to 3 for tetrahedra or mixed type
 
 	float tpwgts[np];
 	for (unsigned int p=0; p<np; ++p) tpwgts[p]=1./float(np);
@@ -133,9 +132,9 @@ int Grid::Partition() {
 	}
 	recvCounts[np-1]=baseCellCount+globalCellCount-np*baseCellCount;
 	
-	raw.cellMap.resize(globalCellCount);
+	maps.cellOwner.resize(globalCellCount);
 	//cellMap of a cell returns which processor it is assigned to
-	MPI_Allgatherv(part,cellCount,MPI_INT,&raw.cellMap[0],recvCounts,displs,MPI_INT,MPI_COMM_WORLD);
+	MPI_Allgatherv(part,cellCount,MPI_INT,&maps.cellOwner[0],recvCounts,displs,MPI_INT,MPI_COMM_WORLD);
 
 	// Find new local cellCount after ParMetis distribution
 	cellCount=0.;
@@ -143,14 +142,48 @@ int Grid::Partition() {
 	for (unsigned int p=0;p<np;p++) otherCellCounts[p]=0; 
 	
 	for (unsigned int c=0;c<globalCellCount;++c) {
-		otherCellCounts[raw.cellMap[c]]+=1;
-		if (raw.cellMap[c]==Rank) ++cellCount;
+		otherCellCounts[maps.cellOwner[c]]+=1;
+		if (maps.cellOwner[c]==Rank) ++cellCount;
 	}
 	cout << "[I Rank=" << Rank << "] Number of Cells= " << cellCount << endl;
 
-} // end Grid::Partition
+} // end Grid::partition
+
+int Grid::mesh2dual() {
+
+	// Find out other partition's cell counts
+	int otherCellCounts[np];
+	for (int i=0;i<np;++i) otherCellCounts[i]=0;
+	for (unsigned int c=0;c<globalCellCount;++c) otherCellCounts[maps.cellOwner[c]]+=1;
+
+	//Create the Mesh2Dual inputs
+	idxtype elmdist[np+1];
+	idxtype *eptr;
+	eptr = new idxtype[cellCount+1];
+	idxtype *eind;
+	int eindSize=0;
+	int ncommonnodes=1;
+	int numflag=0; // C-style numbering
+	ompi_communicator_t* commWorld=MPI_COMM_WORLD;
+
+	for (unsigned int c=0;c<cellCount;++c) {
+		eindSize+=cell[c].nodeCount;
+	}
+	eind = new idxtype[eindSize];
 
 
+	elmdist[0]=0;
+	for (unsigned int p=1;p<=np;p++) elmdist[p]=otherCellCounts[p-1]+elmdist[p-1];
+	eptr[0]=0;
+	for (unsigned int c=1; c<=cellCount;++c) eptr[c]=eptr[c-1]+cell[c-1].nodeCount;
+	int eindIndex=0;
+	for (unsigned int c=0; c<cellCount;c++){
+		for (unsigned int cn=0; cn<cell[c].nodeCount; ++cn) {
+			eind[eindIndex]=cell[c].node(cn).globalId;
+			++eindIndex;
+		}
+	}
 
+	ParMETIS_V3_Mesh2Dual(elmdist, eptr, eind, &numflag, &ncommonnodes, &maps.adjIndex, &maps.adjacency, &commWorld);
 
-
+} // end Grid::partition

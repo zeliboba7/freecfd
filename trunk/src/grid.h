@@ -35,7 +35,7 @@
 #include <mpi.h>
 #include "vec3d.h"
 using namespace std;
-
+#include <parmetis.h>
 
 class Node : public Vec3D {
 public:
@@ -64,7 +64,7 @@ public:
 class Cell {
 public:
 	unsigned int nodeCount,faceCount,neighborCellCount,ghostCount,globalId,globalCellCount;
-	ElementType_t type;
+	ElementType_t type; // TODO get rid of this one
 	double volume,lengthScale;
 	Vec3D centroid;
 	std::vector<int> nodes;
@@ -76,7 +76,6 @@ public:
 	std::map<int,Vec3D> gradMap;
 	double flux[7];
 	Cell(void);
-	int Construct(const ElementType_t elemType,unsigned int nodeList[]);
 	bool HaveNodes(unsigned int &nodelistsize, unsigned int nodelist[]) ;
 	Node& node(int n);
 	Face& face(int f);
@@ -103,10 +102,13 @@ public:
 	std::vector<Ghost> ghost;
 	Grid();
 	int read(string);
-	int ReadCGNS();
-	int ReadCGNS2();
-	int Partition();
-	int face_exists(int &parentCell);
+	int readCGNS();
+	int partition();
+	int mesh2dual();
+	int create_nodes_cells();
+	int create_faces();
+	int create_ghosts();
+	int areas_volumes();
 	void nodeAverages();
 	void faceAverages();
 	void gradMaps();
@@ -122,7 +124,21 @@ public:
 	std::vector<int> cellConnIndex,cellConnectivity;
 	std::vector< vector<int> > bocoConnIndex,bocoConnectivity;
 	std::map<string,int> bocoNameMap;
-	std::vector<unsigned int> cellMap;
 };
+
+class IndexMaps { // The data will be destroyed after processing
+public:
+	std::vector<unsigned int> cellOwner; // takes cell global id and returns the owner rank
+	std::map<unsigned int,unsigned int> nodeGlobal2Local;
+	// This stores the bc region numbers that 'some' nodes touch to
+	// Those 'some' nodes happen to be the first nodes in each bc face connectivity list
+	std::map<unsigned int, vector<int> > nodeBCregions;
+	// For those 'some' nodes, this stores the conn list of the corresponsing bc faces
+	std::map<unsigned int, vector<set<unsigned int> > > nodeBCregionFaceConn;
+
+	idxtype* adjIndex;
+	idxtype* adjacency;
+};
+
 
 #endif
