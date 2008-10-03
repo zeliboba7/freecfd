@@ -212,10 +212,11 @@ int Grid::create_faces() {
 	// Search and construct faces
 	faceCount=0;
 
+	// Keep track of how many faces are on each boundary
 	int boundaryFaceCount[raw.bocoNameMap.size()];
 	for (int boco=0;boco<raw.bocoNameMap.size();++boco) boundaryFaceCount[boco]=0;
 	
-	
+	// Time the face search
 	double timeRef, timeEnd;
 	if (Rank==0) timeRef=MPI_Wtime();
 
@@ -226,11 +227,11 @@ int Grid::create_faces() {
 			Face tempFace;
 			unsigned int *tempNodes;
 			switch (cell[c].nodeCount) {
-				case 4:
+				case 4: // Tetrahedra
 					tempFace.nodeCount=3;
 					tempNodes= new unsigned int[3];
 					break;
-				case 6:
+				case 6: // Hexahedra
 					if (cf<2) {
 						tempFace.nodeCount=3;
 						tempNodes= new unsigned int[3];
@@ -239,17 +240,18 @@ int Grid::create_faces() {
 						tempNodes= new unsigned int[4];
 					}
 					break;
-				case 8:
+				case 8: // Brick 
 					tempFace.nodeCount=4;
 					tempNodes= new unsigned int[4];
 					break;
 			}
+			// Face count is incremented everytime a new face is found
 			tempFace.id=faceCount;
 			// Assign current cell as the parent cell
 			tempFace.parent=c;
 			// Assign boundary type as internal by default, will be overwritten later
 			tempFace.bc=-1;
-			// Store the nodes of the current face	
+			// Store the node local ids of the current face	
 			for (unsigned int fn=0;fn<tempFace.nodeCount;++fn) {
 				switch (cell[c].nodeCount) {
 					case 4: tempNodes[fn]=cell[c].node(tetraFaces[cf][fn]).id; break;
@@ -264,10 +266,10 @@ int Grid::create_faces() {
 			for (unsigned int nc=0;nc<node[tempNodes[0]].cells.size();++nc) {
 				// i is the neighbor cell index
 				unsigned int i=node[tempNodes[0]].cells[nc];
-				// if neighbor cell is not the current cell itself, and it has the same nodes as the face
+				// If neighbor cell is not the current cell itself, and it has the same nodes as the face
 				if (i!=c && cell[i].HaveNodes(tempFace.nodeCount,tempNodes)) {
-					// if the neighbor cell index is smaller then the current cell index,
-					// it has already been processed
+					// If the neighbor cell index is smaller then the current cell index,
+					// it has already been processed so skip it
 					if (i>c) {
 						tempFace.neighbor=i;
 						internal=true;
@@ -276,21 +278,22 @@ int Grid::create_faces() {
 					}
 				}
 			}
-			if (unique) {
+			if (unique) { // If a new face
+				// Insert the node list
 				for (unsigned int fn=0;fn<tempFace.nodeCount;++fn) tempFace.nodes.push_back(tempNodes[fn]);
-				if (!internal) { // the face is either at inter-partition or boundary
-					// Unassigned boundary face, as the bc faces and inter-partition faces are found,
-					// this will be overwritten. At the end, there should be no face with this value.
-					tempFace.bc=-2;
+				if (!internal) { // If the face is either at inter-partition or boundary
+					tempFace.bc=-2; // Unassigned boundary type
+					// As the bc faces and inter-partition faces are found, this will be overwritten.
+					// At the end, there should be no face with this value.
 					// Loop the current face nodes
 					for (unsigned int i=0;i<tempFace.nodeCount;++i) {
 						unsigned int nn=tempNodes[i];
 						bool match;
-						// Find if this node has the boundary region data
-						// If the face is at a boundary, one of the nodes should have this
-						if(maps.nodeBCregions.find(nn)!=maps.nodeBCregions.end()) {
-							// Loop through the different boundary regions assigned for that node					
+						// Find 
+						if(maps.nodeBCregions.find(nn)!=maps.nodeBCregions.end()) { // If this node touches a boundary
+							// Loop through the different boundary regions assigned for that node
 							for (int j=0;j<maps.nodeBCregions[nn].size();++j) {
+								// For each boundary region type, loop the current face nodes to see it matches the boundary face 
 								// Loop the current face nodes
 								match=true;
 								for (int k=0;k<tempFace.nodeCount;++k) {
@@ -305,12 +308,12 @@ int Grid::create_faces() {
 									boundaryFaceCount[maps.nodeBCregions[nn][j]]++;
 									break;
 								}
-							} // For each boundary regions that node belongs to
+							} // For each boundary region that the node belongs to
+							// If a match is found, exit the loop for other bc regions
 							if (match) break;
 						} // if node has the boundary region data
 					} // for tempFace nodes
-				} // if not internal
-				
+				} // if not internal	
 				face.push_back(tempFace);
 				cell[c].faces.push_back(tempFace.id);
 				if (internal) cell[tempFace.neighbor].faces.push_back(tempFace.id);
