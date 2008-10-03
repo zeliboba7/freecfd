@@ -324,14 +324,6 @@ void Grid::nodeAverages() {
 					
 				}
 			}
-
-// 				// Insert the weights
-// 			node[n].average.clear();
-// 			node[n].average.insert(pair<int,double>(triangles[0].c1,triangles[0].cw1));
-// 			node[n].average.insert(pair<int,double>(triangles[0].c2,triangles[0].cw2));
-// 			node[n].average.insert(pair<int,double>(triangles[0].c3,triangles[0].cw3));
-			
-
 		} // end if method is tri
 		if (method=="line") {
 			// Chose the closest 2 points in stencil
@@ -369,7 +361,6 @@ void Grid::nodeAverages() {
 			node[n].average.insert(pair<int,double>(*(stencil.begin()),1.));
 		} // end if method is point
 		
-		if (method!="tri") cout << method << endl;
 		std::map<int,double>::iterator it;
 		double avg=0.;
 		for ( it=node[n].average.begin() ; it != node[n].average.end(); it++ ) {

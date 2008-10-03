@@ -48,7 +48,7 @@ double minmod(double a, double b);
 double maxmod(double a, double b);
 double superbee(double a, double b);
 void update(double dt);
-void updateImp(double dt);
+void updatePrimitive(double dt);
 string int2str(int number) ;
 void assemble_linear_system(void);
 void initialize_linear_system(void);
@@ -196,16 +196,10 @@ if (grad_test) { // DEBUG
 			mpi_update_ghost_limited_gradients();
 		}
 
-		// If implicit time integration, form and solve linear system
-		if (input.section["timeMarching"].strings["integrator"]=="backwardEuler") {
-			initialize_linear_system();
-			assemble_linear_system();
-			petsc_solve(nIter,rNorm);
-			updateImp(dt);
-		} // if backwardEuler
-
-		// If explicit time integration, update
-		//if (input.section["timeMarching"].strings["integrator"]=="forwardEuler") update(dt);
+		initialize_linear_system();
+		assemble_linear_system();
+		petsc_solve(nIter,rNorm);
+		updatePrimitive(dt);
 
 		// Advance physical time
 		time += dt;
@@ -320,7 +314,7 @@ void update(double dt) {
 }
 
 
-void updateImp(double dt) {
+void updatePrimitive(double dt) {
 
 	for (unsigned int c = 0;c < grid.cellCount;++c) {
 		grid.cell[c].rho +=grid.cell[c].flux[0];
