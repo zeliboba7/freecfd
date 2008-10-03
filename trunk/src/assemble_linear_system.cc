@@ -66,6 +66,10 @@ void assemble_linear_system(void) {
 
 	order=input.section["numericalOptions"].strings["order"];
 	limiter=input.section["numericalOptions"].strings["limiter"];
+	bool viscous=true;
+	if (input.section["equations"].strings["set"]=="Euler") viscous=false;
+	bool implicit=true;
+	if (input.section["timeMarching"].strings["integrator"]=="forwardEuler") implicit=true;
 
 	// Loop through faces
 	for (f=0;f<grid.faceCount;++f) {
@@ -80,13 +84,13 @@ void assemble_linear_system(void) {
 		face_geom_update(face,f);
 		left_state_update(left,face,f);
 		right_state_update(left,right,face,f);
-		face_state_update(left,right,face,f);
+		if (viscous) face_state_update(left,right,face,f);
 
 		// Flush face fluxes
 		for (int m=0;m<7;++m) flux[m]=0.;
 		// Get unperturbed flux values
 		convective_face_flux(left,right,face,f,flux);
-		diffusive_face_flux(left,right,face,f,flux);
+		if (viscous) diffusive_face_flux(left,right,face,f,flux);
 
 		// Integrate boundary momentum values
 		if (face.bc>=0) {
@@ -109,77 +113,80 @@ void assemble_linear_system(void) {
 			}
 		}
 
-		// TODO flux for the diffusive flux jacobian is slightly different
-		// due to perturbation, account for that here
-		// Think of a better (cheaper) way to do this
-		for (int m=0;m<7;++m) {
-			flux[m]=0.;
-			face_state_adjust(left,right,face,f,m); // TODO do we need this here?
-		}
-		convective_face_flux(left,right,face,f,flux);
-		diffusive_face_flux(left,right,face,f,flux);
-
-		for (int i=0;i<nSolVar;++i) {
-
-			// Flush face fluxes
-			for (int m=0;m<7;++m) fluxPlus[m]=0.;
-			// Perturb left variable
-			left_state_perturb(left,right,face,f,i,epsilon);
-			if (face.bc==-1) right_state_update(left,right,face,f);
-			// Adjust face averages and gradients (crude)
-			face_state_adjust(left,right,face,f,i);
-
-			convective_face_flux(left,right,face,f,fluxPlus);
-			diffusive_face_flux(left,right,face,f,fluxPlus);
-
-			// Restore
-			left_state_perturb(left,right,face,f,i,-1.*epsilon);
-			if (face.bc==-1) right_state_update(left,right,face,f);
-			face_state_adjust(left,right,face,f,i);
-
-			// Add change of flux (flux Jacobian) to implicit operator
-			for (int j=0;j<nSolVar;++j) {
-				row=grid.cell[parent].globalId*nSolVar+j;
-				col=grid.cell[parent].globalId*nSolVar+i;
-				value=(flux[j]-fluxPlus[j])/epsilon;
-				MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
-				if (face.bc==-1) { // TODO what if a ghost face??
-					row=grid.cell[neighbor].globalId*nSolVar+j;
-					value*=-1.;
-					MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
+		if (implicit) {
+			// TODO flux for the diffusive flux jacobian is slightly different
+			// due to perturbation, account for that here
+			// Think of a better (cheaper) way to do this
+			if (viscous) {
+				for (int m=0;m<7;++m) {
+					flux[m]=0.;
+					face_state_adjust(left,right,face,f,m); 
 				}
-			} // for j
-
-			if (face.bc==-1) { // TODO what if a ghost face??
-
+				convective_face_flux(left,right,face,f,flux);
+				diffusive_face_flux(left,right,face,f,flux);
+			}
+	
+			for (int i=0;i<nSolVar;++i) {
+	
 				// Flush face fluxes
 				for (int m=0;m<7;++m) fluxPlus[m]=0.;
-
-				// Perturb right variable
-				right_state_perturb(right,face,i,epsilon);
+				// Perturb left variable
+				left_state_perturb(left,right,face,f,i,epsilon);
+				if (face.bc==-1) right_state_update(left,right,face,f);
 				// Adjust face averages and gradients (crude)
 				face_state_adjust(left,right,face,f,i);
-
+	
 				convective_face_flux(left,right,face,f,fluxPlus);
-				diffusive_face_flux(left,right,face,f,fluxPlus);
-
+				if (viscous) diffusive_face_flux(left,right,face,f,fluxPlus);
+	
 				// Restore
-				right_state_perturb(right,face,i,-1.*epsilon);
+				left_state_perturb(left,right,face,f,i,-1.*epsilon);
+				if (face.bc==-1) right_state_update(left,right,face,f);
 				face_state_adjust(left,right,face,f,i);
-
+	
 				// Add change of flux (flux Jacobian) to implicit operator
 				for (int j=0;j<nSolVar;++j) {
-					row=grid.cell[neighbor].globalId*nSolVar+j;
-					col=grid.cell[neighbor].globalId*nSolVar+i;
-					value=(fluxPlus[j]-flux[j])/epsilon;
-					MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
 					row=grid.cell[parent].globalId*nSolVar+j;
-					value*=-1.;
+					col=grid.cell[parent].globalId*nSolVar+i;
+					value=(flux[j]-fluxPlus[j])/epsilon;
 					MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
+					if (face.bc==-1) { // TODO what if a ghost face??
+						row=grid.cell[neighbor].globalId*nSolVar+j;
+						value*=-1.;
+						MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
+					}
 				} // for j
-			} // if grid.face[f].bc==-1
-		} // for i
-
+	
+				if (face.bc==-1) { // TODO what if a ghost face??
+	
+					// Flush face fluxes
+					for (int m=0;m<7;++m) fluxPlus[m]=0.;
+	
+					// Perturb right variable
+					right_state_perturb(right,face,i,epsilon);
+					// Adjust face averages and gradients (crude)
+					face_state_adjust(left,right,face,f,i);
+	
+					convective_face_flux(left,right,face,f,fluxPlus);
+					if (viscous) diffusive_face_flux(left,right,face,f,fluxPlus);
+	
+					// Restore
+					right_state_perturb(right,face,i,-1.*epsilon);
+					face_state_adjust(left,right,face,f,i);
+	
+					// Add change of flux (flux Jacobian) to implicit operator
+					for (int j=0;j<nSolVar;++j) {
+						row=grid.cell[neighbor].globalId*nSolVar+j;
+						col=grid.cell[neighbor].globalId*nSolVar+i;
+						value=(fluxPlus[j]-flux[j])/epsilon;
+						MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
+						row=grid.cell[parent].globalId*nSolVar+j;
+						value*=-1.;
+						MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
+					} // for j
+				} // if grid.face[f].bc==-1
+			} // for i
+		} // if implicit
 	} // for faces
 
 	MatAssemblyBegin(impOP,MAT_FLUSH_ASSEMBLY);
