@@ -336,8 +336,15 @@ void Grid::nodeAverages() {
 				distance=fabs(node[n]-cell[*sit].centroid);
 				if (distance<distanceMin) {
 					distanceMin=distance;
-					sit2=sit1;
 					sit1=sit;
+				}
+			}
+			distanceMin=1.e20;
+			for (sit=stencil.begin();sit!=stencil.end();sit++) {
+				distance=fabs(node[n]-cell[*sit].centroid);
+				if (distance<distanceMin && sit!=sit1) {
+					distanceMin=distance;
+					sit2=sit;
 				}
 			}
 			Vec3D pp,p1,p2,direction;
