@@ -258,66 +258,71 @@ void Grid::nodeAverages() {
 					}
 				}
 			} // Loop through stencil
-			if (triangles.size()==0) cerr << "[E] An interpolation triangle couldn't be found for node " << n << endl;
-			// Now loop over the triangles and store interpolation weights
-			for (int t=0;t<triangles.size();++t) {
-				triangles[t].weight/=weightSum;
-				
-				Vec3D pp,origin,basis1,basis2;
-				origin=cell[triangles[t].c1].centroid;
-				basis1=(cell[triangles[t].c2].centroid-origin).norm();
-				planeNormal=(basis1.cross((cell[triangles[t].c3].centroid-origin).norm()));
-				// Normalize the plane normal vector
-				planeNormal/=fabs(planeNormal);
-				basis2=-1.*(basis1.cross(planeNormal)).norm();
-				// Project the node point to the plane
-				pp=node[n]-origin;
-				pp-=pp.dot(planeNormal)*planeNormal;
-				pp+=origin;
-				// Form the linear system
-				a = new double* [3];
-				for (int i=0;i<3;++i) a[i]=new double[3];
-				b = new double[3];
-				weights= new double [3];
-				a[0][0]=(cell[triangles[t].c1].centroid).dot(basis1);
-				a[0][1]=(cell[triangles[t].c2].centroid).dot(basis1);
-				a[0][2]=(cell[triangles[t].c3].centroid).dot(basis1);
-				a[1][0]=(cell[triangles[t].c1].centroid).dot(basis2);
-				a[1][1]=(cell[triangles[t].c2].centroid).dot(basis2);
-				a[1][2]=(cell[triangles[t].c3].centroid).dot(basis2);
-				a[2][0]=1.;
-				a[2][1]=1.;
-				a[2][2]=1.;
-				b[0]=pp.dot(basis1);
-				b[1]=pp.dot(basis2);
-				b[2]=1.;
-				// Solve the 3x3 linear system by Gaussion Elimination
-				gelimd(a,b,weights,3);
-				triangles[t].cw1=weights[0];
-				triangles[t].cw2=weights[1];
-				triangles[t].cw3=weights[2];
-			}
+			if (triangles.size()==0) {
+				method="line";
+				cerr << "[W] An interpolation triangle couldn't be found for node " << n << endl;
 
-			node[n].average.clear();
-			for (int t=0;t<triangles.size();++t) {
-				if (node[n].average.find(triangles[t].c1)!=node[n].average.end()) { // if the cell contributing to the node average is already contained in the map
-					node[n].average[triangles[t].c1]+=triangles[t].weight*triangles[t].cw1;
-				} else {
-					node[n].average.insert(pair<int,double>(triangles[t].c1,triangles[t].weight*triangles[t].cw1));
+			} else {
+				// Now loop over the triangles and store interpolation weights
+				for (int t=0;t<triangles.size();++t) {
+					triangles[t].weight/=weightSum;
+					
+					Vec3D pp,origin,basis1,basis2;
+					origin=cell[triangles[t].c1].centroid;
+					basis1=(cell[triangles[t].c2].centroid-origin).norm();
+					planeNormal=(basis1.cross((cell[triangles[t].c3].centroid-origin).norm()));
+					// Normalize the plane normal vector
+					planeNormal/=fabs(planeNormal);
+					basis2=-1.*(basis1.cross(planeNormal)).norm();
+					// Project the node point to the plane
+					pp=node[n]-origin;
+					pp-=pp.dot(planeNormal)*planeNormal;
+					pp+=origin;
+					// Form the linear system
+					a = new double* [3];
+					for (int i=0;i<3;++i) a[i]=new double[3];
+					b = new double[3];
+					weights= new double [3];
+					a[0][0]=(cell[triangles[t].c1].centroid).dot(basis1);
+					a[0][1]=(cell[triangles[t].c2].centroid).dot(basis1);
+					a[0][2]=(cell[triangles[t].c3].centroid).dot(basis1);
+					a[1][0]=(cell[triangles[t].c1].centroid).dot(basis2);
+					a[1][1]=(cell[triangles[t].c2].centroid).dot(basis2);
+					a[1][2]=(cell[triangles[t].c3].centroid).dot(basis2);
+					a[2][0]=1.;
+					a[2][1]=1.;
+					a[2][2]=1.;
+					b[0]=pp.dot(basis1);
+					b[1]=pp.dot(basis2);
+					b[2]=1.;
+					// Solve the 3x3 linear system by Gaussion Elimination
+					gelimd(a,b,weights,3);
+					triangles[t].cw1=weights[0];
+					triangles[t].cw2=weights[1];
+					triangles[t].cw3=weights[2];
 				}
-				
-				if (node[n].average.find(triangles[t].c2)!=node[n].average.end()) { // if the cell contributing to the node average is already contained in the map
-					node[n].average[triangles[t].c2]+=triangles[t].weight*triangles[t].cw2;
-				} else {
-					node[n].average.insert(pair<int,double>(triangles[t].c2,triangles[t].weight*triangles[t].cw2));
+	
+				node[n].average.clear();
+				for (int t=0;t<triangles.size();++t) {
+					if (node[n].average.find(triangles[t].c1)!=node[n].average.end()) { // if the cell contributing to the node average is already contained in the map
+						node[n].average[triangles[t].c1]+=triangles[t].weight*triangles[t].cw1;
+					} else {
+						node[n].average.insert(pair<int,double>(triangles[t].c1,triangles[t].weight*triangles[t].cw1));
+					}
+					
+					if (node[n].average.find(triangles[t].c2)!=node[n].average.end()) { // if the cell contributing to the node average is already contained in the map
+						node[n].average[triangles[t].c2]+=triangles[t].weight*triangles[t].cw2;
+					} else {
+						node[n].average.insert(pair<int,double>(triangles[t].c2,triangles[t].weight*triangles[t].cw2));
+					}
+					
+					if (node[n].average.find(triangles[t].c3)!=node[n].average.end()) { // if the cell contributing to the node average is already contained in the map
+						node[n].average[triangles[t].c3]+=triangles[t].weight*triangles[t].cw3;
+					} else {
+						node[n].average.insert(pair<int,double>(triangles[t].c3,triangles[t].weight*triangles[t].cw3));
+					}
+					
 				}
-				
-				if (node[n].average.find(triangles[t].c3)!=node[n].average.end()) { // if the cell contributing to the node average is already contained in the map
-					node[n].average[triangles[t].c3]+=triangles[t].weight*triangles[t].cw3;
-				} else {
-					node[n].average.insert(pair<int,double>(triangles[t].c3,triangles[t].weight*triangles[t].cw3));
-				}
-				
 			}
 
 // 				// Insert the weights
