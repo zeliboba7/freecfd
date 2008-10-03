@@ -6,7 +6,7 @@ EXE=fcfd
 INCLUDES= -I$(CGNS_BASE)/include -I$(PARMETIS_BASE)/include 
 LIBS= -L$(CGNS_BASE)/lib -L$(PARMETIS_BASE)/lib 
 
-PETSC_LIBS = -L$(PETSC_DIR)/lib/$(PETSC_ARCH) -lpetscsnes -lpetscksp -lpetscdm -lpetscmat -lpetscvec -lpetsc  -lnsl -lrt -L$(PETSC_DIR)/externalpackages/fblaslapack/$(PETSC_ARCH) -lflapack -lfblas -lgfortran -lX11 
+PETSC_LIBS = -L$(PETSC_DIR)/lib/$(PETSC_ARCH) -lpetscsnes -lpetscksp -lpetscdm -lpetscmat -lpetscvec -lpetsc  -lnsl -lrt 
 
 PETSC_INCLUDE = -I$(PETSC_DIR)/include -I$(PETSC_DIR)/bmake/$(PETSC_ARCH)
 
