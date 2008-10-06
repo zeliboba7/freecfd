@@ -67,11 +67,29 @@ void set_probes(void) {
 	for (int p=0;p<probeCount;++p) {
 		if (Rank==probes[p].Rank) {
 		string fileName;
-		fileName="probe"+int2str(p)+".dat";
+		fileName="probe"+int2str(p+1)+".dat";
 		ofstream file;
 		//probeFiles.push_back((new ofstream));
 		file.open((fileName).c_str(),ios::out);
 		file.close();
+		}
+	}
+		
+	return;
+}
+
+void set_loads(void) {
+	
+	if (Rank==0) {
+		int loadCount=loadCount=input.section["loads"].numberedSubsections["load"].count;
+		// Create load files
+		for (int n=0;n<loadCount;++n) {
+			int bc=input.section["loads"].numberedSubsections["load"].ints[n]["bc"];
+			string fileName;
+			fileName="loads_bc_"+int2str(bc)+".dat";
+			ofstream file;
+			file.open((fileName).c_str(),ios::out);
+			file.close();
 		}
 	}
 		
