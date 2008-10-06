@@ -55,6 +55,7 @@ void initialize_linear_system(void);
 void get_dt(string type);
 void get_CFL(void);
 void set_probes(void);
+void set_loads(void);
 
 // Initiate grid class
 Grid grid;
@@ -108,6 +109,8 @@ int main(int argc, char *argv[]) {
 	fluxFunction=input.section["numericalOptions"].strings["flux"];
 	int probeFreq=input.section["probes"].ints["frequency"];
 	int probeCount=input.section["probes"].numberedSubsections["probe"].count;
+	int loadFreq=input.section["loads"].ints["frequency"];
+	int loadCount=input.section["loads"].numberedSubsections["load"].count;
 	
 	grid.read(gridFileName);
 	
@@ -216,10 +219,25 @@ if (grad_test) { // DEBUG
 			string fileName;
 			for (int p=0;p<probes.size();++p) {
 				unsigned int c=probes[p].nearestCell;
-				fileName="probe"+int2str(probes[p].id)+".dat";
+				fileName="probe"+int2str(probes[p].id+1)+".dat";
 				ofstream file;
 				file.open((fileName).c_str(),ios::app);
 				file << timeStep << setw(16) << setprecision(8)  << "\t" << time << "\t" << grid.cell[c].rho << "\t" << grid.cell[c].v.comp[0] << "\t" << grid.cell[c].v.comp[1] << "\t" << grid.cell[c].v.comp[2] << "\t" << grid.cell[c].p << endl;
+				file.close();
+			}
+		}
+
+		if ((timeStep) % loadFreq == 0 && Rank==0) {
+			string fileName;
+			for (int n=0;n<loadCount;++n) {
+				int load_bc=input.section["loads"].numberedSubsections["load"].ints[n]["bc"];
+				string fileName;
+				fileName="loads_bc_"+int2str(load_bc)+".dat";
+				ofstream file;
+				file.open((fileName).c_str(),ios::app);
+				file << timeStep << setw(16) << setprecision(8)  << "\t" << time << "\t" << bc.region[load_bc-1].momentum.comp[0];
+				file << "\t" << bc.region[load_bc-1].momentum.comp[1];
+				file << "\t" << bc.region[load_bc-1].momentum.comp[2] << endl;
 				file.close();
 			}
 		}

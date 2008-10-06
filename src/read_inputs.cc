@@ -112,6 +112,12 @@ void read_inputs(InputFile &input) {
 	input.section["probes"].numberedSubsections["probe"].register_Vec3D("coord");
 	input.read_section("probes");
 
+	input.register_section("loads");
+	input.section["loads"].register_int("frequency");
+	input.section["loads"].register_numberedSubsection("load");
+	input.section["loads"].numberedSubsections["load"].register_int("bc");
+	input.read_section("loads");
+
 	input.register_section("turbulence");
 	input.section["turbulence"].register_string("model");
 	input.read_section("turbulence");
