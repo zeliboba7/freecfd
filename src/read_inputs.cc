@@ -94,6 +94,10 @@ void read_inputs(InputFile &input) {
 	input.section["numericalOptions"].doubles["sharpeningFactor"]=0.;
 	input.read_section("numericalOptions");
 
+	input.register_section("jacobian");
+	input.section["jacobian"].register_int("updateFrequency");
+	input.read_section("jacobian");
+
 	input.register_section("linearSolver");
 	input.section["linearSolver"].register_double("relTolerance");
 	input.section["linearSolver"].register_double("absTolerance");

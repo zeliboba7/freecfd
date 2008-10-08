@@ -160,6 +160,7 @@ void AUSMplusUP_flux(Cell_State &left,Cell_State &right,double fluxNormal[]) {
 	double ML,MR;
 	double gmM1=Gamma-1.;
 	double fa=0.;
+	double Mref;
 
 	Minf=input.section["numericalOptions"].doubles["Minf"];
 
@@ -176,11 +177,16 @@ void AUSMplusUP_flux(Cell_State &left,Cell_State &right,double fluxNormal[]) {
 
 	//Mbar2=0.5*(left.vN.comp[0]*left.vN.comp[0]+right.vN.comp[0]*right.vN.comp[0])/(a*a);
 	Mbar2=0.5*(ML*ML+MR*MR);
-	
+
+	Mref=Minf;
+
+// 	Mref=max(Minf,sqrt(Mbar2));
+// 	Mref=min(Mref,1.);
+
 	if (Mbar2>=1.) {
 		fa=1.;
 	} else {
-		double Mo=sqrt(min(1.,max(Mbar2,Minf*Minf)));
+		double Mo=sqrt(min(1.,max(Mbar2,Mref*Mref)));
 		fa=Mo*(2.-Mo);
 	}
 

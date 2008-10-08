@@ -68,6 +68,7 @@ double Gamma,dt,CFL,CFLtarget;
 double Pref;
 string fluxFunction;
 vector<Probe> probes;
+int timeStep,restart;
 
 bool grad_test=false; // DEBUG
 
@@ -82,7 +83,7 @@ int main(int argc, char *argv[]) {
 	inputFileName+=".in";
 	gridFileName+=".cgns";
 
-	int restart=0;
+	restart=0;
 	if (argc>2) restart=atoi(argv[2]);
 
 	input.setFile(inputFileName);
@@ -168,7 +169,7 @@ int main(int argc, char *argv[]) {
 	// Begin time loop
 	/*****************************************************************************************/
 	
-	for (int timeStep=restart+1;timeStep<=input.section["timeMarching"].ints["numberOfSteps"]+restart;++timeStep) {
+	for (timeStep=restart+1;timeStep<=input.section["timeMarching"].ints["numberOfSteps"]+restart;++timeStep) {
 
 		int nIter; // Number of linear solver iterations
 		double rNorm; // Residual norm of the linear solver

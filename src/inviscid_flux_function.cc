@@ -153,6 +153,7 @@ void AUSMplusUP_flux(double qL[], double qR[], double flux[]) {
 	double kL,kR,omegaL,omegaR;
 	double gmM1=Gamma-1.;
 	double fa=0.;
+	double Mref;
 
 	Minf=input.section["numericalOptions"].doubles["Minf"];
 	// Assign the left and right velocities to local variables for convenience
@@ -181,10 +182,15 @@ void AUSMplusUP_flux(double qL[], double qR[], double flux[]) {
 
 	Mbar2=0.5*(uL*uL+uR*uR)/(a*a);
 
+	Mref=Minf;
+
+	Mref=max(Minf,sqrt(Mbar2));
+	Mref=min(Mref,1.);
+
 	if (Mbar2>=1.) {
 		fa=1.;
 	} else {
-		double Mo=sqrt(min(1.,max(Mbar2,Minf*Minf)));
+		double Mo=sqrt(min(1.,max(Mbar2,Mref*Mref)));
 		fa=Mo*(2.-Mo);
 	}
 

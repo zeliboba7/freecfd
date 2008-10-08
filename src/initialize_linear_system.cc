@@ -24,6 +24,7 @@
 #include "bc.h"
 #include "inputs.h"
 
+extern int Rank,timeStep,restart;
 extern double Gamma,dt;
 extern double Pref;
 extern double CFL;
@@ -40,9 +41,9 @@ void initialize_linear_system() {
 	int nSolVar=5; // Basic equations to solve
 
 	if (input.section["turbulence"].strings["model"]!="none") nSolVar+=2;
-
+	int jacobianUpdateFreq=input.section["jacobian"].ints["updateFrequency"];
 	
-	MatZeroEntries(impOP);
+	if ((timeStep) % jacobianUpdateFreq == 0 | timeStep==restart+1) MatZeroEntries(impOP);
 
 	PetscInt counter=0;
 
