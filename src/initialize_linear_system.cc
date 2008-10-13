@@ -42,9 +42,9 @@ void initialize_linear_system() {
 
 	if (input.section["turbulence"].strings["model"]!="none") nSolVar+=2;
 	int jacobianUpdateFreq=input.section["jacobian"].ints["updateFrequency"];
-	
-	if ((timeStep) % jacobianUpdateFreq == 0 | timeStep==restart+1) MatZeroEntries(impOP);
 
+	if ((timeStep) % jacobianUpdateFreq == 0 | timeStep==restart+1) MatZeroEntries(impOP);
+	
 	PetscInt counter=0;
 
 	double d,lengthScale,dtLocal,a;

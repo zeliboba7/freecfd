@@ -21,10 +21,8 @@
 
 *************************************************************************/
 #include "mpi_functions.h"
-
 std::vector<unsigned int> *sendCells;
 unsigned int *recvCount;
-int *global2local;
 MPI_Datatype MPI_GRAD;
 MPI_Datatype MPI_GHOST;
 
@@ -81,27 +79,6 @@ void mpi_handshake(void) {
 
 } // end mpi_handshake
 
-void mpi_map_global2local(void) {
-
-	// Conversion map from globalId to local index
-	global2local = new int [grid.globalCellCount];
-
-	// Initialize the array
-	for (unsigned int c=0;c<grid.globalCellCount;++c) global2local[c]=-1;
-
-	// If the queried globalId is not on this partition, returns -1 as localId
-	for (unsigned int c=0;c<grid.cellCount;++c) {
-		global2local[grid.cell[c].globalId]=c;
-	}
-
-	// If the queried globalId belongs to a ghost cell, return local ghost id
-	for (unsigned int g=0;g<grid.ghostCount;++g) {
-		global2local[grid.ghost[g].globalId]=g;
-	}
-
-	return;
-} // end mpi_map_global2local
-
 void mpi_update_ghost_primitives(void) {
 	
 	for (unsigned int p=0;p<np;++p) {
@@ -110,7 +87,7 @@ void mpi_update_ghost_primitives(void) {
 			mpiGhost recvBuffer[recvCount[p]];
 			int id;
 			for (unsigned int g=0;g<sendCells[p].size();++g)	{
-				id=global2local[sendCells[p][g]];
+				id=maps.cellGlobal2Local[sendCells[p][g]];
 				sendBuffer[g].globalId=grid.cell[id].globalId;
 				sendBuffer[g].vars[0]=grid.cell[id].rho;
 				sendBuffer[g].vars[1]=grid.cell[id].v.comp[0];
@@ -125,7 +102,7 @@ void mpi_update_ghost_primitives(void) {
 			MPI_Sendrecv(sendBuffer,sendCells[p].size(),MPI_GHOST,p,0,recvBuffer,recvCount[p],MPI_GHOST,p,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
 
 			for (unsigned int g=0;g<recvCount[p];++g) {
-				id=global2local[recvBuffer[g].globalId];
+				id=maps.ghostGlobal2Local[recvBuffer[g].globalId];
 				grid.ghost[id].rho=recvBuffer[g].vars[0];
 				grid.ghost[id].v.comp[0]=recvBuffer[g].vars[1];
 				grid.ghost[id].v.comp[1]=recvBuffer[g].vars[2];
@@ -147,7 +124,7 @@ void mpi_update_ghost_gradients(void) {
 		mpiGrad recvBuffer[recvCount[p]];
 		int id;
 		for (unsigned int g=0;g<sendCells[p].size();++g) {
-			id=global2local[sendCells[p][g]];
+			id=maps.cellGlobal2Local[sendCells[p][g]];
 			sendBuffer[g].globalId=grid.cell[id].globalId;
 			int count=0;
 			for (unsigned int var=0;var<7;++var) {
@@ -162,7 +139,7 @@ void mpi_update_ghost_gradients(void) {
 		MPI_Sendrecv(sendBuffer,sendCells[p].size(),MPI_GRAD,p,0,recvBuffer,recvCount[p],MPI_GRAD,p,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
 
 		for (unsigned int g=0;g<recvCount[p];++g) {
-			id=global2local[recvBuffer[g].globalId];
+			id=maps.ghostGlobal2Local[recvBuffer[g].globalId];
 			int count=0;
 			for (unsigned int var=0;var<7;++var) {
 				for (unsigned int comp=0;comp<3;++comp) {
@@ -182,7 +159,7 @@ void mpi_update_ghost_limited_gradients(void) {
 		mpiGrad recvBuffer[recvCount[p]];
 		int id;
 		for (unsigned int g=0;g<sendCells[p].size();++g) {
-			id=global2local[sendCells[p][g]];
+			id=maps.cellGlobal2Local[sendCells[p][g]];
 			sendBuffer[g].globalId=grid.cell[id].globalId;
 			int count=0;
 			for (unsigned int var=0;var<7;++var) {
@@ -197,7 +174,7 @@ void mpi_update_ghost_limited_gradients(void) {
 		MPI_Sendrecv(sendBuffer,sendCells[p].size(),MPI_GRAD,p,0,recvBuffer,recvCount[p],MPI_GRAD,p,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
 
 		for (unsigned int g=0;g<recvCount[p];++g) {
-			id=global2local[recvBuffer[g].globalId];
+			id=maps.ghostGlobal2Local[recvBuffer[g].globalId];
 			int count=0;
 			for (unsigned int var=0;var<7;++var) {
 				for (unsigned int comp=0;comp<3;++comp) {

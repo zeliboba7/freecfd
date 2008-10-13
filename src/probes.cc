@@ -36,6 +36,7 @@ extern int Rank;
 extern string int2str(int number) ;
 
 void set_probes(void) {
+// parallel: OK
 
 	Probe temp;
 	double distance=1.e20;
@@ -56,7 +57,7 @@ void set_probes(void) {
 			}
 		}
 		MPI_Allreduce(&distance,&distanceTest,1, MPI_DOUBLE,MPI_MIN,MPI_COMM_WORLD);
-		if (distance<=distanceTest) {
+		if (distance<=distanceTest) { // TODO Can more than 1 proc assume ownership of the same probe?
 			temp.Rank=Rank;
 			temp.id=p;
 			probes.push_back(temp);
@@ -64,15 +65,12 @@ void set_probes(void) {
 	}
 
 	// Create probe files
-	for (int p=0;p<probeCount;++p) {
-		if (Rank==probes[p].Rank) {
+	for (int p=0;p<probes.size();++p) {
 		string fileName;
-		fileName="probe"+int2str(p+1)+".dat";
+		fileName="probe"+int2str(probes[p].id)+".dat";
 		ofstream file;
-		//probeFiles.push_back((new ofstream));
 		file.open((fileName).c_str(),ios::out);
 		file.close();
-		}
 	}
 		
 	return;

@@ -39,6 +39,7 @@ extern GridRawData raw;
 IndexMaps maps;
 
 int Grid::partition() {
+// parallel:unchecked
 
 	// Initialize the partition sizes
 	// This is just a simple manual partitioning to be able to use parmetis afterwards

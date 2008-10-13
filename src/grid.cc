@@ -38,7 +38,6 @@ using namespace std;
 
 #define EPS 1e-10
 
-				 
 extern Grid grid;
 extern BC bc;
 extern int np, Rank;
@@ -181,6 +180,7 @@ void Grid::nodeAverages() {
 		int c1,c2,c3,c4;
 		// Initialize stencil to nearest neighbor cells
 		for (int nc=0;nc<node[n].cells.size();++nc) stencil.insert(node[n].cells[nc]);
+		//for (int ng=0;ng<node[n].ghosts.size();++ng) stencil.insert(-1*node[n].ghosts[ng]);
 		string method;
 		Vec3D planeNormal;
 		// if stencil doesn't have at least 4 points, expand it to include 2nd nearest neighbor cells

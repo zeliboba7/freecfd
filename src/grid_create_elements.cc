@@ -95,6 +95,7 @@ int Grid::create_nodes_cells() {
 			}
 			temp.centroid/=double(temp.nodeCount);
 			temp.globalId=c;
+			maps.cellGlobal2Local[temp.globalId]=cell.size();
 			cell.push_back(temp);
 		} // end if cell is in current proc
 	} // end loop global cell count
@@ -372,7 +373,6 @@ int Grid::create_ghosts() {
 		for (unsigned int c=0; c<globalCellCount;++c) foundFlag[c]=0;
 
 		unsigned int parent, metisIndex, gg, matchCount;
-		map<unsigned int,unsigned int> ghostGlobal2Local;
 		
 		map<int,set<int> > nodeCellSet;
 		Vec3D nodeVec;
@@ -417,13 +417,13 @@ int Grid::create_ghosts() {
 								temp.centroid+=nodeVec;
 							}
 							temp.centroid/=double(cellNodeCount);
-							ghost.push_back(temp);
-							ghostGlobal2Local.insert(pair<unsigned int,unsigned int>(gg,ghostCount));
+							maps.ghostGlobal2Local[temp.globalId]=ghost.size();
+							ghost.push_back(temp);			
 							++ghostCount;
 						}
 						if (matchCount>=3) {
 							foundFlag[gg]=3;
-							face[f].bc=-1*ghostGlobal2Local[gg]-3;
+							face[f].bc=-1*maps.ghostGlobal2Local[gg]-3;
 						}
 					}
 				}
@@ -434,7 +434,7 @@ int Grid::create_ghosts() {
 		set<int>::iterator sit;
 		for ( mit=nodeCellSet.begin() ; mit != nodeCellSet.end(); mit++ ) {
 			for ( sit=(*mit).second.begin() ; sit != (*mit).second.end(); sit++ ) {
-				node[(*mit).first].ghosts.push_back(ghostGlobal2Local[*sit]);
+				node[(*mit).first].ghosts.push_back(maps.ghostGlobal2Local[*sit]);
 			}
 		}
 		
