@@ -41,7 +41,7 @@ void read_inputs(InputFile &input);
 void initialize(Grid &grid, InputFile &input);
 void write_output(int timeStep, double time, InputFile input);
 void write_restart(int timeStep, double time);
-void read_restart(int restart, int global2local[], double &time);
+void read_restart(int restart, double &time);
 void set_bcs(Grid& grid, InputFile &input, BC &bc);
 bool within_box(Vec3D centroid, Vec3D box_1, Vec3D box_2);
 double minmod(double a, double b);
@@ -122,7 +122,7 @@ int main(int argc, char *argv[]) {
 	// Fills in array global2local[globalID]=localId
 	// If the queried globalId is not on this partition, returns -1 as localId
 	// If the queried globalId belongs to a ghost cell, return local ghost id
-	mpi_map_global2local();
+	//mpi_map_global2local();
 	
 	initialize(grid,input);
 	if (Rank==0) cout << "[I] Applied initial conditions" << endl;
@@ -136,10 +136,10 @@ int main(int argc, char *argv[]) {
 	grid.nodeAverages();
 	grid.faceAverages();
 	grid.gradMaps();
-	
+
 	if (restart!=0) {
 		for (int p=0;p<np;++p) {
-			if (Rank==p) read_restart(restart,global2local,time);
+			if (Rank==p) read_restart(restart,time);
 			MPI_Barrier(MPI_COMM_WORLD);
 		}
 	}
@@ -180,10 +180,8 @@ if (grad_test) { // DEBUG
 } else {
 		// Update the primitive variables of the ghost cells
 		mpi_update_ghost_primitives();
-
 		// Get time step (will handle fixed, CFL and CFLramp)
 		get_dt(input.section["timeMarching"].strings["type"]);	
-
 		// Gradient are calculated for NS and/or second order schemes
 		if (input.section["equations"].strings["set"]=="NS" |
 			input.section["numericalOptions"].strings["order"]=="second" ) {
@@ -245,8 +243,6 @@ if (grad_test) { // DEBUG
 
 		// Flush boundary forces
 		for (int i=0;i<input.section["boundaryConditions"].numberedSubsections["BC"].count;++i) {
-			//cout << "BC_" << i+1 << " momentum flux:  " << bc.region[i].momentum << endl;
-			//cout << i+1 << "\t" << bc.region[i].area << endl;
 			bc.region[i].momentum=0.;
 		}
 }// DEBUG

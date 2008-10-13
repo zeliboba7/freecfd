@@ -31,28 +31,23 @@ using namespace std;
 
 extern Grid grid;
 extern int np, Rank;
+extern IndexMaps maps;
 
-extern std::vector<unsigned int> *sendCells;
-extern unsigned int *recvCount;
-extern int *global2local;
-extern MPI_Datatype MPI_GRAD;
-extern MPI_Datatype MPI_GHOST;
 	
 void mpi_init(int argc, char *argv[]);
 void mpi_handshake(void);
-void mpi_map_global2local(void);
 void mpi_update_ghost_primitives(void);
 void mpi_update_ghost_gradients(void);
 void mpi_update_ghost_limited_gradients(void);
 
 struct mpiGhost {
 	unsigned int globalId;
-	double vars[5];
+	double vars[7];
 };
 	
 struct mpiGrad {
 	unsigned int globalId;
-	double grads[15];
+	double grads[21];
 };
 
 #endif

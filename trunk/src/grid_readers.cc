@@ -38,6 +38,7 @@ extern int np, Rank;
 GridRawData raw;
 
 int Grid::readCGNS() {
+// parallel:OK
 
 	int fileIndex,baseIndex,zoneIndex,sectionIndex,nBases,nZones,nSections,nBocos;
 	char zoneName[20],sectionName[20]; //baseName[20]

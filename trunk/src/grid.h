@@ -130,6 +130,8 @@ class IndexMaps { // The data will be destroyed after processing
 public:
 	std::vector<unsigned int> cellOwner; // takes cell global id and returns the owner rank
 	std::map<unsigned int,unsigned int> nodeGlobal2Local;
+	std::map<unsigned int,unsigned int> cellGlobal2Local;
+	std::map<unsigned int,unsigned int> ghostGlobal2Local;
 	// This stores the bc region numbers that 'some' nodes touch to
 	// Those 'some' nodes happen to be the first nodes in each bc face connectivity list
 	std::map<unsigned int, vector<int> > nodeBCregions;

@@ -9,9 +9,10 @@ using namespace std;
 
 extern Grid grid;
 extern int np, Rank;
+extern IndexMaps maps;
 extern string int2str(int number) ;
 
-void read_restart(int restart, int global2local[], double &time) {
+void read_restart(int restart, double &time) {
 	
 	fstream file;
 
@@ -54,28 +55,43 @@ void read_restart(int restart, int global2local[], double &time) {
 		// Read density
 		for (unsigned int c=0;c<ncells[p];++c) {
 			// Get local cell id
-			id=global2local[partitionMap[p][c]];
+			id=-1;
+			if (maps.cellGlobal2Local.find(partitionMap[p][c])!=maps.cellGlobal2Local.end()) {
+				id=maps.cellGlobal2Local[partitionMap[p][c]];
+			}
 			// If id is negative, that means the cell currently lies on another partition
 			if (id>=0) { file >> grid.cell[id].rho; } else { file >> dummy; }
 		}
 		// Read u-velocity
 		for (unsigned int c=0;c<ncells[p];++c) {
-			id=global2local[partitionMap[p][c]];
+			id=-1;
+			if (maps.cellGlobal2Local.find(partitionMap[p][c])!=maps.cellGlobal2Local.end()) {
+				id=maps.cellGlobal2Local[partitionMap[p][c]];
+			}
 			if (id>=0) { file >> grid.cell[id].v.comp[0]; } else { file >> dummy; }
 		}
 		// Read v-velocity
 		for (unsigned int c=0;c<ncells[p];++c) {
-			id=global2local[partitionMap[p][c]];
+			id=-1;
+			if (maps.cellGlobal2Local.find(partitionMap[p][c])!=maps.cellGlobal2Local.end()) {
+				id=maps.cellGlobal2Local[partitionMap[p][c]];
+			}
 			if (id>=0) { file >> grid.cell[id].v.comp[1]; } else { file >> dummy; }
 		}
 		// Read w-velocity
 		for (unsigned int c=0;c<ncells[p];++c) {
-			id=global2local[partitionMap[p][c]];
+			id=-1;
+			if (maps.cellGlobal2Local.find(partitionMap[p][c])!=maps.cellGlobal2Local.end()) {
+				id=maps.cellGlobal2Local[partitionMap[p][c]];
+			}
 			if (id>=0) { file >> grid.cell[id].v.comp[2]; } else { file >> dummy; }
 		}		
 		// Read pressure
 		for (unsigned int c=0;c<ncells[p];++c) {
-			id=global2local[partitionMap[p][c]];
+			id=-1;
+			if (maps.cellGlobal2Local.find(partitionMap[p][c])!=maps.cellGlobal2Local.end()) {
+				id=maps.cellGlobal2Local[partitionMap[p][c]];
+			}
 			if (id>=0) { file >> grid.cell[id].p; } else { file >> dummy; }
 		}
 		// Skip connectivity list
