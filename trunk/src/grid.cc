@@ -77,6 +77,8 @@ int Grid::read(string fname) {
 
 int Grid::areas_volumes() {
 
+	//for (unsigned int n=0;n<nodeCount;++n) cout << n << "\t" << node[n] << endl;
+	
 	// Now loop through faces and calculate centroids and areas
 	for (unsigned int f=0;f<faceCount;++f) {
 		Vec3D centroid=0.;
@@ -101,13 +103,15 @@ int Grid::areas_volumes() {
 			areaVec+=patchArea;
 			
 		}
+		face[f].area=fabs(areaVec);
+		face[f].centroid/=face[f].area;
+		face[f].normal=areaVec/face[f].area;
+		
 		if (areaVec.dot(centroid-cell[face[f].parent].centroid) <=0.) {
 			// [TBM] Need to swap the face and reflect the area vector
 			cout << "face " << f << " should be swapped" << endl;
 		}
-		face[f].area=fabs(areaVec);
-		face[f].centroid/=face[f].area;
-		face[f].normal=areaVec/face[f].area;
+
 	}
 			
 	// Loop through the cells and calculate the volumes
