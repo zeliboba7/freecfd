@@ -79,14 +79,17 @@ int Grid::create_nodes_cells() {
 				case 4: // Tetra
 					temp.faceCount=4;
 					break;
-				case 6: // Penta
+				case 5: // Pyramid
+					temp.faceCount=5;
+					break;
+				case 6: // Prism
 					temp.faceCount=5;
 					break;
 				case 8: // Hexa
 					temp.faceCount=6;
 					break;
 			}
-			temp.nodes.reserve(nodeCount);
+			temp.nodes.reserve(cellNodeCount);
 			// Fill in the node list and calculate the centroid
 			temp.centroid=0.;
 			for (int n=0;n<temp.nodeCount;++n) {
@@ -203,11 +206,18 @@ int Grid::create_faces() {
 		{1,2,5,4},
 		{0,1,4,3},
 	};
+	int pyraFaces[5][4]= {
+		{0,1,2,3},
+		{1,0,4,0},
+  		{0,3,4,0},
+  		{3,2,4,0},
+  		{2,1,4,0}
+	};
 	int tetraFaces[4][3]= {
 		{0,2,1},
 		{1,2,3},
-		{0,3,2},
-		{0,1,3}
+  		{0,3,2},
+  		{0,1,3}
 	};
 
 	// Search and construct faces
@@ -232,7 +242,16 @@ int Grid::create_faces() {
 					tempFace.nodeCount=3;
 					tempNodes= new unsigned int[3];
 					break;
-				case 6: // Hexahedra
+				case 5: // Pyramid
+						if (cf<1) {
+							tempFace.nodeCount=4;
+							tempNodes= new unsigned int[4];
+						} else {
+							tempFace.nodeCount=3;
+							tempNodes= new unsigned int[3];
+						}
+						break;
+				case 6: // Prism
 					if (cf<2) {
 						tempFace.nodeCount=3;
 						tempNodes= new unsigned int[3];
@@ -256,6 +275,7 @@ int Grid::create_faces() {
 			for (unsigned int fn=0;fn<tempFace.nodeCount;++fn) {
 				switch (cell[c].nodeCount) {
 					case 4: tempNodes[fn]=cell[c].node(tetraFaces[cf][fn]).id; break;
+					case 5: tempNodes[fn]=cell[c].node(pyraFaces[cf][fn]).id; break;
 					case 6: tempNodes[fn]=cell[c].node(prismFaces[cf][fn]).id; break;
 					case 8: tempNodes[fn]=cell[c].node(hexaFaces[cf][fn]).id; break;
 				}

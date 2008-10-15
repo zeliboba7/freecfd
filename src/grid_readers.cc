@@ -112,16 +112,19 @@ int Grid::readCGNS() {
 				zoneCoordMap[0][c]=globalNodeCount;
 				globalNodeCount++;
 			}
-		}
-		// Scan the coordinates of all the other zones before this one for duplicates
-		for (int z=0;z<zoneIndex-1;++z) {
+		} else {
+			// Scan the coordinates of all the other zones before this one for duplicates	
 			for (int c=0;c<coordX[zoneIndex-1].size();++c) {
 				bool foundFlag=false;
-				for (int c2=0;c2<coordX[z].size();++c2) {
-					if (fabs(coordX[zoneIndex-1][c]-coordX[z][c2])<1.e-7 && fabs(coordY[zoneIndex-1][c]-coordY[z][c2])<1.e-7 && fabs(coordZ[zoneIndex-1][c]-coordZ[z][c2])<1.e-7) {
-						zoneCoordMap[zoneIndex-1][c]=zoneCoordMap[z][c2];
-						foundFlag=true;
+				for (int z=0;z<zoneIndex-1;++z) {
+					for (int c2=0;c2<coordX[z].size();++c2) {
+						if (fabs(coordX[zoneIndex-1][c]-coordX[z][c2])<1.e-7 && fabs(coordY[zoneIndex-1][c]-coordY[z][c2])<1.e-7 && fabs(coordZ[zoneIndex-1][c]-coordZ[z][c2])<1.e-7) {
+							zoneCoordMap[zoneIndex-1][c]=zoneCoordMap[z][c2];
+							foundFlag=true;
+							break;
+						}
 					}
+					if (foundFlag) break;
 				}
 				if (!foundFlag) {
 					zoneCoordMap[zoneIndex-1][c]=globalNodeCount;
@@ -144,7 +147,6 @@ int Grid::readCGNS() {
 			int elemNodeCount,elemStart,elemEnd,nBndCells,parentFlag;
 			// Read the section
 			cg_section_read(fileIndex,baseIndex,zoneIndex,sectionIndex,sectionName,&elemType,&elemStart,&elemEnd,&nBndCells,&parentFlag);
-
 			switch (elemType) {
 				case TRI_3:
 					elemNodeCount=3; break;
@@ -152,6 +154,8 @@ int Grid::readCGNS() {
 					elemNodeCount=4; break;
 				case TETRA_4:
 					elemNodeCount=4; break;
+				case PYRA_5:
+					elemNodeCount=5; break;
 				case PENTA_6:
 					elemNodeCount=6; break;
 				case HEXA_8:
@@ -161,9 +165,9 @@ int Grid::readCGNS() {
 
 			// Read element node connectivities
 			cg_elements_read(fileIndex,baseIndex,zoneIndex,sectionIndex,*elemNodes,0);
-
+			
 			// Only pick the volume elements
-			if (elemType==TETRA_4 | elemType==PENTA_6 | elemType==HEXA_8 ) {
+			if (elemType==TETRA_4 | elemType==PYRA_5 | elemType==PENTA_6 | elemType==HEXA_8 ) {
 				if (Rank==0) cout << "[I]    ...Found Volume Section " << sectionName << endl;
 				// elements array serves as a start index for connectivity list elemConnectivity
 				for (int elem=0;elem<=(elemEnd-elemStart);++elem) {
@@ -172,9 +176,11 @@ int Grid::readCGNS() {
 						raw.cellConnectivity.push_back(zoneCoordMap[zoneIndex-1][elemNodes[elem][n]-1]);
 					}
 				}
+				
 				globalCellCount+=(elemEnd-elemStart+1);
 			} else { // If not a volume element
 				// Check if a boundary condition section
+				
 				bool bcFlag=false;
 				string bocoName(sectionName);
 				for (int nbc=0;nbc<nBocos;++nbc) { // for each bc in the current zone
@@ -247,7 +253,7 @@ int Grid::readCGNS() {
 			}
 		}
 	}
-	if (counter!=globalNodeCount) cerr << "[E] counter is different from globalNodeCount" << endl;
+	if (counter!=globalNodeCount) cerr << "[E] counter (=" << counter << ") is different from globalNodeCount (=" << globalNodeCount << ")" << endl;
 	if (Rank==0) cout << "[I] Total Cell Count= " << globalCellCount << endl;
 
 } // end Grid::ReadCGNS
