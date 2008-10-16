@@ -101,15 +101,15 @@ int Grid::areas_volumes() {
 			patchCentroid=1./3.*(face[f].node(n)+face[f].node(next)+centroid);
 			face[f].centroid+=patchCentroid*fabs(patchArea);
 			areaVec+=patchArea;
-			
+			if (f==30033) cout << face[f].node(n).id << "\t" << face[f].parent << endl;
 		}
 		face[f].area=fabs(areaVec);
 		face[f].centroid/=face[f].area;
 		face[f].normal=areaVec/face[f].area;
 		
-		if (areaVec.dot(centroid-cell[face[f].parent].centroid) <=0.) {
+		if (areaVec.dot(face[f].centroid-cell[face[f].parent].centroid) <=0.) {
 			// [TBM] Need to swap the face and reflect the area vector
-			cout << "face " << f << " should be swapped" << endl;
+			cout << "[W Rank=" << Rank << "] Face " << f << " normal is pointing in to its parent " << cell[face[f].parent].nodeCount << endl;
 		}
 
 	}
