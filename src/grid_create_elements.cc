@@ -57,20 +57,21 @@ int Grid::create_nodes_cells() {
 			}
 			unsigned int cellNodes[cellNodeCount];
 			for (unsigned int n=0;n<cellNodeCount;++n) { // Loop the cell  nodes
-				if (maps.nodeGlobal2Local.find(raw.cellConnectivity[raw.cellConnIndex[c]+n])== maps.nodeGlobal2Local.end() ) { // If the node is not already found
+				unsigned int gid=raw.cellConnectivity[raw.cellConnIndex[c]+n]; // node globalId
+				if (maps.nodeGlobal2Local.find(gid)==maps.nodeGlobal2Local.end() ) { // If the node is not already found
 					// Create the node
 					Node temp;
 					temp.id=nodeCount;
-					temp.globalId=raw.cellConnectivity[raw.cellConnIndex[c]+n];
+					temp.globalId=gid;
 					temp.comp[0]=raw.x[temp.globalId];
 					temp.comp[1]=raw.y[temp.globalId];
 					temp.comp[2]=raw.z[temp.globalId];
-					node.push_back(temp);
 					maps.nodeGlobal2Local[temp.globalId]=temp.id;
+					node.push_back(temp);
 					++nodeCount;
 				}
 				// Fill in cell nodes temp array with local node id's
-				cellNodes[n]=maps.nodeGlobal2Local[raw.cellConnectivity[raw.cellConnIndex[c]+n]];
+				cellNodes[n]=maps.nodeGlobal2Local[gid];
 			} // end for each cell node
 			// Create the cell
 			Cell temp;
@@ -95,10 +96,12 @@ int Grid::create_nodes_cells() {
 			for (int n=0;n<temp.nodeCount;++n) {
 				temp.nodes.push_back(cellNodes[n]);
 				temp.centroid+=temp.node(n);
+				if (cell.size()==10214) cout << temp.nodes[n] << endl;
 			}
 			temp.centroid/=double(temp.nodeCount);
 			temp.globalId=c;
 			maps.cellGlobal2Local[temp.globalId]=cell.size();
+			
 			cell.push_back(temp);
 		} // end if cell is in current proc
 	} // end loop global cell count
