@@ -76,9 +76,10 @@ int Grid::read(string fname) {
 }
 
 int Grid::areas_volumes() {
+	// NOTE The methodology here is generic hence slower than it could be:
+	// i.e Even though volume/centroid of tetrahedra is easy enough, we still break is down to
+	// smaller tetrahedras
 
-	//for (unsigned int n=0;n<nodeCount;++n) cout << n << "\t" << node[n] << endl;
-	
 	// Now loop through faces and calculate centroids and areas
 	for (unsigned int f=0;f<faceCount;++f) {
 		Vec3D centroid=0.;
@@ -90,45 +91,79 @@ int Grid::areas_volumes() {
 		}
 		centroid/=double(face[f].nodeCount);
 		
-		// Sum the area as a patch of triangles formed by connected two nodes and an interior point
+		// Sum the area as a patch of triangles formed by connecting two nodes and an interior point
 		face[f].centroid=0.;
 		areaVec=0.;
 		int next;
+		// First calculate face normal
+		face[f].normal=(face[f].node(2)-face[f].node(1)).cross(face[f].node(0)-face[f].node(1)).norm();
 		for (unsigned int n=0;n<face[f].nodeCount;++n) {
 			next=n+1;
 			if (next==face[f].nodeCount) next=0;
 			patchArea=0.5*(face[f].node(n)-centroid).cross(face[f].node(next)-centroid);
 			patchCentroid=1./3.*(face[f].node(n)+face[f].node(next)+centroid);
-			face[f].centroid+=patchCentroid*fabs(patchArea);
+			face[f].centroid+=patchCentroid*patchArea.dot(face[f].normal);
 			areaVec+=patchArea;
-			if (f==30033) cout << face[f].node(n).id << "\t" << face[f].parent << endl;
 		}
 		face[f].area=fabs(areaVec);
 		face[f].centroid/=face[f].area;
-		face[f].normal=areaVec/face[f].area;
-		
-		if (areaVec.dot(face[f].centroid-cell[face[f].parent].centroid) <=0.) {
-			// [TBM] Need to swap the face and reflect the area vector
-			cout << "[W Rank=" << Rank << "] Face " << f << " normal is pointing in to its parent " << cell[face[f].parent].nodeCount << endl;
-		}
 
 	}
 			
 	// Loop through the cells and calculate the volumes
 	double totalVolume=0.;
 	for (unsigned int c=0;c<cellCount;++c) {
-		double volume=0.,height;
-		unsigned int f;
+		double volume=0.;
+		double patchVolume=0.;
+		Vec3D height,basePatchArea,patchCentroid;
+		unsigned int f,next;
+		// Calculate cell centroid
+		// First calculate an approximate one
+		Vec3D centroid=0.;
+		for (unsigned int cn=0;cn<cell[c].nodeCount;++cn) {
+			centroid+=cell[c].node(cn);
+		}
+		centroid/=double(cell[c].nodeCount);
+		
+		// Break-up the volume into tetrahedras and add the volumes
+		// Calculate the centroid of the cell by taking moments of each tetra
+		cell[c].centroid=0.;
+		double sign;
 		for (unsigned int cf=0;cf<cell[c].faceCount;++cf) {
 			f=cell[c].faces[cf];
-			height=fabs(face[f].normal.dot(face[f].centroid-cell[c].centroid));
-			volume+=1./3.*face[f].area*height;
+			// Every cell face is broken to triangles
+			for (unsigned int n=0;n<face[f].nodeCount;++n) {
+				next=n+1;
+				if (next==face[f].nodeCount) next=0;
+				// Triangle area
+				basePatchArea=0.5*(face[f].node(n)-face[f].centroid).cross(face[f].node(next)-face[f].centroid);
+				// Height of the tetrahedra
+				height=(face[f].centroid-centroid).dot(face[f].normal)*face[f].normal;
+				// Fix face orientation issue
+				sign=-1.;
+				if (face[f].parent==c) sign=1.;
+				patchVolume=sign*basePatchArea.dot(height)/3.;
+				patchCentroid=0.25*(face[f].centroid+face[f].node(n)+face[f].node(next)+centroid);
+				cell[c].centroid+=patchVolume*patchCentroid;
+				// TODO Keep an eye on this
+				//if (patchVolume<0.) cout << "[E Rank=" << Rank << "] Encountered error when calculating volume of cell " << c << endl;
+				volume+=patchVolume;
+			}
 		}
 		cell[c].volume=volume;
+		cell[c].centroid/=volume;
 		totalVolume+=volume;
 	}
 	
 	cout << "[I Rank=" << Rank << "] Total Volume= " << setw(16) << setprecision(8) << scientific << totalVolume << endl;
+	
+	for (unsigned int f=0;f<faceCount;++f) {
+		if (face[f].normal.dot(face[f].centroid-cell[face[f].parent].centroid)<=0.) {
+			// [TBM] Need to swap the face and reflect the area vector
+			cout << "[W Rank=" << Rank << "] Face " << f << " normal is pointing in to its parent " << endl;
+		}
+	}
+	
 	return 0;
 
 }

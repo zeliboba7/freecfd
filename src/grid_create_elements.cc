@@ -91,14 +91,11 @@ int Grid::create_nodes_cells() {
 					break;
 			}
 			temp.nodes.reserve(cellNodeCount);
-			// Fill in the node list and calculate the centroid
-			temp.centroid=0.;
+			// Fill in the node list
 			for (int n=0;n<temp.nodeCount;++n) {
 				temp.nodes.push_back(cellNodes[n]);
-				temp.centroid+=temp.node(n);
-				if (cell.size()==10214) cout << temp.nodes[n] << endl;
 			}
-			temp.centroid/=double(temp.nodeCount);
+			
 			temp.globalId=c;
 			maps.cellGlobal2Local[temp.globalId]=cell.size();
 			
@@ -210,11 +207,11 @@ int Grid::create_faces() {
 		{0,1,4,3},
 	};
 	int pyraFaces[5][4]= {
-		{0,1,2,3},
-		{1,0,4,0},
-  		{0,3,4,0},
-  		{3,2,4,0},
-  		{2,1,4,0}
+		{0,3,2,1},
+		{0,1,4,0},
+  		{1,2,4,0},
+  		{3,4,2,0},
+  		{0,4,3,0}
 	};
 	int tetraFaces[4][3]= {
 		{0,2,1},
