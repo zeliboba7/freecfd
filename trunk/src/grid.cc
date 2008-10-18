@@ -32,13 +32,14 @@ using namespace std;
 #include <cgnslib.h>
 #include <parmetis.h>
 
-
+#include "inputs.h"
 #include "grid.h"
 #include "bc.h"
 
 #define EPS 1e-10
 
 extern Grid grid;
+extern InputFile input;
 extern BC bc;
 extern int np, Rank;
 extern double Gamma;
@@ -62,6 +63,7 @@ int Grid::read(string fname) {
 		if (Rank==0) cout << "[I] Found grid file " << fileName  << endl;
 		file.close();
 		readCGNS();
+		scale();
 		partition();
 		create_nodes_cells();
 		mesh2dual();
@@ -73,6 +75,17 @@ int Grid::read(string fname) {
 		if (Rank==0) cerr << "[E] Grid file "<< fileName << " could not be found." << endl;
 		return 0;
 	}
+}
+
+int Grid::scale() {
+	double scaleFactor=input.section["grid"].doubles["scaleBy"];
+	for (unsigned int n=0;n<globalNodeCount;++n) {
+		raw.x[n]*=scaleFactor;
+		raw.y[n]*=scaleFactor;
+		raw.z[n]*=scaleFactor;
+	}
+	if (Rank==0) cout << "[I] Grid is scaled by " << scaleFactor << endl;
+	return 1;
 }
 
 int Grid::areas_volumes() {

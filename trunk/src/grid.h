@@ -103,6 +103,7 @@ public:
 	Grid();
 	int read(string);
 	int readCGNS();
+	int scale();
 	int partition();
 	int mesh2dual();
 	int create_nodes_cells();
