@@ -24,6 +24,11 @@
 
 void read_inputs(InputFile &input) {
 
+	input.register_section("grid");
+	input.section["grid"].register_double("scaleBy");
+	input.read_section("grid");
+
+
 	input.register_section("equations");
 	input.section["equations"].register_string("set");
 	// defaults
