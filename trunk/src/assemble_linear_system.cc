@@ -244,7 +244,8 @@ void left_state_update(Cell_State &left,Face_State &face,unsigned int f) {
 	left.omega=left.omega_center+delta[6];
 	left.a=sqrt(Gamma*(left.p+Pref)/left.rho);
 	left.H=left.a*left.a/(Gamma-1.)+0.5*left.v.dot(left.v);
-
+	left.mu=grid.cell[parent].mu;
+			
 	left.vN.comp[0]=left.v.dot(face.normal);
 	left.vN.comp[1]=left.v.dot(face.tangent1);
 	left.vN.comp[2]=left.v.dot(face.tangent2);
@@ -281,9 +282,12 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face,unsi
 		right.k=right.k_center+delta[5];
 		right.omega_center=grid.cell[neighbor].omega;
 		right.omega=right.omega_center+delta[6];
+		right.mu=grid.cell[neighbor].mu;
 		
 	} else if (face.bc>=0) { // boundary face
 
+		right.mu=left.mu;
+		
 		if (bc.region[face.bc].type=="outlet") {
 			right.rho=left.rho;
 			right.v=left.v;
@@ -344,6 +348,7 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face,unsi
 		right.p=grid.ghost[g].p+delta[4];
 		right.k=grid.ghost[g].k+delta[5];
 		right.omega=grid.ghost[g].omega+delta[6];
+		right.mu=grid.ghost[g].mu;
 	}
 
 	right.a=sqrt(Gamma*(right.p+Pref)/right.rho);
@@ -402,6 +407,7 @@ void face_state_update(Cell_State &left,Cell_State &right,Face_State &face,unsig
 	face.p=0.5*(left.p+right.p);
 	face.k=0.5*(left.k+right.k);
 	face.omega=0.5*(left.omega+right.omega);
+	face.mu=0.5*(left.mu+right.mu);
 	
 	return;
 } // end face_state_update

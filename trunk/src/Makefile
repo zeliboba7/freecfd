@@ -1,6 +1,6 @@
 CC=mpic++ 
 #OPTS=-Wall -g
-OPTS=-O3
+OPTS=-pg -O3
 EXE=fcfd
 
 INCLUDES= -I$(CGNS_BASE)/include -I$(PARMETIS_BASE)/include 

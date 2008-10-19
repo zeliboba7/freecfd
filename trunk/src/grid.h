@@ -71,7 +71,7 @@ public:
 	std::vector<int> faces;
 	std::vector<int> neighborCells;
 	std::vector<int> ghosts;
-	double rho,p,k,omega;
+	double rho,p,k,omega,mu;
 	Vec3D v,grad[7],limited_grad[7];
 	std::map<int,Vec3D> gradMap;
 	double flux[7];
@@ -88,7 +88,7 @@ public:
 	std::vector<unsigned int> cells;
 	double rho;
 	Vec3D v,centroid,grad[7],limited_grad[7];
-	double p,k,omega;
+	double p,k,omega,mu;
 };
 
 class Grid {

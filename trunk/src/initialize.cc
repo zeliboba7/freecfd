@@ -88,7 +88,13 @@ void initialize(Grid &grid, InputFile &input) {
 		}
 	}
 
+	bool mu_is_fixed=false;
+	if (input.section["fluidProperties"].subsections["viscosity"].strings["type"]=="fixed") mu_is_fixed=true;
+	double mu_fixed=input.section["fluidProperties"].subsections["viscosity"].doubles["value"];
 	for (unsigned int c=0;c<grid.cellCount;++c) {
+		if (mu_is_fixed) {
+			grid.cell[c].mu=mu_fixed;
+		}
 		for (unsigned int i=0;i<7;++i) {
 			grid.cell[c].flux[i]=0.;
 		}

@@ -37,7 +37,7 @@ void mpi_init(int argc, char *argv[]) {
 	sendCells = new vector<unsigned int> [np];
 	recvCount = new unsigned int [np];
 	// Commit custom communication datatypes
-	int array_of_block_lengths[2]={1,7};
+	int array_of_block_lengths[2]={1,8};
 	MPI_Aint extent;
 	MPI_Type_extent(MPI_UNSIGNED,&extent);
 	MPI_Aint array_of_displacements[2]={0,extent};
@@ -96,6 +96,7 @@ void mpi_update_ghost_primitives(void) {
 				sendBuffer[g].vars[4]=grid.cell[id].p;
 				sendBuffer[g].vars[5]=grid.cell[id].k;
 				sendBuffer[g].vars[6]=grid.cell[id].omega;
+				sendBuffer[g].vars[7]=grid.cell[id].mu;
 			}
 
 			int tag=Rank; // tag is set to source
@@ -110,6 +111,7 @@ void mpi_update_ghost_primitives(void) {
 				grid.ghost[id].p=recvBuffer[g].vars[4];
 				grid.ghost[id].k=recvBuffer[g].vars[5];
 				grid.ghost[id].omega=recvBuffer[g].vars[6];
+				grid.ghost[id].mu=recvBuffer[g].vars[7];
 			}
 		}
 	}
