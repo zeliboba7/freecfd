@@ -150,7 +150,7 @@ void assemble_linear_system(void) {
 					for (int m=0;m<7;++m) fluxPlus[m]=0.;
 					// Perturb left variable
 					left_state_perturb(left,right,face,f,i,epsilon);
-					if (face.bc==-1) right_state_update(left,right,face,f);
+					if (face.bc>=0) right_state_update(left,right,face,f);
 					// Adjust face averages and gradients (crude)
 					face_state_adjust(left,right,face,f,i);
 		
@@ -159,7 +159,7 @@ void assemble_linear_system(void) {
 		
 					// Restore
 					left_state_perturb(left,right,face,f,i,-1.*epsilon);
-					if (face.bc==-1) right_state_update(left,right,face,f);
+					if (face.bc>=0) right_state_update(left,right,face,f);
 					face_state_adjust(left,right,face,f,i);
 		
 					// Add change of flux (flux Jacobian) to implicit operator
@@ -301,6 +301,13 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face,unsi
 				double Mach=(left.v.dot(face.normal))/left.a;
 				if (Mach<1.) right.p=bc.region[face.bc].p;
 			}
+			if (bc.region[face.bc].kind=="fixedPressure2") {
+				double Mach=(left.v.dot(face.normal))/left.a;
+				if (Mach<1.) {
+					if (Mach>=0.) { right.p=bc.region[face.bc].p; }
+					else {right.p=bc.region[face.bc].p-0.5*right.rho*right.v.dot(right.v);}
+				}
+			}
 		} else if (bc.region[face.bc].type=="slip" | bc.region[face.bc].type=="symmetry") {
 			right.rho=left.rho;
 			right.v=left.v-2.*left.v.dot(face.normal)*face.normal;
@@ -378,7 +385,6 @@ void face_geom_update(Face_State &face,unsigned int f) {
 	face.left2right=rightCentroid-leftCentroid;
 	return;
 } // end face_geom_update
-
 
 void face_state_update(Cell_State &left,Cell_State &right,Face_State &face,unsigned int f) {
 
