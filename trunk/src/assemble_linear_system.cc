@@ -55,10 +55,6 @@ void assemble_linear_system(void) {
 	PetscScalar value;
 	Cell_State left,right;
 	Face_State face;
-	double mu;
-	if (input.section["fluidProperties"].subsections["viscosity"].strings["type"]=="fixed") {
-		mu=input.section["fluidProperties"].subsections["viscosity"].doubles["value"];
-	}
 
 	int nSolVar=5; // Basic equations to solve
 

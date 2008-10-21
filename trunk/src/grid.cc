@@ -627,33 +627,37 @@ void Grid::limit_gradients(string limiter, double sharpeningFactor) {
 	unsigned int neighbor,g;
 	Vec3D maxGrad[7],minGrad[7];
 	
-	for (unsigned int c=0;c<cellCount;++c) {
-
-		// Initialize min and max to current cells values
-		for (unsigned int i=0;i<7;++i) maxGrad[i]=minGrad[i]=cell[c].grad[i];
-		// Find extremes in neighboring real cells
-		for (unsigned int cc=0;cc<cell[c].neighborCellCount;++cc) {
-			neighbor=cell[c].neighborCells[cc];
-			for (unsigned int var=0;var<7;++var) {
-				for (unsigned int comp=0;comp<3;++comp) {
-					maxGrad[var].comp[comp]=max(maxGrad[var].comp[comp],(1.-sharpeningFactor)*cell[neighbor].grad[var].comp[comp]+sharpeningFactor*cell[c].grad[var].comp[comp]);
-					minGrad[var].comp[comp]=min(minGrad[var].comp[comp],(1.-sharpeningFactor)*cell[neighbor].grad[var].comp[comp]+sharpeningFactor*cell[c].grad[var].comp[comp]);
+	if(limiter=="none") {
+		for (unsigned int c=0;c<cellCount;++c) for (unsigned int var=0;var<7;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].limited_grad[var].comp[comp]=cell[c].grad[var].comp[comp];
+	} else {
+		for (unsigned int c=0;c<cellCount;++c) {
+	
+			// Initialize min and max to current cells values
+			for (unsigned int i=0;i<7;++i) maxGrad[i]=minGrad[i]=cell[c].grad[i];
+			// Find extremes in neighboring real cells
+			for (unsigned int cc=0;cc<cell[c].neighborCellCount;++cc) {
+				neighbor=cell[c].neighborCells[cc];
+				for (unsigned int var=0;var<7;++var) {
+					for (unsigned int comp=0;comp<3;++comp) {
+						maxGrad[var].comp[comp]=max(maxGrad[var].comp[comp],(1.-sharpeningFactor)*cell[neighbor].grad[var].comp[comp]+sharpeningFactor*cell[c].grad[var].comp[comp]);
+						minGrad[var].comp[comp]=min(minGrad[var].comp[comp],(1.-sharpeningFactor)*cell[neighbor].grad[var].comp[comp]+sharpeningFactor*cell[c].grad[var].comp[comp]);
+					}
 				}
 			}
-		}
-		// Find extremes in neighboring ghost cells
-		for (unsigned int cg=0;cg<cell[c].ghostCount;++cg) {
-			g=cell[c].ghosts[cg];
-			for (unsigned int var=0;var<7;++var) {
-				for (unsigned int comp=0;comp<3;++comp) {
-					maxGrad[var].comp[comp]=max(maxGrad[var].comp[comp],(1.-sharpeningFactor)*ghost[g].grad[var].comp[comp]+sharpeningFactor*cell[c].grad[var].comp[comp]);
-					minGrad[var].comp[comp]=min(minGrad[var].comp[comp],(1.-sharpeningFactor)*ghost[g].grad[var].comp[comp]+sharpeningFactor*cell[c].grad[var].comp[comp]);
+			// Find extremes in neighboring ghost cells
+			for (unsigned int cg=0;cg<cell[c].ghostCount;++cg) {
+				g=cell[c].ghosts[cg];
+				for (unsigned int var=0;var<7;++var) {
+					for (unsigned int comp=0;comp<3;++comp) {
+						maxGrad[var].comp[comp]=max(maxGrad[var].comp[comp],(1.-sharpeningFactor)*ghost[g].grad[var].comp[comp]+sharpeningFactor*cell[c].grad[var].comp[comp]);
+						minGrad[var].comp[comp]=min(minGrad[var].comp[comp],(1.-sharpeningFactor)*ghost[g].grad[var].comp[comp]+sharpeningFactor*cell[c].grad[var].comp[comp]);
+					}
 				}
 			}
+			if(limiter=="superbee") for (unsigned int var=0;var<7;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].limited_grad[var].comp[comp]=superbee(maxGrad[var].comp[comp],minGrad[var].comp[comp]);
+			if(limiter=="minmod") for (unsigned int var=0;var<7;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].limited_grad[var].comp[comp]=minmod(maxGrad[var].comp[comp],minGrad[var].comp[comp]);
+			
 		}
-		if(limiter=="superbee") for (unsigned int var=0;var<7;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].limited_grad[var].comp[comp]=superbee(maxGrad[var].comp[comp],minGrad[var].comp[comp]);
-		if(limiter=="minmod") for (unsigned int var=0;var<7;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].limited_grad[var].comp[comp]=minmod(maxGrad[var].comp[comp],minGrad[var].comp[comp]);
-
 	}
 
 } // end Grid::limit_gradients(string limiter, double sharpeningFactor)
