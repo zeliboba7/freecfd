@@ -31,11 +31,10 @@ using namespace std;
 extern Grid grid;
 extern BC bc;
 extern double Gamma;
-extern double Pref;
+extern double Pref,Minf;
 extern string fluxFunction;
 extern InputFile input;
 
-double Minf;
 double beta=0.125;
 double alpha;
 
@@ -161,8 +160,6 @@ void AUSMplusUP_flux(Cell_State &left,Cell_State &right,double fluxNormal[]) {
 	double gmM1=Gamma-1.;
 	double fa=0.;
 	double Mref;
-
-	Minf=input.section["numericalOptions"].doubles["Minf"];
 
 	aL_star=sqrt(2.*gmM1/(Gamma+1.)*left.H);
 	aR_star=sqrt(2.*gmM1/(Gamma+1.)*right.H);

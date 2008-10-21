@@ -585,6 +585,17 @@ void Grid::gradients(void) {
 // 					if (Mach<1.) faceP=bc.region[face[f].bc].p;
 					faceP=bc.region[face[f].bc].p;//-0.5*faceRho*faceVel.dot(faceVel);
 				}
+				if (bc.region[grid.face[f].bc].type=="outlet" &&
+								bc.region[grid.face[f].bc].kind=="fixedPressure2") {
+					// find Mach number
+// 					Mach=(cell[c].v.dot(face[f].normal))/sqrt(Gamma*(cell[c].p+Pref)/cell[c].rho);
+// 					if (Mach<1.) faceP=bc.region[face[f].bc].p;
+					if (faceVel.dot(face[f].normal)>=0.) {
+						faceP=bc.region[face[f].bc].p;
+					} else {
+						faceP=bc.region[face[f].bc].p-0.5*faceRho*faceVel.dot(faceVel);
+					}
+								}
 				// Kill the wall normal component for slip or symmetry, pressure and rho is extrapolated
 				if (bc.region[face[f].bc].type=="slip") faceVel-=faceVel.dot(face[f].normal)*face[f].normal;
 				if (bc.region[face[f].bc].type=="symmetry") {

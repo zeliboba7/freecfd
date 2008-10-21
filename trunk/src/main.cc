@@ -65,7 +65,7 @@ InputFile input;
 
 int np, Rank;
 double Gamma,dt,CFL,CFLtarget;
-double Pref;
+double Pref,Minf;
 string fluxFunction;
 vector<Probe> probes;
 int timeStep,restart;
@@ -102,6 +102,7 @@ int main(int argc, char *argv[]) {
 		mu=input.section["fluidProperties"].subsections["viscosity"].doubles["value"];
 	}
 	Pref=input.section["fluidProperties"].doubles["Pref"];
+	Minf=input.section["numericalOptions"].doubles["Minf"];
 	string limiter=input.section["numericalOptions"].strings["limiter"];
 	string order=input.section["numericalOptions"].strings["order"];
 	double sharpeningFactor=input.section["numericalOptions"].doubles["sharpeningFactor"];
