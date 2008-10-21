@@ -22,6 +22,11 @@ void set_bcs(Grid& grid, InputFile &input, BC &bc) {
 		bcRegion.area=0.;
 		bcRegion.areaVec=0.;
 		bcRegion.momentum=0.;
+		if (bcRegion.kind=="") {
+			cout << "[I Rank=" << Rank << "] BC_" << b+1 << " assigned as " << bcRegion.type << endl;
+		} else {
+			cout << "[I Rank=" << Rank << "] BC_" << b+1 << " assigned as " << bcRegion.type << " of " << bcRegion.kind << " kind" << endl;
+		}	
 		bc.region.push_back(bcRegion);
 		if (bcSection.strings[b]["region"]=="box") {
 			Vec3D box_1=bcSection.Vec3Ds[b]["box_1"];
