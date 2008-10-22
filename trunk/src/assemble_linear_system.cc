@@ -36,6 +36,7 @@ extern double Pref;
 
 string order;
 string limiter;
+bool perturb;
 
 void convective_face_flux(Cell_State &left,Cell_State &right,Face_State &face,unsigned int f,double flux[]);
 void diffusive_face_flux(Cell_State &left,Cell_State &right,Face_State &face,unsigned int f,double flux[]);
@@ -74,8 +75,10 @@ void assemble_linear_system(void) {
 	if (input.section["timeMarching"].strings["integrator"]=="forwardEuler") implicit=true;
 	int jacobianUpdateFreq=input.section["jacobian"].ints["updateFrequency"];
 
+	
 	// Loop through faces
 	for (f=0;f<grid.faceCount;++f) {
+		perturb=false;
 
 		viscous=viscousSet;
 		// TODO Some Ideas:
@@ -128,6 +131,8 @@ void assemble_linear_system(void) {
 
 		if (implicit) {
 			if ((timeStep) % jacobianUpdateFreq == 0 | timeStep==restart+1) {
+				perturb=true;
+
 				// TODO flux for the diffusive flux jacobian is slightly different
 				// due to perturbation, account for that here
 				// Think of a better (cheaper) way to do this
@@ -327,7 +332,7 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face,unsi
 			right.rho=bc.region[face.bc].rho;
 			right.v=bc.region[face.bc].v;
 			right.v_center=right.v;
-			right.p=left.p;
+			if (!perturb) right.p=left.p;
 			if (Mach<=-1.) right.p=bc.region[face.bc].p;
 			right.k=bc.region[face.bc].k;
 			right.omega=bc.region[face.bc].omega;
