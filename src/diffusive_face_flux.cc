@@ -41,34 +41,31 @@ void diffusive_face_flux(Cell_State &left,Cell_State &right,Face_State &face,uns
 	double SigmaOmega=0.5;
  	double SigmaK=0.5;
 	double mu_t=face.rho*face.k/face.omega;
-	//cout << face.k << "\t" << face.omega << "\t" << mu_t << endl;
-	
-	face.mu+=mu_t;
-
+	mu_t=0.;
+		
 	areaVec=face.normal*face.area;
-	tau_x.comp[0]=2./3.*face.mu* (2.*face.gradU.comp[0]-face.gradV.comp[1]-face.gradW.comp[2]);
-	tau_x.comp[1]=face.mu*(face.gradU.comp[1]+face.gradV.comp[0]);
-	tau_x.comp[2]=face.mu*(face.gradU.comp[2]+face.gradW.comp[0]);
+	tau_x.comp[0]=2./3.*(2.*face.gradU.comp[0]-face.gradV.comp[1]-face.gradW.comp[2]);
+	tau_x.comp[1]=face.gradU.comp[1]+face.gradV.comp[0];
+	tau_x.comp[2]=face.gradU.comp[2]+face.gradW.comp[0];
 	tau_y.comp[0]=tau_x.comp[1];
-	tau_y.comp[1]=2./3.*face.mu* (2.*face.gradV.comp[1]-face.gradU.comp[0]-face.gradW.comp[2]);
-	tau_y.comp[2]=face.mu*(face.gradV.comp[2]+face.gradW.comp[1]);
+	tau_y.comp[1]=2./3.* (2.*face.gradV.comp[1]-face.gradU.comp[0]-face.gradW.comp[2]);
+	tau_y.comp[2]=face.gradV.comp[2]+face.gradW.comp[1];
 	tau_z.comp[0]=tau_x.comp[2];
 	tau_z.comp[1]=tau_y.comp[2];
-	tau_z.comp[2]=2./3.*face.mu*(2.*face.gradW.comp[2]-face.gradU.comp[0]-face.gradV.comp[1]);
+	tau_z.comp[2]=2./3.*(2.*face.gradW.comp[2]-face.gradU.comp[0]-face.gradV.comp[1]);
 
-	flux[1]+=tau_x.dot(areaVec);
-	flux[2]+=tau_y.dot(areaVec);
-	flux[3]+=tau_z.dot(areaVec);
-	flux[4]+=tau_x.dot(face.v)*areaVec.comp[0]+tau_y.dot(face.v)*areaVec.comp[1]+tau_z.dot(face.v) *areaVec.comp[2];
+	flux[1]=(face.mu+mu_t)*tau_x.dot(areaVec);
+	flux[2]=(face.mu+mu_t)*tau_y.dot(areaVec);
+	flux[3]=(face.mu+mu_t)*tau_z.dot(areaVec);
+	flux[4]=(face.mu+mu_t)*(tau_x.dot(face.v)*areaVec.comp[0]+tau_y.dot(face.v)*areaVec.comp[1]+tau_z.dot(face.v) *areaVec.comp[2]);
 
-	face.mu-=mu_t;
 	// Diffusive k and omega fluxes
- 	flux[5]+=(face.mu+mu_t/SigmaK)*face.gradK.dot(areaVec);
- 	flux[6]+=(face.mu+mu_t/SigmaOmega)*face.gradOmega.dot(areaVec);
+ 	flux[5]=(face.mu+mu_t/SigmaK)*face.gradK.dot(areaVec);
+ 	flux[6]=(face.mu+mu_t/SigmaOmega)*face.gradOmega.dot(areaVec);
 
 	double tauUgrad=face.rho*(face.v.comp[0]*tau_x.dot(areaVec)+face.v.comp[1]*tau_y.dot(areaVec)+face.v.comp[2]*tau_z.dot(areaVec));
-	flux[5]+=tauUgrad;
-	flux[6]+=alpha*face.omega/face.k*tauUgrad;
+	flux[5]=tauUgrad;
+	flux[6]=alpha*face.omega/face.k*tauUgrad;
 	return;
 } // end function
 
