@@ -212,6 +212,18 @@ void assemble_linear_system(void) {
 	MatAssemblyBegin(impOP,MAT_FLUSH_ASSEMBLY);
 	MatAssemblyEnd(impOP,MAT_FLUSH_ASSEMBLY);
 
+	if (nSolVar==7) {
+		for (unsigned int c=0;c<grid.cellCount;++c) {
+			// Fill in residual (rhs vector)
+			row=grid.cell[c].globalId*nSolVar+5;
+			value=-1.*0.09*grid.cell[c].k*grid.cell[c].omega*grid.cell[c].volume;
+			VecSetValues(rhs,1,&row,&value,ADD_VALUES);
+			row+=1;
+			value=-1.*0.3/4.*grid.cell[c].omega*grid.cell[c].omega*grid.cell[c].volume;
+			VecSetValues(rhs,1,&row,&value,ADD_VALUES);
+		}
+	}
+	
 	return;
 } // end function
 
