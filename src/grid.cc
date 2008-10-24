@@ -601,8 +601,11 @@ void Grid::gradients(void) {
 				if (bc.region[face[f].bc].type=="symmetry") {
 					faceRho=cell[face[f].parent].rho;
 					faceVel=cell[face[f].parent].v;
-					faceP=cell[face[f].parent].p;
 					faceVel-=faceVel.dot(face[f].normal)*face[f].normal;
+					faceP=cell[face[f].parent].p;
+					faceK=cell[face[f].parent].k;
+					faceOmega=cell[face[f].parent].omega;
+					
 				}
 				// Kill the velocity for no-slip, pressure and rho is extrapolated
 				if (bc.region[face[f].bc].type=="noslip") faceVel=0.;
@@ -612,6 +615,8 @@ void Grid::gradients(void) {
 				cell[c].grad[2]+=faceVel.comp[1]*areaVec;
 				cell[c].grad[3]+=faceVel.comp[2]*areaVec;
 				cell[c].grad[4]+=faceP*areaVec;
+				cell[c].grad[5]+=faceK*areaVec;
+				cell[c].grad[6]+=faceOmega*areaVec;
 
 			} // end if a boundary face
 		} // end cell face loop

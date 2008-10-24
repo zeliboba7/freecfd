@@ -36,21 +36,14 @@ extern double Pref;
 void diffusive_face_flux(Cell_State &left,Cell_State &right,Face_State &face,unsigned int f,double flux[]) {
 
 	Vec3D tau_x,tau_y,tau_z,areaVec;
-//	double mu;
 	
-// 	double Cmu=0.09;
-// 	double SigmaOmega=1.3;
-// 	double SigmaK=1.;
-// 	double C1Omega=1.44;
-// 	double C2Omega=1.92;
-//	double mu_t=0.;
-
-
-
-
-	// Eddy viscosity at the face
-	//mu_t=Cmu*faceRho*faceK*faceK/faceomega;
-	//mu_t=face.mu;
+ 	double alpha=5./9.;
+	double SigmaOmega=0.5;
+ 	double SigmaK=0.5;
+	double mu_t=face.rho*face.k/face.omega;
+	//cout << face.k << "\t" << face.omega << "\t" << mu_t << endl;
+	
+	face.mu+=mu_t;
 
 	areaVec=face.normal*face.area;
 	tau_x.comp[0]=2./3.*face.mu* (2.*face.gradU.comp[0]-face.gradV.comp[1]-face.gradW.comp[2]);
@@ -68,10 +61,14 @@ void diffusive_face_flux(Cell_State &left,Cell_State &right,Face_State &face,uns
 	flux[3]+=tau_z.dot(areaVec);
 	flux[4]+=tau_x.dot(face.v)*areaVec.comp[0]+tau_y.dot(face.v)*areaVec.comp[1]+tau_z.dot(face.v) *areaVec.comp[2];
 
+	face.mu-=mu_t;
 	// Diffusive k and omega fluxes
-// 	flux[5]+=(face.mu+face.mu_t/SigmaK)*gradKf.dot(areaVec);
-// 	flux[6]+=(face.mu+face.mu_t/SigmaOmega)*gradOmegaf.dot(areaVec);
+ 	flux[5]+=(face.mu+mu_t/SigmaK)*face.gradK.dot(areaVec);
+ 	flux[6]+=(face.mu+mu_t/SigmaOmega)*face.gradOmega.dot(areaVec);
 
+	double tauUgrad=face.rho*(face.v.comp[0]*tau_x.dot(areaVec)+face.v.comp[1]*tau_y.dot(areaVec)+face.v.comp[2]*tau_z.dot(areaVec));
+	flux[5]+=tauUgrad;
+	flux[6]+=alpha*face.omega/face.k*tauUgrad;
 	return;
 } // end function
 

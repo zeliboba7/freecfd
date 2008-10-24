@@ -67,7 +67,7 @@ void set_probes(void) {
 	// Create probe files
 	for (int p=0;p<probes.size();++p) {
 		string fileName;
-		fileName="probe"+int2str(probes[p].id)+".dat";
+		fileName="probe"+int2str(probes[p].id+1)+".dat";
 		ofstream file;
 		file.open((fileName).c_str(),ios::out);
 		file.close();
