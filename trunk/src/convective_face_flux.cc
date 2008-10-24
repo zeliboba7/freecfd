@@ -54,13 +54,13 @@ void convective_face_flux(Cell_State &left,Cell_State &right,Face_State &face,un
 	if (fluxFunction=="Roe") roe_flux(left,right,fluxNormal);
 	if (fluxFunction=="AUSMplusUP") AUSMplusUP_flux(left,right,fluxNormal);
 	
-	flux[0] -= fluxNormal[0]*face.area;
-	flux[1] -= (fluxNormal[1]*face.normal.comp[0]+fluxNormal[2]*face.tangent1.comp[0]+fluxNormal[3]*face.tangent2.comp[0])*face.area;
-	flux[2] -= (fluxNormal[1]*face.normal.comp[1]+fluxNormal[2]*face.tangent1.comp[1]+fluxNormal[3]*face.tangent2.comp[1])*face.area;
-	flux[3] -= (fluxNormal[1]*face.normal.comp[2]+fluxNormal[2]*face.tangent1.comp[2]+fluxNormal[3]*face.tangent2.comp[2])*face.area;
-	flux[4] -= fluxNormal[4]*face.area;
-	flux[5] -= fluxNormal[5]*face.area;
-	flux[6] -= fluxNormal[6]*face.area;
+	flux[0] = fluxNormal[0]*face.area;
+	flux[1] = (fluxNormal[1]*face.normal.comp[0]+fluxNormal[2]*face.tangent1.comp[0]+fluxNormal[3]*face.tangent2.comp[0])*face.area;
+	flux[2] = (fluxNormal[1]*face.normal.comp[1]+fluxNormal[2]*face.tangent1.comp[1]+fluxNormal[3]*face.tangent2.comp[1])*face.area;
+	flux[3] = (fluxNormal[1]*face.normal.comp[2]+fluxNormal[2]*face.tangent1.comp[2]+fluxNormal[3]*face.tangent2.comp[2])*face.area;
+	flux[4] = fluxNormal[4]*face.area;
+	flux[5] = fluxNormal[5]*face.area;
+	flux[6] = fluxNormal[6]*face.area;
 	
 	return;
 } // end face flux
