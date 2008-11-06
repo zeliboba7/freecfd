@@ -63,7 +63,7 @@ void diffusive_face_flux(Cell_State &left,Cell_State &right,Face_State &face,uns
  	flux[5]=(face.mu+mu_t/SigmaK)*face.gradK.dot(areaVec);
  	flux[6]=(face.mu+mu_t/SigmaOmega)*face.gradOmega.dot(areaVec);
 
-	double tauUgrad=face.rho*(face.v.comp[0]*tau_x.dot(areaVec)+face.v.comp[1]*tau_y.dot(areaVec)+face.v.comp[2]*tau_z.dot(areaVec));
+	double tauUgrad=face.rho/(face.mu+mu_t)*(face.v.comp[0]*flux[1]+face.v.comp[1]*flux[2]+face.v.comp[2]*flux[3])
 	flux[5]=tauUgrad;
 	flux[6]=alpha*face.omega/face.k*tauUgrad;
 	return;

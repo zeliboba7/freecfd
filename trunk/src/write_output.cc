@@ -83,7 +83,7 @@ void write_tec(int timeStep, double time) {
 	set<int>::iterator sit;
 	double rho_node,p_node,k_node,omega_node;
     Vec3D v_node;
-	int count_rho,count_v,count_p,count_k,count_omega;
+	int count_rho,count_v,count_k,count_omega;
 	double Ma;
 	for (unsigned int n=0;n<grid.nodeCount;++n) {
 		rho_node=0.;v_node=0.;p_node=0.;k_node=0.;omega_node=0.;
@@ -103,24 +103,20 @@ void write_tec(int timeStep, double time) {
 			}
 		}
 		
-		count_rho=0; count_v=0; count_p=0; count_k=0; count_omega=0;
+		count_rho=0; count_v=0; count_k=0; count_omega=0;
 		for (sit=grid.node[n].bcs.begin();sit!=grid.node[n].bcs.end();sit++) {
 			if (bc.region[(*sit)].type=="inlet") {
-				rho_node=bc.region[(*sit)].rho;
-				v_node=bc.region[(*sit)].v;
-				k_node=bc.region[(*sit)].k;
-				omega_node=bc.region[(*sit)].omega;
-				count_rho++; count_v++;
-				count_k++; count_omega++;
+				rho_node=bc.region[(*sit)].rho; count_rho++;
+				v_node=bc.region[(*sit)].v; count_v++;
+				k_node=bc.region[(*sit)].k; count_k++;
+				omega_node=bc.region[(*sit)].omega; count_omega++;
 			}
 			if (bc.region[(*sit)].type=="noslip") {
-				if (count_v==0) v_node=0.;
-				count_v++;
+				if (count_v==0) v_node=0.; count_v++;
 			}
 
 			if (count_rho>0) rho_node/=double(count_rho);
 			if (count_v>0) v_node/=double(count_v);
-			if (count_p>0) p_node/=double(count_p);
 			if (count_k>0) k_node/=double(count_k);
 			if (count_omega>0) omega_node/=double(count_omega);
 		}
