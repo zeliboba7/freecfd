@@ -232,10 +232,12 @@ void Grid::nodeAverages() {
 		int c1,c2,c3,c4;
 		// Initialize stencil to nearest neighbor cells
 		for (int nc=0;nc<node[n].cells.size();++nc) stencil.insert(node[n].cells[nc]);
-		//for (int ng=0;ng<node[n].ghosts.size();++ng) stencil.insert(-1*node[n].ghosts[ng]);
+		// Include nearest ghost cells
+		for (int ng=0;ng<node[n].ghosts.size();++ng) stencil.insert(-1*node[n].ghosts[ng]);
 		string method;
 		Vec3D planeNormal;
 		// if stencil doesn't have at least 4 points, expand it to include 2nd nearest neighbor cells
+		// NOTE ideally, second nearest ghosts would also need top be included but it is too much complication
 		if (stencil.size()<4) {
 			for (int nc=0;nc<node[n].cells.size();++nc) {
 				int ncell=node[n].cells[nc];
@@ -250,13 +252,17 @@ void Grid::nodeAverages() {
 			c1=*sit; sit++;
 			c2=*sit; sit++;
 			c3=*sit;
+			Vec3D& centroid1=(c1>=0) ? cell[c1].centroid : ghost[-c1].centroid;
+			Vec3D& centroid2=(c2>=0) ? cell[c2].centroid : ghost[-c2].centroid;
+			Vec3D& centroid3=(c3>=0) ? cell[c3].centroid : ghost[-c3].centroid;
 			// Calculate the normal vector of the plane they form
-			planeNormal=((cell[c2].centroid-cell[c1].centroid).cross(cell[c3].centroid-cell[c2].centroid)).norm();
+			planeNormal=((centroid2-centroid1).cross(centroid3-centroid2)).norm();
 			// Check the remaining stencil cell centroids to see if they are on the same plane too
 			method="tri";
 			for (sit=sit;sit!=stencil.end();sit++) {
+				Vec3D& centroid4=(*sit>=0) ? cell[*sit].centroid : ghost[-1*(*sit)].centroid;
 				// If the centroid lies on the plane fomed by first three
-				if (fabs(planeNormal.dot((cell[*sit].centroid-cell[*(stencil.begin())].centroid).norm()))>1.e-7) {
+				if (fabs(planeNormal.dot((centroid4-centroid1).norm()))>1.e-7) {
 					method="tetra";
 					// Finding on off-plane point is enough
 					// That means tetra method can be used
