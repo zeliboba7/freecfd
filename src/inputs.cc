@@ -7,6 +7,7 @@ using namespace std;
 #include "inputs.h"
 
 extern int np, Rank;
+extern string int2str(int number) ;
 
 InputFile::InputFile(void) {
 	;
@@ -79,9 +80,8 @@ void InputFile::read_section(string sectionName) {
 
 		// Find how many of them are there
 		for (int i=1;i<=20;++i) {
-			char dummy[4];
-			sprintf(dummy, "%4d", i);
-			nameWithIndex=subsectionName+"_"+dummy;
+
+			nameWithIndex=subsectionName+"_"+int2str(i);
 			size_t found;
 			int flag=0;
 			while (flag==0) {

@@ -207,18 +207,27 @@ Node& Face::node(int n) {
 
 class InterpolationTriangle {
 	public:
-		unsigned int c1,c2,c3;
 		Vec3D cv1,cv2,cv3,centroid;
-		double edge1,edge2,edge3;
+		int c1,c2,c3;
+		double cw1,cw2,cw3;
 		double perimeter;
 		double area;
-		double minEdge,maxEdge;
 		double distance;
 		double quality;
-		double cw1,cw2,cw3;
 		double weight;
 };
 
+class InterpolationTetra {
+	public:
+		Vec3D cv1,cv2,cv3,cv4,centroid;
+		int c1,c2,c3,c4;
+		double cw1,cw2,cw3,cw4;
+		double perimeter;
+		double volume;
+		double distance;
+		double quality;
+		double weight;
+};
 
 void Grid::nodeAverages() {
 	
@@ -228,7 +237,7 @@ void Grid::nodeAverages() {
 	
 	for (unsigned int n=0;n<nodeCount;++n) {
 		set<int> stencil; //interpolation stencil
-		set<int>::iterator sit,sit1,sit2;
+		set<int>::iterator sit,sit1,sit2,sit3;
 		int c1,c2,c3,c4;
 		// Initialize stencil to nearest neighbor cells
 		for (int nc=0;nc<node[n].cells.size();++nc) stencil.insert(node[n].cells[nc]);
@@ -251,7 +260,7 @@ void Grid::nodeAverages() {
 			sit=stencil.begin();
 			c1=*sit; sit++;
 			c2=*sit; sit++;
-			c3=*sit;
+			c3=*sit; sit++;
 			Vec3D& centroid1=(c1>=0) ? cell[c1].centroid : ghost[-c1].centroid;
 			Vec3D& centroid2=(c2>=0) ? cell[c2].centroid : ghost[-c2].centroid;
 			Vec3D& centroid3=(c3>=0) ? cell[c3].centroid : ghost[-c3].centroid;
@@ -260,7 +269,7 @@ void Grid::nodeAverages() {
 			// Check the remaining stencil cell centroids to see if they are on the same plane too
 			method="tri";
 			for (sit=sit;sit!=stencil.end();sit++) {
-				Vec3D& centroid4=(*sit>=0) ? cell[*sit].centroid : ghost[-1*(*sit)].centroid;
+				Vec3D& centroid4=(*sit>=0) ? cell[*sit].centroid : ghost[-(*sit)].centroid;
 				// If the centroid lies on the plane fomed by first three
 				if (fabs(planeNormal.dot((centroid4-centroid1).norm()))>1.e-7) {
 					method="tetra";
@@ -275,37 +284,135 @@ void Grid::nodeAverages() {
 		else if (stencil.size()==1) { method="point";}
 
 		// TODO implement tetra method
-		if (method=="tri") {
-			vector<InterpolationTriangle> triangles;
+		if (method=="tetra") {
+			vector<InterpolationTetra> tetras;
 			// Find out best combination neigboring cells for triangulation
-			double edge1,edge2,edge3,maxEdge,minEdge,perimeter,area;
-			double areaEquil,quality,moment;
-			double minMoment=1.e20,bestQuality=0.;
-			Vec3D p1,p2,p3,centroid;
-			unsigned int cq1,cq2,cq3;
-			bool foundOne=false;
+
 			// Loop through the stencil and construct triangle combinations
 			double weightSum=0.;
 			for (sit=stencil.begin();sit!=stencil.end();sit++) {
 				sit1=sit; sit1++;
 				for (sit1=sit1;sit1!=stencil.end();sit1++) {
-					sit2=sit; sit2++;
+					sit2=sit1; sit2++;
+					for (sit2=sit2;sit2!=stencil.end();sit2++) {
+						sit3=sit2; sit3++;
+						for (sit3=sit3;sit3!=stencil.end();sit3++) {
+							InterpolationTetra temp;
+							temp.c1=*sit; temp.c2=*sit1; temp.c3=*sit2; temp.c4=*sit3;
+							temp.cv1= (*sit>=0) ? cell[*sit].centroid : ghost[-(*sit)].centroid;
+							temp.cv2= (*sit1>=0) ? cell[*sit1].centroid : ghost[-(*sit1)].centroid;
+							temp.cv3= (*sit2>=0) ? cell[*sit2].centroid : ghost[-(*sit2)].centroid;
+							temp.cv4= (*sit3>=0) ? cell[*sit3].centroid : ghost[-(*sit3)].centroid;
+
+							temp.centroid=(temp.cv1+temp.cv2+temp.cv3+temp.cv4)/4.;
+							temp.volume=0.5*fabs(((temp.cv2-temp.cv1).cross(temp.cv3-temp.cv1)).dot(temp.cv4-temp.cv1));
+							temp.perimeter=fabs(temp.cv1-temp.cv2)+fabs(temp.cv1-temp.cv3)+fabs(temp.cv2-temp.cv3)
+								      +fabs(temp.cv4-temp.cv1)+fabs(temp.cv4-temp.cv2)+fabs(temp.cv4-temp.cv3);
+							temp.quality=temp.volume/((pow(temp.perimeter/4.,3)));
+							temp.distance=fabs(node[n]-temp.centroid);
+							temp.weight=temp.quality/(temp.distance*temp.distance);
+							if (temp.quality>1.e-7) {
+								tetras.push_back(temp);
+								weightSum+=temp.weight;
+							}
+						}
+					}
+				}
+			} // Loop through stencil 
+			if (tetras.size()==0) {
+				method="tri";
+				cerr << "[W] An interpolation tetra couldn't be found for node " << n << endl;
+
+			} else {
+				// Now loop over the tetras and store interpolation weights
+				for (int t=0;t<tetras.size();++t) {
+					tetras[t].weight/=weightSum;
+					// Form the linear system
+					a = new double* [4];
+					for (int i=0;i<4;++i) a[i]=new double[4];
+					b = new double[4];
+					weights= new double [4];
+
+					a[0][0]=(tetras[t].c1>=0) ? cell[tetras[t].c1].centroid.comp[0] : ghost[-tetras[t].c1].centroid.comp[0];
+					a[0][1]=(tetras[t].c2>=0) ? cell[tetras[t].c2].centroid.comp[0] : ghost[-tetras[t].c2].centroid.comp[0];
+					a[0][2]=(tetras[t].c3>=0) ? cell[tetras[t].c3].centroid.comp[0] : ghost[-tetras[t].c3].centroid.comp[0];
+					a[0][3]=(tetras[t].c4>=0) ? cell[tetras[t].c4].centroid.comp[0] : ghost[-tetras[t].c4].centroid.comp[0];
+
+					a[1][0]=(tetras[t].c1>=0) ? cell[tetras[t].c1].centroid.comp[1] : ghost[-tetras[t].c1].centroid.comp[1];
+					a[1][1]=(tetras[t].c2>=0) ? cell[tetras[t].c2].centroid.comp[1] : ghost[-tetras[t].c2].centroid.comp[1];
+					a[1][2]=(tetras[t].c3>=0) ? cell[tetras[t].c3].centroid.comp[1] : ghost[-tetras[t].c3].centroid.comp[1];
+					a[1][3]=(tetras[t].c4>=0) ? cell[tetras[t].c4].centroid.comp[1] : ghost[-tetras[t].c4].centroid.comp[1];
+
+					a[2][0]=(tetras[t].c1>=0) ? cell[tetras[t].c1].centroid.comp[2] : ghost[-tetras[t].c1].centroid.comp[2];
+					a[2][1]=(tetras[t].c2>=0) ? cell[tetras[t].c2].centroid.comp[2] : ghost[-tetras[t].c2].centroid.comp[2];
+					a[2][2]=(tetras[t].c3>=0) ? cell[tetras[t].c3].centroid.comp[2] : ghost[-tetras[t].c3].centroid.comp[2];
+					a[2][3]=(tetras[t].c4>=0) ? cell[tetras[t].c4].centroid.comp[2] : ghost[-tetras[t].c4].centroid.comp[2];
+
+					a[3][0]=1.;
+					a[3][1]=1.;
+					a[3][2]=1.;
+					a[3][3]=1.;
+
+					b[0]=node[n].comp[0];
+					b[1]=node[n].comp[1];
+					b[2]=node[n].comp[2];
+					b[3]=1.;
+					// Solve the 3x3 linear system by Gaussion Elimination
+					gelimd(a,b,weights,4);
+					tetras[t].cw1=weights[0];
+					tetras[t].cw2=weights[1];
+					tetras[t].cw3=weights[2];
+					tetras[t].cw4=weights[3];
+				}
+	
+				node[n].average.clear();
+				for (int t=0;t<tetras.size();++t) {
+					if (node[n].average.find(tetras[t].c1)!=node[n].average.end()) { // if the cell contributing to the node average is already contained in the map
+						node[n].average[tetras[t].c1]+=tetras[t].weight*tetras[t].cw1;
+					} else {
+						node[n].average.insert(pair<int,double>(tetras[t].c1,tetras[t].weight*tetras[t].cw1));
+					}
+					
+					if (node[n].average.find(tetras[t].c2)!=node[n].average.end()) { // if the cell contributing to the node average is already contained in the map
+						node[n].average[tetras[t].c2]+=tetras[t].weight*tetras[t].cw2;
+					} else {
+						node[n].average.insert(pair<int,double>(tetras[t].c2,tetras[t].weight*tetras[t].cw2));
+					}
+					
+					if (node[n].average.find(tetras[t].c3)!=node[n].average.end()) { // if the cell contributing to the node average is already contained in the map
+						node[n].average[tetras[t].c3]+=tetras[t].weight*tetras[t].cw3;
+					} else {
+						node[n].average.insert(pair<int,double>(tetras[t].c3,tetras[t].weight*tetras[t].cw3));
+					}
+
+					if (node[n].average.find(tetras[t].c4)!=node[n].average.end()) { // if the cell contributing to the node average is already contained in the map
+						node[n].average[tetras[t].c4]+=tetras[t].weight*tetras[t].cw4;
+					} else {
+						node[n].average.insert(pair<int,double>(tetras[t].c4,tetras[t].weight*tetras[t].cw4));
+					}
+					
+				}
+			}
+		} // end if method is tetra
+		if (method=="tri") {
+			vector<InterpolationTriangle> triangles;
+			// Find out best combination neigboring cells for triangulation
+
+			// Loop through the stencil and construct triangle combinations
+			double weightSum=0.;
+			for (sit=stencil.begin();sit!=stencil.end();sit++) {
+				sit1=sit; sit1++;
+				for (sit1=sit1;sit1!=stencil.end();sit1++) {
+					sit2=sit1; sit2++;
 					for (sit2=sit2;sit2!=stencil.end();sit2++) {
 						InterpolationTriangle temp;
-						temp.c1=*sit;
-						temp.c2=*sit1;
-						temp.c3=*sit2;
-						temp.cv1=cell[*sit].centroid;
-						temp.cv2=cell[*sit1].centroid;
-						temp.cv3=cell[*sit2].centroid;
+						temp.c1=*sit; temp.c2=*sit1; temp.c3=*sit2;
+						temp.cv1= (*sit>=0) ? cell[*sit].centroid : ghost[-(*sit)].centroid;
+						temp.cv2= (*sit1>=0) ? cell[*sit1].centroid : ghost[-(*sit1)].centroid;
+						temp.cv3= (*sit2>=0) ? cell[*sit2].centroid : ghost[-(*sit2)].centroid;
 						temp.centroid=(temp.cv1+temp.cv2+temp.cv3)/3.;
 						temp.area=0.5*fabs((temp.cv2-temp.cv1).cross(temp.cv3-temp.cv1));
-						temp.edge1=fabs(temp.cv1-temp.cv2);
-						temp.edge2=fabs(temp.cv1-temp.cv3);
-						temp.edge3=fabs(temp.cv2-temp.cv3);
-						temp.perimeter=temp.edge1+temp.edge2+temp.edge3;
-						temp.maxEdge=max(temp.edge1,temp.edge2); temp.maxEdge=max(temp.maxEdge,temp.edge3);
-						temp.minEdge=min(temp.edge1,temp.edge2); temp.minEdge=min(temp.minEdge,temp.edge3);
+						temp.perimeter=fabs(temp.cv1-temp.cv2)+fabs(temp.cv1-temp.cv3)+fabs(temp.cv2-temp.cv3);
 						temp.quality=temp.area/((temp.perimeter*temp.perimeter/9.)*sqrt(3.)/4.);
 						temp.distance=fabs(node[n]-temp.centroid);
 						temp.weight=temp.quality/(temp.distance*temp.distance);
@@ -325,28 +432,30 @@ void Grid::nodeAverages() {
 				for (int t=0;t<triangles.size();++t) {
 					triangles[t].weight/=weightSum;
 					
-					Vec3D pp,origin,basis1,basis2;
-					origin=cell[triangles[t].c1].centroid;
-					basis1=(cell[triangles[t].c2].centroid-origin).norm();
-					planeNormal=(basis1.cross((cell[triangles[t].c3].centroid-origin).norm()));
+					Vec3D pp,basis1,basis2,point1,point2,point3;
+					point1= (triangles[t].c1>=0) ? cell[triangles[t].c1].centroid : ghost[-triangles[t].c1].centroid;
+					point2= (triangles[t].c2>=0) ? cell[triangles[t].c2].centroid : ghost[-triangles[t].c2].centroid;
+					point3= (triangles[t].c3>=0) ? cell[triangles[t].c3].centroid : ghost[-triangles[t].c3].centroid;
+					basis1=(point2-point1).norm();
+					planeNormal=(basis1.cross(point3-point1)).norm();
 					// Normalize the plane normal vector
 					planeNormal/=fabs(planeNormal);
 					basis2=-1.*(basis1.cross(planeNormal)).norm();
 					// Project the node point to the plane
-					pp=node[n]-origin;
+					pp=node[n]-point1;
 					pp-=pp.dot(planeNormal)*planeNormal;
-					pp+=origin;
+					pp+=point1;
 					// Form the linear system
 					a = new double* [3];
 					for (int i=0;i<3;++i) a[i]=new double[3];
 					b = new double[3];
 					weights= new double [3];
-					a[0][0]=(cell[triangles[t].c1].centroid).dot(basis1);
-					a[0][1]=(cell[triangles[t].c2].centroid).dot(basis1);
-					a[0][2]=(cell[triangles[t].c3].centroid).dot(basis1);
-					a[1][0]=(cell[triangles[t].c1].centroid).dot(basis2);
-					a[1][1]=(cell[triangles[t].c2].centroid).dot(basis2);
-					a[1][2]=(cell[triangles[t].c3].centroid).dot(basis2);
+					a[0][0]=(point1).dot(basis1);
+					a[0][1]=(point2).dot(basis1);
+					a[0][2]=(point3).dot(basis1);
+					a[1][0]=(point1).dot(basis2);
+					a[1][1]=(point2).dot(basis2);
+					a[1][2]=(point3).dot(basis2);
 					a[2][0]=1.;
 					a[2][1]=1.;
 					a[2][2]=1.;
@@ -387,25 +496,31 @@ void Grid::nodeAverages() {
 			// Chose the closest 2 points in stencil
 			double distanceMin=1.e20;
 			double distance;
+			Vec3D pp,p1,p2,direction;
+			double a,weight1,weight2;
+			// Pick the two points in the stencil which are closest to the node
 			for (sit=stencil.begin();sit!=stencil.end();sit++) {
-				distance=fabs(node[n]-cell[*sit].centroid);
+				Vec3D pp;
+				pp= (*sit>=0) ? cell[*sit].centroid : ghost[-(*sit)].centroid;
+				distance=fabs(node[n]-pp);
 				if (distance<distanceMin) {
 					distanceMin=distance;
 					sit1=sit;
+					p1=pp;
 				}
 			}
 			distanceMin=1.e20;
 			for (sit=stencil.begin();sit!=stencil.end();sit++) {
-				distance=fabs(node[n]-cell[*sit].centroid);
+				Vec3D pp;
+				pp= (*sit>=0) ? cell[*sit].centroid : ghost[-(*sit)].centroid;
+				distance=fabs(node[n]-pp);
 				if (distance<distanceMin && sit!=sit1) {
 					distanceMin=distance;
 					sit2=sit;
+					p2=pp;
 				}
 			}
-			Vec3D pp,p1,p2,direction;
-			double a,weight1,weight2;
-			p1=cell[*sit1].centroid;
-			p2=cell[*sit2].centroid;
+
 			direction=(p2-p1).norm();
 			a=(node[n]-p1).dot(direction)/fabs(p2-p1);
 			weight1=a;
@@ -419,11 +534,11 @@ void Grid::nodeAverages() {
 			node[n].average.insert(pair<int,double>(*(stencil.begin()),1.));
 		} // end if method is point
 		
-		std::map<int,double>::iterator it;
-		double avg=0.;
-		for ( it=node[n].average.begin() ; it != node[n].average.end(); it++ ) {
-			avg+=(*it).second*cell[(*it).first].rho;
-		}
+// 		std::map<int,double>::iterator it;
+// 		double avg=0.;
+// 		for ( it=node[n].average.begin() ; it != node[n].average.end(); it++ ) {
+// 			avg+=(*it).second*cell[(*it).first].rho;
+// 		}
 // 		if (fabs(avg-2.*node[n].comp[0]-2.)>1.e-7) cout << 2.*node[n].comp[0]+2. << "\t" << avg << endl;
 
 	} // node loop

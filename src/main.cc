@@ -27,6 +27,9 @@
 #include <map>
 #include <cmath>
 #include <iomanip>
+#include <sstream>
+#include <stdio.h>
+#include <stdlib.h>
 using namespace std;
 
 #include "grid.h"
@@ -348,13 +351,9 @@ void updatePrimitive(double dt) {
 }
 
 string int2str(int number) {
-	char dummy[12];
-	// Print integer to character
-	sprintf(dummy, "%12d", number);
-	// Convert character to string and erase leading whitespaces
-	string name = dummy;
-	name.erase(0, name.rfind(" ", name.length()) + 1);
-	return name;
+	std::stringstream ss;
+	ss << number;
+	return ss.str();
 }
 
 void get_dt(string type) {

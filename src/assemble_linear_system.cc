@@ -21,6 +21,7 @@
 
 *************************************************************************/
 #include <cmath>
+#include <limits>
 #include "grid.h"
 #include "bc.h"
 #include "inputs.h"
@@ -74,7 +75,7 @@ void assemble_linear_system(void) {
 	bool viscous;
 	
 	bool implicit=true;
-	if (input.section["timeMarching"].strings["integrator"]=="forwardEuler") implicit=true;
+	if (input.section["timeMarching"].strings["integrator"]=="forwardEuler") implicit=false;
 	int jacobianUpdateFreq=input.section["jacobian"].ints["updateFrequency"];
 
 	
