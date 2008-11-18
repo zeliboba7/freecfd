@@ -340,11 +340,13 @@ void read_strings(map<string,string> &strings, string sectionData) {
 			}
 			loc=loc+varName.length();
 		}
-		// Find what is in between = and ; after the variable name appears
-		loc=sectionData.find("=",loc);
-		string::size_type endLoc=sectionData.find(";",loc);
-		string temp=sectionData.substr(loc+1,endLoc-loc-1);
-		stringIter->second=temp;
+		if (flag==1) {
+			// Find what is in between = and ; after the variable name appears
+			loc=sectionData.find("=",loc);
+			string::size_type endLoc=sectionData.find(";",loc);
+			string temp=sectionData.substr(loc+1,endLoc-loc-1);
+			stringIter->second=temp;
+		} else {stringIter->second="";}
 //            cout << "* \t\t " << stringIter->first << "=" << stringIter->second << endl;
 	}
 }
