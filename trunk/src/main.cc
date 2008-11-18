@@ -213,7 +213,13 @@ if (grad_test) { // DEBUG
 		if (timeStep==(restart+1)) if (Rank==0) cout << "step" << "\t" << "time" << "\t\t" << "dt" << "\t\t" << "CFL" << "\t\t" << "nIter" << "\t" << "rNorm" << endl;
 		if (Rank==0) cout << timeStep << "\t" << setprecision(4) << scientific << time << "\t" << dt << "\t" << CFL << "\t" << nIter << "\t" << rNorm << endl;
 		
-		if ((timeStep) % restartFreq == 0) write_restart(timeStep,time);
+		if ((timeStep) % restartFreq == 0) {
+			for (int p=0;p<np;p++) {
+				if (p==Rank) write_restart(timeStep,time);
+				// Syncronize the processors
+				MPI_Barrier(MPI_COMM_WORLD);
+			}
+		}
 
 		
 		if ((timeStep) % outFreq == 0) write_output(timeStep,time,input);
