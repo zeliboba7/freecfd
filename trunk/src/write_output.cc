@@ -223,9 +223,10 @@ void write_vtk(int timeStep) {
 			
 	file << "<DataArray Name=\"types\" type=\"UInt8\" format=\"ascii\" >" << endl;
 	for (unsigned int c=0;c<grid.cellCount;++c) {
-		if (grid.cell[c].type==TETRA_4) file << "10\t";
-		if (grid.cell[c].type==HEXA_8) file << "12\t";
-		if (grid.cell[c].type==PENTA_6) file << "13\t";
+		if (grid.cell[c].nodeCount==4) file << "10\t"; // Tetra
+		if (grid.cell[c].nodeCount==8) file << "12\t"; // Hexa
+		if (grid.cell[c].nodeCount==6) file << "13\t"; // Prism (Wedge)
+		if (grid.cell[c].nodeCount==5) file << "14\t"; // Pyramid (Wedge)
 	}
 	file << endl;
 	file << "</DataArray>" << endl;;
