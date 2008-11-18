@@ -271,7 +271,7 @@ void Grid::nodeAverages() {
 			for (sit=sit;sit!=stencil.end();sit++) {
 				Vec3D& centroid4=(*sit>=0) ? cell[*sit].centroid : ghost[-(*sit)].centroid;
 				// If the centroid lies on the plane fomed by first three
-				if (fabs(planeNormal.dot((centroid4-centroid1).norm()))>1.e-7) {
+				if (fabs(planeNormal.dot((centroid4-centroid1).norm()))>1.e-4) {
 					method="tetra";
 					// Finding on off-plane point is enough
 					// That means tetra method can be used
@@ -311,7 +311,7 @@ void Grid::nodeAverages() {
 							temp.quality=temp.volume/((pow(temp.perimeter/4.,3)));
 							temp.distance=fabs(node[n]-temp.centroid);
 							temp.weight=temp.quality/(temp.distance*temp.distance);
-							if (temp.quality>1.e-7) {
+							if (temp.quality>1.e-6) {
 								tetras.push_back(temp);
 								weightSum+=temp.weight;
 							}
@@ -322,6 +322,7 @@ void Grid::nodeAverages() {
 			if (tetras.size()==0) {
 				method="tri";
 				cerr << "[W] An interpolation tetra couldn't be found for node " << n << endl;
+				cerr << "[W] Falling back to tri interpolation " << n << endl;
 
 			} else {
 				// Now loop over the tetras and store interpolation weights
