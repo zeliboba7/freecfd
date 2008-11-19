@@ -243,6 +243,7 @@ void Grid::nodeAverages() {
 		for (int nc=0;nc<node[n].cells.size();++nc) stencil.insert(node[n].cells[nc]);
 		// Include nearest ghost cells
 		for (int ng=0;ng<node[n].ghosts.size();++ng) stencil.insert(-1*node[n].ghosts[ng]);
+		//cout << n << "\t" << stencil.size() << "\t" << node[n].cells.size() << endl;
 		string method;
 		Vec3D planeNormal;
 		// if stencil doesn't have at least 4 points, expand it to include 2nd nearest neighbor cells
@@ -312,12 +313,17 @@ void Grid::nodeAverages() {
 							temp.distance=fabs(node[n]-temp.centroid);
 							temp.weight=temp.quality/(temp.distance*temp.distance);
 							if (temp.quality>1.e-6) {
+								//cout << n << "\t" << stencil.size() << endl;
 								tetras.push_back(temp);
 								weightSum+=temp.weight;
 							}
+							if (tetras.size()>5) break;
 						}
+						if (tetras.size()>5) break;
 					}
+					if (tetras.size()>5) break;
 				}
+				if (tetras.size()>5) break;
 			} // Loop through stencil 
 			if (tetras.size()==0) {
 				method="tri";
@@ -394,6 +400,7 @@ void Grid::nodeAverages() {
 					
 				}
 			}
+			
 		} // end if method is tetra
 		if (method=="tri") {
 			vector<InterpolationTriangle> triangles;
