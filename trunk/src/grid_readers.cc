@@ -27,11 +27,12 @@
 #include <map>
 #include <iomanip>
 #include<cmath>
+#include <algorithm>
 using namespace std;
 #include <cgnslib.h>
 
 #include "grid.h"
-
+string int2str(int number) ;
 extern Grid grid;
 extern int np, Rank;
 
@@ -257,3 +258,127 @@ int Grid::readCGNS() {
 	if (Rank==0) cout << "[I] Total Cell Count= " << globalCellCount << endl;
 
 } // end Grid::ReadCGNS
+
+int Grid::readTEC() {
+
+	globalNodeCount=0;
+	globalCellCount=0;
+	globalFaceCount=0;
+
+	ifstream file;
+	string data,chunk;
+	
+	file.open(fileName.c_str(),ios::in);
+
+	string::size_type fileLoc=0;
+
+	vector<string> varNames;
+	// Get variable names
+	getline(file,data,'\n');
+	fileLoc+=data.size();
+	int num_vars = count(data.begin(), data.end(), '\"');
+	for (int i=0;i<(num_vars/2);++i) {
+		data=data.substr(data.find("\"")+1,data.size());
+		chunk=data.substr(0,data.find("\""));
+		if (i>2) varNames.push_back(chunk); // don't include x y z
+		data=data.substr(chunk.size()+1,data.size());
+	}
+	
+	// Get number of nodes
+	file.seekg(fileLoc);
+	getline(file,data,'n');
+	file.seekg(fileLoc+data.size()+4);
+	file >> globalNodeCount;
+
+	// Get number of cells	
+	file.seekg(fileLoc);
+	getline(file,data,'e');
+	file.seekg(fileLoc+data.size()+4);
+	file >> globalCellCount;
+	
+	cout << "[I] ...Number of nodes = " << globalNodeCount << endl;
+	cout << "[I] ...Number of cells = " << globalCellCount << endl;
+	
+
+	getline(file,data,'\n');
+
+	raw.x.reserve(globalNodeCount);
+	raw.y.reserve(globalNodeCount);
+	raw.z.reserve(globalNodeCount);
+	
+	
+	double Ddummy;
+	// Read node coordinates
+	for (unsigned int n=0;n<globalNodeCount;++n) { file >> Ddummy; raw.x.push_back(Ddummy); }
+	for (unsigned int n=0;n<globalNodeCount;++n) { file >> Ddummy; raw.y.push_back(Ddummy); }
+	for (unsigned int n=0;n<globalNodeCount;++n) { file >> Ddummy; raw.z.push_back(Ddummy); }
+
+	cout << "[I] ...Read node coordinates" << endl;		
+	
+	// Read variables
+	for (unsigned int var=0;var<varNames.size();++var) {
+		for (unsigned int n=0;n<globalNodeCount;++n) {
+			file >> Ddummy;
+			//node[n].vars.push_back(Ddummy);
+		}	
+	}
+	cout << "[I] ...Read variables" << endl;
+	
+	// Fill in cell connectivity information
+	for (unsigned int c=0;c<globalCellCount;++c) {
+		int conn,connPrev;
+		raw.cellConnIndex.push_back(raw.cellConnectivity.size());
+		for (int i=0;i<8;++i) {
+			connPrev=conn;
+			file >> conn; conn-=1;
+			if (i==0 | connPrev!=conn) {
+				raw.cellConnectivity.push_back(conn);	
+			}
+			
+		}
+	}
+
+	// Fill in face connectivity information
+	bool bcFound;
+	int bcCount,elemCount;
+	bcCount=0;
+	while (bcFound==false) {
+		bcFound=false;
+		if (file.ignore(int(1e20),'B').eof()) break;
+		data=file.peek();
+		if (data=="C") {
+			bcFound==true;
+			bcCount++;
+			raw.bocoNameMap.insert(pair<string,int>("BC_"+int2str(bcCount),bcCount));
+			file.ignore(100,'='); file.ignore(100,'=');
+			file >> elemCount;
+			getline(file,data,'\n');
+			cout << "[I] ......BC_" << bcCount << " has " << elemCount << " faces" << endl;
+			vector<int> bocoConnIndex;
+			vector<int> bocoConnectivity;
+			for (int elem=0;elem<elemCount;++elem) {
+				int conn,connPrev;
+				bocoConnIndex.push_back(bocoConnectivity.size());
+				for (int i=0;i<4;++i) {
+					connPrev=conn;
+					file >> conn; conn-=1;
+					if (i==0 | connPrev!=conn) {
+						bocoConnectivity.push_back(conn);	
+					}
+				}		
+			}
+			raw.bocoConnIndex.push_back(bocoConnIndex);
+			raw.bocoConnectivity.push_back(bocoConnectivity);
+		}
+	}
+	
+	cout << raw.cellConnIndex.size() << endl;
+	for (int c=0;c<raw.cellConnIndex.size();++c) {
+	  for (int i=0;i<8;++i) {
+	    cout << raw.cellConnectivity[raw.cellConnIndex[c]+i] << "\t" << endl;
+	  }
+	  cout << endl;
+	}
+
+		
+} // end Grid::ReadTEC

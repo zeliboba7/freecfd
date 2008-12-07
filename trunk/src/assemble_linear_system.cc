@@ -66,7 +66,8 @@ void assemble_linear_system(void) {
 	double conv_flux[nSolVar],conv_fluxPlus[nSolVar];
 	double diff_flux[nSolVar],diff_fluxPlus[nSolVar];
 
-	epsilon=sqrt(std::numeric_limits<double>::epsilon()); // A small number
+	double epsilonBase=sqrt(std::numeric_limits<double>::epsilon()); // A small number
+	double factor=0.01;
 
 	order=input.section["numericalOptions"].strings["order"];
 	limiter=input.section["numericalOptions"].strings["limiter"];
@@ -151,6 +152,9 @@ void assemble_linear_system(void) {
 		
 				for (int i=0;i<nSolVar;++i) {
 
+					if (left.update[i]>0) {epsilon=max(epsilonBase,factor*left.update[i]);}
+					else {epsilon=min(-1.*epsilonBase,factor*left.update[i]); }
+						
 					// Perturb left variable
 					left_state_perturb(left,right,face,f,i,epsilon);
 					if (face.bc>=0) right_state_update(left,right,face,f);
@@ -180,7 +184,9 @@ void assemble_linear_system(void) {
 					} // for j
 		
 					if (face.bc==-1) { // TODO what if a ghost face??
-		
+
+						if (right.update[i]>0) {epsilon=max(epsilonBase,factor*right.update[i]); }
+						else {epsilon=min(-1.*epsilonBase,factor*right.update[i]); }
 						// Perturb right variable
 						right_state_perturb(right,face,i,epsilon);
 						// Adjust face averages and gradients (crude)
@@ -245,6 +251,8 @@ void left_state_update(Cell_State &left,Face_State &face,unsigned int f) {
 		for (unsigned int i=0;i<7;++i) delta[i]=0.;
 	}
 
+	for (unsigned int i=0;i<7;++i) left.update[i]=grid.cell[parent].update[i];
+	
 	deltaV.comp[0]=delta[1]; deltaV.comp[1]=delta[2]; deltaV.comp[2]=delta[3];
 	
 	// Set left primitive variables
@@ -285,6 +293,8 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face,unsi
 			for (unsigned int i=0;i<7;++i) delta[i]=0.;
 		}
 
+		for (unsigned int i=0;i<7;++i) right.update[i]=grid.cell[neighbor].update[i];
+		
 		deltaV.comp[0]=delta[1]; deltaV.comp[1]=delta[2]; deltaV.comp[2]=delta[3];
 
 		// Set right primitive variables
@@ -301,6 +311,8 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face,unsi
 	} else if (face.bc>=0) { // boundary face
 
 		right.mu=left.mu;
+		
+		for (unsigned int i=0;i<7;++i) left.update[i]=0.;
 		
 		if (bc.region[face.bc].type=="outlet") {
 			right.rho=left.rho;
@@ -363,6 +375,8 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face,unsi
 			}
 		}
 
+		for (unsigned int i=0;i<7;++i) left.update[i]=0.;
+		
 		deltaV.comp[0]=delta[1]; deltaV.comp[1]=delta[2]; deltaV.comp[2]=delta[3];
 		right.rho=grid.ghost[g].rho+delta[0];	
 		right.v=grid.ghost[g].v+deltaV;

@@ -75,6 +75,7 @@ public:
 	Vec3D v,grad[7],limited_grad[7];
 	std::map<int,Vec3D> gradMap;
 	double flux[7];
+	double update[7];
 	Cell(void);
 	bool HaveNodes(unsigned int &nodelistsize, unsigned int nodelist[]) ;
 	Node& node(int n);
@@ -103,6 +104,7 @@ public:
 	Grid();
 	int read(string);
 	int readCGNS();
+	int readTEC();
 	int scale();
 	int partition();
 	int mesh2dual();

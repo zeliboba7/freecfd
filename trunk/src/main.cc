@@ -85,6 +85,7 @@ int main(int argc, char *argv[]) {
 	gridFileName.assign(argv[1]);
 	inputFileName+=".in";
 	gridFileName+=".cgns";
+	//gridFileName+=".dat";
 
 	restart=0;
 	if (argc>2) restart=atoi(argv[2]);
@@ -342,16 +343,13 @@ void update(double dt) {
 void updatePrimitive(double dt) {
 
 	for (unsigned int c = 0;c < grid.cellCount;++c) {
-		grid.cell[c].rho +=grid.cell[c].flux[0];
-		grid.cell[c].v.comp[0] +=grid.cell[c].flux[1];
-		grid.cell[c].v.comp[1] +=grid.cell[c].flux[2];
-		grid.cell[c].v.comp[2] +=grid.cell[c].flux[3];
-		grid.cell[c].p += grid.cell[c].flux[4];
- 		grid.cell[c].k += grid.cell[c].flux[5];
- 		grid.cell[c].omega += grid.cell[c].flux[6];
-		for (int i = 0;i < 7;++i) {
-			grid.cell[c].flux[i] = 0.;
-		}
+		grid.cell[c].rho +=grid.cell[c].update[0];
+		grid.cell[c].v.comp[0] +=grid.cell[c].update[1];
+		grid.cell[c].v.comp[1] +=grid.cell[c].update[2];
+		grid.cell[c].v.comp[2] +=grid.cell[c].update[3];
+		grid.cell[c].p += grid.cell[c].update[4];
+		grid.cell[c].k += grid.cell[c].update[5];
+		grid.cell[c].omega += grid.cell[c].update[6];
 	} // cell loop
 	return;
 }

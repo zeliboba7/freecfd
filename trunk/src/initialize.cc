@@ -97,8 +97,11 @@ void initialize(Grid &grid, InputFile &input) {
 		}
 		for (unsigned int i=0;i<7;++i) {
 			grid.cell[c].flux[i]=0.;
+			grid.cell[c].update[i]=0.;
 		}
 	}
+	
+	
 
 	if (grad_test) { // DEBUG
 		for (unsigned int c=0;c<grid.cellCount;++c) { // DEBUG
@@ -107,6 +110,8 @@ void initialize(Grid &grid, InputFile &input) {
 			//grid.cell[c].rho=1.; // DEBUG
 		}// DEBUG
 	}// DEBUG
+	
+	
 	
 	return;
 }

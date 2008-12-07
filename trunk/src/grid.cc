@@ -45,6 +45,7 @@ extern int np, Rank;
 extern double Gamma;
 extern double Pref;
 
+string int2str(int number) ;
 double superbee(double a, double b);
 double minmod(double a, double b);
 int gelimd(double **a,double *b,double *x, int n);
@@ -63,6 +64,7 @@ int Grid::read(string fname) {
 		if (Rank==0) cout << "[I] Found grid file " << fileName  << endl;
 		file.close();
 		readCGNS();
+		//readTEC();
 		scale();
 		partition();
 		create_nodes_cells();
@@ -317,7 +319,8 @@ void Grid::nodeAverages() {
 								tetras.push_back(temp);
 								weightSum+=temp.weight;
 							}
-							if (tetras.size()>5) break;
+							if (tetras.size()>5) break; 
+							// TODO The algorithm results in too large a stencil. Temporary treatment until a smarter way to do this
 						}
 						if (tetras.size()>5) break;
 					}

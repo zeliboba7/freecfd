@@ -177,8 +177,8 @@ void AUSMplusUP_flux(Cell_State &left,Cell_State &right,double fluxNormal[]) {
 
 	Mref=Minf;
 
-// 	Mref=max(Minf,sqrt(Mbar2));
-// 	Mref=min(Mref,1.);
+	Mref=max(Minf,sqrt(Mbar2));
+	Mref=min(Mref,1.);
 
 	if (Mbar2>=1.) {
 		fa=1.;
