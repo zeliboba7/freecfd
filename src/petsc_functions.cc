@@ -62,6 +62,9 @@ void petsc_init(int argc, char *argv[],double rtol,double abstol,int maxits) {
 	KSPSetTolerances(ksp,rtol,abstol,1.e10,maxits);
 	KSPSetFromOptions(ksp);
 
+	KSPSetInitialGuessNonzero(ksp,PETSC_TRUE);
+	KSPSetInitialGuessKnoll(ksp,PETSC_TRUE);
+	
 	return;
 } // end petsc_init
 
@@ -89,7 +92,7 @@ void petsc_solve(int &nIter,double &rNorm) {
 	for (unsigned int c=0;c<grid.cellCount;++c) {
 		for (int i=0;i<nSolVar;++i) {
 			index=grid.cell[c].globalId*nSolVar+i;
-			VecGetValues(globalUpdate,1,&index,&grid.cell[c].flux[i]);
+			VecGetValues(globalUpdate,1,&index,&grid.cell[c].update[i]);
 		}
 	}
 
