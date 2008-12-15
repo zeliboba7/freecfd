@@ -20,34 +20,36 @@
     see <http://www.gnu.org/licenses/>.
 
 *************************************************************************/
-#include <vector>
+#include "commons.h"
 #include <iostream>
 #include <fstream>
-#include "grid.h"
 #include "inputs.h"
 #include "probe.h"
 using namespace std;
 
 extern InputFile input;
-extern Grid grid;
 extern vector<Probe> probes;
-extern int Rank;
+extern vector<Load> loads;
 
 extern string int2str(int number) ;
 
 void set_probes(void) {
-// parallel: OK
 
 	Probe temp;
 	double distance=1.e20;
 	double distanceTest;
 	int probeCount;
+	
+	struct { 
+		double value; 
+		int   rank; 
+	} in,out;
 
-	probeCount=input.section["probes"].numberedSubsections["probe"].count;
+	probeCount=input.section("probes").subsection("probe",0).count;
 	
 	// Loop through all the probes
 	for (int p=0;p<probeCount;++p) {
-		temp.coord=input.section["probes"].numberedSubsections["probe"].Vec3Ds[p]["coord"];
+		temp.coord=input.section("probes").subsection("probe",p).get_Vec3D("coord");
 		// Find the nearest cell
 		for (unsigned int c=0;c<grid.cellCount;++c) {
 			distanceTest=fabs(temp.coord-grid.cell[c].centroid);
@@ -56,8 +58,9 @@ void set_probes(void) {
 				distance=distanceTest;
 			}
 		}
-		MPI_Allreduce(&distance,&distanceTest,1, MPI_DOUBLE,MPI_MIN,MPI_COMM_WORLD);
-		if (distance<=distanceTest) { // TODO Can more than 1 proc assume ownership of the same probe?
+		in.value=distance; in.rank=Rank;
+		MPI_Allreduce(&in,&out,1, MPI_DOUBLE_INT,MPI_MINLOC,MPI_COMM_WORLD);
+		if (out.rank==Rank) { 
 			temp.Rank=Rank;
 			temp.id=p;
 			probes.push_back(temp);
@@ -65,11 +68,10 @@ void set_probes(void) {
 	}
 
 	// Create probe files
-	for (int p=0;p<probes.size();++p) {
-		string fileName;
-		fileName="probe"+int2str(probes[p].id+1)+".dat";
+	for (int p=0;p<probeCount;++p) {
+		probes[p].fileName="probe"+int2str(probes[p].id+1)+".dat";
 		ofstream file;
-		file.open((fileName).c_str(),ios::out);
+		file.open((probes[p].fileName).c_str(),ios::out);
 		file.close();
 	}
 		
@@ -79,14 +81,15 @@ void set_probes(void) {
 void set_loads(void) {
 	
 	if (Rank==0) {
-		int loadCount=loadCount=input.section["loads"].numberedSubsections["load"].count;
+		int loadCount=input.section("loads").subsection("load",0).count;
 		// Create load files
 		for (int n=0;n<loadCount;++n) {
-			int bc=input.section["loads"].numberedSubsections["load"].ints[n]["bc"];
-			string fileName;
-			fileName="loads_bc_"+int2str(bc)+".dat";
+			Load temp;
+			temp.bc=input.section("loads").subsection("load",n).get_int("bc");
+			temp.fileName="loads_bc_"+int2str(temp.bc)+".dat";
+			loads.push_back(temp);
 			ofstream file;
-			file.open((fileName).c_str(),ios::out);
+			file.open((loads[n].fileName).c_str(),ios::out);
 			file.close();
 		}
 	}

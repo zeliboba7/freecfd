@@ -80,13 +80,15 @@ int Grid::read(string fname) {
 }
 
 int Grid::scale() {
-	double scaleFactor=input.section["grid"].doubles["scaleBy"];
-	for (unsigned int n=0;n<globalNodeCount;++n) {
-		raw.x[n]*=scaleFactor;
-		raw.y[n]*=scaleFactor;
-		raw.z[n]*=scaleFactor;
+	if (input.section("grid").get_double("scaleBy").is_found) {
+		double scaleFactor=input.section("grid").get_double("scaleBy");
+		for (unsigned int n=0;n<globalNodeCount;++n) {
+			raw.x[n]*=scaleFactor;
+			raw.y[n]*=scaleFactor;
+			raw.z[n]*=scaleFactor;
+		}
+		if (Rank==0) cout << "[I] Grid is scaled by " << scaleFactor << endl;
 	}
-	if (Rank==0) cout << "[I] Grid is scaled by " << scaleFactor << endl;
 	return 1;
 }
 
@@ -230,6 +232,39 @@ class InterpolationTetra {
 		double quality;
 		double weight;
 };
+
+void Grid::nodeAverages_idw() {
+	unsigned int c,g;
+	double weight=0.,weightSum;
+	Vec3D node2cell,node2ghost;
+	map<int,double>::iterator it;
+
+	for (unsigned int n=0;n<nodeCount;++n) {
+		node[n].average.clear();
+		// Add contributions from real cells
+		weightSum=0.;
+		for (unsigned int nc=0;nc<node[n].cells.size();++nc) {
+			c=node[n].cells[nc];
+			node2cell=node[n]-cell[c].centroid;
+			weight=1./(node2cell.dot(node2cell));
+			//weight=1./fabs(node2cell);
+			node[n].average.insert(pair<int,double>(c,weight));
+			weightSum+=weight;
+		}
+		// Add contributions from ghost cells		
+		for (unsigned int ng=0;ng<node[n].ghosts.size();++ng) {
+			g=node[n].ghosts[ng];
+			node2ghost=node[n]-ghost[g].centroid;
+			weight=1./(node2ghost.dot(node2ghost));
+			//weight=1./fabs(node2ghost);
+			node[n].average.insert(pair<int,double>(-g-1,weight));
+			weightSum+=weight;
+		}
+		for ( it=node[n].average.begin() ; it != node[n].average.end(); it++ ) {
+			(*it).second/=weightSum;
+		}
+	}
+} // end Grid::nodeAverages_idw()
 
 void Grid::nodeAverages() {
 	
@@ -427,6 +462,7 @@ void Grid::nodeAverages() {
 						temp.quality=temp.area/((temp.perimeter*temp.perimeter/9.)*sqrt(3.)/4.);
 						temp.distance=fabs(node[n]-temp.centroid);
 						temp.weight=temp.quality/(temp.distance*temp.distance);
+
 						if (temp.quality>1.e-7) {
 							triangles.push_back(temp);
 							weightSum+=temp.weight;
@@ -701,7 +737,7 @@ void Grid::gradients(void) {
 
 				//cout << 2.*face[f].centroid.comp[0]+2. << "\t" << faceRho << endl;
 
-				if (bc.region[face[f].bc].type=="inlet") {
+				if (bc.region[face[f].bc].type==INLET) {
 					faceRho=bc.region[face[f].bc].rho;
 					faceVel=bc.region[face[f].bc].v;
 					faceK=bc.region[face[f].bc].k;
@@ -710,15 +746,15 @@ void Grid::gradients(void) {
 					//faceP=bc.region[face[f].bc].p;
 				}
 
-				if (bc.region[grid.face[f].bc].type=="outlet" &&
-					bc.region[grid.face[f].bc].kind=="fixedPressure") {
+				if (bc.region[grid.face[f].bc].type==OUTLET &&
+					bc.region[grid.face[f].bc].kind==FIXED_PRESSURE) {
 					// find Mach number
 // 					Mach=(cell[c].v.dot(face[f].normal))/sqrt(Gamma*(cell[c].p+Pref)/cell[c].rho);
 // 					if (Mach<1.) faceP=bc.region[face[f].bc].p;
 					faceP=bc.region[face[f].bc].p;//-0.5*faceRho*faceVel.dot(faceVel);
 				}
-				if (bc.region[grid.face[f].bc].type=="outlet" &&
-								bc.region[grid.face[f].bc].kind=="fixedPressure2") {
+				if (bc.region[grid.face[f].bc].type==OUTLET &&
+								bc.region[grid.face[f].bc].kind==FIXED_PRESSURE_ENTRAINMENT) {
 					// find Mach number
 // 					Mach=(cell[c].v.dot(face[f].normal))/sqrt(Gamma*(cell[c].p+Pref)/cell[c].rho);
 // 					if (Mach<1.) faceP=bc.region[face[f].bc].p;
@@ -729,8 +765,8 @@ void Grid::gradients(void) {
 					}
 								}
 				// Kill the wall normal component for slip or symmetry, pressure and rho is extrapolated
-				if (bc.region[face[f].bc].type=="slip") faceVel-=faceVel.dot(face[f].normal)*face[f].normal;
-				if (bc.region[face[f].bc].type=="symmetry") {
+				if (bc.region[face[f].bc].type==SLIP) faceVel-=faceVel.dot(face[f].normal)*face[f].normal;
+				if (bc.region[face[f].bc].type==SYMMETRY) {
 					faceRho=cell[face[f].parent].rho;
 					faceVel=cell[face[f].parent].v;
 					faceVel-=faceVel.dot(face[f].normal)*face[f].normal;
@@ -740,7 +776,7 @@ void Grid::gradients(void) {
 					
 				}
 				// Kill the velocity for no-slip, pressure and rho is extrapolated
-				if (bc.region[face[f].bc].type=="noslip") faceVel=0.;
+				if (bc.region[face[f].bc].type==NOSLIP) faceVel=0.;
 
 				cell[c].grad[0]+=faceRho*areaVec;
 				cell[c].grad[1]+=faceVel.comp[0]*areaVec;
@@ -759,12 +795,12 @@ void Grid::gradients(void) {
  	
 } // end Grid::gradients(void)
 
-void Grid::limit_gradients(string limiter, double sharpeningFactor) {
+void Grid::limit_gradients(void) {
 	
 	unsigned int neighbor,g;
 	Vec3D maxGrad[7],minGrad[7];
 	
-	if(limiter=="none") {
+	if(LIMITER==NONE) {
 		for (unsigned int c=0;c<cellCount;++c) for (unsigned int var=0;var<7;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].limited_grad[var].comp[comp]=cell[c].grad[var].comp[comp];
 	} else {
 		for (unsigned int c=0;c<cellCount;++c) {
@@ -776,8 +812,8 @@ void Grid::limit_gradients(string limiter, double sharpeningFactor) {
 				neighbor=cell[c].neighborCells[cc];
 				for (unsigned int var=0;var<7;++var) {
 					for (unsigned int comp=0;comp<3;++comp) {
-						maxGrad[var].comp[comp]=max(maxGrad[var].comp[comp],(1.-sharpeningFactor)*cell[neighbor].grad[var].comp[comp]+sharpeningFactor*cell[c].grad[var].comp[comp]);
-						minGrad[var].comp[comp]=min(minGrad[var].comp[comp],(1.-sharpeningFactor)*cell[neighbor].grad[var].comp[comp]+sharpeningFactor*cell[c].grad[var].comp[comp]);
+						maxGrad[var].comp[comp]=max(maxGrad[var].comp[comp],(1.-limiter_sharpening)*cell[neighbor].grad[var].comp[comp]+limiter_sharpening*cell[c].grad[var].comp[comp]);
+						minGrad[var].comp[comp]=min(minGrad[var].comp[comp],(1.-limiter_sharpening)*cell[neighbor].grad[var].comp[comp]+limiter_sharpening*cell[c].grad[var].comp[comp]);
 					}
 				}
 			}
@@ -786,18 +822,18 @@ void Grid::limit_gradients(string limiter, double sharpeningFactor) {
 				g=cell[c].ghosts[cg];
 				for (unsigned int var=0;var<7;++var) {
 					for (unsigned int comp=0;comp<3;++comp) {
-						maxGrad[var].comp[comp]=max(maxGrad[var].comp[comp],(1.-sharpeningFactor)*ghost[g].grad[var].comp[comp]+sharpeningFactor*cell[c].grad[var].comp[comp]);
-						minGrad[var].comp[comp]=min(minGrad[var].comp[comp],(1.-sharpeningFactor)*ghost[g].grad[var].comp[comp]+sharpeningFactor*cell[c].grad[var].comp[comp]);
+						maxGrad[var].comp[comp]=max(maxGrad[var].comp[comp],(1.-limiter_sharpening)*ghost[g].grad[var].comp[comp]+limiter_sharpening*cell[c].grad[var].comp[comp]);
+						minGrad[var].comp[comp]=min(minGrad[var].comp[comp],(1.-limiter_sharpening)*ghost[g].grad[var].comp[comp]+limiter_sharpening*cell[c].grad[var].comp[comp]);
 					}
 				}
 			}
-			if(limiter=="superbee") for (unsigned int var=0;var<7;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].limited_grad[var].comp[comp]=superbee(maxGrad[var].comp[comp],minGrad[var].comp[comp]);
-			if(limiter=="minmod") for (unsigned int var=0;var<7;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].limited_grad[var].comp[comp]=minmod(maxGrad[var].comp[comp],minGrad[var].comp[comp]);
+			if(LIMITER==SUPERBEE) for (unsigned int var=0;var<7;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].limited_grad[var].comp[comp]=superbee(maxGrad[var].comp[comp],minGrad[var].comp[comp]);
+			if(LIMITER==MINMOD) for (unsigned int var=0;var<7;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].limited_grad[var].comp[comp]=minmod(maxGrad[var].comp[comp],minGrad[var].comp[comp]);
 			
 		}
 	}
 
-} // end Grid::limit_gradients(string limiter, double sharpeningFactor)
+} // end Grid::limit_gradients()
 
 int gelimd(double **a,double *b,double *x, int n)
 {
@@ -849,7 +885,7 @@ void Grid::lengthScales(void) {
 			height=fabs(face[f].normal.dot(face[f].centroid-cell[c].centroid));
 			bool skipScale=false;
 			if (face[f].bc>=0) {
-				if (bc.region[face[f].bc].type=="symmetry") {
+				if (bc.region[face[f].bc].type==SYMMETRY) {
 					skipScale=true;
 				}
 			}

@@ -20,27 +20,31 @@
     see <http://www.gnu.org/licenses/>.
 
 *************************************************************************/
-#ifndef PROBE_H
-#define PROBE_H
+#include "commons.h"
 
-#include <fstream>
-#include <mpi.h>
-using namespace std;
-#include "vec3d.h"
 
-class Probe {
-	public:
-		int id;
-		int Rank;
-		unsigned int nearestCell;
-		Vec3D coord;
-		string fileName;
-};
+int EQUATIONS,TURBULENCE_MODEL;
+int TIME_INTEGRATOR,TIME_STEP_TYPE;
+int CONVECTIVE_FLUX_FUNCTION,LIMITER,PRECONDITIONER;
+int OUTPUT_FORMAT;
 
-class Load {
-	public:
-		int bc;
-		string fileName;
-};
+int Rank,np;
+double dt,dtTarget,CFLmax,CFLmaxTarget,CFLlocal,CFLlocalTarget;
+int timeStep,restart;
+double Minf, Pref;
+int order;
+double limiter_sharpening;
+int jacobianUpdateFreq;
+double Gamma,viscosity;
+int outFreq, restartFreq;
 
-#endif
+double sqrt_machine_error;
+bool ramp; 
+double ramp_initial,ramp_growth;
+
+int probeFreq,loadFreq;
+int bcCount;
+
+Grid grid;
+// Iterators
+std::vector<Cell>::iterator cit;

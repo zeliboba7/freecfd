@@ -20,116 +20,114 @@
     see <http://www.gnu.org/licenses/>.
 
 *************************************************************************/
+#include "commons.h"
 #include "inputs.h"
+
+void check_inputs(InputFile &input);
 
 void read_inputs(InputFile &input) {
 
-	input.register_section("grid");
-	input.section["grid"].register_double("scaleBy");
-	input.read_section("grid");
-
-
-	input.register_section("equations");
-	input.section["equations"].register_string("set");
-	// defaults
-	input.section["equations"].strings["set"]="Euler";
-	input.read_section("equations");
-
-	input.register_section("timeMarching");
-	input.section["timeMarching"].register_string("integrator");
-	input.section["timeMarching"].register_string("preconditioner");
-	input.section["timeMarching"].register_string("type");
-	input.section["timeMarching"].register_double("step");
-	input.section["timeMarching"].register_double("CFL");
-	input.section["timeMarching"].register_int("numberOfSteps");
-	// defaults
-	input.section["timeMarching"].strings["type"]="CFL";
-	input.section["timeMarching"].doubles["CFL"]=1.;
-	input.section["timeMarching"].ints["numberOfSteps"]=100;
-	input.read_section("timeMarching");
-
-	input.register_section("initialConditions");
-	input.section["initialConditions"].register_numberedSubsection("region");
-	input.section["initialConditions"].numberedSubsections["region"].register_string("type");
-	input.section["initialConditions"].numberedSubsections["region"].register_Vec3D("box_1");
-	input.section["initialConditions"].numberedSubsections["region"].register_Vec3D("box_2");
-	input.section["initialConditions"].numberedSubsections["region"].register_double("rho");
-	input.section["initialConditions"].numberedSubsections["region"].register_Vec3D("center");
-	input.section["initialConditions"].numberedSubsections["region"].register_double("radius");
-	input.section["initialConditions"].numberedSubsections["region"].register_Vec3D("v");
-	input.section["initialConditions"].numberedSubsections["region"].register_double("p");
-	input.section["initialConditions"].numberedSubsections["region"].register_double("k");
-	input.section["initialConditions"].numberedSubsections["region"].register_double("omega");
-	input.read_section("initialConditions");
-
-	input.register_section("boundaryConditions");
-	input.section["boundaryConditions"].register_numberedSubsection("BC");
-	input.section["boundaryConditions"].numberedSubsections["BC"].register_string("type");
-	input.section["boundaryConditions"].numberedSubsections["BC"].register_string("kind");
-	input.section["boundaryConditions"].numberedSubsections["BC"].register_string("region");
-	input.section["boundaryConditions"].numberedSubsections["BC"].register_Vec3D("box_1");
-	input.section["boundaryConditions"].numberedSubsections["BC"].register_Vec3D("box_2");
-	input.section["boundaryConditions"].numberedSubsections["BC"].register_string("pick");
-	input.section["boundaryConditions"].numberedSubsections["BC"].register_double("rho");
-	input.section["boundaryConditions"].numberedSubsections["BC"].register_double("p");
-	input.section["boundaryConditions"].numberedSubsections["BC"].register_double("k");
-	input.section["boundaryConditions"].numberedSubsections["BC"].register_double("omega");
-	input.section["boundaryConditions"].numberedSubsections["BC"].register_Vec3D("v");
-	input.read_section("boundaryConditions");
-
-	input.register_section("fluidProperties");
-	input.section["fluidProperties"].register_double("gamma");
-	input.section["fluidProperties"].register_double("Pref");
-	input.section["fluidProperties"].register_subsection("viscosity");
-	input.section["fluidProperties"].subsections["viscosity"].register_string("type");
-	input.section["fluidProperties"].subsections["viscosity"].register_double("value");
-	// defaults
-	input.section["fluidProperties"].subsections["viscosity"].strings["type"]="fixed";
-	input.read_section("fluidProperties");
-
-	input.register_section("numericalOptions");
-	input.section["numericalOptions"].register_string("flux");
-	input.section["numericalOptions"].register_string("order");
-	input.section["numericalOptions"].register_string("limiter");
-	input.section["numericalOptions"].register_double("Minf");
-	input.section["numericalOptions"].register_double("sharpeningFactor");
-	// defaults
-	input.section["numericalOptions"].strings["order"]="first";
-	input.section["numericalOptions"].strings["limiter"]="superbee";
-	input.section["numericalOptions"].doubles["sharpeningFactor"]=0.;
-	input.read_section("numericalOptions");
-
-	input.register_section("jacobian");
-	input.section["jacobian"].register_int("updateFrequency");
-	input.read_section("jacobian");
-
-	input.register_section("linearSolver");
-	input.section["linearSolver"].register_double("relTolerance");
-	input.section["linearSolver"].register_double("absTolerance");
-	input.section["linearSolver"].register_int("maxIterations");
-	input.read_section("linearSolver");
+	// These will make more sense as you read the input registration lines below
+	bool required=true; bool optional=false;
+	bool numbered=true; bool single=false;
 	
-	input.register_section("output");
-	input.section["output"].register_string("format");
-	input.section["output"].register_int("outFreq");
-	input.section["output"].register_int("restartFreq");
-	input.read_section("output");
+	input.register_string("equations",optional,"NS");
+	input.register_string("turbulenceModel",optional,"none");
+	input.readEntries();
+	
+	input.registerSection("grid",optional);
+	input.section("grid").register_double("scaleBy",optional,1.);
+	input.readSection("grid");
+	
+	input.registerSection("reference",optional);
+	input.section("reference").register_double("Mach",optional,1.);
+	input.section("reference").register_double("p",optional,0.);
+	input.readSection("reference");
+	
+	input.registerSection("timeMarching",required);
+	input.section("timeMarching").register_string("integrator",optional,"backwardEuler");
+	input.section("timeMarching").register_double("stepSize",optional,1000);
+	input.section("timeMarching").register_double("CFLmax",optional,1000);
+	input.section("timeMarching").register_double("CFLlocal",optional,1000);
+	input.section("timeMarching").registerSubsection("ramp",single,optional);
+	input.section("timeMarching").subsection("ramp").register_double("initial",optional,1.);
+	input.section("timeMarching").subsection("ramp").register_double("growth",optional,1.2);
+	input.section("timeMarching").register_int("numberOfSteps",required);
+	input.readSection("timeMarching");
+	
+	input.registerSection("numericalOptions",optional);
+	input.section("numericalOptions").register_string("convectiveFlux",optional,"AUSM+up");
+	input.section("numericalOptions").register_string("preconditioner",optional,"none");
+	input.section("numericalOptions").register_string("order",optional,"second");
+	input.section("numericalOptions").register_string("limiter",optional,"none");
+	input.section("numericalOptions").register_double("sharpeningFactor",optional,0.);
+	input.readSection("numericalOptions");
+	
+	input.registerSection("linearSolver",required);
+	input.section("linearSolver").register_double("relTolerance",optional,1.e-6);
+	input.section("linearSolver").register_double("absTolerance",optional,1.e-12);
+	input.section("linearSolver").register_int("maxIterations",required);
+	input.readSection("linearSolver");
+	
+	input.registerSection("jacobian",optional);
+	input.section("jacobian").register_int("updateFrequency",optional,1);
+	input.readSection("jacobian");
+	
+	input.registerSection("fluidProperties",required);
+	input.section("fluidProperties").register_double("gamma",required);
+	bool viscRequired= (input.get_string("equations")=="Euler")? false : true;
+	input.section("fluidProperties").register_double("viscosity",viscRequired,0.); 
+	input.readSection("fluidProperties");
+	
+	input.registerSection("writeOutput",required);
+	input.section("writeOutput").register_string("format",optional,"tecplot");
+	input.section("writeOutput").register_int("plotFrequency",required);
+	input.section("writeOutput").register_int("restartFrequency",required);
+	input.readSection("writeOutput");
+	
+	input.registerSection("probes",optional);
+	input.section("probes").register_int("frequency",optional);
+	input.section("probes").registerSubsection("probe",numbered,optional);
+	input.section("probes").subsection("probe",0).register_Vec3D("coord",optional);
+	input.readSection("probes");
 
-	input.register_section("probes");
-	input.section["probes"].register_int("frequency");
-	input.section["probes"].register_numberedSubsection("probe");
-	input.section["probes"].numberedSubsections["probe"].register_Vec3D("coord");
-	input.read_section("probes");
-
-	input.register_section("loads");
-	input.section["loads"].register_int("frequency");
-	input.section["loads"].register_numberedSubsection("load");
-	input.section["loads"].numberedSubsections["load"].register_int("bc");
-	input.read_section("loads");
-
-	input.register_section("turbulence");
-	input.section["turbulence"].register_string("model");
-	input.read_section("turbulence");
-
+	input.registerSection("loads",optional);
+	input.section("loads").register_int("frequency",optional);
+	input.section("loads").registerSubsection("load",numbered,optional);
+	input.section("loads").subsection("load",0).register_int("bc",optional);
+	input.readSection("loads");
+	
+	input.registerSection("initialConditions",required);
+	input.section("initialConditions").registerSubsection("IC",numbered,required);
+	input.section("initialConditions").subsection("IC",0).register_string("region",optional,"box");
+	input.section("initialConditions").subsection("IC",0).register_Vec3D("corner_1",optional,-1.e20);
+	input.section("initialConditions").subsection("IC",0).register_Vec3D("corner_2",optional,1e20);
+	input.section("initialConditions").subsection("IC",0).register_Vec3D("center",optional);
+	input.section("initialConditions").subsection("IC",0).register_Vec3D("axisDirection",optional);
+	input.section("initialConditions").subsection("IC",0).register_double("radius",optional);
+	input.section("initialConditions").subsection("IC",0).register_double("height",optional);
+	input.section("initialConditions").subsection("IC",0).register_double("rho",required);
+	input.section("initialConditions").subsection("IC",0).register_Vec3D("v",required);
+	input.section("initialConditions").subsection("IC",0).register_double("p",required);
+	input.section("initialConditions").subsection("IC",0).register_double("k",optional);
+	input.section("initialConditions").subsection("IC",0).register_double("omega",optional);
+	input.readSection("initialConditions");
+	
+	input.registerSection("boundaryConditions",required);
+	input.section("boundaryConditions").registerSubsection("BC",numbered,required);
+	input.section("boundaryConditions").subsection("BC",0).register_string("type",required);
+	input.section("boundaryConditions").subsection("BC",0).register_string("kind",optional,"none");
+	input.section("boundaryConditions").subsection("BC",0).register_string("region",optional,"gridFile");
+	input.section("boundaryConditions").subsection("BC",0).register_Vec3D("corner_1",optional);
+	input.section("boundaryConditions").subsection("BC",0).register_Vec3D("corner_2",optional);
+	input.section("boundaryConditions").subsection("BC",0).register_string("pick",optional,"overRide");
+	input.section("boundaryConditions").subsection("BC",0).register_double("rho",optional);
+	input.section("boundaryConditions").subsection("BC",0).register_Vec3D("v",optional);	
+	input.section("boundaryConditions").subsection("BC",0).register_double("p",optional);
+	input.section("boundaryConditions").subsection("BC",0).register_double("k",optional);
+	input.section("boundaryConditions").subsection("BC",0).register_double("omega",optional);
+	input.readSection("boundaryConditions");
+	
+	check_inputs(input);
 	
 }

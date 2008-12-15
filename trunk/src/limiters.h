@@ -34,13 +34,6 @@ class Probe {
 		int Rank;
 		unsigned int nearestCell;
 		Vec3D coord;
-		string fileName;
-};
-
-class Load {
-	public:
-		int bc;
-		string fileName;
 };
 
 #endif

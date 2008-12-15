@@ -1,12 +1,12 @@
+#include "commons.h"
 #include <iostream>
 #include <fstream>
-#include <string>
 
 using namespace std;
 #include "vec3d.h"
 #include "inputs.h"
 
-extern int np, Rank;
+	 
 extern string int2str(int number) ;
 
 InputFile::InputFile(void) {
@@ -14,377 +14,234 @@ InputFile::InputFile(void) {
 }
 
 void InputFile::setFile(string fName) {
+
 	// Check if the input file exists
 	fileName=fName;
 	fstream file;
 	file.open(fileName.c_str());
-	if (file.is_open() && Rank==0) cout << "[I] Found input file " << fileName << endl;
+	//if (file.is_open() && Rank==0) { 
+	if (file.is_open()) { 
+		if (Rank==0) cout << "[I] Found input file " << fileName << endl; 
+	} else {
+		if (Rank==0) cerr << "[E] Input file " << fileName << " could not be found!!" << endl;
+		exit(1);
+	}
+	// Read the whole input file to rawData
+	string line;
+	rawData="";
+	while(getline(file, line)) rawData += line + "\n";
 	file.close();
-}
-
-void InputFile::read_section(string sectionName) {
-
-	// Open the input file
-	fstream file;
-	file.open(fileName.c_str());
-
-	string::size_type loc;
-	string sectionData="";
-	string subsectionData;
-	string subsectionName;
-	string::size_type endLoc;
-	string nameWithIndex;
-	string whitespaces(" \t\f\v\n\r");
-
-	// Find the section
-	if (search(file,sectionName)) {
-//		cout << "* \t Found section " << sectionName << endl;
-	}
-	// Find what is in between { and } after the section name appears in file
-	getline(file,sectionData,'{'); getline(file,sectionData,'}');
-
-	// Define iterator for double variables inside the section
-	map<string,double>::iterator doubleIter;
-
-	read_doubles(section[sectionName].doubles,sectionData);
-	read_ints(section[sectionName].ints,sectionData);
-	read_strings(section[sectionName].strings,sectionData);
-	read_Vec3Ds(section[sectionName].Vec3Ds,sectionData);
-
-	// For each subsection
-
-	map<string,Subsection>::iterator subsectionIter;
-	for (subsectionIter=section[sectionName].subsections.begin();subsectionIter!=section[sectionName].subsections.end();subsectionIter++) {
-		string subsectionName=subsectionIter->first;
-		// Find the section
-		if (sectionData.find("(",0)) {
-//		cout << "* \t\t Found subsection " << subsectionName << endl;
-		}
-		// Find what is in between ( and ) after the subsection name appears
-		loc=sectionData.find(subsectionName,0);
-		loc=sectionData.find("(",loc);
-		endLoc=sectionData.find(")",loc);
-		subsectionData=sectionData.substr(loc+1,endLoc-loc-1);
-		read_doubles(section[sectionName].subsections[subsectionName].doubles,subsectionData);
-		read_ints(section[sectionName].subsections[subsectionName].ints,subsectionData);
-		read_strings(section[sectionName].subsections[subsectionName].strings,subsectionData);
-		read_Vec3Ds(section[sectionName].subsections[subsectionName].Vec3Ds,subsectionData);
-	}
-
-	// For each numbered subsection
-
-	map<string,numberedSubsection>::iterator numberedSubsectionIter;
-	for (numberedSubsectionIter=section[sectionName].numberedSubsections.begin();numberedSubsectionIter!=section[sectionName].numberedSubsections.end();numberedSubsectionIter++) {
-
-		subsectionName=numberedSubsectionIter->first;
-
-		// Find how many of them are there
-		for (int i=1;i<=20;++i) {
-
-			nameWithIndex=subsectionName+"_"+int2str(i);
-			size_t found;
-			int flag=0;
-			while (flag==0) {
-				found=nameWithIndex.find_first_of(whitespaces);
-				if (found!=string::npos) {
-					nameWithIndex.erase(found,1);
-				} else {
-					flag=1;
-				}
-
-			}
-
-			// Find the subsection
-			if (sectionData.find(nameWithIndex,0) !=string::npos) {
-//				cout << "* \t\t Found subsection " << nameWithIndex << endl;
-				if (i>1) {
-					section[sectionName].numberedSubsections[subsectionName].doubles.push_back(section[sectionName].numberedSubsections[subsectionName].doubles[i-2]);
-					section[sectionName].numberedSubsections[subsectionName].ints.push_back(section[sectionName].numberedSubsections[subsectionName].ints[i-2]);
-					section[sectionName].numberedSubsections[subsectionName].strings.push_back(section[sectionName].numberedSubsections[subsectionName].strings[i-2]);
-					section[sectionName].numberedSubsections[subsectionName].Vec3Ds.push_back(section[sectionName].numberedSubsections[subsectionName].Vec3Ds[i-2]);
-				}
-				// Find what is in between ( and ) after the subsection name appears
-				loc=sectionData.find(nameWithIndex,0);
-				loc=sectionData.find("(",loc);
-				endLoc=sectionData.find(")",loc);
-				subsectionData=sectionData.substr(loc+1,endLoc-loc-1);
-				read_doubles(section[sectionName].numberedSubsections[subsectionName].doubles[i-1],subsectionData);
-				read_ints(section[sectionName].numberedSubsections[subsectionName].ints[i-1],subsectionData);
-				read_strings(section[sectionName].numberedSubsections[subsectionName].strings[i-1],subsectionData);
-				read_Vec3Ds(section[sectionName].numberedSubsections[subsectionName].Vec3Ds[i-1],subsectionData);
-				section[sectionName].numberedSubsections[subsectionName].count=i;
-
-			} else {
-				break;
-			}
-
-		}
-
-	}
-
-	file.close();
-//	cout << "* \t Finished reading section "<< sectionName << "\n" << endl;
+	
+	// Strip all the inline or block comments (C++ style) from the rawData
+	stripComments(rawData);
+	// Strip all the white spaces from the rawData
+	strip_white_spaces(rawData);
 
 }
-
 
 void InputFile::read(void) {
-	// Open the input file
-	fstream file;
-	file.open(fileName.c_str());
-
+	// Read all the sections
 	// Define iterator for section names
 	map<string,Section>::iterator sectionIter;
 	// For each section
-	for (sectionIter=section.begin();sectionIter!=section.end();sectionIter++) {
+	for (sectionIter=sections.begin();sectionIter!=sections.end();sectionIter++) {
 		string sectionName=sectionIter->first;
-		read_section(sectionName);
+		readSection(sectionName);
 	}
-	file.close();
-//    cout << "* Finished reading input file\n" << endl;
+	
+	// Read variables
+	readEntries();
+	cout << rawData << endl;
+	
 }
 
-void InputFile::register_section(string sectionName) {
-	Section temp;
-	section.insert(pair<string,Section> (sectionName,temp));
-}
-
-int InputFile::search(fstream& file, string searchString) {
-	file.seekg(0);
-	string line,dummy;
-	string::size_type fileLoc=0;
-	string::size_type lineLoc=0;
-	while (getline(file,line,'{')) {
-		lineLoc=line.find(searchString);
-		if (lineLoc!=line.npos) {
-			file.seekg(fileLoc+lineLoc);
-			return 1;
+void InputFile::readSection(string sectionName) {
+	// Get section data
+	section(sectionName).is_found=extract_in_between(rawData,sectionName+"{","}",section(sectionName).rawData,true,"};");
+	// Exit if the section is required but couldn't be found
+	if (section(sectionName).is_required && !section(sectionName).is_found) {
+		if (Rank==0) cerr << "[E] Required input section " << sectionName << " could not be found!!" << endl;
+		exit(1);
+	} 
+	
+	// Read subsections
+	map<string,Subsection>::iterator subsectionIter;
+	for (subsectionIter=section(sectionName).subsections.begin();subsectionIter!=section(sectionName).subsections.end();subsectionIter++) {
+		readSubsection(subsectionIter->second);
+	}
+	
+	// Read numbered subsections
+	map<string,vector<Subsection> >::iterator nsubsectionIter;
+	for (nsubsectionIter=section(sectionName).numberedSubsections.begin();nsubsectionIter!=section(sectionName).numberedSubsections.end();nsubsectionIter++) {
+		// Find how many subsections there are
+		int count=number_of_occurances(section(sectionName).rawData,nsubsectionIter->first+"_");
+		// First occurance was already initialized when numbered subsection was registered 
+		// Copy duplicate the first entry count-1 times 
+		nsubsectionIter->second[0].count=count;
+		for (int i=1;i<count;++i) nsubsectionIter->second.push_back(nsubsectionIter->second[0]);
+		// Fill in each one of them
+		for (int i=0;i<count;++i) {
+			// Append number to name
+			nsubsectionIter->second[i].name+="_"+int2str(i+1);
+			//string subsectionName=nsubsectionName+"_"+int2str(i+1);
+			readSubsection(nsubsectionIter->second[i]);
 		}
-		fileLoc+=line.length();
+		
 	}
-	return 0;
+	
+	// Read variables
+	section(sectionName).readEntries();
+	
+	if (Rank==0) cout << "[I] Read input section: " << sectionName << endl;
+	
 }
 
-void Section::register_double(string varName) {
-	double temp;
-	doubles.insert(pair<string,double> (varName,temp));
+void InputFile::readSubsection(Subsection &sub) {
+	// Get subsection data
+	sub.is_found=extract_in_between(section(sub.parentName).rawData,sub.name+"(",");",sub.rawData,true,"};");
+	// Exit if the subsection is required but couldn't be found
+	if (sub.is_required && !sub.is_found) {
+		if (Rank==0) cerr << "[E] Required input subsection " << sub.parentName << " -> " << sub.name << " could not be found!!" << endl;
+		exit(1);
+	} 
+	sub.readEntries();
+	return;
 }
 
-void Section::register_int(string varName) {
-	int temp;
-	ints.insert(pair<string,int> (varName,temp));
-}
-
-void Section::register_string(string varName) {
-	string temp;
-	strings.insert(pair<string,string> (varName,temp));
-}
-
-void Section::register_Vec3D(string varName) {
-	Vec3D temp;
-	Vec3Ds.insert(pair<string,Vec3D> (varName,temp));
-}
-
-void Section::register_numberedSubsection(string subsectionName) {
-	numberedSubsection temp;
-	numberedSubsections.insert(pair<string,numberedSubsection> (subsectionName,temp));
-	map<string,double> temp2;
-	numberedSubsections[subsectionName].doubles.push_back(temp2);
-	map<string,int> temp3;
-	numberedSubsections[subsectionName].ints.push_back(temp3);
-	map<string,string> temp4;
-	numberedSubsections[subsectionName].strings.push_back(temp4);
-	map<string,Vec3D> temp5;
-	numberedSubsections[subsectionName].Vec3Ds.push_back(temp5);
-}
-
-void Section::register_subsection(string subsectionName) {
-	Subsection temp;
-	subsections.insert(pair<string,Subsection> (subsectionName,temp));
-}
-
-void Subsection::register_double(string varName) {
-	double temp;
-	doubles.insert(pair<string,double> (varName,temp));
-}
-
-void Subsection::register_int(string varName) {
-	int temp;
-	ints.insert(pair<string,int> (varName,temp));
-}
-
-void Subsection::register_string(string varName) {
-	string temp;
-	strings.insert(pair<string,string> (varName,temp));
-}
-
-void Subsection::register_Vec3D(string varName) {
-	Vec3D temp;
-	Vec3Ds.insert(pair<string,Vec3D> (varName,temp));
-}
-
-void numberedSubsection::register_double(string varName) {
-	double temp;
-	doubles[0].insert(pair<string,double> (varName,temp));
-}
-
-void numberedSubsection::register_int(string varName) {
-	int temp;
-	ints[0].insert(pair<string,int> (varName,temp));
-}
-
-void numberedSubsection::register_string(string varName) {
-	string temp;
-	strings[0].insert(pair<string,string> (varName,temp));
-}
-
-void numberedSubsection::register_Vec3D(string varName) {
-	Vec3D temp;
-	Vec3Ds[0].insert(pair<string,Vec3D> (varName,temp));
-}
-
-void read_doubles(map<string,double> &doubles, string sectionData) {
-	// For each double variable
-	map<string,double>::iterator doubleIter;
-	for (doubleIter=doubles.begin();doubleIter!=doubles.end();doubleIter++) {
-		string varName=doubleIter->first;
-		// Find the variable
-		string::size_type loc=0;
-		int flag=0;
-		while (flag==0) {
-			loc=sectionData.find(varName,loc);
-			if (loc==string::npos) break;
-			string after=sectionData.substr(loc+varName.length(),1);
-			string before;
-			if (loc!=0) {
-				before=sectionData.substr(loc-1,1);
-			} else {
-				before=" ";
-			}
-			if (after == " " | after == "=") {
-				if (before==" " | before==";") {
-					flag=1;
-				}
-			}
-			loc=loc+varName.length();
-		}
-		// Find what is in between = and ; after the variable name appears
-		loc=sectionData.find("=",loc);
-		string::size_type endLoc=sectionData.find(";",loc);
-		string temp=sectionData.substr(loc+1,endLoc-loc-1);
-		char *pEnd;
-		// The data is read as string. Now convert it to double
-		doubleIter->second=strtod(temp.c_str(),&pEnd);
-//		cout << "* \t\t " << doubleIter->first << "=" << doubleIter->second << endl;
-	}
-}
-
-void read_ints(map<string,int> &ints, string sectionData) {
-	// For each integer variable
-	map<string,int>::iterator intIter;
+void InputBaseContainer::readEntries(void) {
+	// Loop ints
+	map<string,entry<int> >::iterator intIter;
 	for (intIter=ints.begin();intIter!=ints.end();intIter++) {
 		string varName=intIter->first;
-		// Find the variable
-		string::size_type loc=0;
-		int flag=0;
-		while (flag==0) {
-			loc=sectionData.find(varName,loc);
-			if (loc==string::npos) break;
-			string after=sectionData.substr(loc+varName.length(),1);
-			string before;
-			if (loc!=0) {
-				before=sectionData.substr(loc-1,1);
+		string varValue;
+ 		// Find the variable
+		intIter->second.is_found=extract_in_between(rawData,varName+"=",";",varValue,true,"({;");
+		if (intIter->second.is_found) {
+			intIter->second.value=atoi(varValue.c_str());
+		} else { // if not found
+			if (intIter->second.is_required) {
+				entry_not_found(varName);
 			} else {
-				before=" ";
+				intIter->second.value=intIter->second.default_value;	
 			}
-			if (after == " " | after == "=") {
-				if (before==" " | before==";") {
-					flag=1;
-				}
+		}	
+	} // end loop ints
+	// Loop doubles
+ 	map<string,entry<double> >::iterator doubleIter;
+ 	for (doubleIter=doubles.begin();doubleIter!=doubles.end();doubleIter++) {
+ 		string varName=doubleIter->first;
+		string varValue;
+ 		// Find the variable
+		doubleIter->second.is_found=extract_in_between(rawData,varName+"=",";",varValue,true,"({;");
+		if (doubleIter->second.is_found) {
+			doubleIter->second.value=strtod(varValue.c_str(),NULL);
+		} else { // if not found
+			if (doubleIter->second.is_required) {
+				entry_not_found(varName);
+			} else {
+				doubleIter->second.value=doubleIter->second.default_value;	
 			}
-			loc=loc+varName.length();
 		}
-		// Find what is in between = and ; after the variable name appears
-		loc=sectionData.find("=",loc);
-		string::size_type endLoc=sectionData.find(";",loc);
-		string temp=sectionData.substr(loc+1,endLoc-loc-1);
-		char *pEnd;
-		// The data is read as string. Now convert it to integer
-		intIter->second=strtol(temp.c_str(),&pEnd,10);
-//            cout << "* \t\t " << intIter->first << "=" << intIter->second << endl;
-	}
-}
-
-void read_strings(map<string,string> &strings, string sectionData) {
-	// For each string variable
-	map<string,string>::iterator stringIter;
+		//cout << varName << "\t" << doubleIter->second.value << endl; // DEBUG
+		
+	} // end loop doubles
+	// Loop strings
+	map<string,entry<string> >::iterator stringIter;
 	for (stringIter=strings.begin();stringIter!=strings.end();stringIter++) {
 		string varName=stringIter->first;
-		// Find the variable
-		string::size_type loc=0;
-		int flag=0;
-		while (flag==0) {
-			loc=sectionData.find(varName,loc);
-			if (loc==string::npos) break;
-			string after=sectionData.substr(loc+varName.length(),1);
-			string before;
-			if (loc!=0) {
-				before=sectionData.substr(loc-1,1);
+		string varValue;
+ 		// Find the variable
+		stringIter->second.is_found=extract_in_between(rawData,varName+"=",";",varValue,true,"({;");
+		if (stringIter->second.is_found) {
+			stringIter->second.value=varValue;
+		} else { // if not found
+			if (stringIter->second.is_required) {
+				entry_not_found(varName);
 			} else {
-				before=" ";
+				stringIter->second.value=stringIter->second.default_value;	
 			}
-			if (after == " " | after == "=") {
-				if (before==" " | before==";") {
-					flag=1;
-				}
-			}
-			loc=loc+varName.length();
 		}
-		if (flag==1) {
-			// Find what is in between = and ; after the variable name appears
-			loc=sectionData.find("=",loc);
-			string::size_type endLoc=sectionData.find(";",loc);
-			string temp=sectionData.substr(loc+1,endLoc-loc-1);
-			stringIter->second=temp;
-		} else {stringIter->second="";}
-//            cout << "* \t\t " << stringIter->first << "=" << stringIter->second << endl;
-	}
+	} // end loop strings
+	// Loop Vec3Ds
+	map<string,entry<Vec3D> >::iterator Vec3DIter;
+	for (Vec3DIter=Vec3Ds.begin();Vec3DIter!=Vec3Ds.end();Vec3DIter++) {
+		string varName=Vec3DIter->first;
+		string varValue;
+ 		// Find the variable
+		Vec3DIter->second.is_found=extract_in_between(rawData,varName+"=",";",varValue,true,"({;");
+		if (Vec3DIter->second.is_found) {
+			// The data is read as string. Now convert it to double components of a vector
+			char *pEnd;
+			Vec3DIter->second.value.comp[0]=strtod(varValue.c_str()+1,&pEnd);
+			Vec3DIter->second.value.comp[1]=strtod(pEnd+1,&pEnd);
+			Vec3DIter->second.value.comp[2]=strtod(pEnd+1,NULL);
+		} else { // if not found
+			if (Vec3DIter->second.is_required) {
+				entry_not_found(varName);
+			} else {
+				Vec3DIter->second.value=Vec3DIter->second.default_value;	
+			}
+		}
+	} // end loop Vec3Ds
+	
+} // end InputBaseContainer::readEntries
+
+void InputFile::stripComments(string &data) {
+	string dummy;
+	while (extract_in_between(data,"/*","*/",dummy));
+	while (extract_in_between(data,"//","\n",dummy));
 }
 
-void read_Vec3Ds(map<string,Vec3D> &Vec3Ds, string sectionData) {
-	// For each Vec3D variable
-	map<string,Vec3D>::iterator vecIter;
-	for (vecIter=Vec3Ds.begin();vecIter!=Vec3Ds.end();vecIter++) {
-		string varName=vecIter->first;
-		// Find the variable
-		string::size_type loc=0;
-		int flag=0;
-		while (flag==0) {
-			loc=sectionData.find(varName,loc);
-			if (loc==string::npos) break;
-			string after=sectionData.substr(loc+varName.length(),1);
-			string before;
-			if (loc!=0) {
-				before=sectionData.substr(loc-1,1);
-			} else {
-				before=" ";
-			}
-			if (after == " " | after == "=") {
-				if (before==" " | before==";") {
-					flag=1;
-				}
-			}
-			loc=loc+varName.length();
-		}
-		// Find what is in between [ and ] after the variable name appears
-		loc=sectionData.find("[",loc);
-		string::size_type endLoc=sectionData.find("]",loc);
-		string temp=sectionData.substr(loc+1,endLoc-loc-1);
-		char *pEnd;
-		// The data is read as string. Now convert it to double components of a vector
-		vecIter->second.comp[0]=strtod(temp.c_str(),&pEnd);
-		vecIter->second.comp[1]=strtod(pEnd+1,&pEnd);
-		vecIter->second.comp[2]=strtod(pEnd+1,NULL);
-//            cout << "* \t\t " << vecIter->first << "="  << vecIter->second << endl;
+void InputFile::strip_white_spaces(string &data) {
+	string whitespaces(" \t\f\v\n\r");
+	size_t found;
+	while (found!=string::npos) {
+		found=data.find_first_of(whitespaces);
+		if (found!=string::npos) data.erase(found,1);
 	}
+}
+	
+bool extract_in_between(string &data, string begin, string end, string &result,bool check_char_before, string acceptList) {
+	size_t begin_pos, end_pos;
+	begin_pos=0; end_pos=0;
+	string pre;
+	bool found=false;
+	while (!found) {
+		// Find the first occurance position of the beginning sequence
+		begin_pos=data.find(begin,end_pos);
+		if (begin_pos==string::npos) return false;
+		// From where the first search left off, find the first occurance position of the ending sequence
+		end_pos=data.find(end,begin_pos+begin.length());
+		if (end_pos==string::npos) return false;
+		// Check the character just before the beginning delimiter (if asked for)
+		if (check_char_before) {
+			if (begin_pos==0) {
+				found=true;
+			} else {
+				pre=data.substr(begin_pos-1,1);
+				if (pre.find_first_of(acceptList)!=string::npos) found=true;
+				
+			}
+		} else {
+			found=true;
+		}
+		if (found) {
+			// Extract the what's in between
+			result=data.substr(begin_pos+begin.length(),end_pos-begin_pos-begin.length());
+			// Remove that chunk from the originial data 
+			data.replace(begin_pos,end_pos+end.length()-begin_pos,"");
+		}
+	}
+	return true;
+}
+
+int number_of_occurances(string haystack, string needle) {
+	int count=-1;
+	size_t found,start;
+	while (found!=string::npos) {
+		count++;
+		start=(count==0)? 0 : found+needle.length();
+		found=haystack.find(needle,start);
+	}
+	return count;
 }

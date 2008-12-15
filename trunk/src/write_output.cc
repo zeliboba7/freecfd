@@ -20,9 +20,10 @@
     see <http://www.gnu.org/licenses/>.
 
 *************************************************************************/
+#include "commons.h"
 #include <iostream>
 #include <fstream>
-#include <string>
+
 #include <iomanip>
 #include <cmath>
 #include <mpi.h>
@@ -30,38 +31,35 @@
 #include <sys/types.h>
 using namespace std;
 
-#include "grid.h"
+
 #include "bc.h"
 #include "inputs.h"
 #include <cgnslib.h>
 
-extern Grid grid;
 extern BC bc;
-extern int np, Rank;
-extern double Gamma;
-extern double Pref;
-extern string int2str(int number) ;
-void write_tec(int timeStep, double time);
-void write_vtk(int timeStep);
-void write_vtk_parallel(int timeStep);
 
-void write_output(int timeStep, double time, InputFile input) {
+extern string int2str(int number) ;
+void write_tec(double time);
+void write_vtk(void);
+void write_vtk_parallel(void);
+
+void write_output(double time, InputFile input) {
 	mkdir("./output",S_IRWXU);
-	if (input.section["output"].strings["format"]=="vtk") {
+	if (OUTPUT_FORMAT==VTK) {
 		// Write vtk output file
-		if (Rank==0) write_vtk_parallel(timeStep);
-		write_vtk(timeStep);
-	} else if(input.section["output"].strings["format"]=="tecplot") {
+		if (Rank==0) write_vtk_parallel();
+		write_vtk();
+	} else if(OUTPUT_FORMAT==TECPLOT) {
 		// Write tecplot output file
 		for (int p=0;p<np;++p) {
-			if(Rank==p) write_tec(timeStep,time);
+			if(Rank==p) write_tec(time);
 			MPI_Barrier(MPI_COMM_WORLD);
 		}
 	}
 	return;
 }
 
-void write_tec(int timeStep, double time) {
+void write_tec(double time) {
 
 	ofstream file;
 	string fileName="./output/out"+int2str(timeStep)+".dat";
@@ -105,13 +103,13 @@ void write_tec(int timeStep, double time) {
 		
 		count_rho=0; count_v=0; count_k=0; count_omega=0;
 		for (sit=grid.node[n].bcs.begin();sit!=grid.node[n].bcs.end();sit++) {
-			if (bc.region[(*sit)].type=="inlet") {
+			if (bc.region[(*sit)].type==INLET) {
 				rho_node=bc.region[(*sit)].rho; count_rho++;
 				v_node=bc.region[(*sit)].v; count_v++;
 				k_node=bc.region[(*sit)].k; count_k++;
 				omega_node=bc.region[(*sit)].omega; count_omega++;
 			}
-			if (bc.region[(*sit)].type=="noslip") {
+			if (bc.region[(*sit)].type==NOSLIP) {
 				if (count_v==0) v_node=0.; count_v++;
 			}
 
@@ -181,7 +179,7 @@ void write_tec(int timeStep, double time) {
 
 }
 
-void write_vtk(int timeStep) {
+void write_vtk(void) {
 
 	string filePath="./output/"+int2str(timeStep);
 	string fileName=filePath+"/proc"+int2str(Rank)+".vtu";
@@ -252,7 +250,7 @@ void write_vtk(int timeStep) {
 	
 }
 
-void write_vtk_parallel(int timeStep) {
+void write_vtk_parallel(void) {
 
 	string filePath="./output/"+int2str(timeStep);
 	string fileName=filePath+"/out"+int2str(timeStep)+".pvtu";
