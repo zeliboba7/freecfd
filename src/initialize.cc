@@ -20,93 +20,87 @@
     see <http://www.gnu.org/licenses/>.
 
 *************************************************************************/
+#include "commons.h"
 #include "grid.h"
 #include "inputs.h"
 extern bool grad_test;// DEBUG
 
-bool within_box(Vec3D centroid, Vec3D box_1, Vec3D box_2);
+bool withinBox(Vec3D point, Vec3D corner_1, Vec3D corner_2);
+bool withinCylinder(Vec3D point, Vec3D center, double radius, Vec3D axisDirection, double height);
+bool withinSphere(Vec3D point, Vec3D center, double radius);
 
-void initialize(Grid &grid, InputFile &input) {
+void initialize(InputFile &input) {
 
 	// Loop through each initial condition region and apply sequentially
-	numberedSubsection region=input.section["initialConditions"].numberedSubsections["region"];
-	for (unsigned int r=0;r<region.count;++r) {
-		if (region.strings[r]["type"]=="box") {
-			for (unsigned int c = 0;c < grid.cellCount;++c) {
-				Vec3D box_1=region.Vec3Ds[r]["box_1"];
-				Vec3D box_2=region.Vec3Ds[r]["box_2"];
-				if (within_box(grid.cell[c].centroid,box_1,box_2)) {
-					// The cell centroid is inside the box region
-					grid.cell[c].rho = region.doubles[r]["rho"];
-					grid.cell[c].v = region.Vec3Ds[r]["v"];
-					grid.cell[c].p = region.doubles[r]["p"];
-					grid.cell[c].k = region.doubles[r]["k"];
-					grid.cell[c].omega = region.doubles[r]["omega"];
+	int count=input.section("initialConditions").subsection("IC",0).count;
+	for (unsigned int ic=0;ic<count;++ic) {
+		// Store the reference to current IC region
+		Subsection &region=input.section("initialConditions").subsection("IC",ic);
+		Vec3D regionV=region.get_Vec3D("v");
+		// If region is specified with a box method
+		if (region.get_string("region")=="box") {
+			// Loop the cells
+			for (unsigned int c=0;c<grid.cellCount;++c) {
+				// Check if the cell centroid is inside the box region
+				if (withinBox(grid.cell[c].centroid,region.get_Vec3D("corner_1"),region.get_Vec3D("corner_2"))) {
+					// Assign specified values
+					grid.cell[c].rho=region.get_double("rho");
+					grid.cell[c].v=region.get_Vec3D("v");
+					grid.cell[c].p=region.get_double("p");
+					grid.cell[c].k=region.get_double("k");
+					grid.cell[c].omega=region.get_double("omega");
 				}
 			}
-		} else if (region.strings[r]["type"]=="circle") {
-			double radius=region.doubles[r]["radius"];
-			Vec3D center=region.Vec3Ds[r]["center"];
-			Vec3D zComp=center;
-			Vec3D center2cell;
-			zComp.comp[0]=0.;zComp.comp[1]=0.;
-			center=center-zComp;
-			for (unsigned int c = 0;c < grid.cellCount;++c) {
-				zComp=grid.cell[c].centroid;  zComp.comp[0]=0.;zComp.comp[1]=0.;
-				center2cell= (grid.cell[c].centroid-zComp)-center;
-				if (fabs(center2cell) <=radius) {
-					// The cell centroid is inside the box region
-					grid.cell[c].rho = region.doubles[r]["rho"];
-					grid.cell[c].v = region.Vec3Ds[r]["v"];
-					grid.cell[c].v.comp[0]= (region.Vec3Ds[r]["v"].comp[0]*center2cell).comp[0];
-					grid.cell[c].v.comp[1]= (region.Vec3Ds[r]["v"].comp[0]*center2cell).comp[1];
-					grid.cell[c].p = region.doubles[r]["p"];
-					grid.cell[c].k = region.doubles[r]["k"];
-					grid.cell[c].omega = region.doubles[r]["omega"];
+		} else if (region.get_string("region")=="cylinder") {
+			// Loop the cells
+			for (unsigned int c=0;c<grid.cellCount;++c) {
+				// Check if the cell centroid is inside the cylinder region
+				Vec3D axisDirection=region.get_Vec3D("axisDirection");
+				axisDirection=axisDirection.norm();
+				if (withinCylinder(grid.cell[c].centroid,region.get_Vec3D("center"),region.get_double("radius"),axisDirection,region.get_double("height"))) {
+					grid.cell[c].rho=region.get_double("rho");
+					grid.cell[c].p=region.get_double("p");
+					grid.cell[c].k=region.get_double("k");
+					grid.cell[c].omega=region.get_double("omega");
+					// first component of the specified velocity is interpreted as the axial velocity
+					// second component of the specified velocity is interpreted as the radial velocity
+					// third component of the specified velocity is ignored
+					Vec3D radialPoint=grid.cell[c].centroid-region.get_Vec3D("center");
+					radialPoint=radialPoint.dot(axisDirection);	
+					grid.cell[c].v=		
+						regionV[0]*axisDirection /* axial component */
+						+regionV[1]*radialPoint.cross(axisDirection); /* radial component */
 				}
 			}
-		} else if (region.strings[r]["type"]=="sphere") {
-			double radius=region.doubles[r]["radius"];
-			Vec3D center=region.Vec3Ds[r]["center"];
-			Vec3D center2cell,center2cellUnit;
-			Vec3D unitX, unitY, unitZ;
-			unitX.comp[0]=1.; unitX.comp[1]=0.;unitX.comp[2]=0.;
-			unitY.comp[1]=0.; unitY.comp[1]=1.;unitY.comp[2]=0.;
-			unitZ.comp[2]=0.; unitZ.comp[1]=0.;unitZ.comp[2]=1.;
-			for (unsigned int c = 0;c < grid.cellCount;++c) {
-				center2cell= grid.cell[c].centroid-center;
-				center2cellUnit=center2cell/fabs(center2cell);
-				if (fabs(center2cell) <=radius) {
-					// The cell centroid is inside the box region
-					grid.cell[c].rho = region.doubles[r]["rho"];
-					grid.cell[c].v = region.Vec3Ds[r]["v"].comp[0]*center2cellUnit;
-					grid.cell[c].p = region.doubles[r]["p"];
-					grid.cell[c].k = region.doubles[r]["k"];
-					grid.cell[c].omega = region.doubles[r]["omega"];
+		} else if (region.get_string("region")=="sphere") {
+			// Loop the cells
+			for (unsigned int c=0;c<grid.cellCount;++c) {
+				// Check if the cell centroid is inside the sphere region
+				if (withinSphere(grid.cell[c].centroid,region.get_Vec3D("center"),region.get_double("radius"))) {
+					grid.cell[c].rho=region.get_double("rho");
+					grid.cell[c].p=region.get_double("p");
+					grid.cell[c].k=region.get_double("k");
+					grid.cell[c].omega=region.get_double("omega");
+					// first component of the specified velocity is interpreted as the radial velocity
+					// second and third components of the specified velocity are ignored
+					grid.cell[c].v=	regionV[0]*(grid.cell[c].centroid-region.get_Vec3D("center"));
 				}
 			}
 		}
 	}
 
-	bool mu_is_fixed=false;
-	if (input.section["fluidProperties"].subsections["viscosity"].strings["type"]=="fixed") mu_is_fixed=true;
-	double mu_fixed=input.section["fluidProperties"].subsections["viscosity"].doubles["value"];
 	for (unsigned int c=0;c<grid.cellCount;++c) {
-		if (mu_is_fixed) {
-			grid.cell[c].mu=mu_fixed;
-		}
+		grid.cell[c].mu=viscosity;
 		for (unsigned int i=0;i<7;++i) {
 			grid.cell[c].flux[i]=0.;
 			grid.cell[c].update[i]=0.;
 		}
 	}
 	
-	
-
 	if (grad_test) { // DEBUG
 		for (unsigned int c=0;c<grid.cellCount;++c) { // DEBUG
 			//grid.cell[c].rho=2.*grid.cell[c].centroid.comp[0]+2.; // DEBUG
-			grid.cell[c].rho=2.*grid.cell[c].centroid.comp[0]*grid.cell[c].centroid.comp[0]+2.; // DEBUG
+			grid.cell[c].rho=2.*grid.cell[c].centroid.comp[0]*grid.cell[c].centroid.comp[0]+2.*grid.cell[c].centroid.comp[0]+2.; // DEBUG
 			//grid.cell[c].rho=1.; // DEBUG
 		}// DEBUG
 	}// DEBUG

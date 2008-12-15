@@ -25,6 +25,7 @@ public:
 	Vec3D operator- (const double &);
 	bool operator== (const Vec3D &);
 	bool operator!= (const Vec3D &);
+	double &operator[] (int i); 
 };
 
 double fabs(const Vec3D vec);

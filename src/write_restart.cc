@@ -20,6 +20,7 @@
     see <http://www.gnu.org/licenses/>.
 
 *************************************************************************/
+#include "commons.h"
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -29,16 +30,14 @@
 #include <sys/types.h>
 using namespace std;
 
-#include "grid.h"
 #include <cgnslib.h>
 
-extern Grid grid;
-extern int np, Rank;
+
 extern string int2str(int number) ;
 
 extern bool grad_test; // DEBUG
 
-void write_restart(int timeStep, double time) {
+void write_restart(double time) {
 
 	ofstream file;
 	mkdir("./restart",S_IRWXU);

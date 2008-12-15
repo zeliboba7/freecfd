@@ -20,20 +20,15 @@
     see <http://www.gnu.org/licenses/>.
 
 *************************************************************************/
+#include "commons.h"
 #include <iostream>
 #include <cmath>
-#include <string>
 #include "inputs.h"
-#include "grid.h"
 #include "bc.h"
 #include "state_cache.h"
 using namespace std;
-extern Grid grid;
+
 extern BC bc;
-extern double Gamma;
-extern double Pref,Minf;
-extern string fluxFunction;
-extern InputFile input;
 
 double beta=0.125;
 double alpha;
@@ -50,9 +45,9 @@ double p_split_5_minus (double Mach);
 void convective_face_flux(Cell_State &left,Cell_State &right,Face_State &face,unsigned int f,double flux[]) {
 
 	double fluxNormal[7];
-	
-	if (fluxFunction=="Roe") roe_flux(left,right,fluxNormal);
-	if (fluxFunction=="AUSMplusUP") AUSMplusUP_flux(left,right,fluxNormal);
+
+	if (CONVECTIVE_FLUX_FUNCTION==ROE) roe_flux(left,right,fluxNormal);
+	if (CONVECTIVE_FLUX_FUNCTION==AUSM_PLUS_UP) AUSMplusUP_flux(left,right,fluxNormal);
 	
 	flux[0] = fluxNormal[0]*face.area;
 	flux[1] = (fluxNormal[1]*face.normal.comp[0]+fluxNormal[2]*face.tangent1.comp[0]+fluxNormal[3]*face.tangent2.comp[0])*face.area;
@@ -175,10 +170,9 @@ void AUSMplusUP_flux(Cell_State &left,Cell_State &right,double fluxNormal[]) {
 	//Mbar2=0.5*(left.vN.comp[0]*left.vN.comp[0]+right.vN.comp[0]*right.vN.comp[0])/(a*a);
 	Mbar2=0.5*(ML*ML+MR*MR);
 
-	Mref=Minf;
-
-	Mref=max(Minf,sqrt(Mbar2));
-	Mref=min(Mref,1.);
+	//Mref=Minf;
+ 	Mref=max(Minf,sqrt(Mbar2));
+ 	Mref=min(Mref,1.);
 
 	if (Mbar2>=1.) {
 		fa=1.;

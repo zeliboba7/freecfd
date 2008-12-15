@@ -20,23 +20,17 @@
     see <http://www.gnu.org/licenses/>.
 
 *************************************************************************/
+#include "commons.h"
 #include <cmath>
-#include <limits>
 #include "grid.h"
 #include "bc.h"
 #include "inputs.h"
 #include "state_cache.h"
 #include "petsc_functions.h"
 
-extern Grid grid;
 extern BC bc;
 extern InputFile input;
-extern int Rank,timeStep,restart;
-extern double Gamma;
-extern double Pref;
 
-string order;
-string limiter;
 bool perturb;
 
 void convective_face_flux(Cell_State &left,Cell_State &right,Face_State &face,unsigned int f,double flux[]);
@@ -60,24 +54,20 @@ void assemble_linear_system(void) {
 
 	int nSolVar=5; // Basic equations to solve
 
-	if (input.section["turbulence"].strings["model"]!="none") nSolVar+=2;
+	if (TURBULENCE_MODEL!=NONE) nSolVar+=2;
 
 	double flux[nSolVar],fluxPlus[nSolVar];
 	double conv_flux[nSolVar],conv_fluxPlus[nSolVar];
 	double diff_flux[nSolVar],diff_fluxPlus[nSolVar];
 
-	double epsilonBase=sqrt(std::numeric_limits<double>::epsilon()); // A small number
 	double factor=0.01;
 
-	order=input.section["numericalOptions"].strings["order"];
-	limiter=input.section["numericalOptions"].strings["limiter"];
 	bool viscousSet=true;
-	if (input.section["equations"].strings["set"]=="Euler") viscousSet=false;
+	if (EQUATIONS==EULER) viscousSet=false;
 	bool viscous;
 	
 	bool implicit=true;
-	if (input.section["timeMarching"].strings["integrator"]=="forwardEuler") implicit=false;
-	int jacobianUpdateFreq=input.section["jacobian"].ints["updateFrequency"];
+	if (TIME_INTEGRATOR==FORWARD_EULER) implicit=false;
 
 	
 	// Loop through faces
@@ -85,9 +75,6 @@ void assemble_linear_system(void) {
 		perturb=false;
 
 		viscous=viscousSet;
-		// TODO Some Ideas:
-		// If a slip, symmetry or no-slip face, only look at pressure perturbation in convective fluxes
-		// rho and p perturbations doesn't have any effect in diffusive fluxes
 		
 		parent=grid.face[f].parent; neighbor=grid.face[f].neighbor;
 
@@ -152,8 +139,8 @@ void assemble_linear_system(void) {
 		
 				for (int i=0;i<nSolVar;++i) {
 
-					if (left.update[i]>0) {epsilon=max(epsilonBase,factor*left.update[i]);}
-					else {epsilon=min(-1.*epsilonBase,factor*left.update[i]); }
+					if (left.update[i]>0) {epsilon=max(sqrt_machine_error,factor*left.update[i]);}
+					else {epsilon=min(-1.*sqrt_machine_error,factor*left.update[i]); }
 						
 					// Perturb left variable
 					left_state_perturb(left,right,face,f,i,epsilon);
@@ -185,8 +172,8 @@ void assemble_linear_system(void) {
 		
 					if (face.bc==-1) { // TODO what if a ghost face??
 
-						if (right.update[i]>0) {epsilon=max(epsilonBase,factor*right.update[i]); }
-						else {epsilon=min(-1.*epsilonBase,factor*right.update[i]); }
+						if (right.update[i]>0) {epsilon=max(sqrt_machine_error,factor*right.update[i]); }
+						else {epsilon=min(-1.*sqrt_machine_error,factor*right.update[i]); }
 						// Perturb right variable
 						right_state_perturb(right,face,i,epsilon);
 						// Adjust face averages and gradients (crude)
@@ -216,9 +203,6 @@ void assemble_linear_system(void) {
 		} // if implicit
 	} // for faces
 
-	MatAssemblyBegin(impOP,MAT_FLUSH_ASSEMBLY);
-	MatAssemblyEnd(impOP,MAT_FLUSH_ASSEMBLY);
-
 	if (nSolVar==7) {
 		for (unsigned int c=0;c<grid.cellCount;++c) {
 			// Fill in residual (rhs vector)
@@ -243,7 +227,7 @@ void left_state_update(Cell_State &left,Face_State &face,unsigned int f) {
 
 	parent=grid.face[f].parent;
 
-	if (order=="second") {
+	if (order==2) {
 		for (unsigned int i=0;i<7;++i) {
 			delta[i]=(grid.face[f].centroid-grid.cell[parent].centroid).dot(grid.cell[parent].limited_grad[i]);
 		}
@@ -285,7 +269,7 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face,unsi
 
   		neighbor=grid.face[f].neighbor;
 
-		if (order=="second") {
+		if (order==2) {
 			for (unsigned int i=0;i<7;++i) {
 				delta[i]=(grid.face[f].centroid-grid.cell[neighbor].centroid).dot(grid.cell[neighbor].limited_grad[i]);
 			}
@@ -309,12 +293,11 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face,unsi
 		right.mu=grid.cell[neighbor].mu;
 		
 	} else if (face.bc>=0) { // boundary face
-
 		right.mu=left.mu;
 		
 		for (unsigned int i=0;i<7;++i) left.update[i]=0.;
 		
-		if (bc.region[face.bc].type=="outlet") {
+		if (bc.region[face.bc].type==OUTLET) {
 			right.rho=left.rho;
 			right.v=left.v;
 			right.v_center=left.v_center;
@@ -323,18 +306,18 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face,unsi
 			right.k_center=left.k_center;
 			right.omega=left.omega;
 			right.omega_center=left.omega_center;
-			if (bc.region[face.bc].kind=="fixedPressure") {
+			if (bc.region[face.bc].kind==FIXED_PRESSURE) {
 				double Mach=(left.v.dot(face.normal))/left.a;
 				if (Mach<1.) right.p=bc.region[face.bc].p;
 			}
-			if (bc.region[face.bc].kind=="fixedPressure2") {
+			if (bc.region[face.bc].kind==FIXED_PRESSURE_ENTRAINMENT) {
 				double Mach=(left.v.dot(face.normal))/left.a;
 				if (Mach<1.) {
 					if (Mach>=0.) { right.p=bc.region[face.bc].p; }
 					else {right.p=bc.region[face.bc].p-0.5*right.rho*right.v.dot(right.v);}
 				}
 			}
-		} else if (bc.region[face.bc].type=="slip" | bc.region[face.bc].type=="symmetry") {
+		} else if (bc.region[face.bc].type==SLIP | bc.region[face.bc].type==SYMMETRY) {
 			right.rho=left.rho;
 			right.v=left.v-2.*left.v.dot(face.normal)*face.normal;
 			right.v_center=left.v_center-2.*left.v_center.dot(face.normal)*face.normal;
@@ -343,7 +326,7 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face,unsi
 			right.k_center=left.k_center;
 			right.omega=left.omega;
 			right.omega_center=left.omega_center;
-		} else if (bc.region[face.bc].type=="noslip") {
+		} else if (bc.region[face.bc].type==NOSLIP) {
 			right.rho=left.rho;
 			right.v=-1.*left.v;
 			right.v_center=-1.*left.v_center;
@@ -352,7 +335,7 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face,unsi
 			right.k_center=left.k_center;
 			right.omega=left.omega;
 			right.omega_center=left.omega_center;
-		} else if (bc.region[face.bc].type=="inlet") {
+		} else if (bc.region[face.bc].type==INLET) {
 			double Mach=(left.v.dot(face.normal))/left.a;
 			right.rho=bc.region[face.bc].rho;
 			right.v=bc.region[face.bc].v;
@@ -369,7 +352,7 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face,unsi
 		int g=-1*face.bc-3;
 		Vec3D deltaV;
 		double delta[7];
-		if (order=="second") {
+		if (order==2) {
 			for (unsigned int i=0;i<7;++i) {
 				delta[i]=(grid.face[f].centroid-grid.ghost[g].centroid).dot(grid.ghost[g].limited_grad[i]);
 			}

@@ -113,10 +113,11 @@ public:
 	int create_ghosts();
 	int areas_volumes();
 	void nodeAverages();
+	void nodeAverages_idw();
 	void faceAverages();
 	void gradMaps();
 	void gradients();
-	void limit_gradients(string limiter, double sharpeningFactor);
+ 	void limit_gradients(void);
 	void lengthScales(void);
 };
 

@@ -1,48 +1,96 @@
+/************************************************************************
+	
+	Copyright 2007-2008 Emre Sozer & Patrick Clark Trizila
+
+	Contact: emresozer@freecfd.com , ptrizila@freecfd.com
+
+	This file is a part of Free CFD
+
+	Free CFD is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    any later version.
+
+    Free CFD is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    For a copy of the GNU General Public License,
+    see <http://www.gnu.org/licenses/>.
+
+*************************************************************************/
+#include "commons.h"
 #include <iostream>
-#include "grid.h"
 #include "inputs.h"
 #include "bc.h"
 
-extern int Rank;
+extern BC bc;
 
-bool within_box(Vec3D centroid, Vec3D box_1, Vec3D box_2);
+bool withinBox(Vec3D point, Vec3D corner_1, Vec3D corner_2);
 
-void set_bcs(Grid& grid, InputFile &input, BC &bc) {
+void setBCs(InputFile &input, BC &bc) {
+	
+	
 	// Loop through each boundary condition region and apply sequentially
-	numberedSubsection bcSection=input.section["boundaryConditions"].numberedSubsections["BC"];
-	for (unsigned int b=0;b<bcSection.count;++b) {
+	int count=input.section("boundaryConditions").subsection("BC",0).count;
+	for (unsigned int b=0;b<count;++b) {
+		// Store the reference to current BC region
+		Subsection &region=input.section("boundaryConditions").subsection("BC",b);
+	
 		BCregion bcRegion;
-		bcRegion.type=bcSection.strings[b]["type"];
-		bcRegion.kind=bcSection.strings[b]["kind"];
-		bcRegion.rho=bcSection.doubles[b]["rho"];
-		bcRegion.p=bcSection.doubles[b]["p"];
-		bcRegion.k=bcSection.doubles[b]["k"];
-		bcRegion.omega=bcSection.doubles[b]["omega"];
-		bcRegion.v=bcSection.Vec3Ds[b]["v"];
+		string type=region.get_string("type");
+		string kind=region.get_string("kind");
+		if (type=="symmetry") bcRegion.type=SYMMETRY;
+		if (type=="slip") bcRegion.type=SLIP;
+		if (type=="noslip") bcRegion.type=NOSLIP;
+		if (type=="inlet") bcRegion.type=INLET;
+		if (type=="outlet") bcRegion.type=OUTLET;
+		
+		if (kind=="none") bcRegion.kind=NONE;
+		if (kind=="fixedPressure") bcRegion.kind=FIXED_PRESSURE;
+		if (kind=="fixedPressureEntrainment") bcRegion.kind=FIXED_PRESSURE_ENTRAINMENT;
+		
+		bcRegion.rho=region.get_double("rho");
+		bcRegion.p=region.get_double("p");
+		bcRegion.k=region.get_double("k");
+		bcRegion.omega=region.get_double("omega");
+		bcRegion.v=region.get_Vec3D("v");
 		bcRegion.area=0.;
 		bcRegion.areaVec=0.;
 		bcRegion.momentum=0.;
-		if (bcRegion.kind=="") {
-			cout << "[I Rank=" << Rank << "] BC_" << b+1 << " assigned as " << bcRegion.type << endl;
+		
+		if (kind=="none") {
+			cout << "[I Rank=" << Rank << "] BC_" << b+1 << " assigned as " << type << endl;
 		} else {
-			cout << "[I Rank=" << Rank << "] BC_" << b+1 << " assigned as " << bcRegion.type << " of " << bcRegion.kind << " kind" << endl;
+			cout << "[I Rank=" << Rank << "] BC_" << b+1 << " assigned as " << type << " of " << kind << " kind" << endl;
 		}	
+		
 		bc.region.push_back(bcRegion);
-		if (bcSection.strings[b]["region"]=="box") {
-			Vec3D box_1=bcSection.Vec3Ds[b]["box_1"];
-			Vec3D box_2=bcSection.Vec3Ds[b]["box_2"];
-			for (unsigned int f = 0;f < grid.faceCount;++f) {
+		
+		// Find out pick method
+		string pick=region.get_string("pick");
+		int pick_from;
+		if (pick.substr(0,2)=="BC") {
+			pick_from=atoi((pick.substr(2,pick.length())).c_str());
+			pick=pick.substr(0,2);
+		}
+		
+		if (region.get_string("region")=="box") {
+			for (unsigned int f=0;f<grid.faceCount;++f) {
 				// if the face is not already marked as internal or partition boundary
 				// And if the face centroid falls within the defined box
-				if ((grid.face[f].bc>=0 || grid.face[f].bc==-2 ) && within_box(grid.face[f].centroid,box_1,box_2)) {				
-					if (bcSection.strings[b]["pick"]=="override") {
+				if ((grid.face[f].bc>=0 || grid.face[f].bc==-2 ) && withinBox(grid.face[f].centroid,region.get_Vec3D("corner_1"),region.get_Vec3D("corner_2"))) {
+					if (pick=="overRide") {
 						grid.face[f].bc=b; // real boundary conditions are marked as positive
-					} else if (bcSection.strings[b]["pick"]=="unassigned" && grid.face[f].bc==-2) {
+					} else if (pick=="unassigned" && grid.face[f].bc==-2) {
 						grid.face[f].bc=b; // real boundary conditions are marked as positive
-					}
+					} else if (pick=="BC" && grid.face[f].bc==(pick_from-1) ) {
+						grid.face[f].bc=b;
+ 					}
 				}
 			}
-		}
+		} 
 	}
 
 	// Mark nodes that touch boundaries

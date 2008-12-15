@@ -27,8 +27,8 @@
 
 class BCregion {
 public:
-	string type;
-	string kind;
+	int type;
+	int kind;
 	double rho,p,k,omega;
 	Vec3D v;
 	Vec3D momentum;
