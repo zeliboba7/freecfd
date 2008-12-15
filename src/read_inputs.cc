@@ -86,13 +86,13 @@ void read_inputs(InputFile &input) {
 	input.readSection("writeOutput");
 	
 	input.registerSection("probes",optional);
-	input.section("probes").register_int("frequency",optional);
+	input.section("probes").register_int("frequency",optional,1);
 	input.section("probes").registerSubsection("probe",numbered,optional);
 	input.section("probes").subsection("probe",0).register_Vec3D("coord",optional);
 	input.readSection("probes");
 
 	input.registerSection("loads",optional);
-	input.section("loads").register_int("frequency",optional);
+	input.section("loads").register_int("frequency",optional,1);
 	input.section("loads").registerSubsection("load",numbered,optional);
 	input.section("loads").subsection("load",0).register_int("bc",optional);
 	input.readSection("loads");
