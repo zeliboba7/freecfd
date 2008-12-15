@@ -64,12 +64,13 @@ void initialize(InputFile &input) {
 					grid.cell[c].omega=region.get_double("omega");
 					// first component of the specified velocity is interpreted as the axial velocity
 					// second component of the specified velocity is interpreted as the radial velocity
-					// third component of the specified velocity is ignored
+					// third component of the specified velocity is interpreted as the circumferential velocity
 					Vec3D radialPoint=grid.cell[c].centroid-region.get_Vec3D("center");
 					radialPoint=radialPoint.dot(axisDirection);	
 					grid.cell[c].v=		
 						regionV[0]*axisDirection /* axial component */
-						+regionV[1]*radialPoint.cross(axisDirection); /* radial component */
+						+regionV[1]*radialPoint.norm() /* circumferential component */
+						+regionV[2]*radialPoint.cross(axisDirection); /* circumferential component */
 				}
 			}
 		} else if (region.get_string("region")=="sphere") {
