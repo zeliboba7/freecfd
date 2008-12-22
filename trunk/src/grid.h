@@ -114,6 +114,7 @@ public:
 	int create_ghosts();
 	int areas_volumes();
 	void nodeAverages();
+	void nodeAverages_new();
 	void nodeAverages_idw();
 	void faceAverages();
 	void gradMaps();

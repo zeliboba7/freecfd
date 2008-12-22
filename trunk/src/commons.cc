@@ -48,3 +48,8 @@ int bcCount;
 Grid grid;
 // Iterators
 std::vector<Cell>::iterator cit;
+std::vector<Cell>::iterator cit2;
+std::vector<Node>::iterator nit;
+std::vector<int>::iterator it;
+std::vector<int>::iterator it2;
+std::vector<double>::iterator dit;

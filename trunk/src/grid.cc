@@ -283,6 +283,49 @@ void Grid::nodeAverages_idw() {
 	}
 } // end Grid::nodeAverages_idw()
 
+void Grid::nodeAverages_new() {
+	
+	// Store the cell stencil surronding a node
+	set<int> stencil;
+	set<int>::iterator sit,sit1,sit2,sit3;
+	// A structure to store data about an individual interpolation tetra
+	struct interpolation_tetra {
+		int cell[4];
+		double quality;
+	};
+	// For each node, store possible formations of interpolation tetras
+	vector<intepolation_tetra> tetras; 
+	
+	// Loop all the nodes
+	for (nit=node.begin();nit<node.end();nit++) {
+		// Initialize stencil to nearest neighbor cells
+		for (it=(*nit).cells.begin();it<(*nit).cells.end();it++) stencil.insert(*it);
+		// Include nearest ghost cells in the stencil
+		for (it=(*nit).ghosts.begin();it<(*nit).ghosts.end();it++) stencil.insert(-1*(*it));
+		// if the stencil doesn't have at least 4 points, expand it to include 2nd nearest neighbor cells
+		// NOTE ideally, second nearest ghosts would also need top be included but it is too much complication
+		if (stencil.size()<4) {
+			// Loop the cells neighboring the current node
+			for (it=(*nit).cells.begin();it<(*nit).cells.end();it++) {
+				// Loop the cells neighboring the current cell
+				for (it2=cell[*it].neighborCells.begin();it2<cells[*it].neighborCells.end();it2++) {
+					stencil.insert(*it2);
+				}
+				
+			}
+		} else { 
+			// If stencil size is larger than 4, potentially we can find at least one interpolation tetra
+			// Let's make sure if all the points in the stencil are planar (True if domain is 2D)
+			
+			
+		}
+		
+		// Clear temp data
+		stencil.clear();
+		tetras.clear();
+	}
+}
+
 void Grid::nodeAverages() {
 	
 	double **a;

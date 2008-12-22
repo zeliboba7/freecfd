@@ -85,5 +85,9 @@ extern int bcCount;
 extern Grid grid;
 // Iterators
 extern std::vector<Cell>::iterator cit;
+extern std::vector<Node>::iterator nit;
+extern std::vector<int>::iterator it;
+extern std::vector<int>::iterator it2;
+extern std::vector<double>::iterator dit;
 
 #endif
