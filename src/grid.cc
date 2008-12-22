@@ -32,6 +32,7 @@ using namespace std;
 #include <cgnslib.h>
 #include <parmetis.h>
 
+#include "rcm.h"
 #include "inputs.h"
 #include "grid.h"
 #include "bc.h"
@@ -65,6 +66,7 @@ int Grid::read(string fname) {
 		file.close();
 		readCGNS();
 		//readTEC();
+		reorderRCM();
 		scale();
 		partition();
 		create_nodes_cells();
@@ -77,6 +79,21 @@ int Grid::read(string fname) {
 		if (Rank==0) cerr << "[E] Grid file "<< fileName << " could not be found." << endl;
 		return 0;
 	}
+}
+
+int Grid::reorderRCM() {
+	//void genrcmi (const int n, const int flags, const int *xadj, const int * adj, int * perm, signed char * mask, int * deg)
+	
+	vector <int> adjIndex;
+	adjIndex.assign(raw.cellConnIndex.begin(),raw.cellConnIndex.end());
+	adjIndex.push_back(raw.cellConnectivity.size());
+	vector<int> RCMpermutation;
+	vector<signed char> mask;
+	vector<int> deg;
+	RCMpermutation.resize(raw.cellConnIndex.size());
+	
+	genrcmi(raw.cellConnIndex.size(),0,&adjIndex[0],&raw.cellConnectivity[0],&RCMpermutation[0],&mask[0],&deg[0]);
+	return 1;
 }
 
 int Grid::scale() {
