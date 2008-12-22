@@ -105,6 +105,7 @@ public:
 	int read(string);
 	int readCGNS();
 	int readTEC();
+	int reorderRCM();
 	int scale();
 	int partition();
 	int mesh2dual();

@@ -50,12 +50,14 @@ void convective_face_flux(Cell_State &left,Cell_State &right,Face_State &face,un
 	if (CONVECTIVE_FLUX_FUNCTION==AUSM_PLUS_UP) AUSMplusUP_flux(left,right,fluxNormal);
 	
 	flux[0] = fluxNormal[0]*face.area;
-	flux[1] = (fluxNormal[1]*face.normal.comp[0]+fluxNormal[2]*face.tangent1.comp[0]+fluxNormal[3]*face.tangent2.comp[0])*face.area;
-	flux[2] = (fluxNormal[1]*face.normal.comp[1]+fluxNormal[2]*face.tangent1.comp[1]+fluxNormal[3]*face.tangent2.comp[1])*face.area;
-	flux[3] = (fluxNormal[1]*face.normal.comp[2]+fluxNormal[2]*face.tangent1.comp[2]+fluxNormal[3]*face.tangent2.comp[2])*face.area;
+	flux[1] = (fluxNormal[1]*face.normal[0]+fluxNormal[2]*face.tangent1[0]+fluxNormal[3]*face.tangent2[0])*face.area;
+	flux[2] = (fluxNormal[1]*face.normal[1]+fluxNormal[2]*face.tangent1[1]+fluxNormal[3]*face.tangent2[1])*face.area;
+	flux[3] = (fluxNormal[1]*face.normal[2]+fluxNormal[2]*face.tangent1[2]+fluxNormal[3]*face.tangent2[2])*face.area;
 	flux[4] = fluxNormal[4]*face.area;
-	flux[5] = fluxNormal[5]*face.area;
-	flux[6] = fluxNormal[6]*face.area;
+	if (TURBULENCE_MODEL!=NONE) {
+		flux[5] = fluxNormal[5]*face.area;
+		flux[6] = fluxNormal[6]*face.area;
+	}
 	
 	return;
 } // end face flux
