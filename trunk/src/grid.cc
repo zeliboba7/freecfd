@@ -32,13 +32,16 @@ using namespace std;
 #include <cgnslib.h>
 #include <parmetis.h>
 
-#include "rcm.h"
 #include "inputs.h"
 #include "grid.h"
 #include "bc.h"
 
 #define EPS 1e-10
-
+#define INTERPOLATE_POINT 0
+#define INTERPOLATE_LINE 1
+#define INTERPOLATE_TRI 2
+#define INTERPOLATE_TETRA 3
+			 
 extern Grid grid;
 extern InputFile input;
 extern BC bc;
@@ -66,7 +69,7 @@ int Grid::read(string fname) {
 		file.close();
 		readCGNS();
 		//readTEC();
-		reorderRCM();
+		//reorderRCM();
 		scale();
 		partition();
 		create_nodes_cells();
@@ -81,20 +84,20 @@ int Grid::read(string fname) {
 	}
 }
 
-int Grid::reorderRCM() {
-	//void genrcmi (const int n, const int flags, const int *xadj, const int * adj, int * perm, signed char * mask, int * deg)
-	
-	vector <int> adjIndex;
-	adjIndex.assign(raw.cellConnIndex.begin(),raw.cellConnIndex.end());
-	adjIndex.push_back(raw.cellConnectivity.size());
-	vector<int> RCMpermutation;
-	vector<signed char> mask;
-	vector<int> deg;
-	RCMpermutation.resize(raw.cellConnIndex.size());
-	
-	genrcmi(raw.cellConnIndex.size(),0,&adjIndex[0],&raw.cellConnectivity[0],&RCMpermutation[0],&mask[0],&deg[0]);
-	return 1;
-}
+// int Grid::reorderRCM() {
+// 	//void genrcmi (const int n, const int flags, const int *xadj, const int * adj, int * perm, signed char * mask, int * deg)
+// 	
+// 	vector <int> adjIndex;
+// 	adjIndex.assign(raw.cellConnIndex.begin(),raw.cellConnIndex.end());
+// 	adjIndex.push_back(raw.cellConnectivity.size());
+// 	vector<int> RCMpermutation;
+// 	vector<signed char> mask;
+// 	vector<int> deg;
+// 	RCMpermutation.resize(raw.cellConnIndex.size());
+// 	
+// 	genrcmi(raw.cellConnIndex.size(),0,&adjIndex[0],&raw.cellConnectivity[0],&RCMpermutation[0],&mask[0],&deg[0]);
+// 	return 1;
+// }
 
 int Grid::scale() {
 	if (input.section("grid").get_double("scaleBy").is_found) {
@@ -283,42 +286,91 @@ void Grid::nodeAverages_idw() {
 	}
 } // end Grid::nodeAverages_idw()
 
+	struct interpolation_tetra {
+		int cell[4];
+		double quality;
+	};
+
 void Grid::nodeAverages_new() {
 	
 	// Store the cell stencil surronding a node
 	set<int> stencil;
 	set<int>::iterator sit,sit1,sit2,sit3;
 	// A structure to store data about an individual interpolation tetra
-	struct interpolation_tetra {
-		int cell[4];
-		double quality;
-	};
+
 	// For each node, store possible formations of interpolation tetras
-	vector<intepolation_tetra> tetras; 
+	vector<interpolation_tetra> tetras; 
+	
+	Vec3D centroid1,centroid2,centroid3,centroid4;
+	Vec3D planeNormal;
+	Vec3D lineDirection;
+	double lengthScale;
+	int method;
+	double tolerance=1.e-6;
 	
 	// Loop all the nodes
-	for (nit=node.begin();nit<node.end();nit++) {
+	for (nit=node.begin();nit!=node.end();nit++) {
 		// Initialize stencil to nearest neighbor cells
 		for (it=(*nit).cells.begin();it<(*nit).cells.end();it++) stencil.insert(*it);
 		// Include nearest ghost cells in the stencil
-		for (it=(*nit).ghosts.begin();it<(*nit).ghosts.end();it++) stencil.insert(-1*(*it));
+		for (it=(*nit).ghosts.begin();it!=(*nit).ghosts.end();it++) stencil.insert(-1*(*it));
 		// if the stencil doesn't have at least 4 points, expand it to include 2nd nearest neighbor cells
 		// NOTE ideally, second nearest ghosts would also need top be included but it is too much complication
 		if (stencil.size()<4) {
 			// Loop the cells neighboring the current node
-			for (it=(*nit).cells.begin();it<(*nit).cells.end();it++) {
+			for (it=(*nit).cells.begin();it!=(*nit).cells.end();it++) {
 				// Loop the cells neighboring the current cell
-				for (it2=cell[*it].neighborCells.begin();it2<cells[*it].neighborCells.end();it2++) {
+				for (it2=cell[*it].neighborCells.begin();it2!=cell[*it].neighborCells.end();it2++) {
 					stencil.insert(*it2);
 				}
 				
 			}
-		} else { 
-			// If stencil size is larger than 4, potentially we can find at least one interpolation tetra
-			// Let's make sure if all the points in the stencil are planar (True if domain is 2D)
-			
-			
 		}
+		if (stencil.size()==1) {
+			method=INTERPOLATE_POINT;
+		} else if (stencil.size()==2) {
+			method=INTERPOLATE_LINE;
+		} else {
+			// If stencil size is larger than 4, potentially we can find at least one interpolation tetra
+			// Check if all the points lie on a line (True if a 1D problem)
+			// Pick first 2 points in the stencil
+			sit=sit2=stencil.begin(); sit1=++sit2; ++sit2;
+			centroid1=(*sit>=0) ? cell[*sit].centroid : ghost[-(*sit)].centroid;
+			centroid2=(*sit1>=0) ? cell[*sit1].centroid : ghost[-(*sit1)].centroid;
+			// Direction of the line formed by the first 2 points
+			lineDirection=(centroid2-centroid1).norm();
+			// Loop the rest of the stencil and check if they lie on the same line (true in 1D)
+			method=INTERPOLATE_LINE;
+			for (;sit2!=stencil.end();sit2++) {
+				centroid3=(*sit2>=0) ? cell[*sit2].centroid : ghost[-(*sit2)].centroid;
+				if ( fabs(((centroid3-centroid1).norm()).dot(lineDirection))>tolerance ) {
+					// point 3 doesn't lie on the same line formed by the first 2 points
+					// Then at least one interpolation triangle can be formed
+					method=INTERPOLATE_TRI;
+					break;
+				}
+			}
+			
+			if (method==INTERPOLATE_TRI) { // If at least one interpolation triangle can be formed
+				// Check if the rest of the points in the stencil lie on the same plane formed by the first three (true in 2D)
+				// Average edge length
+				lengthScale=0.333*(fabs(centroid2-centroid1)+fabs(centroid3-centroid1)+fabs(centroid3-centroid2));
+				// Calculate the normal vector of the plane formed by these 3 points
+				planeNormal=(centroid2-centroid1).cross(centroid3-centroid2);
+				for (sit3=sit2;sit3!=stencil.end();sit3++) {
+					centroid4=(*sit3>=0) ? cell[*sit3].centroid : ghost[-(*sit3)].centroid;
+					if ( fabs(planeNormal.dot(centroid4-centroid1))/lengthScale>tolerance) {
+						// point 4 is not on the same plane
+						// Then at least one interpolation tetrahedra can be formed
+						method=INTERPOLATE_TETRA;
+						break;				
+					}
+				}
+				
+			}		
+		}
+		
+		
 		
 		// Clear temp data
 		stencil.clear();

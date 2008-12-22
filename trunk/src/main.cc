@@ -116,8 +116,9 @@ int main(int argc, char *argv[]) {
 	set_loads();
 
 	grid.lengthScales();
-	grid.nodeAverages();       // Linear triangular (tetrahedral) + idw blended mode
+	//grid.nodeAverages();       // Linear triangular (tetrahedral) + idw blended mode
 	//grid.nodeAverages_idw(); // Inverse distance based mode
+	grid.nodeAverages_new();
 	grid.faceAverages();
 	grid.gradMaps();
 

@@ -27,7 +27,7 @@ SRC= \
 	initialize.cc initialize_linear_system.cc inputs.cc \
 	main.cc mpi_functions.cc \
 	petsc_functions.cc probes.cc \
-	rcm.cc read_inputs.cc read_restart.cc \
+	read_inputs.cc read_restart.cc \
 	set_bcs.cc \
 	write_output.cc write_restart.cc \
 	vec3d.cc 
