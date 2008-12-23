@@ -22,6 +22,7 @@
 *************************************************************************/
 #ifndef COMMONS_H
 #define COMMONS_H
+#include <stdlib.h>
 #include <string>
 #include <vector>
 #include "grid.h"

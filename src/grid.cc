@@ -20,10 +20,10 @@
     see <http://www.gnu.org/licenses/>.
 
 *************************************************************************/
+#include "commons.h"
 #include <mpi.h>
 #include <iostream>
 #include <fstream>
-#include <vector>
 #include <set>
 #include <map>
 #include <iomanip>
@@ -33,26 +33,14 @@ using namespace std;
 #include <parmetis.h>
 
 #include "inputs.h"
-#include "grid.h"
 #include "bc.h"
-
-#define EPS 1e-10
-#define INTERPOLATE_POINT 0
-#define INTERPOLATE_LINE 1
-#define INTERPOLATE_TRI 2
-#define INTERPOLATE_TETRA 3
 			 
-extern Grid grid;
 extern InputFile input;
 extern BC bc;
-extern int np, Rank;
-extern double Gamma;
-extern double Pref;
 
 string int2str(int number) ;
 double superbee(double a, double b);
 double minmod(double a, double b);
-int gelimd(double **a,double *b,double *x, int n);
 
 extern GridRawData raw;
 
@@ -253,130 +241,6 @@ class InterpolationTetra {
 		double weight;
 };
 
-void Grid::nodeAverages_idw() {
-	unsigned int c,g;
-	double weight=0.,weightSum;
-	Vec3D node2cell,node2ghost;
-	map<int,double>::iterator it;
-
-	for (unsigned int n=0;n<nodeCount;++n) {
-		node[n].average.clear();
-		// Add contributions from real cells
-		weightSum=0.;
-		for (unsigned int nc=0;nc<node[n].cells.size();++nc) {
-			c=node[n].cells[nc];
-			node2cell=node[n]-cell[c].centroid;
-			weight=1./(node2cell.dot(node2cell));
-			//weight=1./fabs(node2cell);
-			node[n].average.insert(pair<int,double>(c,weight));
-			weightSum+=weight;
-		}
-		// Add contributions from ghost cells		
-		for (unsigned int ng=0;ng<node[n].ghosts.size();++ng) {
-			g=node[n].ghosts[ng];
-			node2ghost=node[n]-ghost[g].centroid;
-			weight=1./(node2ghost.dot(node2ghost));
-			//weight=1./fabs(node2ghost);
-			node[n].average.insert(pair<int,double>(-g-1,weight));
-			weightSum+=weight;
-		}
-		for ( it=node[n].average.begin() ; it != node[n].average.end(); it++ ) {
-			(*it).second/=weightSum;
-		}
-	}
-} // end Grid::nodeAverages_idw()
-
-	struct interpolation_tetra {
-		int cell[4];
-		double quality;
-	};
-
-void Grid::nodeAverages_new() {
-	
-	// Store the cell stencil surronding a node
-	set<int> stencil;
-	set<int>::iterator sit,sit1,sit2,sit3;
-	// A structure to store data about an individual interpolation tetra
-
-	// For each node, store possible formations of interpolation tetras
-	vector<interpolation_tetra> tetras; 
-	
-	Vec3D centroid1,centroid2,centroid3,centroid4;
-	Vec3D planeNormal;
-	Vec3D lineDirection;
-	double lengthScale;
-	int method;
-	double tolerance=1.e-6;
-	
-	// Loop all the nodes
-	for (nit=node.begin();nit!=node.end();nit++) {
-		// Initialize stencil to nearest neighbor cells
-		for (it=(*nit).cells.begin();it<(*nit).cells.end();it++) stencil.insert(*it);
-		// Include nearest ghost cells in the stencil
-		for (it=(*nit).ghosts.begin();it!=(*nit).ghosts.end();it++) stencil.insert(-1*(*it));
-		// if the stencil doesn't have at least 4 points, expand it to include 2nd nearest neighbor cells
-		// NOTE ideally, second nearest ghosts would also need top be included but it is too much complication
-		if (stencil.size()<4) {
-			// Loop the cells neighboring the current node
-			for (it=(*nit).cells.begin();it!=(*nit).cells.end();it++) {
-				// Loop the cells neighboring the current cell
-				for (it2=cell[*it].neighborCells.begin();it2!=cell[*it].neighborCells.end();it2++) {
-					stencil.insert(*it2);
-				}
-				
-			}
-		}
-		if (stencil.size()==1) {
-			method=INTERPOLATE_POINT;
-		} else if (stencil.size()==2) {
-			method=INTERPOLATE_LINE;
-		} else {
-			// If stencil size is larger than 4, potentially we can find at least one interpolation tetra
-			// Check if all the points lie on a line (True if a 1D problem)
-			// Pick first 2 points in the stencil
-			sit=sit2=stencil.begin(); sit1=++sit2; ++sit2;
-			centroid1=(*sit>=0) ? cell[*sit].centroid : ghost[-(*sit)].centroid;
-			centroid2=(*sit1>=0) ? cell[*sit1].centroid : ghost[-(*sit1)].centroid;
-			// Direction of the line formed by the first 2 points
-			lineDirection=(centroid2-centroid1).norm();
-			// Loop the rest of the stencil and check if they lie on the same line (true in 1D)
-			method=INTERPOLATE_LINE;
-			for (;sit2!=stencil.end();sit2++) {
-				centroid3=(*sit2>=0) ? cell[*sit2].centroid : ghost[-(*sit2)].centroid;
-				if ( fabs(((centroid3-centroid1).norm()).dot(lineDirection))>tolerance ) {
-					// point 3 doesn't lie on the same line formed by the first 2 points
-					// Then at least one interpolation triangle can be formed
-					method=INTERPOLATE_TRI;
-					break;
-				}
-			}
-			
-			if (method==INTERPOLATE_TRI) { // If at least one interpolation triangle can be formed
-				// Check if the rest of the points in the stencil lie on the same plane formed by the first three (true in 2D)
-				// Average edge length
-				lengthScale=0.333*(fabs(centroid2-centroid1)+fabs(centroid3-centroid1)+fabs(centroid3-centroid2));
-				// Calculate the normal vector of the plane formed by these 3 points
-				planeNormal=(centroid2-centroid1).cross(centroid3-centroid2);
-				for (sit3=sit2;sit3!=stencil.end();sit3++) {
-					centroid4=(*sit3>=0) ? cell[*sit3].centroid : ghost[-(*sit3)].centroid;
-					if ( fabs(planeNormal.dot(centroid4-centroid1))/lengthScale>tolerance) {
-						// point 4 is not on the same plane
-						// Then at least one interpolation tetrahedra can be formed
-						method=INTERPOLATE_TETRA;
-						break;				
-					}
-				}
-				
-			}		
-		}
-		
-		
-		
-		// Clear temp data
-		stencil.clear();
-		tetras.clear();
-	}
-}
 
 void Grid::nodeAverages() {
 	
@@ -515,7 +379,7 @@ void Grid::nodeAverages() {
 					b[2]=node[n].comp[2];
 					b[3]=1.;
 					// Solve the 3x3 linear system by Gaussion Elimination
-					gelimd(a,b,weights,4);
+					//gelimd(a,b,weights,4);
 					tetras[t].cw1=weights[0];
 					tetras[t].cw2=weights[1];
 					tetras[t].cw3=weights[2];
@@ -622,7 +486,7 @@ void Grid::nodeAverages() {
 					b[1]=pp.dot(basis2);
 					b[2]=1.;
 					// Solve the 3x3 linear system by Gaussion Elimination
-					gelimd(a,b,weights,3);
+					//gelimd(a,b,weights,3);
 					triangles[t].cw1=weights[0];
 					triangles[t].cw2=weights[1];
 					triangles[t].cw3=weights[2];
@@ -705,65 +569,6 @@ void Grid::nodeAverages() {
 	return;
 } // end Grid::nodeAverages()
 
-void Grid::faceAverages() {
-
-	unsigned int n;
-	map<int,double>::iterator it;
-	map<int,double>::iterator fit;
-
- 	for (unsigned int f=0;f<faceCount;++f) {
-		double weightSumCheck;
-		vector<double> nodeWeights;
-		// Mid point of the face
-		Vec3D mid=0.,patchArea;
-		double patchRatio;
-		for (unsigned int fn=0;fn<face[f].nodeCount;++fn) {
-			nodeWeights.push_back(0.);
-			mid+=face[f].node(fn);
-		}
-		mid/=double(face[f].nodeCount);
-		// Get node weights
-		int next;
-		for (unsigned int fn=0;fn<face[f].nodeCount;++fn) {
-			next=fn+1;
-			if (next==face[f].nodeCount) next=0;
-			patchArea=0.5*(face[f].node(fn)-mid).cross(face[f].node(next)-mid);
-			patchRatio=fabs(patchArea)/face[f].area;
-			for (unsigned int fnn=0;fnn<face[f].nodeCount;++fnn) {
-				nodeWeights[fnn]+=(1./double(3*face[f].nodeCount))*patchRatio;
-			}
-			nodeWeights[fn]+=patchRatio/3.;
-			nodeWeights[next]+=patchRatio/3.;
-		}
-
-		face[f].average.clear();
-		for (unsigned int fn=0;fn<face[f].nodeCount;++fn) {
-			n=face[f].nodes[fn];
-			for ( it=node[n].average.begin() ; it != node[n].average.end(); it++ ) {
-				if (face[f].average.find((*it).first)!=face[f].average.end()) { // if the cell contributing to the node average is already contained in the face average map
-					face[f].average[(*it).first]+=nodeWeights[fn]*(*it).second;
-				} else {
-					face[f].average.insert(pair<int,double>((*it).first,nodeWeights[fn]*(*it).second));
-				}
-			}
-		}
-// 		weightSumCheck=0.;
-// 		for ( fit=face[f].average.begin() ; fit != face[f].average.end(); fit++ ) {
-// 			//(*fit).second/=double(face[f].nodeCount);
-// 			weightSumCheck+=(*fit).second;
-// 		}
-// 
-// 		cout << nodeWeights.size() << "\t" << weightSumCheck << endl;
-		//cout << setw(16) << setprecision(8) << scientific << weightSumCheck << endl;
-// 		std::map<int,double>::iterator it;
-// 		double avg=0.;
-// 		for ( it=face[f].average.begin() ; it != face[f].average.end(); it++ ) {
-// 			avg+=(*it).second*cell[(*it).first].rho;
-// 		}
-// 		if (fabs(avg-2.*face[f].centroid.comp[0]-2.)>1.e-8) cout << 2.*face[f].centroid.comp[0]+2. << "\t" << avg << endl;
-	} // end face loop
-
-} // end Grid::faceAverages()
 
 void Grid::gradMaps() {
 	
@@ -946,45 +751,6 @@ void Grid::limit_gradients(void) {
 	}
 
 } // end Grid::limit_gradients()
-
-int gelimd(double **a,double *b,double *x, int n)
-{
-	double tmp,pvt,*t;
-	int i,j,k,itmp;
-
-	for (i=0;i<n;i++) {             // outer loop on rows
-		pvt = a[i][i];              // get pivot value
-		if (fabs(pvt) < EPS) {
-			for (j=i+1;j<n;j++) {
-				if(fabs(pvt = a[j][i]) >= EPS) break;
-			}
-			if (fabs(pvt) < EPS) return 1;     // nowhere to run!
-			t=a[j];                 // swap matrix rows...
-			a[j]=a[i];
-			a[i]=t;
-			tmp=b[j];               // ...and result vector
-			b[j]=b[i];
-			b[i]=tmp;
-		}
-// (virtual) Gaussian elimination of column
-		for (k=i+1;k<n;k++) {       // alt: for (k=n-1;k>i;k--)
-			tmp = a[k][i]/pvt;
-			for (j=i+1;j<n;j++) {   // alt: for (j=n-1;j>i;j--)
-				a[k][j] -= tmp*a[i][j];
-			}
-			b[k] -= tmp*b[i];
-		}
-	}
-// Do back substitution
-	for (i=n-1;i>=0;i--) {
-		x[i]=b[i];
-		for (j=n-1;j>i;j--) {
-			x[i] -= a[i][j]*x[j];
-		}
-		x[i] /= a[i][i];
-	}
-	return 0;
-}
 
 void Grid::lengthScales(void) {
 	// Loop through the cells and calculate length scales
