@@ -114,11 +114,9 @@ public:
 	int create_ghosts();
 	int areas_volumes();
 	void nodeAverages();
-	void nodeAverages_new();
 	void interpolate_tetra(Node& n);
 	void interpolate_tri(Node& n);
 	void interpolate_line(Node& n);
-	void interpolate_point(Node& n);
 	void nodeAverages_idw();
 	void faceAverages();
 	void gradMaps();

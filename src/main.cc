@@ -116,12 +116,13 @@ int main(int argc, char *argv[]) {
 	set_loads();
 
 	grid.lengthScales();
-	//grid.nodeAverages();       // Linear triangular (tetrahedral) + idw blended mode
+	
+	if (Rank==0) cout << "[I] Calculating node averaging metrics, this might take a while :(" << endl;
+	grid.nodeAverages(); // Linear triangular (tetrahedral) + idw blended mode
 	//grid.nodeAverages_idw(); // Inverse distance based mode
-	grid.nodeAverages_new();
 	grid.faceAverages();
 	grid.gradMaps();
-
+	
 	if (restart!=0) {
 		for (int p=0;p<np;++p) {
 			if (Rank==p) read_restart(time);
