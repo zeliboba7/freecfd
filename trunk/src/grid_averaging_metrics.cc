@@ -21,6 +21,7 @@
 
 *************************************************************************/
 #include<cmath>
+#include<iostream>
 #include "commons.h"
 #define EPS 1e-10
 #define INTERPOLATE_POINT 0
@@ -62,14 +63,17 @@ double lengthScale;
 int method;
 double tolerance=1.e-6;
 double weightSum;
-double tetra_volume,tri_area,ave_edge;
+double tetra_volume,tri_area,ave_edge,line_distance;
 double closeness,skewness,weight;
 double maxWeight;
 double **a;
 double *b;
 double *weights;
 
-void Grid::nodeAverages_new() {
+double distanceMin=1.e20;
+int p1,p2;
+
+void Grid::nodeAverages() {
 		
 	// Loop all the nodes
 	for (nit=node.begin();nit!=node.end();nit++) {
@@ -132,22 +136,27 @@ void Grid::nodeAverages_new() {
 				
 			}		
 		}
+		(*nit).average.clear();
 		if (method==INTERPOLATE_TETRA) interpolate_tetra(*nit);
 		if (method==INTERPOLATE_TRI) interpolate_tri(*nit);
 		if (method==INTERPOLATE_LINE) interpolate_line(*nit);
-		if (method==INTERPOLATE_POINT) interpolate_point(*nit);
+		if (method==INTERPOLATE_POINT) {
+			(*nit).average.insert(pair<int,double>(*(stencil.begin()),1.));
+		}
 		//cout << tetras.size() << endl;
 		
 		// Clear temp data
 		stencil.clear();
 		tetras.clear();
 		tris.clear();
+		
+		//if ((*nit).id % 100 == 0) cout << "\r" << "[I Rank=" << Rank << "] " << float((*nit).id)/grid.nodeCount*100. << "% done" << endl;
 	}
+	//cout << endl;
 }
 
 void Grid::interpolate_tetra(Node& n) {
 	
-	n.average.clear();
 	// Loop through the stencil and construct tetra combinations
 	maxWeight=tolerance;
 	for (sit=stencil.begin();sit!=stencil.end();sit++) {
@@ -182,10 +191,13 @@ void Grid::interpolate_tetra(Node& n) {
 						temp.weight=weight;
 						tetras.push_back(temp);
 					}
-					
+					//if (tetras.size()>10) break;
 				}
+				//if (tetras.size()>10) break;
 			}
+			//if (tetras.size()>10) break;
 		}
+		//if (tetras.size()>10) break;
 	} // Loop through stencil 
 	if (tetras.size()==0) { // This really shouldn't happen
 		cerr << "[E] An interpolation tetra couldn't be found for node " << n << endl;
@@ -232,7 +244,6 @@ void Grid::interpolate_tetra(Node& n) {
 
 void Grid::interpolate_tri(Node& n) {
 	
-	n.average.clear();
 	// Loop through the stencil and construct tri combinations
 	maxWeight=tolerance;
 	for (sit=stencil.begin();sit!=stencil.end();sit++) {
@@ -322,46 +333,27 @@ void Grid::interpolate_tri(Node& n) {
 }
 
 void Grid::interpolate_line(Node& n) {
-	// Chose the closest 2 points in stencil
-	double distanceMin=1.e20;
-	double distance;
-	Vec3D pp,p1,p2,direction;
-	double a,weight1,weight2;
 	// Pick the two points in the stencil which are closest to the node
 	for (sit=stencil.begin();sit!=stencil.end();sit++) {
-		Vec3D pp;
-		pp= (*sit>=0) ? cell[*sit].centroid : ghost[-(*sit)].centroid;
-		distance=fabs(node[n]-pp);
-		if (distance<distanceMin) {
-			distanceMin=distance;
-			sit1=sit;
-			p1=pp;
+		centroid3=(*sit>=0) ? cell[*sit].centroid : ghost[-(*sit)].centroid;
+		line_distance=fabs(n-centroid3);
+		if (line_distance<distanceMin) {
+			distanceMin=line_distance;
+			p2=p1;
+			centroid2=centroid1;
+			p1=*sit;
+			centroid1=centroid3;
 		}
+		
 	}
-	distanceMin=1.e20;
-	for (sit=stencil.begin();sit!=stencil.end();sit++) {
-		Vec3D pp;
-		pp= (*sit>=0) ? cell[*sit].centroid : ghost[-(*sit)].centroid;
-		distance=fabs(node[n]-pp);
-		if (distance<distanceMin && sit!=sit1) {
-			distanceMin=distance;
-			sit2=sit;
-			p2=pp;
-		}
-	}
-
-	direction=(p2-p1).norm();
-	a=(node[n]-p1).dot(direction)/fabs(p2-p1);
-	weight1=a;
-	weight2=1.-a;
-	node[n].average.clear();
-	node[n].average.insert(pair<int,double>(*sit1,weight1));
-	node[n].average.insert(pair<int,double>(*sit2,weight2));
-	return;
-}
-
-void Grid::interpolate_point(Node& n) {
 	
+	lineDirection=(centroid2-centroid1).norm();
+	weights= new double [2];
+	weights[0]=(n-centroid1).dot(lineDirection)/fabs(centroid2-centroid1);
+	weights[1]=1.-weights[0];
+	n.average.insert(pair<int,double>(p1,weights[0]));
+	n.average.insert(pair<int,double>(p2,weights[1]));
+	return;
 }
 
 void Grid::faceAverages() {
