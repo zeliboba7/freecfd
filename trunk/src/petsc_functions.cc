@@ -57,7 +57,8 @@ void petsc_init(int argc, char *argv[],double rtol,double abstol,int maxits) {
 
 	//PetscScalar *dU,*ff,value;
 	
-	MatCreateMPIAIJ(PETSC_COMM_WORLD,grid.cellCount*nSolVar,grid.cellCount*nSolVar,grid.globalCellCount*nSolVar,grid.globalCellCount*nSolVar,150,PETSC_NULL,0,PETSC_NULL,&impOP);
+	
+	MatCreateMPIAIJ(PETSC_COMM_WORLD,grid.cellCount*nSolVar,grid.cellCount*nSolVar,grid.globalCellCount*nSolVar,grid.globalCellCount*nSolVar,nSolVar*7,PETSC_NULL,nSolVar*3,PETSC_NULL,&impOP);
 	
 	KSPSetOperators(ksp,impOP,impOP,SAME_NONZERO_PATTERN);
 	KSPSetTolerances(ksp,rtol,abstol,1.e10,maxits);
@@ -74,7 +75,7 @@ void petsc_solve(int &nIter,double &rNorm) {
 	int nSolVar=5; // Basic equations to solve
 
 	if (TURBULENCE_MODEL!=NONE) nSolVar+=2;
-	
+
 	MatAssemblyBegin(impOP,MAT_FINAL_ASSEMBLY);
 	MatAssemblyEnd(impOP,MAT_FINAL_ASSEMBLY);
 
