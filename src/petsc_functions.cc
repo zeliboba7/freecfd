@@ -46,12 +46,12 @@ void petsc_init(int argc, char *argv[],double rtol,double abstol,int maxits) {
 	//Create nonlinear solver context
 	KSPCreate(PETSC_COMM_WORLD,&ksp);
 	VecCreateMPI(PETSC_COMM_WORLD,grid.cellCount*nSolVar,grid.globalCellCount*nSolVar,&rhs);
-	VecCreateSeq(PETSC_COMM_SELF,grid.globalCellCount*nSolVar,&globalUpdate);
+	//VecCreateSeq(PETSC_COMM_SELF,grid.globalCellCount*nSolVar,&globalUpdate);
 	VecSetFromOptions(rhs);
 	VecDuplicate(rhs,&deltaU);
 	VecSet(rhs,0.);
 	VecSet(deltaU,0.);
-	VecSet(globalUpdate,0.);
+	//VecSet(globalUpdate,0.);
 
 	VecScatterCreateToAll(deltaU,&scatterContext,&globalUpdate);
 
@@ -109,14 +109,15 @@ void petsc_solve(int &nIter,double &rNorm) {
 	KSPGetIterationNumber(ksp,&nIter);
 	KSPGetResidualNorm(ksp,&rNorm);
 
-	VecScatterBegin(scatterContext,deltaU,globalUpdate,INSERT_VALUES,SCATTER_FORWARD);
-	VecScatterEnd(scatterContext,deltaU,globalUpdate,INSERT_VALUES,SCATTER_FORWARD);
+	//VecScatterBegin(scatterContext,deltaU,globalUpdate,INSERT_VALUES,SCATTER_FORWARD);
+	//VecScatterEnd(scatterContext,deltaU,globalUpdate,INSERT_VALUES,SCATTER_FORWARD);
 
 	int index;
 	for (unsigned int c=0;c<grid.cellCount;++c) {
 		for (int i=0;i<nSolVar;++i) {
 			index=(grid.myOffset+c)*nSolVar+i;
-			VecGetValues(globalUpdate,1,&index,&grid.cell[c].update[i]);
+			//VecGetValues(globalUpdate,1,&index,&grid.cell[c].update[i]);
+			VecGetValues(deltaU,1,&index,&grid.cell[c].update[i]);
 		}
 	}
 

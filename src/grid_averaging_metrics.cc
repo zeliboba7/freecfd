@@ -80,7 +80,7 @@ void Grid::nodeAverages() {
 		// Initialize stencil to nearest neighbor cells
 		for (it=(*nit).cells.begin();it<(*nit).cells.end();it++) stencil.insert(*it);
 		// Include nearest ghost cells in the stencil
-		for (it=(*nit).ghosts.begin();it!=(*nit).ghosts.end();it++) stencil.insert(-1*(*it));
+		for (it=(*nit).ghosts.begin();it!=(*nit).ghosts.end();it++) stencil.insert(-1*(*it)-1);
 		// if the stencil doesn't have at least 4 points, expand it to include 2nd nearest neighbor cells
 		// NOTE ideally, second nearest ghosts would also need top be included but it is too much complication
 		if (stencil.size()<4) {
@@ -102,14 +102,14 @@ void Grid::nodeAverages() {
 			// Check if all the points lie on a line (True if a 1D problem)
 			// Pick first 2 points in the stencil
 			sit=sit2=stencil.begin(); sit1=++sit2; ++sit2;
-			centroid1=(*sit>=0) ? cell[*sit].centroid : ghost[-(*sit)].centroid;
-			centroid2=(*sit1>=0) ? cell[*sit1].centroid : ghost[-(*sit1)].centroid;
+			centroid1=(*sit>=0) ? cell[*sit].centroid : ghost[-(*sit)-1].centroid;
+			centroid2=(*sit1>=0) ? cell[*sit1].centroid : ghost[-(*sit1)-1].centroid;
 			// Direction of the line formed by the first 2 points
 			lineDirection=(centroid2-centroid1).norm();
 			// Loop the rest of the stencil and check if they lie on the same line (true in 1D)
 			method=INTERPOLATE_LINE;
 			for (;sit2!=stencil.end();sit2++) {
-				centroid3=(*sit2>=0) ? cell[*sit2].centroid : ghost[-(*sit2)].centroid;
+				centroid3=(*sit2>=0) ? cell[*sit2].centroid : ghost[-(*sit2)-1].centroid;
 				if ( fabs(((centroid3-centroid1).norm()).dot(lineDirection))>tolerance ) {
 					// point 3 doesn't lie on the same line formed by the first 2 points
 					// Then at least one interpolation triangle can be formed
@@ -125,7 +125,7 @@ void Grid::nodeAverages() {
 				// Calculate the normal vector of the plane formed by these 3 points
 				planeNormal=(centroid2-centroid1).cross(centroid3-centroid2);
 				for (sit3=sit2;sit3!=stencil.end();sit3++) {
-					centroid4=(*sit3>=0) ? cell[*sit3].centroid : ghost[-(*sit3)].centroid;
+					centroid4=(*sit3>=0) ? cell[*sit3].centroid : ghost[-(*sit3)-1].centroid;
 					if ( fabs(planeNormal.dot(centroid4-centroid1))/lengthScale>tolerance) {
 						// point 4 is not on the same plane
 						// Then at least one interpolation tetrahedra can be formed
@@ -166,10 +166,10 @@ void Grid::interpolate_tetra(Node& n) {
 			for (sit2=sit2;sit2!=stencil.end();sit2++) {
 				sit3=sit2; sit3++;
 				for (sit3=sit3;sit3!=stencil.end();sit3++) {
-					centroid1=(*sit>=0) ? cell[*sit].centroid : ghost[-(*sit)].centroid;
-					centroid2=(*sit1>=0) ? cell[*sit1].centroid : ghost[-(*sit1)].centroid;
-					centroid3=(*sit2>=0) ? cell[*sit2].centroid : ghost[-(*sit2)].centroid;
-					centroid4=(*sit3>=0) ? cell[*sit3].centroid : ghost[-(*sit3)].centroid;
+					centroid1=(*sit>=0) ? cell[*sit].centroid : ghost[-(*sit)-1].centroid;
+					centroid2=(*sit1>=0) ? cell[*sit1].centroid : ghost[-(*sit1)-1].centroid;
+					centroid3=(*sit2>=0) ? cell[*sit2].centroid : ghost[-(*sit2)-1].centroid;
+					centroid4=(*sit3>=0) ? cell[*sit3].centroid : ghost[-(*sit3)-1].centroid;
 					tetra_volume=0.5*fabs(((centroid2-centroid1).cross(centroid3-centroid1)).dot(centroid4-centroid1));
 					ave_centroid=0.25*(centroid1+centroid2+centroid3+centroid4);
 					ave_edge=0.25*(fabs(centroid1-centroid2)+fabs(centroid1-centroid3)+fabs(centroid2-centroid3)
@@ -220,7 +220,7 @@ void Grid::interpolate_tetra(Node& n) {
 				if ((*tet).cell[i]>=0) {
 					for (int j=0;j<3;++j) a[j][i]=cell[(*tet).cell[i]].centroid[j];
 				} else {
-					for (int j=0;j<3;++j) a[j][i]=ghost[-((*tet).cell[i])].centroid[j];	
+					for (int j=0;j<3;++j) a[j][i]=ghost[-((*tet).cell[i])-1].centroid[j];	
 				}
 			}
 			
@@ -251,9 +251,9 @@ void Grid::interpolate_tri(Node& n) {
 		for (sit1=sit1;sit1!=stencil.end();sit1++) {
 			sit2=sit1; sit2++;
 			for (sit2=sit2;sit2!=stencil.end();sit2++) {
-				centroid1=(*sit>=0) ? cell[*sit].centroid : ghost[-(*sit)].centroid;
-				centroid2=(*sit1>=0) ? cell[*sit1].centroid : ghost[-(*sit1)].centroid;
-				centroid3=(*sit2>=0) ? cell[*sit2].centroid : ghost[-(*sit2)].centroid;
+				centroid1=(*sit>=0) ? cell[*sit].centroid : ghost[-(*sit)-1].centroid;
+				centroid2=(*sit1>=0) ? cell[*sit1].centroid : ghost[-(*sit1)-1].centroid;
+				centroid3=(*sit2>=0) ? cell[*sit2].centroid : ghost[-(*sit2)-1].centroid;
 				tri_area=0.5*fabs((centroid2-centroid1).cross(centroid3-centroid1));
 				ave_centroid=1./3.*(centroid1+centroid2+centroid3);
 				ave_edge=1./3.*(fabs(centroid1-centroid2)+fabs(centroid1-centroid3)+fabs(centroid2-centroid3));
@@ -290,9 +290,9 @@ void Grid::interpolate_tri(Node& n) {
 		for (tri=tris.begin();tri!=tris.end();tri++) weightSum+=(*tri).weight;
 		for (tri=tris.begin();tri!=tris.end();tri++) {
 			(*tri).weight/=weightSum;					
-			centroid1= ((*tri).cell[0]>=0) ? cell[(*tri).cell[0]].centroid : ghost[-(*tri).cell[0]].centroid;
-			centroid2= ((*tri).cell[1]>=0) ? cell[(*tri).cell[1]].centroid : ghost[-(*tri).cell[1]].centroid;
-			centroid3= ((*tri).cell[2]>=0) ? cell[(*tri).cell[2]].centroid : ghost[-(*tri).cell[2]].centroid;
+			centroid1= ((*tri).cell[0]>=0) ? cell[(*tri).cell[0]].centroid : ghost[-(*tri).cell[0]-1].centroid;
+			centroid2= ((*tri).cell[1]>=0) ? cell[(*tri).cell[1]].centroid : ghost[-(*tri).cell[1]-1].centroid;
+			centroid3= ((*tri).cell[2]>=0) ? cell[(*tri).cell[2]].centroid : ghost[-(*tri).cell[2]-1].centroid;
 			basis1=(centroid2-centroid1).norm();
 			planeNormal=(basis1.cross(centroid3-centroid1)).norm();
 			basis2=-1.*(basis1.cross(planeNormal)).norm();
@@ -335,7 +335,7 @@ void Grid::interpolate_tri(Node& n) {
 void Grid::interpolate_line(Node& n) {
 	// Pick the two points in the stencil which are closest to the node
 	for (sit=stencil.begin();sit!=stencil.end();sit++) {
-		centroid3=(*sit>=0) ? cell[*sit].centroid : ghost[-(*sit)].centroid;
+		centroid3=(*sit>=0) ? cell[*sit].centroid : ghost[-(*sit)-1].centroid;
 		line_distance=fabs(n-centroid3);
 		if (line_distance<distanceMin) {
 			distanceMin=line_distance;
