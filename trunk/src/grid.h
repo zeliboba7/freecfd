@@ -95,6 +95,7 @@ public:
 class Grid {
 public:
 	string fileName;
+	int myOffset;
 	unsigned int nodeCount,cellCount,faceCount;
 	unsigned int globalNodeCount,globalCellCount,globalFaceCount,ghostCount;
 	std::vector<Node> node;
