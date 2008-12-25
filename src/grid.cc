@@ -181,6 +181,9 @@ int Grid::areas_volumes() {
 	}
 	
 	cout << "[I Rank=" << Rank << "] Total Volume= " << setw(16) << setprecision(8) << scientific << totalVolume << endl;
+	double globalTotalVolume=0.;
+	MPI_Allreduce (&totalVolume,&globalTotalVolume,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+	if (np>1 && Rank==0) cout << "[I] Global Total Volume= " << globalTotalVolume << endl;
 	
 	for (unsigned int f=0;f<faceCount;++f) {
 		if (face[f].normal.dot(face[f].centroid-cell[face[f].parent].centroid)<=0.) {

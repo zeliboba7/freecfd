@@ -109,8 +109,8 @@ void read_inputs(InputFile &input) {
 	input.section("initialConditions").subsection("IC",0).register_double("rho",required);
 	input.section("initialConditions").subsection("IC",0).register_Vec3D("v",required);
 	input.section("initialConditions").subsection("IC",0).register_double("p",required);
-	input.section("initialConditions").subsection("IC",0).register_double("k",optional);
-	input.section("initialConditions").subsection("IC",0).register_double("omega",optional);
+	input.section("initialConditions").subsection("IC",0).register_double("k",optional,0.);
+	input.section("initialConditions").subsection("IC",0).register_double("omega",optional,0.);
 	input.readSection("initialConditions");
 	
 	input.registerSection("boundaryConditions",required);
@@ -124,8 +124,8 @@ void read_inputs(InputFile &input) {
 	input.section("boundaryConditions").subsection("BC",0).register_double("rho",optional);
 	input.section("boundaryConditions").subsection("BC",0).register_Vec3D("v",optional);	
 	input.section("boundaryConditions").subsection("BC",0).register_double("p",optional);
-	input.section("boundaryConditions").subsection("BC",0).register_double("k",optional);
-	input.section("boundaryConditions").subsection("BC",0).register_double("omega",optional);
+	input.section("boundaryConditions").subsection("BC",0).register_double("k",optional,0.);
+	input.section("boundaryConditions").subsection("BC",0).register_double("omega",optional,0.);
 	input.readSection("boundaryConditions");
 	
 	check_inputs(input);
