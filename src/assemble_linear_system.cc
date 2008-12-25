@@ -101,11 +101,11 @@ void assemble_linear_system(void) {
 
 		// Fill in residual (rhs vector)
 		for (int i=0;i<nSolVar;++i) {
-			row=grid.cell[parent].globalId*nSolVar+i;
+			row=(grid.myOffset+parent)*nSolVar+i;
 			value=diff_flux[i]-conv_flux[i];
 			VecSetValues(rhs,1,&row,&value,ADD_VALUES);
 			if (grid.face[f].bc==-1) { // TODO what if a ghost face??
-				row=grid.cell[neighbor].globalId*nSolVar+i;
+				row=(grid.myOffset+neighbor)*nSolVar+i;
 				value*=-1.;
 				VecSetValues(rhs,1,&row,&value,ADD_VALUES);
 			}
@@ -159,12 +159,12 @@ void assemble_linear_system(void) {
 		
 					// Add change of flux (flux Jacobian) to implicit operator
 					for (int j=0;j<nSolVar;++j) {
-						row=grid.cell[parent].globalId*nSolVar+j;
-						col=grid.cell[parent].globalId*nSolVar+i;
+						row=(grid.myOffset+parent)*nSolVar+j;
+						col=(grid.myOffset+parent)*nSolVar+i;
 						value=-1.*(diff_fluxPlus[j]-diff_flux[j]-conv_fluxPlus[j]+conv_flux[j])/epsilon;
 						MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
 						if (face.bc==-1) { // TODO what if a ghost face??
-							row=grid.cell[neighbor].globalId*nSolVar+j;
+							row=(grid.myOffset+neighbor)*nSolVar+j;
 							value*=-1.;
 							MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
 						}
@@ -189,11 +189,11 @@ void assemble_linear_system(void) {
 		
 						// Add change of flux (flux Jacobian) to implicit operator
 						for (int j=0;j<nSolVar;++j) {
-							row=grid.cell[neighbor].globalId*nSolVar+j;
-							col=grid.cell[neighbor].globalId*nSolVar+i;
+							row=(grid.myOffset+neighbor)*nSolVar+j;
+							col=(grid.myOffset+neighbor)*nSolVar+i;
 							value=(diff_fluxPlus[j]-diff_flux[j]-conv_fluxPlus[j]+conv_flux[j])/epsilon;
 							MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
-							row=grid.cell[parent].globalId*nSolVar+j;
+							row=(grid.myOffset+parent)*nSolVar+j;
 							value*=-1.;
 							MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
 						} // for j
@@ -203,17 +203,17 @@ void assemble_linear_system(void) {
 		} // if implicit
 	} // for faces
 
-	if (nSolVar==7) {
-		for (unsigned int c=0;c<grid.cellCount;++c) {
-			// Fill in residual (rhs vector)
-			row=grid.cell[c].globalId*nSolVar+5;
-			value=-1.*0.09*grid.cell[c].k*grid.cell[c].omega*grid.cell[c].volume;
-			VecSetValues(rhs,1,&row,&value,ADD_VALUES);
-			row+=1;
-			value=-1.*0.3/4.*grid.cell[c].omega*grid.cell[c].omega*grid.cell[c].volume;
-			VecSetValues(rhs,1,&row,&value,ADD_VALUES);
-		}
-	}
+// 	if (nSolVar==7) {
+// 		for (unsigned int c=0;c<grid.cellCount;++c) {
+// 			// Fill in residual (rhs vector)
+// 			row=grid.cell[c].globalId*nSolVar+5;
+// 			value=-1.*0.09*grid.cell[c].k*grid.cell[c].omega*grid.cell[c].volume;
+// 			VecSetValues(rhs,1,&row,&value,ADD_VALUES);
+// 			row+=1;
+// 			value=-1.*0.3/4.*grid.cell[c].omega*grid.cell[c].omega*grid.cell[c].volume;
+// 			VecSetValues(rhs,1,&row,&value,ADD_VALUES);
+// 		}
+// 	}
 	
 	return;
 } // end function

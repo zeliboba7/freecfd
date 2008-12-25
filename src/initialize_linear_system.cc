@@ -91,9 +91,9 @@ void initialize_linear_system() {
 		}
 		
 		for (int i=0;i<nSolVar;++i) {
-			row=grid.cell[c].globalId*nSolVar+i;
+			row=(grid.myOffset+c)*nSolVar+i;
 			for (int j=0;j<nSolVar;++j) {
-				col=grid.cell[c].globalId*nSolVar+j;
+				col=(grid.myOffset+c)*nSolVar+j;
 				value=P[i][j]*d;
 				MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
 			}

@@ -147,7 +147,10 @@ int Grid::partition() {
 		if (maps.cellOwner[c]==Rank) ++cellCount;
 	}
 	cout << "[I Rank=" << Rank << "] Number of Cells= " << cellCount << endl;
-
+	
+	myOffset=0;
+	for (int p=0;p<Rank;++p) myOffset+=otherCellCounts[p];
+	
 } // end Grid::partition
 
 int Grid::mesh2dual() {

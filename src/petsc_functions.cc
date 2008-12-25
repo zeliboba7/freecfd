@@ -55,10 +55,32 @@ void petsc_init(int argc, char *argv[],double rtol,double abstol,int maxits) {
 
 	VecScatterCreateToAll(deltaU,&scatterContext,&globalUpdate);
 
-	//PetscScalar *dU,*ff,value;
+	vector<int> diagonal_nonzeros, off_diagonal_nonzeros;
+	int nextCellCount;
 	
+	// Calculate space necessary for matrix memory alocation
+	for (cit=grid.cell.begin();cit!=grid.cell.end();cit++) {
+		nextCellCount=0;
+		for (it=(*cit).faces.begin();it!=(*cit).faces.end();it++) {
+			if (grid.face[*it].bc==-1) {
+				nextCellCount++;
+			}
+		}
+		for (int i=0;i<nSolVar;++i) {
+			diagonal_nonzeros.push_back( (nextCellCount+1)*nSolVar);
+			off_diagonal_nonzeros.push_back( ((*cit).ghosts.size())*nSolVar);
+		}
+	}
 	
-	MatCreateMPIAIJ(PETSC_COMM_WORLD,grid.cellCount*nSolVar,grid.cellCount*nSolVar,grid.globalCellCount*nSolVar,grid.globalCellCount*nSolVar,nSolVar*7,PETSC_NULL,nSolVar*3,PETSC_NULL,&impOP);
+	MatCreateMPIAIJ(
+		PETSC_COMM_WORLD,
+  		grid.cellCount*nSolVar,
+    		grid.cellCount*nSolVar,
+      		grid.globalCellCount*nSolVar,
+		grid.globalCellCount*nSolVar,
+     		0,&diagonal_nonzeros[0],
+     		0,&off_diagonal_nonzeros[0],
+      		&impOP);
 	
 	KSPSetOperators(ksp,impOP,impOP,SAME_NONZERO_PATTERN);
 	KSPSetTolerances(ksp,rtol,abstol,1.e10,maxits);
@@ -93,7 +115,7 @@ void petsc_solve(int &nIter,double &rNorm) {
 	int index;
 	for (unsigned int c=0;c<grid.cellCount;++c) {
 		for (int i=0;i<nSolVar;++i) {
-			index=grid.cell[c].globalId*nSolVar+i;
+			index=(grid.myOffset+c)*nSolVar+i;
 			VecGetValues(globalUpdate,1,&index,&grid.cell[c].update[i]);
 		}
 	}
