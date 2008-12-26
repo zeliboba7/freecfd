@@ -104,6 +104,17 @@ void mpi_update_ghost_primitives(void) {
 
 			for (unsigned int g=0;g<recvCount[p];++g) {
 				id=maps.ghostGlobal2Local[recvBuffer[g].globalId];
+				if (timeStep==1) {
+					for (int i=0;i<7;++i) grid.ghost[id].update[0]=0.;
+				} else {
+					grid.ghost[id].update[0]=recvBuffer[g].vars[0]-grid.ghost[id].rho;
+					grid.ghost[id].update[1]=recvBuffer[g].vars[1]-grid.ghost[id].v[0];
+					grid.ghost[id].update[2]=recvBuffer[g].vars[2]-grid.ghost[id].v[1];
+					grid.ghost[id].update[3]=recvBuffer[g].vars[3]-grid.ghost[id].v[2];
+					grid.ghost[id].update[4]=recvBuffer[g].vars[4]-grid.ghost[id].p;
+					grid.ghost[id].update[5]=recvBuffer[g].vars[5]-grid.ghost[id].k;
+					grid.ghost[id].update[6]=recvBuffer[g].vars[6]-grid.ghost[id].omega;
+				}
 				grid.ghost[id].rho=recvBuffer[g].vars[0];
 				grid.ghost[id].v.comp[0]=recvBuffer[g].vars[1];
 				grid.ghost[id].v.comp[1]=recvBuffer[g].vars[2];
