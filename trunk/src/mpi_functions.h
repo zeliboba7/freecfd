@@ -36,6 +36,7 @@ extern IndexMaps maps;
 	
 void mpi_init(int argc, char *argv[]);
 void mpi_handshake(void);
+void mpi_get_ghost_centroids(void);
 void mpi_update_ghost_primitives(void);
 void mpi_update_ghost_gradients(void);
 void mpi_update_ghost_limited_gradients(void);
@@ -48,6 +49,12 @@ struct mpiGhost {
 struct mpiGrad {
 	unsigned int globalId;
 	double grads[21];
+};
+
+struct mpiVec3D {
+	unsigned int globalId;
+	unsigned int matrix_id;
+	double comp[3];
 };
 
 #endif

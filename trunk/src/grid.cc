@@ -102,7 +102,7 @@ int Grid::scale() {
 
 int Grid::areas_volumes() {
 	// NOTE The methodology here is generic hence slower than it could be:
-	// i.e Even though volume/centroid of tetrahedra is easy enough, we still break is down to
+	// i.e Even though volume/centroid of tetrahedra is easy enough, we still break it down to
 	// smaller tetrahedras
 
 	// Now loop through faces and calculate centroids and areas
@@ -233,7 +233,7 @@ void Grid::gradMaps() {
 		cell[c].gradMap.clear();
 		for (unsigned int cf=0;cf<cell[c].faceCount;++cf) {
 			f=cell[c].faces[cf];
-			if (face[f].bc<0 ) { // if internal or interpartition face
+			if (face[f].bc==INTERNAL || face[f].bc==GHOST ) { // if internal or interpartition face
 				areaVec=face[f].normal*face[f].area/cell[c].volume;
 				if (face[f].parent!=c) areaVec*=-1.;
 				for (it=face[f].average.begin();it!=face[f].average.end();it++) {
@@ -258,8 +258,7 @@ void Grid::gradients(void) {
 	map<int,double>::iterator fit;
 	unsigned int f;
 	Vec3D faceVel,areaVec;
-	double faceRho,faceP,faceK,faceOmega;
-	double Mach;
+	double faceRho,faceP,faceK,faceOmega,faceMach;
 	
 	for (unsigned int c=0;c<cellCount;++c) {
 		// Initialize all gradients to zero
@@ -282,7 +281,6 @@ void Grid::gradients(void) {
 		} // end gradMap loop
 
  		// Add boundary face contributions
-
 		for (unsigned int cf=0;cf<cell[c].faceCount;++cf) {
 			f=cell[c].faces[cf];
 			if (face[f].bc>=0) { // if a boundary face
@@ -306,38 +304,46 @@ void Grid::gradients(void) {
 					}
 				}
 
-				//cout << 2.*face[f].centroid.comp[0]+2. << "\t" << faceRho << endl;
-
+				faceMach=faceVel.dot(face[f].normal)/(sqrt(Gamma*faceP/faceRho));
+				
 				if (bc.region[face[f].bc].type==INLET) {
 					faceRho=bc.region[face[f].bc].rho;
 					faceVel=bc.region[face[f].bc].v;
 					faceK=bc.region[face[f].bc].k;
 					faceOmega=bc.region[face[f].bc].omega;
-					//faceP=cell[face[f].parent].p;
-					//faceP=bc.region[face[f].bc].p;
+					if (faceMach<=-1.) { // If supersonic inlet
+						// Can't extrapolate anything from inside.
+						faceP=bc.region[face[f].bc].p;	
+					}
 				}
 
 				if (bc.region[grid.face[f].bc].type==OUTLET &&
 					bc.region[grid.face[f].bc].kind==FIXED_PRESSURE) {
-					// find Mach number
-// 					Mach=(cell[c].v.dot(face[f].normal))/sqrt(Gamma*(cell[c].p+Pref)/cell[c].rho);
-// 					if (Mach<1.) faceP=bc.region[face[f].bc].p;
-					faceP=bc.region[face[f].bc].p;//-0.5*faceRho*faceVel.dot(faceVel);
+ 					if (faceMach<1.) {
+						// Can only set this if subsonic outlet
+						// For supersonic, basically switches to exrapolated
+						faceP=bc.region[face[f].bc].p;	
+					}
 				}
 				if (bc.region[grid.face[f].bc].type==OUTLET &&
 								bc.region[grid.face[f].bc].kind==FIXED_PRESSURE_ENTRAINMENT) {
-					// find Mach number
-// 					Mach=(cell[c].v.dot(face[f].normal))/sqrt(Gamma*(cell[c].p+Pref)/cell[c].rho);
-// 					if (Mach<1.) faceP=bc.region[face[f].bc].p;
-					if (faceVel.dot(face[f].normal)>=0.) {
-						faceP=bc.region[face[f].bc].p;
-					} else {
-						faceP=bc.region[face[f].bc].p-0.5*faceRho*faceVel.dot(faceVel);
+					if (faceMach<1.) {
+						// Can only set this if subsonic outlet
+						// For supersonic, basically switches to exrapolated
+						if (faceMach>=0.) { // if outflow
+							faceP=bc.region[face[f].bc].p;
+						} else { // if inflow
+							faceP=bc.region[face[f].bc].p-0.5*faceRho*faceVel.dot(faceVel);
+						}
 					}
-								}
+				}
 				// Kill the wall normal component for slip or symmetry, pressure and rho is extrapolated
-				if (bc.region[face[f].bc].type==SLIP) faceVel-=faceVel.dot(face[f].normal)*face[f].normal;
+				if (bc.region[face[f].bc].type==SLIP) { 
+					// Slip reflects the velocity vector, extrapolates the rest
+					faceVel-=faceVel.dot(face[f].normal)*face[f].normal;
+				}
 				if (bc.region[face[f].bc].type==SYMMETRY) {
+					// Symmetry mirrors everything
 					faceRho=cell[face[f].parent].rho;
 					faceVel=cell[face[f].parent].v;
 					faceVel-=faceVel.dot(face[f].normal)*face[f].normal;
@@ -346,7 +352,8 @@ void Grid::gradients(void) {
 					faceOmega=cell[face[f].parent].omega;
 					
 				}
-				// Kill the velocity for no-slip, pressure and rho is extrapolated
+				
+				// Kill the velocity for no-slip, the rest is extrapolated
 				if (bc.region[face[f].bc].type==NOSLIP) faceVel=0.;
 
 				cell[c].grad[0]+=faceRho*areaVec;
@@ -359,8 +366,6 @@ void Grid::gradients(void) {
 
 			} // end if a boundary face
 		} // end cell face loop
-		//cout << cell[c].grad[0].comp[0] << endl;
-		//cout << c << "\t" << areaVecSum/cell[c].volume << endl;
 	} // end cell loop
 	
  	
@@ -383,8 +388,13 @@ void Grid::limit_gradients(void) {
 				neighbor=cell[c].neighborCells[cc];
 				for (unsigned int var=0;var<7;++var) {
 					for (unsigned int comp=0;comp<3;++comp) {
-						maxGrad[var].comp[comp]=max(maxGrad[var].comp[comp],(1.-limiter_sharpening)*cell[neighbor].grad[var].comp[comp]+limiter_sharpening*cell[c].grad[var].comp[comp]);
-						minGrad[var].comp[comp]=min(minGrad[var].comp[comp],(1.-limiter_sharpening)*cell[neighbor].grad[var].comp[comp]+limiter_sharpening*cell[c].grad[var].comp[comp]);
+						maxGrad[var].comp[comp]=max(
+								maxGrad[var].comp[comp],
+								(1.-limiter_sharpening)*cell[neighbor].grad[var].comp[comp]
+									+limiter_sharpening*cell[c].grad[var].comp[comp]);
+						minGrad[var].comp[comp]=min(minGrad[var].comp[comp],
+								(1.-limiter_sharpening)*cell[neighbor].grad[var].comp[comp]
+									+limiter_sharpening*cell[c].grad[var].comp[comp]);
 					}
 				}
 			}
@@ -393,8 +403,14 @@ void Grid::limit_gradients(void) {
 				g=cell[c].ghosts[cg];
 				for (unsigned int var=0;var<7;++var) {
 					for (unsigned int comp=0;comp<3;++comp) {
-						maxGrad[var].comp[comp]=max(maxGrad[var].comp[comp],(1.-limiter_sharpening)*ghost[g].grad[var].comp[comp]+limiter_sharpening*cell[c].grad[var].comp[comp]);
-						minGrad[var].comp[comp]=min(minGrad[var].comp[comp],(1.-limiter_sharpening)*ghost[g].grad[var].comp[comp]+limiter_sharpening*cell[c].grad[var].comp[comp]);
+						maxGrad[var].comp[comp]=max(
+								maxGrad[var].comp[comp],
+								(1.-limiter_sharpening)*ghost[g].grad[var].comp[comp]
+									+limiter_sharpening*cell[c].grad[var].comp[comp]);
+						minGrad[var].comp[comp]=min(
+								minGrad[var].comp[comp],
+								(1.-limiter_sharpening)*ghost[g].grad[var].comp[comp]
+									+limiter_sharpening*cell[c].grad[var].comp[comp]);
 					}
 				}
 			}
@@ -403,6 +419,8 @@ void Grid::limit_gradients(void) {
 			
 		}
 	}
+	
+	return;
 
 } // end Grid::limit_gradients()
 
@@ -421,7 +439,7 @@ void Grid::lengthScales(void) {
 					skipScale=true;
 				}
 			}
-			if (skipScale==false) cell[c].lengthScale=min(cell[c].lengthScale,height);
+			if (!skipScale) cell[c].lengthScale=min(cell[c].lengthScale,height);
 		}
 	}
 	return;

@@ -60,6 +60,13 @@
 // Options for Boundary Condition Type variants (kind)
 #define FIXED_PRESSURE 0
 #define FIXED_PRESSURE_ENTRAINMENT 1
+// Face bc type numbering
+#define INTERNAL -1
+#define UNASSIGNED -2
+#define GHOST -3
+// Options for order
+#define FIRST 1
+#define SECOND 2
 
 extern int EQUATIONS,TURBULENCE_MODEL;
 extern int TIME_INTEGRATOR,TIME_STEP_TYPE;

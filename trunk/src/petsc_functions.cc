@@ -62,7 +62,7 @@ void petsc_init(int argc, char *argv[],double rtol,double abstol,int maxits) {
 	for (cit=grid.cell.begin();cit!=grid.cell.end();cit++) {
 		nextCellCount=0;
 		for (it=(*cit).faces.begin();it!=(*cit).faces.end();it++) {
-			if (grid.face[*it].bc==-1) {
+			if (grid.face[*it].bc==INTERNAL) {
 				nextCellCount++;
 			}
 		}

@@ -39,7 +39,6 @@ extern GridRawData raw;
 IndexMaps maps;
 
 int Grid::partition() {
-// parallel:unchecked
 
 	// Initialize the partition sizes
 	// This is just a simple manual partitioning to be able to use parmetis afterwards
@@ -140,7 +139,10 @@ int Grid::partition() {
 	// Find new local cellCount after ParMetis distribution
 	cellCount=0.;
 	int otherCellCounts[np]; 
-	for (unsigned int p=0;p<np;p++) otherCellCounts[p]=0; 
+	for (unsigned int p=0;p<np;p++) {
+		otherCellCounts[p]=0; 
+		partitionOffset.push_back(0);
+	}
 	
 	for (unsigned int c=0;c<globalCellCount;++c) {
 		otherCellCounts[maps.cellOwner[c]]+=1;
@@ -149,7 +151,9 @@ int Grid::partition() {
 	cout << "[I Rank=" << Rank << "] Number of Cells= " << cellCount << endl;
 	
 	myOffset=0;
-	for (int p=0;p<Rank;++p) myOffset+=otherCellCounts[p];
+	partitionOffset[0]=0;
+	for (int p=1;p<np;++p) partitionOffset[p]=partitionOffset[p-1]+otherCellCounts[p-1];
+	myOffset=partitionOffset[Rank];
 	
 } // end Grid::partition
 

@@ -105,6 +105,7 @@ int main(int argc, char *argv[]) {
 	// Hand shake with other processors
 	// (agree on which cells' data to be shared)
 	mpi_handshake();
+	mpi_get_ghost_centroids();
 	
 	initialize(input);
 	if (Rank==0) cout << "[I] Applied initial conditions" << endl;
@@ -172,7 +173,7 @@ if (grad_test) { // DEBUG
 		else if (TIME_STEP_TYPE==CFL_LOCAL) { CFLmax=CFLlocal;}
 		
 		// Gradient are calculated for NS and/or second order schemes
-		if (EQUATIONS==NS |	order==2 ) {
+		if (EQUATIONS==NS |	order==SECOND ) {
 			// Calculate all the cell gradients for each variable
 			if (DEBUG) cout << "before grid.gradients" << endl;
 			grid.gradients();
@@ -182,7 +183,7 @@ if (grad_test) { // DEBUG
 		}
 		
 		// Limit gradients (limited gradients are stored separately)
-		if (order==2) {
+		if (order==SECOND) {
 			if (DEBUG) cout << "before grid.limit_gradients" << endl;
 			grid.limit_gradients();
 			// Update limited gradients of the ghost cells

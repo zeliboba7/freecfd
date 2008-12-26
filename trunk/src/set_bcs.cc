@@ -80,10 +80,10 @@ void setBCs(InputFile &input, BC &bc) {
 			for (unsigned int f=0;f<grid.faceCount;++f) {
 				// if the face is not already marked as internal or partition boundary
 				// And if the face centroid falls within the defined box
-				if ((grid.face[f].bc>=0 || grid.face[f].bc==-2 ) && withinBox(grid.face[f].centroid,region.get_Vec3D("corner_1"),region.get_Vec3D("corner_2"))) {
+				if ((grid.face[f].bc>=0 || grid.face[f].bc==UNASSIGNED ) && withinBox(grid.face[f].centroid,region.get_Vec3D("corner_1"),region.get_Vec3D("corner_2"))) {
 					if (pick=="overRide") {
 						grid.face[f].bc=b; // real boundary conditions are marked as positive
-					} else if (pick=="unassigned" && grid.face[f].bc==-2) {
+					} else if (pick=="unassigned" && grid.face[f].bc==UNASSIGNED) {
 						grid.face[f].bc=b; // real boundary conditions are marked as positive
 					} else if (pick=="BC" && grid.face[f].bc==(pick_from-1) ) {
 						grid.face[f].bc=b;

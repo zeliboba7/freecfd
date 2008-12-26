@@ -20,20 +20,15 @@
     see <http://www.gnu.org/licenses/>.
 
 *************************************************************************/
+#include "commons.h"
 #include <mpi.h>
 #include <iostream>
 #include <fstream>
-#include <vector>
 #include <set>
 #include <map>
 #include <iomanip>
 #include <cmath>
 using namespace std;
-
-#include "grid.h"
-
-extern Grid grid;
-extern int np, Rank;
 
 extern GridRawData raw;
 extern IndexMaps maps;
@@ -126,7 +121,7 @@ int Grid::create_nodes_cells() {
 
 	cout << "[I Rank=" << Rank << "] Computed node-cell connectivity" << endl;
 	
-	// Construct the list of neighboring cells for each cell
+	// Construct the list of neighboring cells (node neighbors) for each cell
 	int c2;
 	for (unsigned int c=0;c<cellCount;++c) {
 		unsigned int n;
@@ -270,7 +265,7 @@ int Grid::create_faces() {
 			// Assign current cell as the parent cell
 			tempFace.parent=c;
 			// Assign boundary type as internal by default, will be overwritten later
-			tempFace.bc=-1;
+			tempFace.bc=INTERNAL;
 			// Store the node local ids of the current face	
 			for (unsigned int fn=0;fn<tempFace.nodeCount;++fn) {
 				switch (cell[c].nodeCount) {
@@ -303,7 +298,7 @@ int Grid::create_faces() {
 				// Insert the node list
 				for (unsigned int fn=0;fn<tempFace.nodeCount;++fn) tempFace.nodes.push_back(tempNodes[fn]);
 				if (!internal) { // If the face is either at inter-partition or boundary
-					tempFace.bc=-2; // Unassigned boundary type
+					tempFace.bc=UNASSIGNED; 
 					// As the bc faces and inter-partition faces are found, this will be overwritten.
 					// At the end, there should be no face with this value.
 					// Loop the current face nodes
@@ -363,7 +358,7 @@ int Grid::create_ghosts() {
 
 	if (np==1) {
 		for (unsigned int c=0;c<cellCount;++c) {
-			cell[c].ghostCount=cell[c].ghosts.size();
+			cell[c].ghostCount=0;
 		} // end cell loop
 	} else {
 
@@ -394,14 +389,17 @@ int Grid::create_ghosts() {
 
 		unsigned int parent, metisIndex, gg, matchCount;
 		
-		map<int,set<int> > nodeCellSet;
+		map<int,set<int> > nodeGhostSet; // Stores global id's of ghost cells near each node
 		Vec3D nodeVec;
 		
+		// Loop faces
 		for (unsigned int f=0; f<faceCount; ++f) {
-			if (face[f].bc==-2) { // if an assigned boundary face
+			if (face[f].bc==UNASSIGNED) { // if an unassigned boundary face
 				parent=face[f].parent;
+				// Loop through the cells that are adjacent to the current face's parent
 				for (unsigned int adjCount=0;adjCount<(maps.adjIndex[parent+1]-maps.adjIndex[parent]);++adjCount)  {
 					metisIndex=maps.adjacency[maps.adjIndex[parent]+adjCount];
+					// Get global id of the adjacent cell
 					gg=metis2global[metisIndex];
 					int cellNodeCount; // Find the number of nodes of the cell from raw grid data
 					if (gg<globalCellCount-1) {
@@ -409,50 +407,48 @@ int Grid::create_ghosts() {
 					} else {
 						cellNodeCount=raw.cellConnectivity.size()-raw.cellConnIndex[globalCellCount-1];
 					}
+					// If that cell is not on the current partition
 					if (metisIndex<cellCountOffset[Rank] || metisIndex>=(cellCount+cellCountOffset[Rank])) {
+						// Count number of matches in node lists of the current face and the adjacent cell
 						matchCount=0;
 						for (unsigned int fn=0;fn<face[f].nodeCount;++fn) {
 							set<int> tempSet;
-							nodeCellSet.insert(pair<unsigned int,set<int> >(face[f].nodes[fn],tempSet) );
+							nodeGhostSet.insert(pair<unsigned int,set<int> >(face[f].nodes[fn],tempSet) );
 							for (unsigned int gn=0;gn<cellNodeCount;++gn) {
 								if (raw.cellConnectivity[raw.cellConnIndex[gg]+gn]==face[f].node(fn).globalId) {
-									nodeCellSet[face[f].nodes[fn]].insert(gg);
+									nodeGhostSet[face[f].nodes[fn]].insert(gg);
 									++matchCount;
 								}
 							}
 						}
+						// foundFlag is 0 by default
+						// 0 means that particular adjacent cell wasn't discovered as a ghost before
+						// If so, create a new ghost
 						if (matchCount>0 && foundFlag[gg]==0) {
 							if (matchCount>=3) foundFlag[gg]=3;
 							if (matchCount<3) foundFlag[gg]=matchCount;
 							Ghost temp;
 							temp.globalId=gg;
 							temp.partition=maps.cellOwner[gg];
-							// Calculate the centroid
-							temp.centroid=0.;
-
-							for (unsigned int gn=0;gn<cellNodeCount;++gn) {
-								nodeVec.comp[0]=raw.x[raw.cellConnectivity[raw.cellConnIndex[gg]+gn]];
-								nodeVec.comp[1]=raw.y[raw.cellConnectivity[raw.cellConnIndex[gg]+gn]];
-								nodeVec.comp[2]=raw.z[raw.cellConnectivity[raw.cellConnIndex[gg]+gn]];
-								temp.centroid+=nodeVec;
-							}
-							temp.centroid/=double(cellNodeCount);
 							maps.ghostGlobal2Local[temp.globalId]=ghost.size();
 							ghost.push_back(temp);			
 							++ghostCount;
 						}
+						// If that ghost was found before, now we discovered another face also neighbors the same ghost
 						if (matchCount>=3) {
 							foundFlag[gg]=3;
-							face[f].bc=-1*maps.ghostGlobal2Local[gg]-3;
+							face[f].bc=GHOST;
+							face[f].neighbor=-1*maps.ghostGlobal2Local[gg]-1;
 						}
 					}
 				}
 			}
 		}
 
+		// Store the local id's of ghosts touch each node
 		map<int,set<int> >::iterator mit;
 		set<int>::iterator sit;
-		for ( mit=nodeCellSet.begin() ; mit != nodeCellSet.end(); mit++ ) {
+		for ( mit=nodeGhostSet.begin() ; mit != nodeGhostSet.end(); mit++ ) {
 			for ( sit=(*mit).second.begin() ; sit != (*mit).second.end(); sit++ ) {
 				node[(*mit).first].ghosts.push_back(maps.ghostGlobal2Local[*sit]);
 			}
