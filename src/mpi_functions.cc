@@ -21,9 +21,11 @@
 
 *************************************************************************/
 #include "mpi_functions.h"
+#include "commons.h"
 std::vector<unsigned int> *sendCells;
 unsigned int *recvCount;
 MPI_Datatype MPI_GRAD;
+MPI_Datatype MPI_VEC3D;
 MPI_Datatype MPI_GHOST;
 
 void mpi_init(int argc, char *argv[]) {
@@ -48,7 +50,12 @@ void mpi_init(int argc, char *argv[]) {
 	array_of_block_lengths[0]=1;array_of_block_lengths[1]=21;
 	MPI_Type_struct(2,array_of_block_lengths,array_of_displacements,array_of_types,&MPI_GRAD);
 	MPI_Type_commit(&MPI_GRAD);
-
+	
+	array_of_block_lengths[0]=2;array_of_block_lengths[1]=3;
+	array_of_displacements[1]=2*extent;
+	MPI_Type_struct(2,array_of_block_lengths,array_of_displacements,array_of_types,&MPI_VEC3D);
+	MPI_Type_commit(&MPI_VEC3D);
+	
 	return;
 } // end mpi_init
 
@@ -78,6 +85,34 @@ void mpi_handshake(void) {
 	}
 
 } // end mpi_handshake
+
+
+void mpi_get_ghost_centroids(void) {
+	
+	for (unsigned int p=0;p<np;++p) {
+		if (Rank!=p) {
+			mpiVec3D sendBuffer[sendCells[p].size()];
+			mpiVec3D recvBuffer[recvCount[p]];
+			int id;
+			for (unsigned int g=0;g<sendCells[p].size();++g)	{
+				id=maps.cellGlobal2Local[sendCells[p][g]];
+				sendBuffer[g].globalId=grid.cell[id].globalId;
+				sendBuffer[g].matrix_id=grid.myOffset+id;
+				for (int i=0;i<3;++i) sendBuffer[g].comp[i]=grid.cell[id].centroid[i];
+			}
+
+			int tag=Rank; // tag is set to source
+			MPI_Sendrecv(sendBuffer,sendCells[p].size(),MPI_VEC3D,p,0,recvBuffer,recvCount[p],MPI_VEC3D,p,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+
+			for (unsigned int g=0;g<recvCount[p];++g) {
+				id=maps.ghostGlobal2Local[recvBuffer[g].globalId];
+				grid.ghost[id].matrix_id=recvBuffer[g].matrix_id;
+				for (int i=0;i<3;++i) grid.ghost[id].centroid[i]=recvBuffer[g].comp[i];
+			}
+		}
+	}
+	return;
+} // end mpi_get_ghost_centroids
 
 void mpi_update_ghost_primitives(void) {
 	

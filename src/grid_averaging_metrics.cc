@@ -80,7 +80,7 @@ void Grid::nodeAverages() {
 		// Initialize stencil to nearest neighbor cells
 		for (it=(*nit).cells.begin();it<(*nit).cells.end();it++) stencil.insert(*it);
 		// Include nearest ghost cells in the stencil
-		for (it=(*nit).ghosts.begin();it!=(*nit).ghosts.end();it++) stencil.insert(-1*(*it)-1);
+		for (it=(*nit).ghosts.begin();it!=(*nit).ghosts.end();it++) stencil.insert(-(*it)-1);
 		// if the stencil doesn't have at least 4 points, expand it to include 2nd nearest neighbor cells
 		// NOTE ideally, second nearest ghosts would also need top be included but it is too much complication
 		if (stencil.size()<4) {
@@ -89,6 +89,10 @@ void Grid::nodeAverages() {
 				// Loop the cells neighboring the current cell
 				for (it2=cell[*it].neighborCells.begin();it2!=cell[*it].neighborCells.end();it2++) {
 					stencil.insert(*it2);
+				}
+				// Loop the ghost cells neighboring the current cell
+				for (it2=cell[*it].ghosts.begin();it2!=cell[*it].ghosts.end();it2++) {
+					stencil.insert(-(*it2)-1);
 				}
 				
 			}

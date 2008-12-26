@@ -86,6 +86,7 @@ class Ghost {
 public:
 	unsigned int partition;
 	unsigned int globalId;
+	unsigned int matrix_id;
 	std::vector<unsigned int> cells;
 	double rho;
 	Vec3D v,centroid,grad[7],limited_grad[7];
@@ -97,6 +98,7 @@ class Grid {
 public:
 	string fileName;
 	int myOffset;
+	vector<int> partitionOffset;
 	unsigned int nodeCount,cellCount,faceCount;
 	unsigned int globalNodeCount,globalCellCount,globalFaceCount,ghostCount;
 	std::vector<Node> node;
