@@ -99,18 +99,19 @@ void assemble_linear_system(void) {
 			bc.region[face.bc].momentum-=momentum;
 		}
 
-		// Fill in residual (rhs vector)
+		// Fill in rhs vector
 		for (int i=0;i<nSolVar;++i) {
 			row=(grid.myOffset+parent)*nSolVar+i;
 			value=diff_flux[i]-conv_flux[i];
 			VecSetValues(rhs,1,&row,&value,ADD_VALUES);
-			if (grid.face[f].bc==-1) { // TODO what if a ghost face??
+			if (grid.face[f].bc==-1) { 
 				row=(grid.myOffset+neighbor)*nSolVar+i;
 				value*=-1.;
 				VecSetValues(rhs,1,&row,&value,ADD_VALUES);
 			}
 		}
 
+		//  EXPERIMENTAL: blank viscous jacobian entries locally if Cell Reylnolds number is greater than a certain value
 // 		if (grid.face[f].bc==-1) {
 // 			double cellRe=face.rho*fabs(face.v)*0.5*(grid.cell[parent].lengthScale+grid.cell[neighbor].lengthScale)/mu;
 // 			//cout << cellRe << endl;
@@ -126,9 +127,9 @@ void assemble_linear_system(void) {
 				// Flush face fluxes
 				for (int m=0;m<7;++m) diff_fluxPlus[m]=0.;
 
-				// TODO flux for the diffusive flux jacobian is slightly different
-				// due to perturbation, account for that here
-				// Think of a better (cheaper) way to do this
+				// Flux for the diffusive flux jacobian is slightly different
+				// due to perturbation, account for that here and
+				// recalculate the viscous fluxes
 				if (viscous) {
 					for (int m=0;m<7;++m) {
 						flux[m]=0.;
@@ -142,17 +143,18 @@ void assemble_linear_system(void) {
 					if (left.update[i]>0) {epsilon=max(sqrt_machine_error,factor*left.update[i]);}
 					else {epsilon=min(-1.*sqrt_machine_error,factor*left.update[i]); }
 						
-					// Perturb left variable
+					// Perturb left state
 					left_state_perturb(left,right,face,f,i,epsilon);
+					// If right state is a boundary, correct the condition according to changes in left state
 					if (face.bc>=0) right_state_update(left,right,face,f);
 					convective_face_flux(left,right,face,f,conv_fluxPlus);
 					// Adjust face averages and gradients (crude)
-					if (viscous && i!=0 && i!=4) {
+					if (viscous && i!=0 && i!=4) { // density and pressure doesn't affect viscous fluxes
 						face_state_adjust(left,right,face,f,i);
 					 	diffusive_face_flux(left,right,face,f,diff_fluxPlus);
 					} else { for (int m=0;m<7;++m) diff_fluxPlus[m]=diff_flux[m]; }
 		
-					// Restore
+					// Restore left state
 					left_state_perturb(left,right,face,f,i,-1.*epsilon);
 					if (face.bc>=0) right_state_update(left,right,face,f);
 					if (viscous && i!=0 && i!=4) face_state_adjust(left,right,face,f,i);
@@ -163,15 +165,15 @@ void assemble_linear_system(void) {
 						col=(grid.myOffset+parent)*nSolVar+i;
 						value=-1.*(diff_fluxPlus[j]-diff_flux[j]-conv_fluxPlus[j]+conv_flux[j])/epsilon;
 						MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
-						if (face.bc==-1) { // TODO what if a ghost face??
+						if (face.bc==-1) { 
 							row=(grid.myOffset+neighbor)*nSolVar+j;
 							value*=-1.;
 							MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
 						}
 					} // for j
 		
-					if (face.bc==-1) { // TODO what if a ghost face??
-
+					if (face.bc<0) { // Internal or ghost faces
+						
 						if (right.update[i]>0) {epsilon=max(sqrt_machine_error,factor*right.update[i]); }
 						else {epsilon=min(-1.*sqrt_machine_error,factor*right.update[i]); }
 						// Perturb right variable
@@ -180,7 +182,7 @@ void assemble_linear_system(void) {
 						convective_face_flux(left,right,face,f,conv_fluxPlus);
 						if (viscous && i!=0 && i!=4) {
 							face_state_adjust(left,right,face,f,i);
-							diffusive_face_flux(left,right,face,f,diff_fluxPlus);					
+							diffusive_face_flux(left,right,face,f,diff_fluxPlus);
 						} 
 		
 						// Restore
@@ -189,10 +191,12 @@ void assemble_linear_system(void) {
 		
 						// Add change of flux (flux Jacobian) to implicit operator
 						for (int j=0;j<nSolVar;++j) {
-							row=(grid.myOffset+neighbor)*nSolVar+j;
-							col=(grid.myOffset+neighbor)*nSolVar+i;
-							value=(diff_fluxPlus[j]-diff_flux[j]-conv_fluxPlus[j]+conv_flux[j])/epsilon;
-							MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
+							if (face.bc==-1) { // only consider internal here, if ghost face, this is taken care of in its own partition
+								row=(grid.myOffset+neighbor)*nSolVar+j;
+								col=(grid.myOffset+neighbor)*nSolVar+i;
+								value=(diff_fluxPlus[j]-diff_flux[j]-conv_fluxPlus[j]+conv_flux[j])/epsilon;
+								MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
+							}
 							row=(grid.myOffset+parent)*nSolVar+j;
 							value*=-1.;
 							MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);

@@ -223,7 +223,7 @@ if (grad_test) { // DEBUG
 
 		if ((timeStep) % outFreq == 0) write_output(time,input);
 		
-		if ((timeStep) % probeFreq == 0 && Rank==0) {
+		if (Rank==0 && (timeStep) % probeFreq == 0) {
 			for (int p=0;p<probes.size();++p) {
 				Cell &c=grid.cell[probes[p].nearestCell];
 				ofstream file;
@@ -233,7 +233,7 @@ if (grad_test) { // DEBUG
 			}
 		}
 
-		if ((timeStep) % loadFreq == 0 && Rank==0) {
+		if (Rank==0 && (timeStep) % loadFreq == 0) {
 			for (int n=0;n<loads.size();++n) {
 				ofstream file;
 				file.open((loads[n].fileName).c_str(),ios::app);

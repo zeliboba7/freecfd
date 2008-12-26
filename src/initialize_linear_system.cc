@@ -95,6 +95,7 @@ void initialize_linear_system() {
 			for (int j=0;j<nSolVar;++j) {
 				col=(grid.myOffset+c)*nSolVar+j;
 				value=P[i][j]*d;
+				// TODO if not updating jacobian at this time step, should this be INSERT_VALUES??
 				MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
 			}
 		}

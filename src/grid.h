@@ -89,6 +89,7 @@ public:
 	std::vector<unsigned int> cells;
 	double rho;
 	Vec3D v,centroid,grad[7],limited_grad[7];
+	double update[7];
 	double p,k,omega,mu;
 };
 
