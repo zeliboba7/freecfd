@@ -165,7 +165,7 @@ if (grad_test) { // DEBUG
 		// Update the primitive variables of the ghost cells
 		if (DEBUG) cout << "before mpi_update_ghost_primitives" << endl;
 		mpi_update_ghost_primitives();
-		
+
 		// Get time step (will handle fixed, CFL and CFLramp)
 		if (DEBUG) cout << "before get_dt" << endl;
 		get_dt();
@@ -181,7 +181,7 @@ if (grad_test) { // DEBUG
 			if (DEBUG) cout << "before mpi_update_ghost_gradients" << endl;
 			mpi_update_ghost_gradients();
 		}
-		
+
 		// Limit gradients (limited gradients are stored separately)
 		if (order==SECOND) {
 			if (DEBUG) cout << "before grid.limit_gradients" << endl;

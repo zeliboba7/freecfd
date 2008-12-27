@@ -144,7 +144,7 @@ void mpi_update_ghost_primitives(void) {
 			for (unsigned int g=0;g<recvCount[p];++g) {
 				id=maps.ghostGlobal2Local[recvBuffer[g].globalId];
 				if (timeStep==1) {
-					for (int i=0;i<7;++i) grid.ghost[id].update[0]=0.;
+					for (int i=0;i<7;++i) grid.ghost[id].update[i]=0.;
 				} else {
 					grid.ghost[id].update[0]=recvBuffer[g].vars[0]-grid.ghost[id].rho;
 					grid.ghost[id].update[1]=recvBuffer[g].vars[1]-grid.ghost[id].v[0];
@@ -165,7 +165,6 @@ void mpi_update_ghost_primitives(void) {
 			}
 		}
 	}
-	MPI_Barrier(MPI_COMM_WORLD);
 	return;
 } // end mpi_update_ghost_primitives
 
@@ -202,7 +201,6 @@ void mpi_update_ghost_gradients(void) {
 			}
 		}
 	}
-	MPI_Barrier(MPI_COMM_WORLD);
 	return;
 } // end mpi_update_ghost_gradients
 
@@ -239,5 +237,4 @@ void mpi_update_ghost_limited_gradients(void) {
 		}
 	}
 	return;
-	MPI_Barrier(MPI_COMM_WORLD);
 } // end mpi_update_ghost_limited_gradients
