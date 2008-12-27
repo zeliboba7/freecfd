@@ -57,7 +57,7 @@ void initialize_linear_system() {
 
 	if (TURBULENCE_MODEL!=NONE) nSolVar+=2;
 
-	if ((timeStep) % jacobianUpdateFreq == 0 | timeStep==restart+1) MatZeroEntries(impOP);
+	if ((timeStep) % jacobianUpdateFreq == 0 || timeStep==restart+1) MatZeroEntries(impOP);
 	
 	PetscInt counter=0;
 
