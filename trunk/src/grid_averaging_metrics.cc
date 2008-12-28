@@ -56,12 +56,12 @@ vector<interpolation_tri> tris;
 vector<interpolation_tri>::iterator tri;
 
 Vec3D centroid1,centroid2,centroid3,centroid4,ave_centroid;
-Vec3D planeNormal,temp;
-Vec3D lineDirection;
+Vec3D lineDirection,planeNormal;
 Vec3D pp,basis1,basis2;
-double lengthScale;
 int method;
-double tolerance=1.e-3;
+double line_tolerance=1.e-4;
+double area_tolerance=1.e-4;
+double volume_tolerance=1.e-4;
 double weightSum;
 double tetra_volume,tri_area,ave_edge,line_distance;
 double closeness,skewness,weight;
@@ -74,16 +74,20 @@ double distanceMin=1.e20;
 int p1,p2;
 
 void Grid::nodeAverages() {
-		
+
+	int tetra_node_count=0;		
+	int tri_node_count=0;		
+	int line_node_count=0;		
+	int point_node_count=0;		
 	// Loop all the nodes
 	for (nit=node.begin();nit!=node.end();nit++) {
 		// Initialize stencil to nearest neighbor cells
 		for (it=(*nit).cells.begin();it<(*nit).cells.end();it++) stencil.insert(*it);
 		// Include nearest ghost cells in the stencil
-		for (it=(*nit).ghosts.begin();it!=(*nit).ghosts.end();it++) stencil.insert(-(*it)-1);
+		for (it=(*nit).ghosts.begin();it!=(*nit).ghosts.end();it++) stencil.insert(-1*(*it)-1);
 		// if the stencil doesn't have at least 4 points, expand it to include 2nd nearest neighbor cells
 		// NOTE ideally, second nearest ghosts would also need top be included but it is too much complication
-		if (stencil.size()<4) {
+		if (stencil.size()<=4) {
 			// Loop the cells neighboring the current node
 			for (it=(*nit).cells.begin();it!=(*nit).cells.end();it++) {
 				// Loop the cells neighboring the current cell
@@ -92,7 +96,7 @@ void Grid::nodeAverages() {
 				}
 				// Loop the ghost cells neighboring the current cell
 				for (it2=cell[*it].ghosts.begin();it2!=cell[*it].ghosts.end();it2++) {
-					stencil.insert(-(*it2)-1);
+					stencil.insert(-1*(*it2)-1);
 				}
 				
 			}
@@ -106,15 +110,19 @@ void Grid::nodeAverages() {
 			// Check if all the points lie on a line (True if a 1D problem)
 			// Pick first 2 points in the stencil
 			sit=sit2=stencil.begin(); sit1=++sit2; ++sit2;
-			centroid1=(*sit>=0) ? cell[*sit].centroid : ghost[-(*sit)-1].centroid;
-			centroid2=(*sit1>=0) ? cell[*sit1].centroid : ghost[-(*sit1)-1].centroid;
+			centroid1=(*sit>=0) ? cell[*sit].centroid : ghost[-1*(*sit)-1].centroid;
+			centroid2=(*sit1>=0) ? cell[*sit1].centroid : ghost[-1*(*sit1)-1].centroid;
 			// Direction of the line formed by the first 2 points
 			lineDirection=(centroid2-centroid1).norm();
-			// Loop the rest of the stencil and check if they lie on the same line (true in 1D)
+			// Loop the rest of the stencil and check if a triangle can be constructed with other points 
 			method=INTERPOLATE_LINE;
 			for (;sit2!=stencil.end();sit2++) {
-				centroid3=(*sit2>=0) ? cell[*sit2].centroid : ghost[-(*sit2)-1].centroid;
-				if ( fabs(((centroid3-centroid1).norm()).dot(lineDirection))>tolerance ) {
+				centroid3=(*sit2>=0) ? cell[*sit2].centroid : ghost[-1*(*sit2)-1].centroid;
+				ave_edge=0.333*(fabs(centroid2-centroid1)+fabs(centroid3-centroid1)+fabs(centroid3-centroid2));
+                                // Calculate the normal vector of the plane formed by these 3 points
+                                tri_area=0.5*fabs((centroid2-centroid1).cross(centroid3-centroid1));
+				// Compare triangle area to that of an equilateral one
+				if (tri_area/(0.433*ave_edge*ave_edge)>area_tolerance) {
 					// point 3 doesn't lie on the same line formed by the first 2 points
 					// Then at least one interpolation triangle can be formed
 					method=INTERPOLATE_TRI;
@@ -123,29 +131,40 @@ void Grid::nodeAverages() {
 			}
 			
 			if (method==INTERPOLATE_TRI) { // If at least one interpolation triangle can be formed
-				// Check if the rest of the points in the stencil lie on the same plane formed by the first three (true in 2D)
-				// Average edge length
-				lengthScale=0.333*(fabs(centroid2-centroid1)+fabs(centroid3-centroid1)+fabs(centroid3-centroid2));
-				// Calculate the normal vector of the plane formed by these 3 points
-				planeNormal=(centroid2-centroid1).cross(centroid3-centroid2);
+				// Check if a tetra can be formed with the rest of the points in the stencil
 				for (sit3=sit2;sit3!=stencil.end();sit3++) {
-					centroid4=(*sit3>=0) ? cell[*sit3].centroid : ghost[-(*sit3)-1].centroid;
-					if ( fabs(planeNormal.dot(centroid4-centroid1))/lengthScale>tolerance) {
-						// point 4 is not on the same plane
-						// Then at least one interpolation tetrahedra can be formed
-						method=INTERPOLATE_TETRA;
-						break;				
+					centroid4=(*sit3>=0) ? cell[*sit3].centroid : ghost[-1*(*sit3)-1].centroid;
+					// Compare tri area with that of an equilateral triangel
+                                        tetra_volume=0.166666667*fabs(((centroid2-centroid1).cross(centroid3-centroid1)).dot(centroid4-centroid1));
+                                        ave_edge=1./6.*(fabs(centroid1-centroid2)+fabs(centroid1-centroid3)+fabs(centroid1-centroid4)
+                                                       +fabs(centroid2-centroid3)+fabs(centroid2-centroid4)+fabs(centroid3-centroid4));
+
+					// Compare volume with that of an equilateral tetra
+					if (tetra_volume/(0.11785113*(pow(ave_edge,3)))>volume_tolerance) {
+                                            // point 4 is not on the same plane
+                                                // Then at least one interpolation tetrahedra can be formed
+                                                method=INTERPOLATE_TETRA;
+                                                break;
 					}
 				}
 				
 			}		
 		}
 		(*nit).average.clear();
-		if (method==INTERPOLATE_TETRA) interpolate_tetra(*nit);
-		if (method==INTERPOLATE_TRI) interpolate_tri(*nit);
-		if (method==INTERPOLATE_LINE) interpolate_line(*nit);
+		if (method==INTERPOLATE_TETRA) {
+			interpolate_tetra(*nit); tetra_node_count++;
+		}
+		if (method==INTERPOLATE_TRI) {
+			interpolate_tri(*nit); 
+			tri_node_count++;
+		}
+		if (method==INTERPOLATE_LINE) {
+			interpolate_line(*nit);
+			line_node_count++;
+		}
 		if (method==INTERPOLATE_POINT) {
 			(*nit).average.insert(pair<int,double>(*(stencil.begin()),1.));
+			point_node_count++;
 		}
 		//cout << tetras.size() << endl;
 		
@@ -154,44 +173,55 @@ void Grid::nodeAverages() {
 		tetras.clear();
 		tris.clear();
 		
+
 		//if ((*nit).id % 100 == 0) cout << "\r" << "[I Rank=" << Rank << "] " << float((*nit).id)/grid.nodeCount*100. << "% done" << endl;
 	}
+		cout << "[I Rank=" << Rank << "] Nodes for which tetra interpolation method was used = " << tetra_node_count << endl; 
+		cout << "[I Rank=" << Rank << "] Nodes for which tri interpolation method was used = " << tri_node_count << endl; 
+		cout << "[I Rank=" << Rank << "] Nodes for which line interpolation method was used = " << line_node_count << endl; 
+		cout << "[I Rank=" << Rank << "] Nodes for which point interpolation method was used = " << point_node_count << endl; 
+
 	//cout << endl;
 }
 
 void Grid::interpolate_tetra(Node& n) {
 	
 	// Loop through the stencil and construct tetra combinations
-	maxWeight=tolerance;
+	maxWeight=volume_tolerance;
 	for (sit=stencil.begin();sit!=stencil.end();sit++) {
-		centroid1=(*sit>=0) ? cell[*sit].centroid : ghost[-(*sit)-1].centroid;
-		ave_centroid=centroid1;
+		centroid1=(*sit>=0) ? cell[*sit].centroid : ghost[-1*(*sit)-1].centroid;
 		sit1=sit; sit1++;
 		for (sit1=sit1;sit1!=stencil.end();sit1++) {
-			centroid2=(*sit1>=0) ? cell[*sit1].centroid : ghost[-(*sit1)-1].centroid;
-			ave_centroid+=centroid2;
-			ave_edge=fabs(centroid1-centroid2);
+			centroid2=(*sit1>=0) ? cell[*sit1].centroid : ghost[-1*(*sit1)-1].centroid;
 			sit2=sit1; sit2++;
 			for (sit2=sit2;sit2!=stencil.end();sit2++) {
-				centroid3=(*sit2>=0) ? cell[*sit2].centroid : ghost[-(*sit2)-1].centroid;
-				ave_centroid+=centroid3;
-				ave_edge+=fabs(centroid1-centroid3);
-				temp=(centroid2-centroid1).cross(centroid3-centroid1);
+				centroid3=(*sit2>=0) ? cell[*sit2].centroid : ghost[-1*(*sit2)-1].centroid;
 				sit3=sit2; sit3++;
 				for (sit3=sit3;sit3!=stencil.end();sit3++) {
 					centroid4=(*sit3>=0) ? cell[*sit3].centroid : ghost[-(*sit3)-1].centroid;
-					tetra_volume=0.5*fabs((temp).dot(centroid4-centroid1));
-					ave_centroid=0.25*(ave_centroid+centroid4);
-					ave_edge=0.25*(ave_edge+fabs(centroid2-centroid3)+fabs(centroid4-centroid1)+fabs(centroid4-centroid2)+fabs(centroid4-centroid3));
+                                        tetra_volume=0.166666667*fabs(((centroid2-centroid1).cross(centroid3-centroid1)).dot(centroid4-centroid1));
+                                        ave_edge=1./6.*(fabs(centroid1-centroid2)+fabs(centroid1-centroid3)+fabs(centroid1-centroid4)
+                                                       +fabs(centroid2-centroid3)+fabs(centroid2-centroid4)+fabs(centroid3-centroid4));
+					ave_centroid=0.25*(centroid1+centroid2+centroid3+centroid4);
+
+                                        // Compare volume with that of an equilateral tetra
+
 					// How close the tetra center to the node for which we are interpolating
 					// Normalized by average edge length
 					closeness=fabs(n-ave_centroid)/ave_edge;
 					closeness=max(closeness,1.e-3*ave_edge);
 					closeness=1./closeness;
 					// If it was an equilateral tetra,skewness should be 1, thus the multiplier here.
-					skewness=8.48528137*tetra_volume/((pow(ave_edge,3)));
+					skewness=tetra_volume/(0.11785113*(pow(ave_edge,3)));
 					weight=closeness*skewness;
-					
+/*
+					if (Rank==1 && n.id==2236) {
+						cout << n << "\t" << weight << "\t" << skewness << "\t" << closeness << "\t" << ave_edge << endl;
+						cout << stencil.size() << endl;
+						cout << *sit << "\t" << *sit1 << "\t" << *sit2 << "\t" << *sit3 << endl;
+						cout << centroid1 << "\t" << centroid2 << "\t" << centroid3 << "\t" << centroid4 << endl;
+					}
+*/
 					if (weight>maxWeight) {
 						maxWeight=weight;
 						// Declare an interpolation tetra
@@ -209,9 +239,9 @@ void Grid::interpolate_tetra(Node& n) {
 		//if (tetras.size()>10) break;
 	} // Loop through stencil 
 	if (tetras.size()==0) { // This really shouldn't happen
-		cerr << "[E] An interpolation tetra couldn't be found for node " << n << endl;
-		cerr << "[E] This really shouldn't happen " << n << endl;
-		cerr << "[E] Please report this bug !! " << n << endl;
+		cerr << "[E Rank=" << Rank << "] An interpolation tetra couldn't be found for node " << n.id << endl;
+		cerr << "[E Rank=" << Rank << "] This really shouldn't happen " << endl;
+		cerr << "[E Rank=" << Rank << "] Please report this bug !! " << endl;
 		exit(1);
 	} else { // Everyting is normal, go ahead
 		// Normalize the weights
@@ -237,7 +267,9 @@ void Grid::interpolate_tetra(Node& n) {
 			b[0]=n[0]; b[1]=n[1]; b[2]=n[2]; b[3]=1.;
 			// Solve the 4x4 linear system by Gaussion Elimination
 			gelimd(a,b,weights,4);
-			
+			weightSum=0.;
+			for (int i=0;i<4;++i) weightSum+=weights[i];
+			if (fabs(weightSum-1)>1.e-6) cerr << "Tetra interpolation weightSum is not unity " << weightSum << endl;
 			for (int i=0;i<4;++i) {
 				if (n.average.find((*tet).cell[i])!=n.average.end()) { // if the cell contributing to the node average is already contained in the map
 					n.average[(*tet).cell[i]]+=(*tet).weight*weights[i];
@@ -254,14 +286,14 @@ void Grid::interpolate_tetra(Node& n) {
 void Grid::interpolate_tri(Node& n) {
 	
 	// Loop through the stencil and construct tri combinations
-	maxWeight=tolerance;
+	maxWeight=area_tolerance;
 	for (sit=stencil.begin();sit!=stencil.end();sit++) {
+		centroid1=(*sit>=0) ? cell[*sit].centroid : ghost[-(*sit)-1].centroid;
 		sit1=sit; sit1++;
 		for (sit1=sit1;sit1!=stencil.end();sit1++) {
+			centroid2=(*sit1>=0) ? cell[*sit1].centroid : ghost[-(*sit1)-1].centroid;
 			sit2=sit1; sit2++;
 			for (sit2=sit2;sit2!=stencil.end();sit2++) {
-				centroid1=(*sit>=0) ? cell[*sit].centroid : ghost[-(*sit)-1].centroid;
-				centroid2=(*sit1>=0) ? cell[*sit1].centroid : ghost[-(*sit1)-1].centroid;
 				centroid3=(*sit2>=0) ? cell[*sit2].centroid : ghost[-(*sit2)-1].centroid;
 				tri_area=0.5*fabs((centroid2-centroid1).cross(centroid3-centroid1));
 				ave_centroid=1./3.*(centroid1+centroid2+centroid3);
@@ -269,12 +301,11 @@ void Grid::interpolate_tri(Node& n) {
 				// How close the triangle center to the node for which we are interpolating
 				// Normalized by average edge length
 				closeness=fabs(n-ave_centroid)/ave_edge;
-				closeness=max(closeness,tolerance);
+				closeness=max(closeness,1.e-3*ave_edge);
 				closeness=1./closeness;
 				// If it was an equilateral tri,skewness should be 1, thus the multiplier here.
-				skewness=2.30940108*tri_area/((pow(ave_edge,2)));
+				skewness=tri_area/(0.433*ave_edge*ave_edge);
 				weight=closeness*skewness;
-
 				if (weight>maxWeight) {
 					maxWeight=weight;
 					// Declare an interpolation tetra
@@ -299,9 +330,9 @@ void Grid::interpolate_tri(Node& n) {
 		for (tri=tris.begin();tri!=tris.end();tri++) weightSum+=(*tri).weight;
 		for (tri=tris.begin();tri!=tris.end();tri++) {
 			(*tri).weight/=weightSum;					
-			centroid1= ((*tri).cell[0]>=0) ? cell[(*tri).cell[0]].centroid : ghost[-(*tri).cell[0]-1].centroid;
-			centroid2= ((*tri).cell[1]>=0) ? cell[(*tri).cell[1]].centroid : ghost[-(*tri).cell[1]-1].centroid;
-			centroid3= ((*tri).cell[2]>=0) ? cell[(*tri).cell[2]].centroid : ghost[-(*tri).cell[2]-1].centroid;
+			centroid1= ((*tri).cell[0]>=0) ? cell[(*tri).cell[0]].centroid : ghost[-1*(*tri).cell[0]-1].centroid;
+			centroid2= ((*tri).cell[1]>=0) ? cell[(*tri).cell[1]].centroid : ghost[-1*(*tri).cell[1]-1].centroid;
+			centroid3= ((*tri).cell[2]>=0) ? cell[(*tri).cell[2]].centroid : ghost[-1*(*tri).cell[2]-1].centroid;
 			basis1=(centroid2-centroid1).norm();
 			planeNormal=(basis1.cross(centroid3-centroid1)).norm();
 			basis2=-1.*(basis1.cross(planeNormal)).norm();
