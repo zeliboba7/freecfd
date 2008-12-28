@@ -378,10 +378,10 @@ bool withinBox(Vec3D point,Vec3D corner_1,Vec3D corner_2) {
 
 bool withinCylinder(Vec3D point,Vec3D center,double radius,Vec3D axisDirection,double height) {
 	bool check=true;
-	Vec3D radialPoint=point-center;
-	radialPoint=radialPoint.dot(axisDirection);
-	if (fabs(axisDirection.dot(point-center))>0.5*height) check=false;
-	if (fabs(radialPoint)>radius) check=false;
+	Vec3D onAxis=(point-center).dot(axisDirection)*axisDirection;;
+	Vec3D offAxis=(point-center)-onAxis;
+	if (fabs(offAxis)>0.5*height) check=false;
+	if (fabs(onAxis)>radius) check=false;
 	return check;
 }
 

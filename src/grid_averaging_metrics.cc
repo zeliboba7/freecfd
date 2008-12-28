@@ -56,12 +56,12 @@ vector<interpolation_tri> tris;
 vector<interpolation_tri>::iterator tri;
 
 Vec3D centroid1,centroid2,centroid3,centroid4,ave_centroid;
-Vec3D planeNormal;
+Vec3D planeNormal,temp;
 Vec3D lineDirection;
 Vec3D pp,basis1,basis2;
 double lengthScale;
 int method;
-double tolerance=1.e-6;
+double tolerance=1.e-3;
 double weightSum;
 double tetra_volume,tri_area,ave_edge,line_distance;
 double closeness,skewness,weight;
@@ -164,24 +164,29 @@ void Grid::interpolate_tetra(Node& n) {
 	// Loop through the stencil and construct tetra combinations
 	maxWeight=tolerance;
 	for (sit=stencil.begin();sit!=stencil.end();sit++) {
+		centroid1=(*sit>=0) ? cell[*sit].centroid : ghost[-(*sit)-1].centroid;
+		ave_centroid=centroid1;
 		sit1=sit; sit1++;
 		for (sit1=sit1;sit1!=stencil.end();sit1++) {
+			centroid2=(*sit1>=0) ? cell[*sit1].centroid : ghost[-(*sit1)-1].centroid;
+			ave_centroid+=centroid2;
+			ave_edge=fabs(centroid1-centroid2);
 			sit2=sit1; sit2++;
 			for (sit2=sit2;sit2!=stencil.end();sit2++) {
+				centroid3=(*sit2>=0) ? cell[*sit2].centroid : ghost[-(*sit2)-1].centroid;
+				ave_centroid+=centroid3;
+				ave_edge+=fabs(centroid1-centroid3);
+				temp=(centroid2-centroid1).cross(centroid3-centroid1);
 				sit3=sit2; sit3++;
 				for (sit3=sit3;sit3!=stencil.end();sit3++) {
-					centroid1=(*sit>=0) ? cell[*sit].centroid : ghost[-(*sit)-1].centroid;
-					centroid2=(*sit1>=0) ? cell[*sit1].centroid : ghost[-(*sit1)-1].centroid;
-					centroid3=(*sit2>=0) ? cell[*sit2].centroid : ghost[-(*sit2)-1].centroid;
 					centroid4=(*sit3>=0) ? cell[*sit3].centroid : ghost[-(*sit3)-1].centroid;
-					tetra_volume=0.5*fabs(((centroid2-centroid1).cross(centroid3-centroid1)).dot(centroid4-centroid1));
-					ave_centroid=0.25*(centroid1+centroid2+centroid3+centroid4);
-					ave_edge=0.25*(fabs(centroid1-centroid2)+fabs(centroid1-centroid3)+fabs(centroid2-centroid3)
-							+fabs(centroid4-centroid1)+fabs(centroid4-centroid2)+fabs(centroid4-centroid3));
+					tetra_volume=0.5*fabs((temp).dot(centroid4-centroid1));
+					ave_centroid=0.25*(ave_centroid+centroid4);
+					ave_edge=0.25*(ave_edge+fabs(centroid2-centroid3)+fabs(centroid4-centroid1)+fabs(centroid4-centroid2)+fabs(centroid4-centroid3));
 					// How close the tetra center to the node for which we are interpolating
 					// Normalized by average edge length
 					closeness=fabs(n-ave_centroid)/ave_edge;
-					closeness=max(closeness,tolerance);
+					closeness=max(closeness,1.e-3*ave_edge);
 					closeness=1./closeness;
 					// If it was an equilateral tetra,skewness should be 1, thus the multiplier here.
 					skewness=8.48528137*tetra_volume/((pow(ave_edge,3)));
