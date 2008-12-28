@@ -190,8 +190,8 @@ int Grid::areas_volumes() {
 			// [TBM] Need to swap the face and reflect the area vector
 			cout << "[W Rank=" << Rank << "] Face " << f << " normal is pointing in to its parent ... fixing " << endl;
 			face[f].normal*=-1.;
-			vector<int>::reverse_iterator rit;
-			face[f].nodes.assign(face[f].nodes.rbegin(),face[f].nodes.rend());
+			//vector<int>::reverse_iterator rit;
+			//face[f].nodes.assign(face[f].nodes.rbegin(),face[f].nodes.rend());
 		}
 	}
 	
