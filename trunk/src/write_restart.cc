@@ -82,7 +82,27 @@ void write_restart(double time) {
 	
 	// Write coonnectivity
 	for (unsigned int c=0;c<grid.cellCount;++c) {
-		if (grid.cell[c].nodeCount==6) {
+		if (grid.cell[c].nodeCount==4) {
+			file << grid.cell[c].nodes[0]+1 << "\t" ;
+			file << grid.cell[c].nodes[2]+1 << "\t" ;
+			file << grid.cell[c].nodes[1]+1 << "\t" ;
+			file << grid.cell[c].nodes[1]+1 << "\t" ;
+			file << grid.cell[c].nodes[3]+1 << "\t" ;
+			file << grid.cell[c].nodes[3]+1 << "\t" ;
+			file << grid.cell[c].nodes[3]+1 << "\t" ;
+			file << grid.cell[c].nodes[3]+1 << "\t" ;
+		}
+		else if (grid.cell[c].nodeCount==5) {
+			file << grid.cell[c].nodes[0]+1 << "\t" ;
+			file << grid.cell[c].nodes[1]+1 << "\t" ;
+			file << grid.cell[c].nodes[2]+1 << "\t" ;
+			file << grid.cell[c].nodes[3]+1 << "\t" ;
+			file << grid.cell[c].nodes[4]+1 << "\t" ;
+			file << grid.cell[c].nodes[4]+1 << "\t" ;
+			file << grid.cell[c].nodes[4]+1 << "\t" ;
+			file << grid.cell[c].nodes[4]+1 << "\t" ;
+		}
+		else if (grid.cell[c].nodeCount==6) {
 			file << grid.cell[c].nodes[0]+1 << "\t" ;
 			file << grid.cell[c].nodes[1]+1 << "\t" ;
 			file << grid.cell[c].nodes[2]+1 << "\t" ;
