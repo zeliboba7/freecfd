@@ -198,7 +198,7 @@ if (grad_test) { // DEBUG
 		if (DEBUG) cout << "before petsc_solve" << endl;
 		petsc_solve(nIter,rNorm);
 		if (DEBUG) cout << "before update_primitive" << endl;
-		//updatePrimitive();
+		updatePrimitive();
 
 		// Advance physical time
 		time += dt;
