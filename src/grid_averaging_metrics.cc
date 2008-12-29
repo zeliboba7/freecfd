@@ -59,10 +59,9 @@ Vec3D centroid1,centroid2,centroid3,centroid4,ave_centroid;
 Vec3D lineDirection,planeNormal;
 Vec3D pp,basis1,basis2;
 int method;
-double line_tolerance=1.e-4;
-double area_tolerance=1.e-4;
-double volume_tolerance=1.e-4;
-double weightSum;
+double area_tolerance=5.e-3;
+double volume_tolerance=1.e-2;
+double weightSum,weightSum2;
 double tetra_volume,tri_area,ave_edge,line_distance;
 double closeness,skewness,weight;
 double maxWeight;
@@ -186,6 +185,7 @@ void Grid::nodeAverages() {
 
 void Grid::interpolate_tetra(Node& n) {
 	
+	int combination_counter=0;
 	// Loop through the stencil and construct tetra combinations
 	maxWeight=volume_tolerance;
 	for (sit=stencil.begin();sit!=stencil.end();sit++) {
@@ -209,7 +209,7 @@ void Grid::interpolate_tetra(Node& n) {
 					// How close the tetra center to the node for which we are interpolating
 					// Normalized by average edge length
 					closeness=fabs(n-ave_centroid)/ave_edge;
-					closeness=max(closeness,1.e-3*ave_edge);
+					closeness=max(closeness,1.e-2);
 					closeness=1./closeness;
 					// If it was an equilateral tetra,skewness should be 1, thus the multiplier here.
 					skewness=tetra_volume/(0.11785113*(pow(ave_edge,3)));
@@ -230,13 +230,18 @@ void Grid::interpolate_tetra(Node& n) {
 						temp.weight=weight;
 						tetras.push_back(temp);
 					}
-					//if (tetras.size()>10) break;
+
+					//if(++combination_counter>=70) break;
+					if (tetras.size()>10) break;
 				}
-				//if (tetras.size()>10) break;
+				//if(combination_counter>=70) break;
+				if (tetras.size()>10) break;
 			}
-			//if (tetras.size()>10) break;
+			//if(combination_counter>=70) break;
+			if (tetras.size()>10) break;
 		}
-		//if (tetras.size()>10) break;
+		//if(combination_counter>=70) break;
+		if (tetras.size()>10) break;
 	} // Loop through stencil 
 	if (tetras.size()==0) { // This really shouldn't happen
 		cerr << "[E Rank=" << Rank << "] An interpolation tetra couldn't be found for node " << n.id << endl;
@@ -255,6 +260,13 @@ void Grid::interpolate_tetra(Node& n) {
  			b = new double[4];
 			weights= new double [4];
 
+			for (int i=0;i<3;++i) {
+				for (int j=0;j<4;++j) {
+					a[i][j]=cell[(*tet).cell[j]].centroid[i];
+				}
+			}
+	
+			/*
 			for (int i=0;i<4;++i) {
 				if ((*tet).cell[i]>=0) {
 					for (int j=0;j<3;++j) a[j][i]=cell[(*tet).cell[i]].centroid[j];
@@ -262,14 +274,20 @@ void Grid::interpolate_tetra(Node& n) {
 					for (int j=0;j<3;++j) a[j][i]=ghost[-((*tet).cell[i])-1].centroid[j];	
 				}
 			}
-			
+			*/
+
 			a[3][0]=1.; a[3][1]=1.; a[3][2]=1.; a[3][3]=1.;
 			b[0]=n[0]; b[1]=n[1]; b[2]=n[2]; b[3]=1.;
 			// Solve the 4x4 linear system by Gaussion Elimination
 			gelimd(a,b,weights,4);
-			weightSum=0.;
-			for (int i=0;i<4;++i) weightSum+=weights[i];
-			if (fabs(weightSum-1)>1.e-6) cerr << "Tetra interpolation weightSum is not unity " << weightSum << endl;
+			// Let's see if the linear system solution is good
+			weightSum2=0.;
+			for (int i=0;i<4;++i) weightSum2+=weights[i];
+			if (fabs(weightSum2-1)>1.e-6) {
+				cerr << "[E Rank=" << Rank << "] Tetra interpolation weightSum=" << weightSum2 << " is not unity for node " << n.id  << endl;
+				exit(1);
+			}
+
 			for (int i=0;i<4;++i) {
 				if (n.average.find((*tet).cell[i])!=n.average.end()) { // if the cell contributing to the node average is already contained in the map
 					n.average[(*tet).cell[i]]+=(*tet).weight*weights[i];
