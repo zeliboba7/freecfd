@@ -367,22 +367,27 @@ void get_CFLmax(void) {
 }
 
 bool withinBox(Vec3D point,Vec3D corner_1,Vec3D corner_2) {
-	Vec3D toCorners;
-	bool check=true;
 	for (int i=0;i<3;++i) {
-		toCorners[i]=fabs(point[i]-corner_1[i])+fabs(point[i]-corner_2[i]);
-		if (toCorners[i]>fabs(corner_1[i]-corner_2[i])) check=false;
+		if (corner_1[i]>corner_2[i]) {
+			if (point[i]>corner_1[i]) return false;
+			if (point[i]<corner_2[i]) return false;
+		} else {
+			if (point[i]<corner_1[i]) return false;
+			if (point[i]>corner_2[i]) return false;
+		}
 	}
-	return check;
+	return true;
 }
 
 bool withinCylinder(Vec3D point,Vec3D center,double radius,Vec3D axisDirection,double height) {
-	bool check=true;
-	Vec3D onAxis=(point-center).dot(axisDirection)*axisDirection;;
+	
+	Vec3D onAxis=(point-center).dot(axisDirection)*axisDirection;
+	if (fabs(onAxis)>0.5*height) return false;
+	
 	Vec3D offAxis=(point-center)-onAxis;
-	if (fabs(offAxis)>0.5*height) check=false;
-	if (fabs(onAxis)>radius) check=false;
-	return check;
+	if (fabs(offAxis)>radius) return false;
+	
+	return true;
 }
 
 bool withinSphere(Vec3D point,Vec3D center,double radius) {
