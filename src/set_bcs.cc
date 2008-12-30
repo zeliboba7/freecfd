@@ -95,6 +95,10 @@ void setBCs(InputFile &input, BC &bc) {
 
 	// Mark nodes that touch boundaries
 	for (unsigned int f=0;f<grid.faceCount;++f) {
+		if (grid.face[f].bc==UNASSIGNED) {
+			cerr << "[E Rank=" << Rank << "] Boundary condition could not be found for face " << f << endl;
+			exit(1);
+		}
 		if (grid.face[f].bc>=0) { // if a boundary face
 			for (unsigned int fn=0;fn<grid.face[f].nodeCount;++fn) {
 				grid.face[f].node(fn).bcs.insert(grid.face[f].bc);

@@ -37,6 +37,7 @@ extern Grid grid;
 extern int np, Rank;
 
 GridRawData raw;
+double block_stitch_tolerance=1.e-7;
 
 int Grid::readCGNS() {
 // parallel:OK
@@ -119,7 +120,7 @@ int Grid::readCGNS() {
 				bool foundFlag=false;
 				for (int z=0;z<zoneIndex-1;++z) {
 					for (int c2=0;c2<coordX[z].size();++c2) {
-						if (fabs(coordX[zoneIndex-1][c]-coordX[z][c2])<1.e-7 && fabs(coordY[zoneIndex-1][c]-coordY[z][c2])<1.e-7 && fabs(coordZ[zoneIndex-1][c]-coordZ[z][c2])<1.e-7) {
+						if (fabs(coordX[zoneIndex-1][c]-coordX[z][c2])<block_stitch_tolerance && fabs(coordY[zoneIndex-1][c]-coordY[z][c2])<block_stitch_tolerance && fabs(coordZ[zoneIndex-1][c]-coordZ[z][c2])<block_stitch_tolerance) {
 							zoneCoordMap[zoneIndex-1][c]=zoneCoordMap[z][c2];
 							foundFlag=true;
 							break;
