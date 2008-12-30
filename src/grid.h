@@ -118,6 +118,7 @@ public:
 	int create_ghosts();
 	int areas_volumes();
 	void nodeAverages();
+	void sortStencil(Node& n);
 	void interpolate_tetra(Node& n);
 	void interpolate_tri(Node& n);
 	void interpolate_line(Node& n);
