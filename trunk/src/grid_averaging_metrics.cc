@@ -171,22 +171,18 @@ void Grid::nodeAverages() {
 			(*nit).average.insert(pair<int,double>(*(stencil.begin()),1.));
 			point_node_count++;
 		}
-		//cout << tetras.size() << endl;
 		
 		// Clear temp data
 		stencil.clear();
 		tetras.clear();
 		tris.clear();
-		
 
-		//if ((*nit).id % 100 == 0) cout << "\r" << "[I Rank=" << Rank << "] " << float((*nit).id)/grid.nodeCount*100. << "% done" << endl;
 	}
 		cout << "[I Rank=" << Rank << "] Nodes for which tetra interpolation method was used = " << tetra_node_count << endl; 
 		cout << "[I Rank=" << Rank << "] Nodes for which tri interpolation method was used = " << tri_node_count << endl; 
 		cout << "[I Rank=" << Rank << "] Nodes for which line interpolation method was used = " << line_node_count << endl; 
 		cout << "[I Rank=" << Rank << "] Nodes for which point interpolation method was used = " << point_node_count << endl; 
 
-	//cout << endl;
 }
 
 // comparison, not case sensitive.
