@@ -189,6 +189,7 @@ int Grid::areas_volumes() {
 		if (face[f].normal.dot(face[f].centroid-cell[face[f].parent].centroid)<=0.) {
 			// [TBM] Need to swap the face and reflect the area vector
 			cout << "[W Rank=" << Rank << "] Face " << f << " normal is pointing in to its parent ... fixing " << endl;
+			cout << face[f].parent << endl;
 			face[f].normal*=-1.;
 			//vector<int>::reverse_iterator rit;
 			//face[f].nodes.assign(face[f].nodes.rbegin(),face[f].nodes.rend());
