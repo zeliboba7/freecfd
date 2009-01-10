@@ -444,23 +444,34 @@ void Grid::interpolate_tri(Node& n) {
 }
 
 void Grid::interpolate_line(Node& n) {
+	distanceMin=1.e20;
 	// Pick the two points in the stencil which are closest to the node
 	for (sit=stencil.begin();sit!=stencil.end();sit++) {
 		centroid3=(*sit>=0) ? cell[*sit].centroid : ghost[-(*sit)-1].centroid;
 		line_distance=fabs(n-centroid3);
 		if (line_distance<distanceMin) {
 			distanceMin=line_distance;
-			p2=p1;
-			centroid2=centroid1;
 			p1=*sit;
 			centroid1=centroid3;
 		}
 		
 	}
+	distanceMin=1.e20;
+	for (sit=stencil.begin();sit!=stencil.end();sit++) {
+		if (*sit!=p1) {
+			centroid3=(*sit>=0) ? cell[*sit].centroid : ghost[-(*sit)-1].centroid;
+			line_distance=fabs(n-centroid3);
+			if (line_distance<distanceMin) {
+				distanceMin=line_distance;
+				p2=*sit;
+				centroid2=centroid3;
+			}
+		}		
+	}
 	
-	lineDirection=(centroid2-centroid1).norm();
+	lineDirection=(centroid1-centroid2).norm();
 	weights= new double [2];
-	weights[0]=(n-centroid1).dot(lineDirection)/fabs(centroid2-centroid1);
+	weights[0]=(n-centroid2).dot(lineDirection)/fabs(centroid1-centroid2);
 	weights[1]=1.-weights[0];
 	n.average.insert(pair<int,double>(p1,weights[0]));
 	n.average.insert(pair<int,double>(p2,weights[1]));

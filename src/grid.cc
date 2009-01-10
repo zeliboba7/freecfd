@@ -340,8 +340,17 @@ void Grid::gradients(void) {
 				}
 				// Kill the wall normal component for slip or symmetry, pressure and rho is extrapolated
 				if (bc.region[face[f].bc].type==SLIP) { 
-					// Slip reflects the velocity vector, extrapolates the rest
+					//faceVel=cell[c].v;
+					//faceP=cell[c].p;
+					//faceRho=cell[c].rho;
+// 					Vec3D faceNormalVel=faceVel.dot(face[f].normal)*face[f].normal;
+// 					double facePstar=faceP+faceRho*faceNormalVel.dot(faceNormalVel);
+// 					double Pratio=(faceP+Pref)/(facePstar+Pref);
+// 					faceP=facePstar;
+// 					faceRho=faceRho*(gmp1+Pratio*gmm1)/(Pratio*gmp1+gmm1);
+//					faceVel-=faceNormalVel;
 					faceVel-=faceVel.dot(face[f].normal)*face[f].normal;
+					
 				}
 				if (bc.region[face[f].bc].type==SYMMETRY) {
 					// Symmetry mirrors everything
@@ -376,7 +385,6 @@ void Grid::limit_gradients(void) {
 	
 	unsigned int neighbor,g;
 	Vec3D maxGrad[7],minGrad[7];
-	
 	if(LIMITER==NONE) {
 		for (unsigned int c=0;c<cellCount;++c) for (unsigned int var=0;var<7;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].limited_grad[var].comp[comp]=cell[c].grad[var].comp[comp];
 	} else {

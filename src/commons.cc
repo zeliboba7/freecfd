@@ -35,7 +35,7 @@ double Minf, Pref;
 int order;
 double limiter_sharpening;
 int jacobianUpdateFreq;
-double Gamma,viscosity;
+double Gamma,gmp1,gmm1,viscosity;
 int outFreq, restartFreq;
 
 double sqrt_machine_error;
