@@ -92,7 +92,7 @@ void check_inputs(InputFile &input) {
 	}
 	
 	option=input.section("numericalOptions").get_string("convectiveFlux");
-	if (option=="ROE") {
+	if (option=="Roe") {
 		CONVECTIVE_FLUX_FUNCTION=ROE;
 	} else if (option=="AUSM+up") {
 		CONVECTIVE_FLUX_FUNCTION=AUSM_PLUS_UP;
@@ -160,6 +160,7 @@ void check_inputs(InputFile &input) {
 	
 	viscosity=input.section("fluidProperties").get_double("viscosity");
 	Gamma=input.section("fluidProperties").get_double("gamma");
+	gmp1=Gamma+1.; gmm1=Gamma-1.;
 	Minf=input.section("reference").get_double("Mach");
 	Pref=input.section("reference").get_double("p");
 	jacobianUpdateFreq=input.section("jacobian").get_int("updateFrequency");
@@ -174,8 +175,10 @@ void check_inputs(InputFile &input) {
 	ramp=input.section("timeMarching").subsection("ramp").is_found;
 	ramp_initial=input.section("timeMarching").subsection("ramp").get_double("initial");
 	ramp_growth=input.section("timeMarching").subsection("ramp").get_double("growth");
+	limiter_sharpening=input.section("numericalOptions").get_double("sharpeningFactor");
 	probeFreq=input.section("probes").get_int("frequency");
 	loadFreq=input.section("loads").get_int("frequency");
 	bcCount=input.section("boundaryConditions").subsection("BC",0).count;
+	
 	
 }

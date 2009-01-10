@@ -80,7 +80,7 @@ extern double Minf, Pref;
 extern int order;
 extern double limiter_sharpening;
 extern int jacobianUpdateFreq;
-extern double Gamma,viscosity;
+extern double Gamma,gmp1,gmm1,viscosity;
 extern int outFreq, restartFreq;
 
 extern double sqrt_machine_error;
