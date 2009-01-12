@@ -60,7 +60,7 @@ void read_inputs(InputFile &input) {
 	input.section("numericalOptions").register_string("preconditioner",optional,"none");
 	input.section("numericalOptions").register_string("order",optional,"second");
 	input.section("numericalOptions").register_string("limiter",optional,"none");
-	input.section("numericalOptions").register_double("sharpeningFactor",optional,0.);
+	input.section("numericalOptions").register_double("sharpeningFactor",optional,0.25);
 	input.readSection("numericalOptions");
 	
 	input.registerSection("linearSolver",required);
