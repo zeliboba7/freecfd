@@ -34,13 +34,16 @@ using namespace std;
 
 #include "inputs.h"
 #include "bc.h"
-			 
+
 extern InputFile input;
 extern BC bc;
 
 string int2str(int number) ;
-double superbee(double a, double b);
 double minmod(double a, double b);
+double doubleMinmod(double a, double b);
+double harmonic(double a, double b);
+double superbee(double a, double b);
+
 
 extern GridRawData raw;
 
@@ -305,7 +308,7 @@ void Grid::gradients(void) {
 					}
 				}
 
-				faceMach=faceVel.dot(face[f].normal)/(sqrt(Gamma*faceP/faceRho));
+				faceMach=faceVel.dot(face[f].normal)/(sqrt(Gamma*(faceP+Pref)/faceRho));
 				
 				if (bc.region[face[f].bc].type==INLET) {
 					faceRho=bc.region[face[f].bc].rho;
@@ -423,8 +426,12 @@ void Grid::limit_gradients(void) {
 					}
 				}
 			}
-			if(LIMITER==SUPERBEE) for (unsigned int var=0;var<7;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].limited_grad[var].comp[comp]=superbee(maxGrad[var].comp[comp],minGrad[var].comp[comp]);
+			
 			if(LIMITER==MINMOD) for (unsigned int var=0;var<7;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].limited_grad[var].comp[comp]=minmod(maxGrad[var].comp[comp],minGrad[var].comp[comp]);
+			if(LIMITER==DOUBLEMINMOD) for (unsigned int var=0;var<7;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].limited_grad[var].comp[comp]=doubleMinmod(maxGrad[var].comp[comp],minGrad[var].comp[comp]);
+			if(LIMITER==HARMONIC) for (unsigned int var=0;var<7;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].limited_grad[var].comp[comp]=harmonic(maxGrad[var].comp[comp],minGrad[var].comp[comp]);
+			if(LIMITER==SUPERBEE) for (unsigned int var=0;var<7;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].limited_grad[var].comp[comp]=superbee(maxGrad[var].comp[comp],minGrad[var].comp[comp]);
+			
 			
 		}
 	}

@@ -135,12 +135,16 @@ void check_inputs(InputFile &input) {
 		LIMITER=NONE;
 	} else if (option=="minmod") {
 		LIMITER=MINMOD;
+	} else if (option=="doubleMinmod") {
+		LIMITER=DOUBLEMINMOD;
+	} else if (option=="harmonic") {
+		LIMITER=HARMONIC;
 	} else if (option=="superbee") {
 		LIMITER=SUPERBEE;
 	} else {
 		if (Rank==0) {
 			cerr << "[E] Input entry numericalOptions -> limiter=" << option << " is not recognized!!" << endl;
-			cerr << "[E] Acceptable options are none, minmod and superbee" << endl;
+			cerr << "[E] Acceptable options are none, minmod, doubleMinmod, harmonic and superbee" << endl;
 			exit(1);
 		}
 	}

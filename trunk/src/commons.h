@@ -45,7 +45,9 @@
 #define AUSM_PLUS_UP 1
 // Options for LIMITER 
 #define MINMOD 0
-#define SUPERBEE 1
+#define DOUBLEMINMOD 2
+#define HARMONIC 2
+#define SUPERBEE 3
 // Options for PRECONDITIONER
 #define WS95 0
 // Options for OUTPUT_FORMAT

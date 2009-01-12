@@ -52,6 +52,8 @@ bool withinCylinder(Vec3D point,Vec3D center,double radius,Vec3D axisDirection,d
 bool withinSphere(Vec3D point,Vec3D center,double radius);
 double minmod(double a, double b);
 double maxmod(double a, double b);
+double doubleMinmod(double a, double b);
+double harmonic(double a, double b);
 double superbee(double a, double b);
 void update(void);
 void updatePrimitive(void);
@@ -62,6 +64,8 @@ void get_dt(void);
 void get_CFLmax(void);
 void set_probes(void);
 void set_loads(void);
+inline double signof(double a) { return (a == 0.) ? 0. : (a<0. ? -1. : 1.); }
+double temp;
 
 // Allocate container for boundary conditions
 BC bc;
@@ -271,7 +275,7 @@ if (grad_test) { // DEBUG
 }
 
 double minmod(double a, double b) {
-	if ((a*b)<0) {
+	if ((a*b)<0.) {
 		return 0.;
 	} else if (fabs(a) < fabs(b)) {
 		return a;
@@ -281,7 +285,7 @@ double minmod(double a, double b) {
 }
 
 double maxmod(double a, double b) {
-	if ((a*b)<0) {
+	if ((a*b)<0.) {
 		return 0.;
 	} else if (fabs(a) < fabs(b)) {
 		return b;
@@ -290,8 +294,26 @@ double maxmod(double a, double b) {
 	}
 }
 
+double doubleMinmod(double a, double b) {
+	if ((a*b)<0.) {
+		return 0.;
+	} else {
+		return signof(a+b)*min(fabs(2.*a),min(fabs(2.*b),fabs(0.5*(a+b))));
+	}
+	
+}
+
+double harmonic(double a, double b) {
+	if ((a*b)<0.) {
+		return 0.;
+	} else {
+		if (fabs(a+b)<1.e-12) return 0.5*(a+b);
+		return signof(a+b)*min(fabs(0.5*(a+b)),fabs(2.*a*b/(a+b)));
+	}
+}
+
 double superbee(double a, double b) {
-	return minmod(maxmod(a,b),minmod(a,b));
+	return minmod(maxmod(a,b),minmod(2.*a,2.*b));
 }
 
 
