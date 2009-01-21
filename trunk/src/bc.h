@@ -29,11 +29,14 @@ class BCregion {
 public:
 	int type;
 	int kind;
-	double rho,p,k,omega;
+	int thermalType;
+	int specified;
+	double T,p,k,omega,rho;
 	Vec3D v;
-	Vec3D momentum;
-	Vec3D areaVec;
 	double area;
+	Vec3D areaVec;
+	double mass,energy;
+	Vec3D momentum;
 };
 
 class BC {

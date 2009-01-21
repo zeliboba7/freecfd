@@ -28,26 +28,90 @@ extern BC bc;
 
 inline void preconditioner_none(Cell &c, double P[][7]) {
 	
+	double p=c.p+Pref;
+	double T=c.T+Tref;
+	double drho_dT; // Derivative of density w.r.t temp. @ const. press
+	double drho_dp; // Derivative of density w.r.t press. @ const temp.
+	
+	
+	// For ideal gas
+	drho_dT=-1.*c.rho/T;
+	drho_dp=c.rho/p;
+	double c_p=Gamma/(Gamma-1.)*p/(c.rho*T); 
+	
+	double H=c_p*T+0.5*c.v.dot(c.v);
+	
 	// Conservative to primite Jacobian
-	P[0][0]=1.;
-	P[1][0]=c.v[0]; P[1][1]=c.rho;
-	P[2][0]=c.v[1]; P[2][2]=P[1][1];
-	P[3][0]=c.v[2]; P[3][3]=P[1][1];
+	P[0][0]=drho_dp; P[0][4]=drho_dT;
+			
+	P[1][0]=drho_dp*c.v[0]; P[1][1]=c.rho; P[1][4]=drho_dT*c.v[0];
+	P[2][0]=drho_dp*c.v[1]; P[2][2]=c.rho; P[2][4]=drho_dT*c.v[1];
+	P[3][0]=drho_dp*c.v[2]; P[3][3]=c.rho; P[3][4]=drho_dT*c.v[2];
 		
-	P[4][0]=0.5*c.v.dot(c.v);
-	P[4][1]=P[1][1]*P[1][0];
-	P[4][2]=P[1][1]*P[2][0];
-	P[4][3]=P[1][1]*P[3][0];
-	P[4][4]=1./(Gamma-1.);
+	P[4][0]=drho_dp*H-1.; 
+	P[4][1]=c.rho*c.v[0];
+	P[4][2]=c.rho*c.v[1];
+	P[4][3]=c.rho*c.v[2];
+	P[4][4]=drho_dT*H+c.rho*c_p; 
 
-	P[5][0]=c.k; P[5][5]=P[1][1];
-	P[6][0]=c.omega; P[6][6]=P[1][1];
+	// For k and omega
+	P[5][5]=c.rho; P[6][6]=c.rho;
 	
 	return;
 }
 		
-// void preconditioner_cm91(unsigned int c, double P[][7]);
-void preconditioner_ws95(unsigned int c, double P[][7]);
+inline void preconditioner_ws95(Cell &c, double P[][7]) {
+	
+	double p=c.p+Pref;
+	double T=c.T+Tref;
+	// Reference velocity
+	double Ur;
+	
+	// Speed of sound 
+	double a=sqrt(Gamma*p/c.rho); // For ideal gas
+	
+	Ur=max(fabs(c.v),1.e-5*a);
+	Ur=min(Ur,a);
+	if (EQUATIONS==NS) Ur=max(Ur,c.mu/(c.rho*c.lengthScale));
+	
+	double deltaPmax=0.;
+	// Now loop through neighbor cells to check pressure differences
+	for (it=c.neighborCells.begin();it!=c.neighborCells.end();it++) {
+		deltaPmax=max(deltaPmax,fabs(c.p-grid.cell[*it].p));
+	}
+	// TODO loop ghosts too
+	
+	Ur=max(Ur,1.e-5*sqrt(deltaPmax/c.rho));
+	
+	double drho_dp; // Derivative of density w.r.t press. @ const temp.
+	double drho_dT; // Derivative of density w.r.t temp. @ const. press
+	
+	// For ideal gas
+	drho_dT=-1.*c.rho/T;
+	double c_p=Gamma/(Gamma-1.)*p/(c.rho*T); 
+	drho_dp=1./(Ur*Ur)-drho_dT/(c.rho*c_p); // This is the only change over non-preconditioned
+	
+	double H=c_p*T+0.5*c.v.dot(c.v);
+	
+	// Conservative to primite Jacobian
+	P[0][0]=drho_dp; P[0][4]=drho_dT;
+			
+	P[1][0]=drho_dp*c.v[0]; P[1][1]=c.rho; P[1][4]=drho_dT*c.v[0];
+	P[2][0]=drho_dp*c.v[1]; P[2][2]=c.rho; P[2][4]=drho_dT*c.v[1];
+	P[3][0]=drho_dp*c.v[2]; P[3][3]=c.rho; P[3][4]=drho_dT*c.v[2];
+		
+	P[4][0]=drho_dp*H-1.; 
+	P[4][1]=c.rho*c.v[0];
+	P[4][2]=c.rho*c.v[1];
+	P[4][3]=c.rho*c.v[2];
+	P[4][4]=drho_dT*H+c.rho*c_p; 
+
+	// For k and omega
+	P[5][5]=c.rho; P[6][6]=c.rho;
+	
+	return;
+	
+}
 
 void mat_print(double P[][7]);
 
@@ -71,7 +135,7 @@ void initialize_linear_system() {
 	for (unsigned int c=0;c<grid.cellCount;++c) {
 
 		if (PRECONDITIONER==WS95) {
-			preconditioner_ws95(c,P);
+			preconditioner_ws95(grid.cell[c],P);
 		} else {
 			preconditioner_none(grid.cell[c],P);
 		}
@@ -104,112 +168,6 @@ void initialize_linear_system() {
 
 	return;
 }
-
-
-void preconditioner_ws95(unsigned int c, double P[][7]) {
-
-	double Umax,Ur,theta,vis;
-	double rho,u,v,w,p,H,q2,a2,q,a,k,omega,rhoT,R,cp;
-	double temp [5][5];
-				
-	rho=grid.cell[c].rho;
-	u=grid.cell[c].v.comp[0];
-	v=grid.cell[c].v.comp[1];
-	w=grid.cell[c].v.comp[2];
-	p=grid.cell[c].p+Pref;
-	k=grid.cell[c].k;
-	omega=grid.cell[c].omega;
-	q2=grid.cell[c].v.dot(grid.cell[c].v);
-	a2=Gamma*p/rho;
-	H=0.5*q2+a2/(Gamma - 1.);
-	
-	for (int i=0;i<7;++i) for (int j=0;j<7;++j) P[i][j]=0.;
-	
-	P[0][0]=1.;
-	P[0][4]=-1.*rho/p;
-
-	P[1][0]=u;
-	P[1][1]=rho;
-	P[1][4]=-1.*rho*u/p;
-	P[2][0]=v;
-	P[2][2]=rho;
-	P[2][4]=-1.*rho*v/p;
-	P[3][0]=w;
-	P[3][3]=rho;
-	P[3][4]=-1.*rho*w/p;
-	
-	P[4][0]=0.5*q2;
-	P[4][1]=rho*u;
-	P[4][2]=rho*v;
-	P[4][3]=rho*w;
-	P[4][4]=-1.*rho*H/p;
-
-	P[5][0]=k; P[5][5]=rho;
-	P[6][0]=omega; P[6][6]=rho;
-	
-	return;
-}
-
-// void preconditioner_cm91(unsigned int c, double P[][7]) {
-// 
-// 	double Mach,Mach2,a2;
-// 	double rho,u,v,w,p,k,omega,e,d,q2;
-// 	double beta;
-// 	double gm1=Gamma-1.;
-// 	double R=287.;
-// 	
-// 	rho=grid.cell[c].rho;
-// 	u=grid.cell[c].v.comp[0];
-// 	v=grid.cell[c].v.comp[1];
-// 	w=grid.cell[c].v.comp[2];
-// 	p=grid.cell[c].p;
-// 	k=grid.cell[c].k;
-// 	omega=grid.cell[c].omega;
-// 	q2=grid.cell[c].v.dot(grid.cell[c].v);
-// 	a2=Gamma*(p+Pref)/rho;
-// 	Mach2=q2/a2;
-// 	Mach=sqrt(Mach2);
-// 	
-// 	if (Mach<=1.e-5) {
-// 		Mach=1.e-5;
-// 	} else if (Mach<1.) {
-// 		//use local
-// 	} else {
-// 		Mach=1.;
-// 	}
-// 
-// 	Mach2=Mach*Mach;
-// 
-// 	beta=max(1.e-5,q2);
-// 			
-// 	//beta=a2;
-// 	
-// 	e=0.5*q2+a2/(Gamma*(Gamma - 1.));
-// 	
-// 	for (int i=0;i<7;++i) for (int j=0;j<7;++j) P[i][j]=0.;
-// 
-// 	P[0][0]=1./(beta*Mach2);
-// 	
-// 	P[1][0]=u/(beta*Mach2);
-// 	P[1][1]=rho;
-// 
-// 	P[2][0]=v/(beta*Mach2);
-// 	P[2][2]=rho;
-// 
-// 	P[3][0]=w/(beta*Mach2);
-// 	P[3][3]=rho;
-// 
-// 	P[4][0]=(rho*e+p)/(rho*beta*Mach2)-1.;
-// 	P[4][1]=rho*u;
-// 	P[4][2]=rho*v;
-// 	P[4][3]=rho*w;
-// 	P[4][4]=Gamma*rho*R/(Gamma-1.);
-// 
-// 	P[5][0]=k; P[5][5]=rho;
-// 	P[6][0]=omega; P[6][6]=rho;
-// 	
-// 	return;
-// }
 
 void mat_print(double mat[][5]) {
 

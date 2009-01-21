@@ -29,7 +29,7 @@ using namespace std;
 
 extern InputFile input;
 extern vector<Probe> probes;
-extern vector<Load> loads;
+extern vector<BoundaryFlux> boundaryFluxes;
 
 extern string int2str(int number) ;
 
@@ -46,7 +46,6 @@ void set_probes(void) {
 	} in,out;
 
 	probeCount=input.section("probes").subsection("probe",0).count;
-	
 	// Loop through all the probes
 	for (int p=0;p<probeCount;++p) {
 		temp.coord=input.section("probes").subsection("probe",p).get_Vec3D("coord");
@@ -68,7 +67,7 @@ void set_probes(void) {
 	}
 
 	// Create probe files
-	for (int p=0;p<probeCount;++p) {
+	for (int p=0;p<probes.size();++p) {
 		probes[p].fileName="probe"+int2str(probes[p].id+1)+".dat";
 		ofstream file;
 		file.open((probes[p].fileName).c_str(),ios::out);
@@ -78,21 +77,21 @@ void set_probes(void) {
 	return;
 }
 
-void set_loads(void) {
-	
-	if (Rank==0) {
-		int loadCount=input.section("loads").subsection("load",0).count;
-		// Create load files
-		for (int n=0;n<loadCount;++n) {
-			Load temp;
-			temp.bc=input.section("loads").subsection("load",n).get_int("bc");
-			temp.fileName="loads_bc_"+int2str(temp.bc)+".dat";
-			loads.push_back(temp);
+void set_integrateBoundary(void) {	
+
+	int bCount=input.section("integrateBoundary").subsection("flux",0).count;
+	// Create boundary flux files
+	for (int n=0;n<bCount;++n) {
+		BoundaryFlux temp;
+		temp.bc=input.section("integrateBoundary").subsection("flux",n).get_int("bc");
+		temp.fileName="flux_bc_"+int2str(temp.bc)+".dat";
+		boundaryFluxes.push_back(temp);
+		if (Rank==0) {
 			ofstream file;
-			file.open((loads[n].fileName).c_str(),ios::out);
+			file.open((boundaryFluxes[n].fileName).c_str(),ios::out);
 			file.close();
 		}
 	}
-		
+	
 	return;
 }

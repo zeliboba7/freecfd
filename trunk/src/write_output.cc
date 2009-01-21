@@ -60,13 +60,12 @@ void write_output(double time, InputFile input) {
 }
 
 void write_tec(double time) {
-
 	ofstream file;
 	string fileName="./output/out"+int2str(timeStep)+".dat";
 	// Proc 0 creates the output file and writes variable list
 	if (Rank==0) {
 		file.open((fileName).c_str(),ios::out); 
-		file << "VARIABLES = \"x\", \"y\", \"z\",\"rho\",\"u\",\"v\",\"w\",\"p\",\"Ma\",\"k\",\"omega\" " << endl;
+		file << "VARIABLES = \"x\", \"y\", \"z\",\"p\",\"u\",\"v\",\"w\",\"T\",\"rho\",\"Ma\",\"k\",\"omega\" " << endl;
 	} else {
 		file.open((fileName).c_str(),ios::app);
 	}
@@ -79,32 +78,38 @@ void write_tec(double time) {
 	// Write variables
 	map<int,double>::iterator it;
 	set<int>::iterator sit;
-	double rho_node,p_node,k_node,omega_node;
-    Vec3D v_node;
-	int count_rho,count_v,count_k,count_omega;
+	double p_node,T_node,rho_node,k_node,omega_node;
+    	Vec3D v_node;
+	int count_p,count_v,count_T,count_k,count_omega,count_rho;
 	double Ma;
 	for (unsigned int n=0;n<grid.nodeCount;++n) {
-		rho_node=0.;v_node=0.;p_node=0.;k_node=0.;omega_node=0.;
+		p_node=0.;v_node=0.;T_node=0.;k_node=0.;omega_node=0.;
 		for ( it=grid.node[n].average.begin() ; it != grid.node[n].average.end(); it++ ) {
 			if ((*it).first>=0) { // if contribution is coming from a real cell
-				rho_node+=(*it).second*grid.cell[(*it).first].rho;
-				v_node+=(*it).second*grid.cell[(*it).first].v;
 				p_node+=(*it).second*grid.cell[(*it).first].p;
+				v_node+=(*it).second*grid.cell[(*it).first].v;
+				T_node+=(*it).second*grid.cell[(*it).first].T;
 				k_node+=(*it).second*grid.cell[(*it).first].k;
 				omega_node+=(*it).second*grid.cell[(*it).first].omega;
 			} else { // if contribution is coming from a ghost cell
-				rho_node+=(*it).second*grid.ghost[-1*((*it).first+1)].rho;
-				v_node+=(*it).second*grid.ghost[-1*((*it).first+1)].v;
 				p_node+=(*it).second*grid.ghost[-1*((*it).first+1)].p;
+				v_node+=(*it).second*grid.ghost[-1*((*it).first+1)].v;
+				T_node+=(*it).second*grid.ghost[-1*((*it).first+1)].T;
 				k_node+=(*it).second*grid.ghost[-1*((*it).first+1)].k;
 				omega_node+=(*it).second*grid.ghost[-1*((*it).first+1)].omega;
 			}
 		}
-		
-		count_rho=0; count_v=0; count_k=0; count_omega=0;
+		rho_node=eos.rho(p_node,T_node);
+		count_p=0; count_v=0; count_T=0; count_rho=0.; count_k=0; count_omega=0;
 		for (sit=grid.node[n].bcs.begin();sit!=grid.node[n].bcs.end();sit++) {
-			if (bc.region[(*sit)].type==INLET) {
+			if (bc.region[(*sit)].specified==BC_RHO) {
 				rho_node=bc.region[(*sit)].rho; count_rho++;
+				T_node=eos.T(p_node,rho_node); count_T++;
+			} else if (bc.region[(*sit)].specified==BC_T){
+				T_node=bc.region[(*sit)].T; count_T++;
+				rho_node=eos.rho(p_node,T_node); count_rho++;
+			}
+			if (bc.region[(*sit)].type==INLET) {
 				v_node=bc.region[(*sit)].v; count_v++;
 				k_node=bc.region[(*sit)].k; count_k++;
 				omega_node=bc.region[(*sit)].omega; count_omega++;
@@ -114,6 +119,7 @@ void write_tec(double time) {
 			}
 
 			if (count_rho>0) rho_node/=double(count_rho);
+			if (count_T>0) T_node/=double(count_T);
 			if (count_v>0) v_node/=double(count_v);
 			if (count_k>0) k_node/=double(count_k);
 			if (count_omega>0) omega_node/=double(count_omega);
@@ -125,18 +131,19 @@ void write_tec(double time) {
 		file << grid.node[n].comp[0] << "\t";
 		file << grid.node[n].comp[1] << "\t";
 		file << grid.node[n].comp[2] << "\t";
-		file << rho_node << "\t" ;
+		file << p_node << "\t" ;
 		file << v_node.comp[0] << "\t";
 		file << v_node.comp[1] << "\t";
 		file << v_node.comp[2] << "\t";
-		file << p_node << "\t";
+		file << T_node << "\t";
+		file << rho_node << "\t";
 		file << Ma << "\t";
 		file << k_node << "\t";
 		file << omega_node << "\t";
 		file << endl;
 	}
 
-	// Write coonnectivity
+	// Write connectivity
 	for (unsigned int c=0;c<grid.cellCount;++c) {
 		if (grid.cell[c].nodeCount==4) {
 			file << grid.cell[c].nodes[0]+1 << "\t" ;

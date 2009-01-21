@@ -62,6 +62,7 @@ int Grid::read(string fname) {
 		//readTEC();
 		//reorderRCM();
 		scale();
+		rotate();
 		partition();
 		create_nodes_cells();
 		mesh2dual();
@@ -91,14 +92,46 @@ int Grid::read(string fname) {
 // }
 
 int Grid::scale() {
-	if (input.section("grid").get_double("scaleBy").is_found) {
-		double scaleFactor=input.section("grid").get_double("scaleBy");
+	if (input.section("grid").get_Vec3D("scaleBy").is_found) {
+		Vec3D scaleFactor=input.section("grid").get_Vec3D("scaleBy");
 		for (unsigned int n=0;n<globalNodeCount;++n) {
-			raw.x[n]*=scaleFactor;
-			raw.y[n]*=scaleFactor;
-			raw.z[n]*=scaleFactor;
+			raw.x[n]*=scaleFactor[0];
+			raw.y[n]*=scaleFactor[1];
+			raw.z[n]*=scaleFactor[2];
 		}
 		if (Rank==0) cout << "[I] Grid is scaled by " << scaleFactor << endl;
+	}
+	return 1;
+}
+
+int Grid::rotate() {
+	if (input.section("grid").get_Vec3D("rotationCenter").is_found) {
+		Vec3D center=input.section("grid").get_Vec3D("rotationCenter");
+		Vec3D angles=input.section("grid").get_Vec3D("rotationAngles");
+		// Convert angles to radian
+		angles*=4.*atan(1.)/180.;
+		double x,y,z;
+		for (unsigned int n=0;n<globalNodeCount;++n) {
+			// Translate to the new center
+			raw.x[n]-=center[0];
+			raw.y[n]-=center[1];
+			raw.z[n]-=center[2];			
+			x=raw.x[n]; y=raw.y[n]; z=raw.z[n];
+			// Rotate around x axis
+			raw.y[n]=y*cos(angles[0])-z*sin(angles[0]);
+			raw.z[n]=y*sin(angles[0])+z*cos(angles[0]);
+			// Rotate around y axis
+			raw.x[n]=x*cos(angles[1])+z*sin(angles[1]);
+			raw.z[n]=-x*sin(angles[1])+z*cos(angles[1]);
+			// Rotate around z axis
+			raw.x[n]=x*cos(angles[2])-y*sin(angles[2]);
+			raw.y[n]=x*sin(angles[2])+y*cos(angles[2]);
+			// Translate back to the original center
+			raw.x[n]+=center[0];
+			raw.y[n]+=center[1];
+			raw.z[n]+=center[2];
+		}
+		if (Rank==0) cout << "[I] Grid rotation applied" << endl;
 	}
 	return 1;
 }
@@ -262,7 +295,7 @@ void Grid::gradients(void) {
 	map<int,double>::iterator fit;
 	unsigned int f;
 	Vec3D faceVel,areaVec;
-	double faceRho,faceP,faceK,faceOmega,faceMach;
+	double faceP,faceT,faceRho,faceK,faceOmega,faceMach;
 	
 	for (unsigned int c=0;c<cellCount;++c) {
 		// Initialize all gradients to zero
@@ -270,15 +303,15 @@ void Grid::gradients(void) {
 		// Add internal and interpartition face contributions
 		for (it=cell[c].gradMap.begin();it!=cell[c].gradMap.end(); it++ ) {
 			if ((*it).first>=0) { // if contribution is coming from a real cell
-				cell[c].grad[0]+=(*it).second*cell[(*it).first].rho;
+				cell[c].grad[0]+=(*it).second*cell[(*it).first].p;
 				for (unsigned int i=1;i<4;++i) cell[c].grad[i]+=(*it).second*cell[(*it).first].v.comp[i-1];
-				cell[c].grad[4]+=(*it).second*cell[(*it).first].p;
+				cell[c].grad[4]+=(*it).second*cell[(*it).first].T;
 				cell[c].grad[5]+=(*it).second*cell[(*it).first].k;
 				cell[c].grad[6]+=(*it).second*cell[(*it).first].omega;
 			} else { // if contribution is coming from a ghost cell
-				cell[c].grad[0]+=(*it).second*ghost[-1*((*it).first+1)].rho;
+				cell[c].grad[0]+=(*it).second*ghost[-1*((*it).first+1)].p;
 				for (unsigned int i=1;i<4;++i) cell[c].grad[i]+=(*it).second*ghost[-1*((*it).first+1)].v.comp[i-1];
-				cell[c].grad[4]+=(*it).second*ghost[-1*((*it).first+1)].p;
+				cell[c].grad[4]+=(*it).second*ghost[-1*((*it).first+1)].T;
 				cell[c].grad[5]+=(*it).second*ghost[-1*((*it).first+1)].k;
 				cell[c].grad[6]+=(*it).second*ghost[-1*((*it).first+1)].omega;
 			}
@@ -291,34 +324,41 @@ void Grid::gradients(void) {
 				areaVec=face[f].normal*face[f].area/cell[c].volume;
 				if (face[f].parent!=c) areaVec*=-1.;
 
-				faceVel=0.;faceRho=0.;faceP=0.;faceK=0.;faceOmega=0.;
+				faceP=0.; faceVel=0.;faceT=0.;;faceK=0.;faceOmega=0.;
 				for (fit=face[f].average.begin();fit!=face[f].average.end();fit++) {
 					if ((*fit).first>=0) { // if contribution is coming from a real cell
-						faceRho+=(*fit).second*cell[(*fit).first].rho;
-						faceVel+=(*fit).second*cell[(*fit).first].v;
 						faceP+=(*fit).second*cell[(*fit).first].p;
+						faceVel+=(*fit).second*cell[(*fit).first].v;
+						faceT+=(*fit).second*cell[(*fit).first].T;
 						faceK+=(*fit).second*cell[(*fit).first].k;
 						faceOmega+=(*fit).second*cell[(*fit).first].omega;
 					} else { // if contribution is coming from a ghost cell
-						faceRho+=(*fit).second*ghost[-1*((*fit).first+1)].rho;
-						faceVel+=(*fit).second*ghost[-1*((*fit).first+1)].v;
 						faceP+=(*fit).second*ghost[-1*((*fit).first+1)].p;
+						faceVel+=(*fit).second*ghost[-1*((*fit).first+1)].v;
+						faceT+=(*fit).second*ghost[-1*((*fit).first+1)].T;
 						faceK+=(*fit).second*ghost[-1*((*fit).first+1)].k;
 						faceOmega+=(*fit).second*ghost[-1*((*fit).first+1)].omega;
 					}
 				}
 
+				faceRho=eos.rho(faceP,faceT);
 				faceMach=faceVel.dot(face[f].normal)/(sqrt(Gamma*(faceP+Pref)/faceRho));
 				
 				if (bc.region[face[f].bc].type==INLET) {
-					faceRho=bc.region[face[f].bc].rho;
-					faceVel=bc.region[face[f].bc].v;
-					faceK=bc.region[face[f].bc].k;
-					faceOmega=bc.region[face[f].bc].omega;
 					if (faceMach<=-1.) { // If supersonic inlet
 						// Can't extrapolate anything from inside.
-						faceP=bc.region[face[f].bc].p;	
+						faceP=bc.region[face[f].bc].p;
+					} 
+					faceVel=bc.region[face[f].bc].v;
+					if (bc.region[face[f].bc].specified==BC_RHO) {
+						faceRho=bc.region[face[f].bc].rho;
+						faceT=eos.T(faceP,faceRho);
+					} else if (bc.region[face[f].bc].specified==BC_T) {
+						faceT=bc.region[face[f].bc].T;
+						faceRho=eos.rho(faceP,faceT);
 					}
+					faceK=bc.region[face[f].bc].k;
+					faceOmega=bc.region[face[f].bc].omega;
 				}
 
 				if (bc.region[grid.face[f].bc].type==OUTLET &&
@@ -326,7 +366,8 @@ void Grid::gradients(void) {
  					if (faceMach<1.) {
 						// Can only set this if subsonic outlet
 						// For supersonic, basically switches to exrapolated
-						faceP=bc.region[face[f].bc].p;	
+						faceP=bc.region[face[f].bc].p;
+						faceRho=eos.rho(faceP,faceT);
 					}
 				}
 				if (bc.region[grid.face[f].bc].type==OUTLET &&
@@ -336,8 +377,10 @@ void Grid::gradients(void) {
 						// For supersonic, basically switches to exrapolated
 						if (faceMach>=0.) { // if outflow
 							faceP=bc.region[face[f].bc].p;
+							faceRho=eos.rho(faceP,faceT);
 						} else { // if inflow
 							faceP=bc.region[face[f].bc].p-0.5*faceRho*faceVel.dot(faceVel);
+							faceRho=eos.rho(faceP,faceT);
 						}
 					}
 				}
@@ -353,27 +396,31 @@ void Grid::gradients(void) {
 // 					faceRho=faceRho*(gmp1+Pratio*gmm1)/(Pratio*gmp1+gmm1);
 //					faceVel-=faceNormalVel;
 					faceVel-=faceVel.dot(face[f].normal)*face[f].normal;
+					if (bc.region[face[f].bc].thermalType==FIXED_T) faceT=bc.region[face[f].bc].T;
 					
 				}
 				if (bc.region[face[f].bc].type==SYMMETRY) {
 					// Symmetry mirrors everything
-					faceRho=cell[face[f].parent].rho;
+					faceP=cell[face[f].parent].p;
 					faceVel=cell[face[f].parent].v;
 					faceVel-=faceVel.dot(face[f].normal)*face[f].normal;
-					faceP=cell[face[f].parent].p;
+					faceT=cell[face[f].parent].T;
 					faceK=cell[face[f].parent].k;
 					faceOmega=cell[face[f].parent].omega;
 					
 				}
 				
 				// Kill the velocity for no-slip, the rest is extrapolated
-				if (bc.region[face[f].bc].type==NOSLIP) faceVel=0.;
+				if (bc.region[face[f].bc].type==NOSLIP) {
+					faceVel=0.;
+					if (bc.region[face[f].bc].thermalType==FIXED_T) faceT=bc.region[face[f].bc].T;
+				}
 
-				cell[c].grad[0]+=faceRho*areaVec;
+				cell[c].grad[0]+=faceP*areaVec;
 				cell[c].grad[1]+=faceVel.comp[0]*areaVec;
 				cell[c].grad[2]+=faceVel.comp[1]*areaVec;
 				cell[c].grad[3]+=faceVel.comp[2]*areaVec;
-				cell[c].grad[4]+=faceP*areaVec;
+				cell[c].grad[4]+=faceT*areaVec;
 				cell[c].grad[5]+=faceK*areaVec;
 				cell[c].grad[6]+=faceOmega*areaVec;
 

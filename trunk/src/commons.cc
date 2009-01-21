@@ -31,21 +31,24 @@ int OUTPUT_FORMAT;
 int Rank,np;
 double dt,dtTarget,CFLmax,CFLmaxTarget,CFLlocal,CFLlocalTarget;
 int timeStep,restart;
-double Minf, Pref;
+double Minf,Pref,Tref;
 int order;
 double limiter_sharpening;
 int jacobianUpdateFreq;
 double Gamma,gmp1,gmm1,viscosity;
+double eosType,molarMass;
 int outFreq, restartFreq;
 
 double sqrt_machine_error;
 bool ramp; 
 double ramp_initial,ramp_growth;
 
-int probeFreq,loadFreq;
+int probeFreq,integrateBoundaryFreq;
 int bcCount;
 
 Grid grid;
+EOS eos;
+
 // Iterators
 std::vector<Cell>::iterator cit;
 std::vector<Cell>::iterator cit2;

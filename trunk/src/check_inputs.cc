@@ -149,6 +149,16 @@ void check_inputs(InputFile &input) {
 		}
 	}
 	
+	
+	option=input.section("fluidProperties").get_string("eos");
+	if (option!="idealGas") {
+		if (Rank==0) {
+			cerr << "[E] Input entry fluidProperties -> eos=" << option << " is not recognized!!" << endl;
+			cerr << "[E] Currently only available option is idealGas" << endl;
+			exit(1);
+		}
+	}
+
 	option=input.section("writeOutput").get_string("format");
 	if (option=="tecplot") {
 		OUTPUT_FORMAT=TECPLOT;
@@ -167,6 +177,7 @@ void check_inputs(InputFile &input) {
 	gmp1=Gamma+1.; gmm1=Gamma-1.;
 	Minf=input.section("reference").get_double("Mach");
 	Pref=input.section("reference").get_double("p");
+	Tref=input.section("reference").get_double("T");
 	jacobianUpdateFreq=input.section("jacobian").get_int("updateFrequency");
 	outFreq=input.section("writeOutput").get_int("plotFrequency");
 	restartFreq=input.section("writeOutput").get_int("restartFrequency");
@@ -181,7 +192,7 @@ void check_inputs(InputFile &input) {
 	ramp_growth=input.section("timeMarching").subsection("ramp").get_double("growth");
 	limiter_sharpening=input.section("numericalOptions").get_double("sharpeningFactor");
 	probeFreq=input.section("probes").get_int("frequency");
-	loadFreq=input.section("loads").get_int("frequency");
+	integrateBoundaryFreq=input.section("integrateBoundary").get_int("frequency");
 	bcCount=input.section("boundaryConditions").subsection("BC",0).count;
 	
 	
