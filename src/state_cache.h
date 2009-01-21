@@ -27,16 +27,16 @@
 
 class Cell_State {
 	public:
-		double rho,p,a,H,k,omega,mu,k_center,omega_center;
+		double p,T,rho,a,H,k,omega,mu,k_center,omega_center;
 		Vec3D v,v_center,vN;
 		double update[7];
 };
 
 class Face_State {
 	public:
-		double rho,p,k,omega,mu;
+		double p,T,rho,k,omega,mu;
 		Vec3D v;
-		Vec3D gradU,gradV,gradW,gradK,gradOmega;
+		Vec3D gradU,gradV,gradW,gradT,gradK,gradOmega;
 		Vec3D normal,tangent1,tangent2,left2right;
 		double area;
 		int bc;

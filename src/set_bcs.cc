@@ -46,13 +46,32 @@ void setBCs(InputFile &input, BC &bc) {
 		if (type=="noslip") bcRegion.type=NOSLIP;
 		if (type=="inlet") bcRegion.type=INLET;
 		if (type=="outlet") bcRegion.type=OUTLET;
-		
+
 		if (kind=="none") bcRegion.kind=NONE;
 		if (kind=="fixedPressure") bcRegion.kind=FIXED_PRESSURE;
 		if (kind=="fixedPressureEntrainment") bcRegion.kind=FIXED_PRESSURE_ENTRAINMENT;
 		
-		bcRegion.rho=region.get_double("rho");
+		bcRegion.specified=NONE;
 		bcRegion.p=region.get_double("p");
+		
+		if (region.get_double("T").is_found) {
+			if (region.get_double("rho").is_found) {
+				cerr << "Both rho and T can't be specified in boundary condition BC_" << b+1 << endl;
+				exit(1);
+			}
+			bcRegion.thermalType=FIXED_T;
+			bcRegion.T=region.get_double("T");
+			bcRegion.specified=BC_T;
+			
+		} else if (region.get_double("rho").is_found) {
+			bcRegion.thermalType=FIXED_T;
+			bcRegion.rho=region.get_double("rho");
+			bcRegion.specified=BC_RHO;
+			bcRegion.T=eos.T(bcRegion.p,region.get_double("rho"));
+		} else {
+			bcRegion.thermalType=ADIABATIC;
+		}
+
 		bcRegion.k=region.get_double("k");
 		bcRegion.omega=region.get_double("omega");
 		bcRegion.v=region.get_Vec3D("v");

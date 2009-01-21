@@ -97,7 +97,7 @@ void mpi_get_ghost_centroids(void) {
 			mpiVec3D sendBuffer[sendCells[p].size()];
 			mpiVec3D recvBuffer[recvCount[p]];
 			int id;
-			for (unsigned int g=0;g<sendCells[p].size();++g)	{
+			for (unsigned int g=0;g<sendCells[p].size();++g) {
 				id=maps.cellGlobal2Local[sendCells[p][g]];
 				sendBuffer[g].globalId=grid.cell[id].globalId;
 				sendBuffer[g].matrix_id=grid.myOffset+id;
@@ -128,11 +128,11 @@ void mpi_update_ghost_primitives(void) {
 			for (unsigned int g=0;g<sendCells[p].size();++g)	{
 				id=maps.cellGlobal2Local[sendCells[p][g]];
 				sendBuffer[g].globalId=grid.cell[id].globalId;
-				sendBuffer[g].vars[0]=grid.cell[id].rho;
-				sendBuffer[g].vars[1]=grid.cell[id].v.comp[0];
-				sendBuffer[g].vars[2]=grid.cell[id].v.comp[1];
-				sendBuffer[g].vars[3]=grid.cell[id].v.comp[2];
-				sendBuffer[g].vars[4]=grid.cell[id].p;
+				sendBuffer[g].vars[0]=grid.cell[id].p;
+				sendBuffer[g].vars[1]=grid.cell[id].v[0];
+				sendBuffer[g].vars[2]=grid.cell[id].v[1];
+				sendBuffer[g].vars[3]=grid.cell[id].v[2];
+				sendBuffer[g].vars[4]=grid.cell[id].T;
 				sendBuffer[g].vars[5]=grid.cell[id].k;
 				sendBuffer[g].vars[6]=grid.cell[id].omega;
 				sendBuffer[g].vars[7]=grid.cell[id].mu;
@@ -146,22 +146,23 @@ void mpi_update_ghost_primitives(void) {
 				if (timeStep==1) {
 					for (int i=0;i<7;++i) grid.ghost[id].update[i]=0.;
 				} else {
-					grid.ghost[id].update[0]=recvBuffer[g].vars[0]-grid.ghost[id].rho;
+					grid.ghost[id].update[0]=recvBuffer[g].vars[0]-grid.ghost[id].p;
 					grid.ghost[id].update[1]=recvBuffer[g].vars[1]-grid.ghost[id].v[0];
 					grid.ghost[id].update[2]=recvBuffer[g].vars[2]-grid.ghost[id].v[1];
 					grid.ghost[id].update[3]=recvBuffer[g].vars[3]-grid.ghost[id].v[2];
-					grid.ghost[id].update[4]=recvBuffer[g].vars[4]-grid.ghost[id].p;
+					grid.ghost[id].update[4]=recvBuffer[g].vars[4]-grid.ghost[id].T;
 					grid.ghost[id].update[5]=recvBuffer[g].vars[5]-grid.ghost[id].k;
 					grid.ghost[id].update[6]=recvBuffer[g].vars[6]-grid.ghost[id].omega;
 				}
-				grid.ghost[id].rho=recvBuffer[g].vars[0];
+				grid.ghost[id].p=recvBuffer[g].vars[0];
 				grid.ghost[id].v.comp[0]=recvBuffer[g].vars[1];
 				grid.ghost[id].v.comp[1]=recvBuffer[g].vars[2];
 				grid.ghost[id].v.comp[2]=recvBuffer[g].vars[3];
-				grid.ghost[id].p=recvBuffer[g].vars[4];
+				grid.ghost[id].T=recvBuffer[g].vars[4];
 				grid.ghost[id].k=recvBuffer[g].vars[5];
 				grid.ghost[id].omega=recvBuffer[g].vars[6];
 				grid.ghost[id].mu=recvBuffer[g].vars[7];
+				grid.ghost[id].rho=eos.rho(grid.ghost[id].p,grid.ghost[id].T);
 			}
 		}
 	}

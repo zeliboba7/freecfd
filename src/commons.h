@@ -26,42 +26,45 @@
 #include <string>
 #include <vector>
 #include "grid.h"
+#include "eos.h"
+
+#define UNIV_GAS_CONST 8.31447215
 
 #define NONE -1
 // Options of EQUATIONS
-#define NS 0
-#define EULER 1
+#define NS 1
+#define EULER 2
 // Options for TURBULENCE_MODEL
-#define KOMEGA 0
+#define KOMEGA 1
 // Options for TIME_INTEGRATOR
-#define FORWARD_EULER 0
-#define BACKWARD_EULER 1
+#define FORWARD_EULER 1
+#define BACKWARD_EULER 2
 // Options for TIME_STEP_TYPE
-#define FIXED 0
-#define CFL_MAX 1
-#define CFL_LOCAL 2
+#define FIXED 1
+#define CFL_MAX 2
+#define CFL_LOCAL 3
 // Options for CONVECTIVE_FLUX_FUNCTION
 #define ROE 1
-#define AUSM_PLUS_UP 1
+#define AUSM_PLUS_UP 2
 // Options for LIMITER 
-#define MINMOD 0
+#define MINMOD 1
 #define DOUBLEMINMOD 2
-#define HARMONIC 2
-#define SUPERBEE 3
+#define HARMONIC 3
+#define SUPERBEE 4
 // Options for PRECONDITIONER
-#define WS95 0
+#define WS95 1
 // Options for OUTPUT_FORMAT
-#define TECPLOT 0
-#define VTK 1
+#define TECPLOT 1
+#define VTK 2
 // Options for Boundary Condition Types
-#define SYMMETRY 0
-#define SLIP 1
-#define NOSLIP 2
-#define INLET 3
-#define OUTLET 4
+#define SYMMETRY 1
+#define SLIP 2
+#define NOSLIP 3
+#define INLET 4
+#define OUTLET 5
 // Options for Boundary Condition Type variants (kind)
-#define FIXED_PRESSURE 0
-#define FIXED_PRESSURE_ENTRAINMENT 1
+#define FIXED_PRESSURE 1
+#define FIXED_PRESSURE_ENTRAINMENT 2
 // Face bc type numbering
 #define INTERNAL -1
 #define UNASSIGNED -2
@@ -69,6 +72,15 @@
 // Options for order
 #define FIRST 1
 #define SECOND 2
+// Options for thermal boundary condition
+#define FIXED_T 1
+#define FIXED_Q 2
+#define ADIABATIC 3
+// Options for Equation of State
+#define IDEAL_GAS 1
+// Options for Bc specifications
+#define BC_RHO 1
+#define BC_T 2
 
 extern int EQUATIONS,TURBULENCE_MODEL;
 extern int TIME_INTEGRATOR,TIME_STEP_TYPE;
@@ -78,21 +90,24 @@ extern int OUTPUT_FORMAT;
 extern int Rank,np;
 extern double dt,dtTarget,CFLmax,CFLmaxTarget,CFLlocal,CFLlocalTarget;
 extern int timeStep,restart;
-extern double Minf, Pref;
+extern double Minf,Pref,Tref;
 extern int order;
 extern double limiter_sharpening;
 extern int jacobianUpdateFreq;
 extern double Gamma,gmp1,gmm1,viscosity;
+extern double eosType,molarMass;
 extern int outFreq, restartFreq;
 
 extern double sqrt_machine_error;
 extern bool ramp; 
 extern double ramp_initial,ramp_growth;
 
-extern int probeFreq,loadFreq;
+extern int probeFreq,integrateBoundaryFreq;
 extern int bcCount;
 
 extern Grid grid;
+extern EOS eos;
+
 // Iterators
 extern std::vector<Cell>::iterator cit;
 extern std::vector<Node>::iterator nit;

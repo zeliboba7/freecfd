@@ -79,7 +79,7 @@ void read_restart(double &time) {
 				id=maps.cellGlobal2Local[partitionMap[p][c]];
 			}
 			// If id is negative, that means the cell currently lies on another partition
-			if (id>=0) { file >> grid.cell[id].rho; } else { file >> dummy; }
+			if (id>=0) { file >> grid.cell[id].p; } else { file >> dummy; }
 		}
 		// Read u-velocity
 		for (unsigned int c=0;c<ncells[p];++c) {
@@ -111,7 +111,11 @@ void read_restart(double &time) {
 			if (maps.cellGlobal2Local.find(partitionMap[p][c])!=maps.cellGlobal2Local.end()) {
 				id=maps.cellGlobal2Local[partitionMap[p][c]];
 			}
-			if (id>=0) { file >> grid.cell[id].p; } else { file >> dummy; }
+			if (id>=0) { 
+				file >> grid.cell[id].T; 
+				grid.cell[id].rho=eos.rho(grid.cell[id].p,grid.cell[id].T);
+			
+			} else { file >> dummy; }
 		}
 		// Skip connectivity list
 		getline(file,data,'\n');

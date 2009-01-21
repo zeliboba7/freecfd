@@ -36,12 +36,15 @@ void read_inputs(InputFile &input) {
 	input.readEntries();
 	
 	input.registerSection("grid",optional);
-	input.section("grid").register_double("scaleBy",optional,1.);
+	input.section("grid").register_Vec3D("scaleBy",optional,1.);
+	input.section("grid").register_Vec3D("rotationCenter",optional,0.);
+	input.section("grid").register_Vec3D("rotationAngles",optional,0.);
 	input.readSection("grid");
 	
 	input.registerSection("reference",optional);
 	input.section("reference").register_double("Mach",optional,1.);
 	input.section("reference").register_double("p",optional,0.);
+	input.section("reference").register_double("T",optional,273.);
 	input.readSection("reference");
 	
 	input.registerSection("timeMarching",required);
@@ -75,6 +78,10 @@ void read_inputs(InputFile &input) {
 	
 	input.registerSection("fluidProperties",required);
 	input.section("fluidProperties").register_double("gamma",required);
+	// molarMass is used in calculating the ideal gas constant 
+	// by default, air's molar mass is used if not specified
+	input.section("fluidProperties").register_double("molarMass",optional,0.02897);
+	input.section("fluidProperties").register_string("eos",optional,"idealGas");
 	bool viscRequired= (input.get_string("equations")=="Euler")? false : true;
 	input.section("fluidProperties").register_double("viscosity",viscRequired,0.); 
 	input.readSection("fluidProperties");
@@ -91,11 +98,11 @@ void read_inputs(InputFile &input) {
 	input.section("probes").subsection("probe",0).register_Vec3D("coord",optional);
 	input.readSection("probes");
 
-	input.registerSection("loads",optional);
-	input.section("loads").register_int("frequency",optional,1);
-	input.section("loads").registerSubsection("load",numbered,optional);
-	input.section("loads").subsection("load",0).register_int("bc",optional);
-	input.readSection("loads");
+	input.registerSection("integrateBoundary",optional);
+	input.section("integrateBoundary").register_int("frequency",optional,1);
+	input.section("integrateBoundary").registerSubsection("flux",numbered,optional);
+	input.section("integrateBoundary").subsection("flux",0).register_int("bc",optional);
+	input.readSection("integrateBoundary");
 	
 	input.registerSection("initialConditions",required);
 	input.section("initialConditions").registerSubsection("IC",numbered,required);
@@ -106,9 +113,10 @@ void read_inputs(InputFile &input) {
 	input.section("initialConditions").subsection("IC",0).register_Vec3D("axisDirection",optional);
 	input.section("initialConditions").subsection("IC",0).register_double("radius",optional);
 	input.section("initialConditions").subsection("IC",0).register_double("height",optional);
-	input.section("initialConditions").subsection("IC",0).register_double("rho",required);
-	input.section("initialConditions").subsection("IC",0).register_Vec3D("v",required);
 	input.section("initialConditions").subsection("IC",0).register_double("p",required);
+	input.section("initialConditions").subsection("IC",0).register_Vec3D("v",required);
+	input.section("initialConditions").subsection("IC",0).register_double("T",optional);
+	input.section("initialConditions").subsection("IC",0).register_double("rho",optional);
 	input.section("initialConditions").subsection("IC",0).register_double("k",optional,0.);
 	input.section("initialConditions").subsection("IC",0).register_double("omega",optional,0.);
 	input.readSection("initialConditions");
@@ -121,9 +129,10 @@ void read_inputs(InputFile &input) {
 	input.section("boundaryConditions").subsection("BC",0).register_Vec3D("corner_1",optional);
 	input.section("boundaryConditions").subsection("BC",0).register_Vec3D("corner_2",optional);
 	input.section("boundaryConditions").subsection("BC",0).register_string("pick",optional,"overRide");
-	input.section("boundaryConditions").subsection("BC",0).register_double("rho",optional);
-	input.section("boundaryConditions").subsection("BC",0).register_Vec3D("v",optional);	
 	input.section("boundaryConditions").subsection("BC",0).register_double("p",optional);
+	input.section("boundaryConditions").subsection("BC",0).register_Vec3D("v",optional);
+	input.section("boundaryConditions").subsection("BC",0).register_double("T",optional);	
+	input.section("boundaryConditions").subsection("BC",0).register_double("rho",optional);	
 	input.section("boundaryConditions").subsection("BC",0).register_double("k",optional,0.);
 	input.section("boundaryConditions").subsection("BC",0).register_double("omega",optional,0.);
 	input.readSection("boundaryConditions");

@@ -35,8 +35,6 @@ using namespace std;
 
 extern string int2str(int number) ;
 
-extern bool grad_test; // DEBUG
-
 void write_restart(double time) {
 
 	ofstream file;
@@ -47,8 +45,7 @@ void write_restart(double time) {
 	// Proc 0 creates the output file and writes variable list
 	if (Rank==0) {
 		file.open((fileName).c_str(),ios::out); 
-		if (!grad_test) file << "VARIABLES = \"x\", \"y\", \"z\",\"rho\",\"u\",\"v\",\"w\",\"p\" " << endl; // DEBUG
-		if (grad_test) file << "VARIABLES = \"x\", \"y\", \"z\",\"rho\",\"grad_x\",\"grad_y\",\"grad_z\" " << endl; // DEBUG
+		file << "VARIABLES = \"x\", \"y\", \"z\",\"p\",\"u\",\"v\",\"w\",\"T\" " << endl; // DEBUG
 	} else {
 		file.open((fileName).c_str(),ios::app);
 	}
@@ -66,19 +63,13 @@ void write_restart(double time) {
 	}
 
 	// Write variables
-	if (grad_test) { // DEBUG
-		for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].rho << endl; // DEBUG
-		for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].grad[0].comp[0] << endl; // DEBUG
-		for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].grad[0].comp[1] << endl; // DEBUG
-		for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].grad[0].comp[2] << endl; // DEBUG
-	} else {// DEBUG
-		for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].rho << endl;
+
+	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].p << endl;
 	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].v.comp[0] << endl;
 	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].v.comp[1] << endl;
 	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].v.comp[2] << endl;
-	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].p << endl;
+	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].T << endl;
 
-	} // DEBUG
 	
 	// Write coonnectivity
 	for (unsigned int c=0;c<grid.cellCount;++c) {

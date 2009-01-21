@@ -63,7 +63,7 @@ void initialize_linear_system(void);
 void get_dt(void);
 void get_CFLmax(void);
 void set_probes(void);
-void set_loads(void);
+void set_integrateBoundary(void);
 inline double signof(double a) { return (a == 0.) ? 0. : (a<0. ? -1. : 1.); }
 double temp;
 
@@ -72,9 +72,7 @@ BC bc;
 InputFile input;
 
 vector<Probe> probes;
-vector<Load> loads;
-
-bool grad_test=false; // DEBUG
+vector<BoundaryFlux> boundaryFluxes;
 
 int main(int argc, char *argv[]) {
 
@@ -96,6 +94,9 @@ int main(int argc, char *argv[]) {
 
 	input.setFile(inputFileName);
 	read_inputs(input);
+	// Set equation of state based on the inputs
+	eos.set();
+
 	// Physical time
 	double time=0.;
 
@@ -118,7 +119,7 @@ int main(int argc, char *argv[]) {
 	if (Rank==0) cout << "[I] Set boundary conditions" << endl;
 
 	set_probes();
-	set_loads();
+	set_integrateBoundary();
 
 	grid.lengthScales();
 	
@@ -153,6 +154,7 @@ int main(int argc, char *argv[]) {
 	MPI_Barrier(MPI_COMM_WORLD);
 	double timeRef, timeEnd;
 	timeRef=MPI_Wtime();
+
 	/*****************************************************************************************/
 	// Begin time loop
 	/*****************************************************************************************/
@@ -161,47 +163,42 @@ int main(int argc, char *argv[]) {
 
 		int nIter; // Number of linear solver iterations
 		double rNorm; // Residual norm of the linear solver
-if (grad_test) { // DEBUG
-	grid.gradients(); // DEBUG
-	write_restart(time); // DEBUG
-	break;
-} else {
+
+		// Flush boundary forces
+		if ((timeStep) % integrateBoundaryFreq == 0) {
+			for (int i=0;i<bcCount;++i) {
+				bc.region[i].mass=0.;
+				bc.region[i].momentum=0.;
+				bc.region[i].energy=0.;
+			}
+		}
+
 		// Update the primitive variables of the ghost cells
-		if (DEBUG) cout << "before mpi_update_ghost_primitives" << endl;
 		mpi_update_ghost_primitives();
 
 		// Get time step (will handle fixed, CFL and CFLramp)
-		if (DEBUG) cout << "before get_dt" << endl;
 		get_dt();
 		if (TIME_STEP_TYPE==FIXED) { get_CFLmax(); } 
 		else if (TIME_STEP_TYPE==CFL_LOCAL) { CFLmax=CFLlocal;}
 		
 		// Gradient are calculated for NS and/or second order schemes
-		if (EQUATIONS==NS |	order==SECOND ) {
+		if (EQUATIONS==NS | order==SECOND ) {
 			// Calculate all the cell gradients for each variable
-			if (DEBUG) cout << "before grid.gradients" << endl;
 			grid.gradients();
 			// Update gradients of the ghost cells
-			if (DEBUG) cout << "before mpi_update_ghost_gradients" << endl;
 			mpi_update_ghost_gradients();
 		}
 
 		// Limit gradients (limited gradients are stored separately)
 		if (order==SECOND) {
-			if (DEBUG) cout << "before grid.limit_gradients" << endl;
 			grid.limit_gradients();
 			// Update limited gradients of the ghost cells
-			if (DEBUG) cout << "before mpi_update_ghost_limited_gradients" << endl;
 			mpi_update_ghost_limited_gradients();
 		}
 
-		if (DEBUG) cout << "before initialize_linear_system" << endl;
 		initialize_linear_system();
-		if (DEBUG) cout << "before assemble_linear_system" << endl;
 		assemble_linear_system();
-		if (DEBUG) cout << "before petsc_solve" << endl;
 		petsc_solve(nIter,rNorm);
-		if (DEBUG) cout << "before update_primitive" << endl;
 		updatePrimitive();
 
 		// Advance physical time
@@ -228,33 +225,39 @@ if (grad_test) { // DEBUG
 
 		if ((timeStep) % outFreq == 0) write_output(time,input);
 		
-		if (Rank==0 && (timeStep) % probeFreq == 0) {
+		if ((timeStep) % probeFreq == 0) {
+
 			for (int p=0;p<probes.size();++p) {
 				Cell &c=grid.cell[probes[p].nearestCell];
 				ofstream file;
 				file.open((probes[p].fileName).c_str(),ios::app);
-				file << timeStep << setw(16) << setprecision(8)  << "\t" << time << "\t" << c.rho << "\t" << c.v[0] << "\t" << c.v[1] << "\t" << c.v[2] << "\t" << c.p << endl;
+				file << timeStep << setw(16) << setprecision(8)  << "\t" << time << "\t" << c.p << "\t" << c.v[0] << "\t" << c.v[1] << "\t" << c.v[2] << "\t" << c.T << "\t" << c.rho << endl;
 				file.close();
 			}
 		}
 
-		if (Rank==0 && (timeStep) % loadFreq == 0) {
-			for (int n=0;n<loads.size();++n) {
-				ofstream file;
-				file.open((loads[n].fileName).c_str(),ios::app);
-				file << timeStep << setw(16) << setprecision(8)  << "\t" << time << "\t" << bc.region[loads[n].bc-1].momentum[0];
-				file << "\t" << bc.region[loads[n].bc-1].momentum[1];
-				file << "\t" << bc.region[loads[n].bc-1].momentum[2] << endl;
-				file.close();
+		if ((timeStep) % integrateBoundaryFreq == 0) {
+			for (int n=0;n<boundaryFluxes.size();++n) {
+				// Sum integrated boundary fluxes accross partitions
+				double myFlux[5],integratedFlux[5];
+				myFlux[0]=bc.region[boundaryFluxes[n].bc-1].mass;
+				for (int i=0;i<3;++i) myFlux[i+1]=bc.region[boundaryFluxes[n].bc-1].momentum[i];
+				myFlux[4]=bc.region[boundaryFluxes[n].bc-1].energy;				
+				MPI_Reduce(&myFlux,&integratedFlux,5, MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
+				MPI_Barrier(MPI_COMM_WORLD);
+				// TODO Instead of data transfer between my and integrated 
+				// Try MPI_IN_PLACE, also is the Barrier need here?
+				if (Rank==0) {
+					ofstream file;
+					file.open((boundaryFluxes[n].fileName).c_str(),ios::app);
+					file << timeStep << setw(16) << setprecision(8)  << "\t" << time;
+					for (int i=0;i<5;++i) file << "\t" << integratedFlux[i];
+					file << endl;
+					file.close();
+				}
 			}
 		}
-		
-		// Flush boundary forces
-		for (int i=0;i<bcCount;++i) bc.region[i].momentum=0.;
-		
-}// DEBUG
-
-
+	
 	}
 
 	/*****************************************************************************************/
@@ -343,13 +346,14 @@ void update(void) {
 void updatePrimitive(void) {
 
 	for (unsigned int c = 0;c < grid.cellCount;++c) {
-		grid.cell[c].rho +=grid.cell[c].update[0];
+		grid.cell[c].p +=grid.cell[c].update[0];
 		grid.cell[c].v.comp[0] +=grid.cell[c].update[1];
 		grid.cell[c].v.comp[1] +=grid.cell[c].update[2];
 		grid.cell[c].v.comp[2] +=grid.cell[c].update[3];
-		grid.cell[c].p += grid.cell[c].update[4];
+		grid.cell[c].T += grid.cell[c].update[4];
 		grid.cell[c].k += grid.cell[c].update[5];
 		grid.cell[c].omega += grid.cell[c].update[6];
+		grid.cell[c].rho=eos.rho(grid.cell[c].p,grid.cell[c].T);
 	} // cell loop
 	return;
 }

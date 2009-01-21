@@ -37,7 +37,7 @@ class Probe {
 		string fileName;
 };
 
-class Load {
+class BoundaryFlux {
 	public:
 		int bc;
 		string fileName;

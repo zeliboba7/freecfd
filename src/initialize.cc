@@ -23,7 +23,6 @@
 #include "commons.h"
 #include "grid.h"
 #include "inputs.h"
-extern bool grad_test;// DEBUG
 
 bool withinBox(Vec3D point, Vec3D corner_1, Vec3D corner_2);
 bool withinCylinder(Vec3D point, Vec3D center, double radius, Vec3D axisDirection, double height);
@@ -37,6 +36,26 @@ void initialize(InputFile &input) {
 		// Store the reference to current IC region
 		Subsection &region=input.section("initialConditions").subsection("IC",ic);
 		Vec3D regionV=region.get_Vec3D("v");
+		double regionRho,regionP,regionT,regionK,regionOmega;
+		// Assign specified values
+		regionP=region.get_double("p");
+		if (region.get_double("rho").is_found) { // Rho is specified in the input file
+			//  Check if Temperature is also specifid
+			if (region.get_double("T").is_found) {
+				cerr << "Both rho and T can't be specified in initial condition IC_" << ic+1 << endl;
+				exit(1);
+			}
+			regionRho=region.get_double("rho");
+			regionT=eos.T(regionP,regionRho);
+		} else if (region.get_double("T").is_found) {
+			regionT=region.get_double("T");
+			regionRho=eos.rho(regionP,regionT);	
+		} else {
+			cerr << "Need to specify either rho or T in initial condition IC_" << ic+1 << endl;
+			exit(1);
+		}
+		regionK=region.get_double("k");
+		regionOmega=region.get_double("omega");
 		// If region is specified with a box method
 		if (region.get_string("region")=="box") {
 			// Loop the cells
@@ -44,11 +63,12 @@ void initialize(InputFile &input) {
 				// Check if the cell centroid is inside the box region
 				if (withinBox(grid.cell[c].centroid,region.get_Vec3D("corner_1"),region.get_Vec3D("corner_2"))) {
 					// Assign specified values
-					grid.cell[c].rho=region.get_double("rho");
-					grid.cell[c].v=region.get_Vec3D("v");
-					grid.cell[c].p=region.get_double("p");
-					grid.cell[c].k=region.get_double("k");
-					grid.cell[c].omega=region.get_double("omega");
+					grid.cell[c].p=regionP;
+					grid.cell[c].T=regionT;
+					grid.cell[c].rho=regionRho;
+					grid.cell[c].v=regionV;
+					grid.cell[c].k=regionK;
+					grid.cell[c].omega=regionOmega;
 				}
 			}
 		} else if (region.get_string("region")=="cylinder") {
@@ -58,10 +78,11 @@ void initialize(InputFile &input) {
 				Vec3D axisDirection=region.get_Vec3D("axisDirection");
 				axisDirection=axisDirection.norm();
 				if (withinCylinder(grid.cell[c].centroid,region.get_Vec3D("center"),region.get_double("radius"),axisDirection,region.get_double("height"))) {
-					grid.cell[c].rho=region.get_double("rho");
-					grid.cell[c].p=region.get_double("p");
-					grid.cell[c].k=region.get_double("k");
-					grid.cell[c].omega=region.get_double("omega");
+					grid.cell[c].p=regionP;
+					grid.cell[c].T=regionT;
+					grid.cell[c].rho=regionRho;
+					grid.cell[c].k=regionK;
+					grid.cell[c].omega=regionOmega;
 					// first component of the specified velocity is interpreted as the axial velocity
 					// second component of the specified velocity is interpreted as the radial velocity
 					// third component of the specified velocity is interpreted as the circumferential velocity
@@ -78,8 +99,11 @@ void initialize(InputFile &input) {
 			for (unsigned int c=0;c<grid.cellCount;++c) {
 				// Check if the cell centroid is inside the sphere region
 				if (withinSphere(grid.cell[c].centroid,region.get_Vec3D("center"),region.get_double("radius"))) {
-					grid.cell[c].rho=region.get_double("rho");
-					grid.cell[c].p=region.get_double("p");
+					grid.cell[c].p=regionP;
+					grid.cell[c].T=regionT;
+					grid.cell[c].rho=regionRho;
+					grid.cell[c].k=regionK;
+					grid.cell[c].omega=regionOmega;
 					grid.cell[c].k=region.get_double("k");
 					grid.cell[c].omega=region.get_double("omega");
 					// first component of the specified velocity is interpreted as the radial velocity
@@ -97,16 +121,6 @@ void initialize(InputFile &input) {
 			grid.cell[c].update[i]=0.;
 		}
 	}
-	
-	if (grad_test) { // DEBUG
-		for (unsigned int c=0;c<grid.cellCount;++c) { // DEBUG
-			//grid.cell[c].rho=2.*grid.cell[c].centroid.comp[0]+2.; // DEBUG
-			grid.cell[c].rho=2.*grid.cell[c].centroid.comp[0]*grid.cell[c].centroid.comp[0]+2.*grid.cell[c].centroid.comp[0]+2.; // DEBUG
-			//grid.cell[c].rho=1.; // DEBUG
-		}// DEBUG
-	}// DEBUG
-	
-	
 	
 	return;
 }

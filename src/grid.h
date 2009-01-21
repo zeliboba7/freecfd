@@ -71,8 +71,9 @@ public:
 	std::vector<int> faces;
 	std::vector<int> neighborCells;
 	std::vector<int> ghosts;
-	double rho,p,k,omega,mu;
+	double p,T,rho,k,omega,mu;
 	Vec3D v,grad[7],limited_grad[7];
+	// Gradients are stored as p,u,v,w,T,k,omega in order
 	std::map<int,Vec3D> gradMap;
 	double flux[7];
 	double update[7];
@@ -88,10 +89,10 @@ public:
 	unsigned int globalId;
 	unsigned int matrix_id;
 	std::vector<unsigned int> cells;
-	double rho;
+	double p,T,rho,k,omega,mu;
+	// Gradients are stored as p,u,v,w,T,k,omega in order
 	Vec3D v,centroid,grad[7],limited_grad[7];
 	double update[7];
-	double p,k,omega,mu;
 };
 
 class Grid {
@@ -111,6 +112,7 @@ public:
 	int readTEC();
 	//int reorderRCM();
 	int scale();
+	int rotate();
 	int partition();
 	int mesh2dual();
 	int create_nodes_cells();
