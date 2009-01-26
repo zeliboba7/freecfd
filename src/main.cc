@@ -174,7 +174,9 @@ int main(int argc, char *argv[]) {
 		}
 
 		// Update the primitive variables of the ghost cells
-		mpi_update_ghost_primitives();
+		// At first iteration, done here
+		// For the remaining, done after solving
+		if (timeStep==restart+1) mpi_update_ghost_primitives();
 
 		// Get time step (will handle fixed, CFL and CFLramp)
 		get_dt();
@@ -200,7 +202,9 @@ int main(int argc, char *argv[]) {
 		assemble_linear_system();
 		petsc_solve(nIter,rNorm);
 		updatePrimitive();
-
+		// Update the primitive variables of the ghost cells
+		mpi_update_ghost_primitives();
+		
 		// Advance physical time
 		time += dt;
 		if (Rank==0) {

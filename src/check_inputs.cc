@@ -104,6 +104,19 @@ void check_inputs(InputFile &input) {
 		}
 	}
 	
+	option=input.section("numericalOptions").get_string("convectiveFluxJac");
+	if (option=="Roe") {
+		CONVECTIVE_FLUX_FUNCTION_JAC=ROE;
+	} else if (option=="AUSM+up") {
+		CONVECTIVE_FLUX_FUNCTION_JAC=AUSM_PLUS_UP;
+	} else {
+		if (Rank==0) {
+			cerr << "[E] Input entry numericalOptions -> convectiveFluxJac=" << option << " is not recognized!!" << endl;
+			cerr << "[E] Acceptable options are Roe and AUSM+up" << endl;
+			exit(1);
+		}
+	}
+	
 	option=input.section("numericalOptions").get_string("preconditioner");
 	if (option=="none") {
 		PRECONDITIONER=NONE;
@@ -173,6 +186,7 @@ void check_inputs(InputFile &input) {
 	}
 	
 	viscosity=input.section("fluidProperties").get_double("viscosity");
+	conductivity=input.section("fluidProperties").get_double("thermalConductivity");
 	Gamma=input.section("fluidProperties").get_double("gamma");
 	gmp1=Gamma+1.; gmm1=Gamma-1.;
 	Minf=input.section("reference").get_double("Mach");

@@ -27,7 +27,7 @@
 
 class Cell_State {
 	public:
-		double p,T,rho,a,H,k,omega,mu,k_center,omega_center;
+		double p,T,T_center,rho,a,H,k,omega,mu,k_center,omega_center;
 		Vec3D v,v_center,vN;
 		double update[7];
 };

@@ -52,23 +52,42 @@ void setBCs(InputFile &input, BC &bc) {
 		if (kind=="fixedPressureEntrainment") bcRegion.kind=FIXED_PRESSURE_ENTRAINMENT;
 		
 		bcRegion.specified=NONE;
-		bcRegion.p=region.get_double("p");
 		
-		if (region.get_double("T").is_found) {
-			if (region.get_double("rho").is_found) {
-				cerr << "Both rho and T can't be specified in boundary condition BC_" << b+1 << endl;
-				exit(1);
+
+		if (region.get_double("p").is_found) {
+			bcRegion.p=region.get_double("p");
+			if (region.get_double("T").is_found) {
+				if (region.get_double("rho").is_found) {
+					cerr << "[E] Thermodynamic state is overspecified in boundary condition BC_" << b+1 << endl;
+					exit(1);
+				}
+				bcRegion.T=region.get_double("T");
+				bcRegion.rho=eos.rho(bcRegion.p,bcRegion.T);
+				bcRegion.specified=BC_STATE;
+				bcRegion.thermalType=FIXED_T;
+			} else if (region.get_double("rho").is_found) {
+				bcRegion.rho=region.get_double("rho");
+				bcRegion.T=eos.T(bcRegion.p,bcRegion.rho);
+				bcRegion.specified=BC_STATE;
+				bcRegion.thermalType=FIXED_T;
+			} else {
+				bcRegion.specified=BC_P;
+				bcRegion.thermalType=ADIABATIC;
 			}
-			bcRegion.thermalType=FIXED_T;
+		} else if (region.get_double("T").is_found) {
 			bcRegion.T=region.get_double("T");
-			bcRegion.specified=BC_T;
-			
+			if (region.get_double("rho").is_found) {
+				bcRegion.rho=region.get_double("rho");
+				bcRegion.p=eos.p(bcRegion.rho,bcRegion.T);
+				bcRegion.specified=BC_STATE;
+				bcRegion.thermalType=FIXED_T;
+			} else {
+				bcRegion.specified=BC_T;
+				bcRegion.thermalType=FIXED_T;
+			}
 		} else if (region.get_double("rho").is_found) {
-			bcRegion.thermalType=FIXED_T;
 			bcRegion.rho=region.get_double("rho");
 			bcRegion.specified=BC_RHO;
-			bcRegion.T=eos.T(bcRegion.p,region.get_double("rho"));
-		} else {
 			bcRegion.thermalType=ADIABATIC;
 		}
 

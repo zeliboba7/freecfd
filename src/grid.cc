@@ -341,49 +341,66 @@ void Grid::gradients(void) {
 					}
 				}
 
-				faceRho=eos.rho(faceP,faceT);
-				faceMach=faceVel.dot(face[f].normal)/(sqrt(Gamma*(faceP+Pref)/faceRho));
+// 				faceRho=eos.rho(faceP,faceT);
+// 				faceMach=faceVel.dot(face[f].normal)/(sqrt(Gamma*(faceP+Pref)/faceRho));
+				
+				if (bc.region[face[f].bc].specified==BC_STATE) {
+					faceP=bc.region[face[f].bc].p;
+					faceT=bc.region[face[f].bc].T;
+					faceRho=bc.region[face[f].bc].rho;
+				} else if (bc.region[face[f].bc].specified==BC_P) {
+					faceP=bc.region[face[f].bc].p;
+					faceT=eos.T(faceP,faceRho); // density is extrapolated	
+				} else if (bc.region[face[f].bc].specified==BC_T) {
+					faceT=bc.region[face[f].bc].T;
+					faceRho=eos.rho(faceP,faceT); // pressure is extrapolated
+				} else if (bc.region[face[f].bc].specified==BC_RHO) {
+					faceRho=bc.region[face[f].bc].rho;
+					faceP=eos.p(faceRho,faceT); // temperature is extrapolated
+				} // If nothing is specified, everything is extrapolated
 				
 				if (bc.region[face[f].bc].type==INLET) {
-					if (faceMach<=-1.) { // If supersonic inlet
-						// Can't extrapolate anything from inside.
-						faceP=bc.region[face[f].bc].p;
-					} 
+// 					if (faceMach<=-1.) { // If supersonic inlet
+// 						// Can't extrapolate anything from inside.
+// 						faceP=bc.region[face[f].bc].p;
+// 					} 
 					faceVel=bc.region[face[f].bc].v;
-					if (bc.region[face[f].bc].specified==BC_RHO) {
-						faceRho=bc.region[face[f].bc].rho;
-						faceT=eos.T(faceP,faceRho);
-					} else if (bc.region[face[f].bc].specified==BC_T) {
-						faceT=bc.region[face[f].bc].T;
-						faceRho=eos.rho(faceP,faceT);
-					}
+
+					
+// 					if (bc.region[face[f].bc].specified==BC_RHO) {
+// 						faceRho=bc.region[face[f].bc].rho;
+// 						faceT=eos.T(faceP,faceRho);
+// 					} else if (bc.region[face[f].bc].specified==BC_T) {
+// 						faceT=bc.region[face[f].bc].T;
+// 						faceRho=eos.rho(faceP,faceT);
+// 					}
 					faceK=bc.region[face[f].bc].k;
 					faceOmega=bc.region[face[f].bc].omega;
 				}
 
-				if (bc.region[grid.face[f].bc].type==OUTLET &&
-					bc.region[grid.face[f].bc].kind==FIXED_PRESSURE) {
- 					if (faceMach<1.) {
-						// Can only set this if subsonic outlet
-						// For supersonic, basically switches to exrapolated
-						faceP=bc.region[face[f].bc].p;
-						faceRho=eos.rho(faceP,faceT);
-					}
-				}
-				if (bc.region[grid.face[f].bc].type==OUTLET &&
-								bc.region[grid.face[f].bc].kind==FIXED_PRESSURE_ENTRAINMENT) {
-					if (faceMach<1.) {
-						// Can only set this if subsonic outlet
-						// For supersonic, basically switches to exrapolated
-						if (faceMach>=0.) { // if outflow
-							faceP=bc.region[face[f].bc].p;
-							faceRho=eos.rho(faceP,faceT);
-						} else { // if inflow
-							faceP=bc.region[face[f].bc].p-0.5*faceRho*faceVel.dot(faceVel);
-							faceRho=eos.rho(faceP,faceT);
-						}
-					}
-				}
+// 				if (bc.region[grid.face[f].bc].type==OUTLET &&
+// 					bc.region[grid.face[f].bc].kind==FIXED_PRESSURE) {
+//  					if (faceMach<1.) {
+// 						// Can only set this if subsonic outlet
+// 						// For supersonic, basically switches to exrapolated
+// 						faceP=bc.region[face[f].bc].p;
+// 						faceRho=eos.rho(faceP,faceT);
+// 					}
+// 				}
+// 				if (bc.region[grid.face[f].bc].type==OUTLET &&
+// 								bc.region[grid.face[f].bc].kind==FIXED_PRESSURE_ENTRAINMENT) {
+// 					if (faceMach<1.) {
+// 						// Can only set this if subsonic outlet
+// 						// For supersonic, basically switches to exrapolated
+// 						if (faceMach>=0.) { // if outflow
+// 							faceP=bc.region[face[f].bc].p;
+// 							faceRho=eos.rho(faceP,faceT);
+// 						} else { // if inflow
+// 							faceP=bc.region[face[f].bc].p-0.5*faceRho*faceVel.dot(faceVel);
+// 							faceRho=eos.rho(faceP,faceT);
+// 						}
+// 					}
+// 				}
 				// Kill the wall normal component for slip or symmetry, pressure and rho is extrapolated
 				if (bc.region[face[f].bc].type==SLIP) { 
 					//faceVel=cell[c].v;
@@ -396,7 +413,10 @@ void Grid::gradients(void) {
 // 					faceRho=faceRho*(gmp1+Pratio*gmm1)/(Pratio*gmp1+gmm1);
 //					faceVel-=faceNormalVel;
 					faceVel-=faceVel.dot(face[f].normal)*face[f].normal;
-					if (bc.region[face[f].bc].thermalType==FIXED_T) faceT=bc.region[face[f].bc].T;
+// 					if (bc.region[face[f].bc].thermalType==FIXED_T) {
+// 						faceT=bc.region[face[f].bc].T;
+// 						faceRho=eos.rho(faceP,faceT);
+// 					}
 					
 				}
 				if (bc.region[face[f].bc].type==SYMMETRY) {
@@ -413,7 +433,10 @@ void Grid::gradients(void) {
 				// Kill the velocity for no-slip, the rest is extrapolated
 				if (bc.region[face[f].bc].type==NOSLIP) {
 					faceVel=0.;
-					if (bc.region[face[f].bc].thermalType==FIXED_T) faceT=bc.region[face[f].bc].T;
+// 					if (bc.region[face[f].bc].thermalType==FIXED_T) {
+// 						faceT=bc.region[face[f].bc].T;
+// 						faceRho=eos.rho(faceP,faceT);
+// 					}
 				}
 
 				cell[c].grad[0]+=faceP*areaVec;

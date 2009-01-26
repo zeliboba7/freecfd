@@ -78,13 +78,18 @@
 #define ADIABATIC 3
 // Options for Equation of State
 #define IDEAL_GAS 1
-// Options for Bc specifications
+// Options for BC specifications
 #define BC_RHO 1
-#define BC_T 2
+#define BC_P 2
+#define BC_T 3
+#define BC_STATE 4
+#define BC_V 5
+#define BC_EXTRAPOLATE 6
+#define BC_REFLECT 7
 
 extern int EQUATIONS,TURBULENCE_MODEL;
 extern int TIME_INTEGRATOR,TIME_STEP_TYPE;
-extern int CONVECTIVE_FLUX_FUNCTION,LIMITER,PRECONDITIONER;
+extern int CONVECTIVE_FLUX_FUNCTION,CONVECTIVE_FLUX_FUNCTION_JAC,LIMITER,PRECONDITIONER;
 extern int OUTPUT_FORMAT;
 
 extern int Rank,np;
@@ -94,7 +99,7 @@ extern double Minf,Pref,Tref;
 extern int order;
 extern double limiter_sharpening;
 extern int jacobianUpdateFreq;
-extern double Gamma,gmp1,gmm1,viscosity;
+extern double Gamma,gmp1,gmm1,viscosity,conductivity;
 extern double eosType,molarMass;
 extern int outFreq, restartFreq;
 

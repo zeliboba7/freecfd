@@ -40,27 +40,28 @@ void diffusive_face_flux(Cell_State &left,Cell_State &right,Face_State &face,uns
 	*/
 	
 	areaVec=face.normal*face.area;
-	tau_x.comp[0]=2./3.*(2.*face.gradU.comp[0]-face.gradV.comp[1]-face.gradW.comp[2]);
-	tau_x.comp[1]=face.gradU.comp[1]+face.gradV.comp[0];
-	tau_x.comp[2]=face.gradU.comp[2]+face.gradW.comp[0];
-	tau_y.comp[0]=tau_x.comp[1];
-	tau_y.comp[1]=2./3.* (2.*face.gradV.comp[1]-face.gradU.comp[0]-face.gradW.comp[2]);
-	tau_y.comp[2]=face.gradV.comp[2]+face.gradW.comp[1];
-	tau_z.comp[0]=tau_x.comp[2];
-	tau_z.comp[1]=tau_y.comp[2];
-	tau_z.comp[2]=2./3.*(2.*face.gradW.comp[2]-face.gradU.comp[0]-face.gradV.comp[1]);
+	tau_x[0]=2./3.*(2.*face.gradU[0]-face.gradV[1]-face.gradW[2]);
+	tau_x[1]=face.gradU[1]+face.gradV[0];
+	tau_x[2]=face.gradU[2]+face.gradW[0];
+	tau_y[0]=tau_x[1];
+	tau_y[1]=2./3.* (2.*face.gradV[1]-face.gradU[0]-face.gradW[2]);
+	tau_y[2]=face.gradV[2]+face.gradW[1];
+	tau_z[0]=tau_x[2];
+	tau_z[1]=tau_y[2];
+	tau_z[2]=2./3.*(2.*face.gradW[2]-face.gradU[0]-face.gradV[1]);
 
 	flux[1]=(viscosity)*tau_x.dot(areaVec);
 	flux[2]=(viscosity)*tau_y.dot(areaVec);
 	flux[3]=(viscosity)*tau_z.dot(areaVec);
-	flux[4]=(viscosity)*(tau_x.dot(face.v)*areaVec.comp[0]+tau_y.dot(face.v)*areaVec.comp[1]+tau_z.dot(face.v) *areaVec.comp[2]);
-
+	flux[4]=(viscosity)*(tau_x.dot(face.v)*areaVec[0]+tau_y.dot(face.v)*areaVec[1]+tau_z.dot(face.v) *areaVec[2]);
+	//cout << conductivity << "\t" << face.gradT << "\t" << face.bc <<  endl;
+	flux[4]+=conductivity*face.gradT.dot(areaVec);
 	/*
 	// Diffusive k and omega fluxes
  	flux[5]=(viscosity+mu_t/SigmaK)*face.gradK.dot(areaVec);
  	flux[6]=(viscosity+mu_t/SigmaOmega)*face.gradOmega.dot(areaVec);
 
-	double tauUgrad=face.rho/(viscosity+mu_t)*(face.v.comp[0]*flux[1]+face.v.comp[1]*flux[2]+face.v.comp[2]*flux[3]);
+	double tauUgrad=face.rho/(viscosity+mu_t)*(face.v[0]*flux[1]+face.v[1]*flux[2]+face.v[2]*flux[3]);
 	flux[5]=tauUgrad;
 	flux[6]=alpha*face.omega/face.k*tauUgrad;
 	*/
