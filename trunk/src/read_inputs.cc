@@ -60,6 +60,7 @@ void read_inputs(InputFile &input) {
 	
 	input.registerSection("numericalOptions",optional);
 	input.section("numericalOptions").register_string("convectiveFlux",optional,"AUSM+up");
+	input.section("numericalOptions").register_string("convectiveFluxJac",optional,"AUSM+up");
 	input.section("numericalOptions").register_string("preconditioner",optional,"none");
 	input.section("numericalOptions").register_string("order",optional,"second");
 	input.section("numericalOptions").register_string("limiter",optional,"none");
@@ -83,7 +84,8 @@ void read_inputs(InputFile &input) {
 	input.section("fluidProperties").register_double("molarMass",optional,0.02897);
 	input.section("fluidProperties").register_string("eos",optional,"idealGas");
 	bool viscRequired= (input.get_string("equations")=="Euler")? false : true;
-	input.section("fluidProperties").register_double("viscosity",viscRequired,0.); 
+	input.section("fluidProperties").register_double("viscosity",viscRequired,0.);
+	input.section("fluidProperties").register_double("thermalConductivity",optional,0.);
 	input.readSection("fluidProperties");
 	
 	input.registerSection("writeOutput",required);

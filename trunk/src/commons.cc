@@ -25,7 +25,7 @@
 
 int EQUATIONS,TURBULENCE_MODEL;
 int TIME_INTEGRATOR,TIME_STEP_TYPE;
-int CONVECTIVE_FLUX_FUNCTION,LIMITER,PRECONDITIONER;
+int CONVECTIVE_FLUX_FUNCTION,CONVECTIVE_FLUX_FUNCTION_JAC,LIMITER,PRECONDITIONER;
 int OUTPUT_FORMAT;
 
 int Rank,np;
@@ -35,7 +35,7 @@ double Minf,Pref,Tref;
 int order;
 double limiter_sharpening;
 int jacobianUpdateFreq;
-double Gamma,gmp1,gmm1,viscosity;
+double Gamma,gmp1,gmm1,viscosity,conductivity;
 double eosType,molarMass;
 int outFreq, restartFreq;
 

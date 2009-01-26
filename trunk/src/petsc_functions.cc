@@ -109,14 +109,10 @@ void petsc_solve(int &nIter,double &rNorm) {
 	KSPGetIterationNumber(ksp,&nIter);
 	KSPGetResidualNorm(ksp,&rNorm);
 
-	//VecScatterBegin(scatterContext,deltaU,globalUpdate,INSERT_VALUES,SCATTER_FORWARD);
-	//VecScatterEnd(scatterContext,deltaU,globalUpdate,INSERT_VALUES,SCATTER_FORWARD);
-
 	int index;
 	for (unsigned int c=0;c<grid.cellCount;++c) {
 		for (int i=0;i<nSolVar;++i) {
 			index=(grid.myOffset+c)*nSolVar+i;
-			//VecGetValues(globalUpdate,1,&index,&grid.cell[c].update[i]);
 			VecGetValues(deltaU,1,&index,&grid.cell[c].update[i]);
 		}
 	}
