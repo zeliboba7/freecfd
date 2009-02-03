@@ -214,9 +214,9 @@ int main(int argc, char *argv[]) {
 		
 		// Ramp-up if needed
 		if (ramp) {
-				if (TIME_STEP_TYPE==FIXED) dt=min(dt*ramp_growth,dtTarget);
-				if (TIME_STEP_TYPE==CFL_MAX) CFLmax=min(CFLmax*ramp_growth,CFLmaxTarget);
-				if (TIME_STEP_TYPE==CFL_LOCAL) CFLlocal=min(CFLlocal*ramp_growth,CFLlocalTarget);
+			if (TIME_STEP_TYPE==FIXED) dt=min(dt*ramp_growth,dtTarget);
+			if (TIME_STEP_TYPE==CFL_MAX) CFLmax=min(CFLmax*ramp_growth,CFLmaxTarget);
+			if (TIME_STEP_TYPE==CFL_LOCAL) CFLlocal=min(CFLlocal*ramp_growth,CFLlocalTarget);
 		}
 			
 		if ((timeStep) % restartFreq == 0) {
@@ -247,8 +247,10 @@ int main(int argc, char *argv[]) {
 				myFlux[0]=bc.region[boundaryFluxes[n].bc-1].mass;
 				for (int i=0;i<3;++i) myFlux[i+1]=bc.region[boundaryFluxes[n].bc-1].momentum[i];
 				myFlux[4]=bc.region[boundaryFluxes[n].bc-1].energy;				
-				MPI_Reduce(&myFlux,&integratedFlux,5, MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
-				MPI_Barrier(MPI_COMM_WORLD);
+				if (np!=1) {
+					MPI_Reduce(&myFlux,&integratedFlux,5, MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
+					MPI_Barrier(MPI_COMM_WORLD);
+				} else {for (int i=0;i<5;++i) integratedFlux[i]=myFlux[i]; }
 				// TODO Instead of data transfer between my and integrated 
 				// Try MPI_IN_PLACE, also is the Barrier need here?
 				if (Rank==0) {
@@ -261,6 +263,15 @@ int main(int argc, char *argv[]) {
 				}
 			}
 		}
+		
+// 		if (timeStep=restart+1) {
+// 			petsc_finalize();
+// 			MPI_Barrier(MPI_COMM_WORLD);
+// 			petsc_init(argc,argv,
+// 				   input.section("linearSolver").get_double("relTolerance"),
+// 						   input.section("linearSolver").get_double("absTolerance"),
+// 								   input.section("linearSolver").get_int("maxIterations"));
+// 		}
 	
 	}
 
@@ -351,9 +362,9 @@ void updatePrimitive(void) {
 
 	for (unsigned int c = 0;c < grid.cellCount;++c) {
 		grid.cell[c].p +=grid.cell[c].update[0];
-		grid.cell[c].v.comp[0] +=grid.cell[c].update[1];
-		grid.cell[c].v.comp[1] +=grid.cell[c].update[2];
-		grid.cell[c].v.comp[2] +=grid.cell[c].update[3];
+		grid.cell[c].v[0] +=grid.cell[c].update[1];
+		grid.cell[c].v[1] +=grid.cell[c].update[2];
+		grid.cell[c].v[2] +=grid.cell[c].update[3];
 		grid.cell[c].T += grid.cell[c].update[4];
 		grid.cell[c].k += grid.cell[c].update[5];
 		grid.cell[c].omega += grid.cell[c].update[6];

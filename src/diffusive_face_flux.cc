@@ -53,9 +53,11 @@ void diffusive_face_flux(Cell_State &left,Cell_State &right,Face_State &face,uns
 	flux[1]=(viscosity)*tau_x.dot(areaVec);
 	flux[2]=(viscosity)*tau_y.dot(areaVec);
 	flux[3]=(viscosity)*tau_z.dot(areaVec);
-	flux[4]=(viscosity)*(tau_x.dot(face.v)*areaVec[0]+tau_y.dot(face.v)*areaVec[1]+tau_z.dot(face.v) *areaVec[2]);
-	//cout << conductivity << "\t" << face.gradT << "\t" << face.bc <<  endl;
-	flux[4]+=conductivity*face.gradT.dot(areaVec);
+	flux[4]=(viscosity)*(tau_x.dot(face.v)*areaVec[0]+tau_y.dot(face.v)*areaVec[1]+tau_z.dot(face.v)*areaVec[2]);
+	flux[4]+=conductivity*face.T*face.area;
+	flux[5]=0.;
+	flux[6]=0.;
+
 	/*
 	// Diffusive k and omega fluxes
  	flux[5]=(viscosity+mu_t/SigmaK)*face.gradK.dot(areaVec);

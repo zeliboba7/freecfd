@@ -227,8 +227,8 @@ int Grid::areas_volumes() {
 			cout << "[W Rank=" << Rank << "] Face " << f << " normal is pointing in to its parent ... fixing " << endl;
 			cout << face[f].parent << endl;
 			face[f].normal*=-1.;
-			//vector<int>::reverse_iterator rit;
-			//face[f].nodes.assign(face[f].nodes.rbegin(),face[f].nodes.rend());
+			vector<int>::reverse_iterator rit;
+			face[f].nodes.assign(face[f].nodes.rbegin(),face[f].nodes.rend());
 		}
 	}
 	
@@ -290,7 +290,6 @@ void Grid::gradMaps() {
 void Grid::gradients(void) {
 
 	// Calculate cell gradients
-
 	map<int,Vec3D>::iterator it;
 	map<int,double>::iterator fit;
 	unsigned int f;
@@ -322,8 +321,7 @@ void Grid::gradients(void) {
 			f=cell[c].faces[cf];
 			if (face[f].bc>=0) { // if a boundary face
 				areaVec=face[f].normal*face[f].area/cell[c].volume;
-				if (face[f].parent!=c) areaVec*=-1.;
-
+				
 				faceP=0.; faceVel=0.;faceT=0.;;faceK=0.;faceOmega=0.;
 				for (fit=face[f].average.begin();fit!=face[f].average.end();fit++) {
 					if ((*fit).first>=0) { // if contribution is coming from a real cell
@@ -341,8 +339,12 @@ void Grid::gradients(void) {
 					}
 				}
 
-// 				faceRho=eos.rho(faceP,faceT);
-// 				faceMach=faceVel.dot(face[f].normal)/(sqrt(Gamma*(faceP+Pref)/faceRho));
+ 				faceRho=eos.rho(faceP,faceT);
+				
+				if (bc.region[face[f].bc].thermalType==ADIABATIC) {
+					faceT=cell[face[f].parent].T;
+					faceRho=eos.rho(faceP,faceT);
+				}
 				
 				if (bc.region[face[f].bc].specified==BC_STATE) {
 					faceP=bc.region[face[f].bc].p;
@@ -350,99 +352,36 @@ void Grid::gradients(void) {
 					faceRho=bc.region[face[f].bc].rho;
 				} else if (bc.region[face[f].bc].specified==BC_P) {
 					faceP=bc.region[face[f].bc].p;
-					faceT=eos.T(faceP,faceRho); // density is extrapolated	
+					faceRho=eos.rho(faceP,faceT); // temperature is extrapolated
 				} else if (bc.region[face[f].bc].specified==BC_T) {
 					faceT=bc.region[face[f].bc].T;
 					faceRho=eos.rho(faceP,faceT); // pressure is extrapolated
 				} else if (bc.region[face[f].bc].specified==BC_RHO) {
 					faceRho=bc.region[face[f].bc].rho;
-					faceP=eos.p(faceRho,faceT); // temperature is extrapolated
+					faceT=eos.T(faceP,faceRho); // pressure is extrapolated
 				} // If nothing is specified, everything is extrapolated
 				
 				if (bc.region[face[f].bc].type==INLET) {
-// 					if (faceMach<=-1.) { // If supersonic inlet
-// 						// Can't extrapolate anything from inside.
-// 						faceP=bc.region[face[f].bc].p;
-// 					} 
-					faceVel=bc.region[face[f].bc].v;
-
-					
-// 					if (bc.region[face[f].bc].specified==BC_RHO) {
-// 						faceRho=bc.region[face[f].bc].rho;
-// 						faceT=eos.T(faceP,faceRho);
-// 					} else if (bc.region[face[f].bc].specified==BC_T) {
-// 						faceT=bc.region[face[f].bc].T;
-// 						faceRho=eos.rho(faceP,faceT);
-// 					}
+					faceVel=0.5*(faceVel+bc.region[face[f].bc].v);
 					faceK=bc.region[face[f].bc].k;
 					faceOmega=bc.region[face[f].bc].omega;
-				}
-
-// 				if (bc.region[grid.face[f].bc].type==OUTLET &&
-// 					bc.region[grid.face[f].bc].kind==FIXED_PRESSURE) {
-//  					if (faceMach<1.) {
-// 						// Can only set this if subsonic outlet
-// 						// For supersonic, basically switches to exrapolated
-// 						faceP=bc.region[face[f].bc].p;
-// 						faceRho=eos.rho(faceP,faceT);
-// 					}
-// 				}
-// 				if (bc.region[grid.face[f].bc].type==OUTLET &&
-// 								bc.region[grid.face[f].bc].kind==FIXED_PRESSURE_ENTRAINMENT) {
-// 					if (faceMach<1.) {
-// 						// Can only set this if subsonic outlet
-// 						// For supersonic, basically switches to exrapolated
-// 						if (faceMach>=0.) { // if outflow
-// 							faceP=bc.region[face[f].bc].p;
-// 							faceRho=eos.rho(faceP,faceT);
-// 						} else { // if inflow
-// 							faceP=bc.region[face[f].bc].p-0.5*faceRho*faceVel.dot(faceVel);
-// 							faceRho=eos.rho(faceP,faceT);
-// 						}
-// 					}
-// 				}
-				// Kill the wall normal component for slip or symmetry, pressure and rho is extrapolated
-				if (bc.region[face[f].bc].type==SLIP) { 
-					//faceVel=cell[c].v;
-					//faceP=cell[c].p;
-					//faceRho=cell[c].rho;
-// 					Vec3D faceNormalVel=faceVel.dot(face[f].normal)*face[f].normal;
-// 					double facePstar=faceP+faceRho*faceNormalVel.dot(faceNormalVel);
-// 					double Pratio=(faceP+Pref)/(facePstar+Pref);
-// 					faceP=facePstar;
-// 					faceRho=faceRho*(gmp1+Pratio*gmm1)/(Pratio*gmp1+gmm1);
-//					faceVel-=faceNormalVel;
-					faceVel-=faceVel.dot(face[f].normal)*face[f].normal;
-// 					if (bc.region[face[f].bc].thermalType==FIXED_T) {
-// 						faceT=bc.region[face[f].bc].T;
-// 						faceRho=eos.rho(faceP,faceT);
-// 					}
-					
-				}
-				if (bc.region[face[f].bc].type==SYMMETRY) {
+				} else if (bc.region[face[f].bc].type==SLIP) { 
+					faceVel-=faceVel.dot(face[f].normal)*face[f].normal;	
+				} else if (bc.region[face[f].bc].type==SYMMETRY) {
 					// Symmetry mirrors everything
 					faceP=cell[face[f].parent].p;
 					faceVel=cell[face[f].parent].v;
 					faceVel-=faceVel.dot(face[f].normal)*face[f].normal;
-					faceT=cell[face[f].parent].T;
 					faceK=cell[face[f].parent].k;
 					faceOmega=cell[face[f].parent].omega;
-					
+				} else if (bc.region[face[f].bc].type==NOSLIP) {
+					faceVel=0.;
 				}
 				
-				// Kill the velocity for no-slip, the rest is extrapolated
-				if (bc.region[face[f].bc].type==NOSLIP) {
-					faceVel=0.;
-// 					if (bc.region[face[f].bc].thermalType==FIXED_T) {
-// 						faceT=bc.region[face[f].bc].T;
-// 						faceRho=eos.rho(faceP,faceT);
-// 					}
-				}
-
 				cell[c].grad[0]+=faceP*areaVec;
-				cell[c].grad[1]+=faceVel.comp[0]*areaVec;
-				cell[c].grad[2]+=faceVel.comp[1]*areaVec;
-				cell[c].grad[3]+=faceVel.comp[2]*areaVec;
+				cell[c].grad[1]+=faceVel[0]*areaVec;
+				cell[c].grad[2]+=faceVel[1]*areaVec;
+				cell[c].grad[3]+=faceVel[2]*areaVec;
 				cell[c].grad[4]+=faceT*areaVec;
 				cell[c].grad[5]+=faceK*areaVec;
 				cell[c].grad[6]+=faceOmega*areaVec;

@@ -121,7 +121,8 @@ void initialize_linear_system() {
 
 	if (TURBULENCE_MODEL!=NONE) nSolVar+=2;
 
-	if ((timeStep) % jacobianUpdateFreq == 0 || timeStep==restart+1) MatZeroEntries(impOP);
+	//if ((timeStep) % jacobianUpdateFreq == 0 || timeStep==restart+1) MatZeroEntries(impOP);
+	MatZeroEntries(impOP);
 
 	double d,lengthScale,dtLocal,a;
 	double P [7][7]; // preconditioner
@@ -163,7 +164,6 @@ void initialize_linear_system() {
 		}
 			
 	}
-
 	return;
 }
 

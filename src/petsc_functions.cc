@@ -28,7 +28,7 @@ extern InputFile input;
 
 static char help[] = "Free CFD\n - A free general purpose computational fluid dynamics code";
 KSP ksp; // linear solver context
-Vec deltaU,rhs,globalUpdate; // solution, residual vectors
+Vec deltaU,rhs; // solution, residual vectors
 Mat impOP; // implicit operator matrix
 VecScatter scatterContext;
 
@@ -38,7 +38,6 @@ void petsc_init(int argc, char *argv[],double rtol,double abstol,int maxits) {
 
 	if (TURBULENCE_MODEL!=NONE) nSolVar+=2;
 
-	
 	// Initialize petsc
 	PetscInitialize(&argc,&argv,(char *)0,help);
 	PC pc; // preconditioner context
@@ -46,14 +45,10 @@ void petsc_init(int argc, char *argv[],double rtol,double abstol,int maxits) {
 	//Create nonlinear solver context
 	KSPCreate(PETSC_COMM_WORLD,&ksp);
 	VecCreateMPI(PETSC_COMM_WORLD,grid.cellCount*nSolVar,grid.globalCellCount*nSolVar,&rhs);
-	//VecCreateSeq(PETSC_COMM_SELF,grid.globalCellCount*nSolVar,&globalUpdate);
 	VecSetFromOptions(rhs);
 	VecDuplicate(rhs,&deltaU);
 	VecSet(rhs,0.);
 	VecSet(deltaU,0.);
-	//VecSet(globalUpdate,0.);
-
-	VecScatterCreateToAll(deltaU,&scatterContext,&globalUpdate);
 
 	vector<int> diagonal_nonzeros, off_diagonal_nonzeros;
 	int nextCellCount;
@@ -84,10 +79,11 @@ void petsc_init(int argc, char *argv[],double rtol,double abstol,int maxits) {
 	
 	KSPSetOperators(ksp,impOP,impOP,SAME_NONZERO_PATTERN);
 	KSPSetTolerances(ksp,rtol,abstol,1.e10,maxits);
-	KSPSetFromOptions(ksp);
-
 	KSPSetInitialGuessNonzero(ksp,PETSC_TRUE);
 	KSPSetInitialGuessKnoll(ksp,PETSC_TRUE);
+	KSPSetType(ksp,KSPGMRES);
+	KSPGMRESSetRestart(ksp,100);
+	KSPSetFromOptions(ksp);
 	
 	return;
 } // end petsc_init
@@ -107,8 +103,8 @@ void petsc_solve(int &nIter,double &rNorm) {
 	KSPSolve(ksp,rhs,deltaU);
 
 	KSPGetIterationNumber(ksp,&nIter);
-	KSPGetResidualNorm(ksp,&rNorm);
-
+	KSPGetResidualNorm(ksp,&rNorm); 
+	
 	int index;
 	for (unsigned int c=0;c<grid.cellCount;++c) {
 		for (int i=0;i<nSolVar;++i) {
@@ -118,7 +114,8 @@ void petsc_solve(int &nIter,double &rNorm) {
 	}
 
 	VecSet(rhs,0.);
-	
+	KSPSetOperators(ksp,impOP,impOP,SAME_NONZERO_PATTERN);
+
 	return;
 } // end petsc_solve
 

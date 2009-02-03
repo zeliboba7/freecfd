@@ -72,7 +72,7 @@ void setBCs(InputFile &input, BC &bc) {
 				bcRegion.thermalType=FIXED_T;
 			} else {
 				bcRegion.specified=BC_P;
-				bcRegion.thermalType=ADIABATIC;
+				if (bcRegion.type==NOSLIP || bcRegion.type==SLIP) bcRegion.thermalType=ADIABATIC;
 			}
 		} else if (region.get_double("T").is_found) {
 			bcRegion.T=region.get_double("T");
@@ -88,9 +88,13 @@ void setBCs(InputFile &input, BC &bc) {
 		} else if (region.get_double("rho").is_found) {
 			bcRegion.rho=region.get_double("rho");
 			bcRegion.specified=BC_RHO;
-			bcRegion.thermalType=ADIABATIC;
+			if (bcRegion.type==NOSLIP || bcRegion.type==SLIP) bcRegion.thermalType=ADIABATIC;
+		} else {
+			if (bcRegion.type==NOSLIP || bcRegion.type==SLIP) bcRegion.thermalType=ADIABATIC;
 		}
 
+		if (bcRegion.type==SYMMETRY) bcRegion.thermalType=ADIABATIC;
+		
 		bcRegion.k=region.get_double("k");
 		bcRegion.omega=region.get_double("omega");
 		bcRegion.v=region.get_Vec3D("v");

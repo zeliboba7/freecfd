@@ -4,7 +4,7 @@ ARCH_TYPE := $(shell uname -m | sed "s/ //g")
 ARCH_FLAGS_i686 =  -march=pentium3 -fno-math-errno -fno-trapping-math -ffinite-math-only -fno-signaling-nans -fstrict-aliasing -fomit-frame-pointer
 ARCH_FLAGS_ppc = -fast  -fno-math-errno -fno-trapping-math -ffinite-math-only -fno-signaling-nans -fstrict-aliasing -fomit-frame-pointer
 ARCH_FLAGS_ia64 = -fno-math-errno -fno-trapping-math -ffinite-math-only -fno-signaling-nans -fstrict-aliasing -fomit-frame-pointer -mb-step
-ARCH_FLAGS_x86_64 = -fno-math-errno -fno-trapping-math -ffinite-math-only -fno-signaling-nans -fstrict-aliasing -fomit-frame-pointer #-ftree-vectorize -march=opteron
+ARCH_FLAGS_x86_64 = -fno-math-errno -fno-trapping-math -ffinite-math-only -fno-signaling-nans -fstrict-aliasing -fomit-frame-pointer
 
 OPTS = -O3 $(ARCH_FLAGS_$(ARCH_TYPE))
 #OPTS = -O3

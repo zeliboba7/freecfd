@@ -55,11 +55,11 @@ void assemble_linear_system(void) {
 
 	if (TURBULENCE_MODEL!=NONE) nSolVar+=2;
 
-	double flux[nSolVar],fluxPlus[nSolVar];
+	double flux[nSolVar];
 	double conv_flux[nSolVar],conv_fluxPlus[nSolVar];
 	double diff_flux[nSolVar],diff_fluxPlus[nSolVar];
 
-	double factor=0.001;
+	double factor=0.01;
 
 	bool viscousSet=true;
 	if (EQUATIONS==EULER) viscousSet=false;
@@ -121,30 +121,24 @@ void assemble_linear_system(void) {
 // 		}
 
 		if (implicit) {
-			int original_flux_function;
-			if ((timeStep) % jacobianUpdateFreq == 0 | timeStep==restart+1) {
+			//if ((timeStep) % jacobianUpdateFreq == 0 || timeStep==restart+1) {
 				perturb=true;
 		
 				// Flux for the diffusive flux jacobian is slightly different
 				// due to perturbation, account for that here and
 				// recalculate the viscous fluxes
-				if (viscous) {
-					for (int m=0;m<7;++m) {
-						flux[m]=0.;
-						face_state_adjust(left,right,face,f,m); 
-					}
-					diffusive_face_flux(left,right,face,f,diff_flux);
-				}
-				
-				original_flux_function=CONVECTIVE_FLUX_FUNCTION;
-				CONVECTIVE_FLUX_FUNCTION=CONVECTIVE_FLUX_FUNCTION_JAC;
-				convective_face_flux(left,right,face,f,conv_flux);
+// 				if (viscous) {
+// 					for (int m=0;m<7;++m) {
+// 						flux[m]=0.;
+// 						face_state_adjust(left,right,face,f,m); 
+// 					}
+// 					diffusive_face_flux(left,right,face,f,diff_flux);
+// 				}
 		
 				for (int i=0;i<nSolVar;++i) {
 
-					if (left.update[i]>0) {epsilon=max(sqrt_machine_error,factor*left.update[i]);}
+					if (left.update[i]>0.) {epsilon=max(sqrt_machine_error,factor*left.update[i]);}
 					else {epsilon=min(-1.*sqrt_machine_error,factor*left.update[i]); }
-						
 					// Perturb left state
 					state_perturb(left,face,i,epsilon);
 					// If right state is a boundary, correct the condition according to changes in left state
@@ -160,7 +154,6 @@ void assemble_linear_system(void) {
 					state_perturb(left,face,i,-1.*epsilon);
 					if (face.bc>=0) right_state_update(left,right,face,f);
 					if (viscous) face_state_adjust(left,right,face,f,i);
-					
 					// Add change of flux (flux Jacobian) to implicit operator
 					for (int j=0;j<nSolVar;++j) {
 						row=(grid.myOffset+parent)*nSolVar+j;
@@ -175,8 +168,14 @@ void assemble_linear_system(void) {
 					} // for j
 		
 					if (face.bc==INTERNAL || face.bc==GHOST) { 
-						if (right.update[i]>0) {epsilon=max(sqrt_machine_error,factor*right.update[i]); }
-						else {epsilon=min(-1.*sqrt_machine_error,factor*right.update[i]); }
+						if (right.update[i]>0.) {
+							epsilon=max(sqrt_machine_error,factor*right.update[i]); 
+						} else {
+							epsilon=min(-1.*sqrt_machine_error,factor*right.update[i]); 
+						}
+						//epsilon=sqrt_machine_error;
+						//cout << sqrt_machine_error << "\t" << epsilon << endl;
+						
 						// Perturb right variable
 						state_perturb(right,face,i,epsilon);
 						// Adjust face averages and gradients (crude)
@@ -200,7 +199,7 @@ void assemble_linear_system(void) {
 								row=(grid.myOffset+parent)*nSolVar+j;
 								value*=-1.;
 								MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
-							} else { // Ghost (only add effect on parent cell, effect on itself is taken care of in its own partition
+							} else  { // Ghost (only add effect on parent cell, effect on itself is taken care of in its own partition
  								row=(grid.myOffset+parent)*nSolVar+j;
  								col=(grid.ghost[-1*neighbor-1].matrix_id)*nSolVar+i;
  								value=(diff_fluxPlus[j]-diff_flux[j]-conv_fluxPlus[j]+conv_flux[j])/epsilon;
@@ -210,8 +209,7 @@ void assemble_linear_system(void) {
 						} // for j
 					} // if 
 				} // for i
-			} // if update Jacobian
-			CONVECTIVE_FLUX_FUNCTION=original_flux_function;
+			//} // if update Jacobian
 		} // if implicit
 	} // for faces
 
@@ -313,25 +311,27 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face,unsi
 		
 		for (unsigned int i=0;i<7;++i) right.update[i]=0.;
 		
+		
 		if (bc.region[face.bc].specified==BC_STATE) {
 			right.p=bc.region[face.bc].p;
 			right.T=bc.region[face.bc].T;
+			right.T_center=right.T;
 			right.rho=bc.region[face.bc].rho;
 		} else if (bc.region[face.bc].specified==BC_P) {
-			right.p=bc.region[face.bc].p;
-			right.rho=left.rho; // density is extrapolated
-			right.T=eos.T(right.p,right.rho); 
+			right.p=0.5*(left.p+bc.region[face.bc].p);
+			right.T=left.T; // temperature is extrapolated
 			right.T_center=left.T_center+2.*(right.T-left.T_center);
+			right.rho=eos.rho(right.p,right.T); 
 		} else if (bc.region[face.bc].specified==BC_T) {
 			right.T=bc.region[face.bc].T;
 			right.T_center=right.T;
 			right.p=left.p; // pressure is extrapolated
 			right.rho=eos.rho(right.p,right.T); 
 		} else if (bc.region[face.bc].specified==BC_RHO) {
-			right.rho=bc.region[face.bc].rho;
-			right.T_center=left.T_center+2.*(left.T-left.T_center);
-			right.T=left.T; // temperature is extrapolated
-			right.p=eos.p(right.rho,right.T); 
+			right.rho=0.5*(left.rho+bc.region[face.bc].rho);
+			right.p=left.p; // pressure is extrapolated
+			right.T=eos.T(right.p,right.rho); 
+			right.T_center=left.T_center+2.*(right.T-left.T_center);
 		} else {
 			// If nothing is specified, everything is extrapolated
 			right.p=left.p;
@@ -340,21 +340,15 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face,unsi
 			right.rho=left.rho;
 		}
 		
+		if (bc.region[face.bc].thermalType==ADIABATIC) right.T_center=left.T_center;
+		
 		if (bc.region[face.bc].type==OUTLET) {
 			right.v=left.v;
-			right.v_center=left.v_center+2.*(left.v-left.v_center); 
+			right.v_center=left.v_center+2.*(right.v-left.v_center); 
 			right.k=left.k;
 			right.k_center=left.k_center;
 			right.omega=left.omega;
 			right.omega_center=left.omega_center;
-			right.rho=left.rho;
-// 			if (bc.region[face.bc].kind==FIXED_PRESSURE) {
-// 				double Mach=(left.v.dot(face.normal))/left.a;
-// 				if (Mach<1.) {
-// 					right.p=bc.region[face.bc].p;
-// 					right.rho=eos.rho(right.p,right.T);
-// 				}
-// 			}
 		} else if (bc.region[face.bc].type==SLIP) {
 			right.v=left.v-2.*left.v.dot(face.normal)*face.normal;
 			right.v_center=left.v_center-2.*left.v_center.dot(face.normal)*face.normal;
@@ -369,7 +363,6 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face,unsi
 			right.k_center=left.k_center;
 			right.omega=left.omega;
 			right.omega_center=left.omega_center;
-			right.T_center=left.T_center;
 		} else if (bc.region[face.bc].type==NOSLIP) {
 			right.v=-1.*left.v;
 			right.v_center=-1.*left.v_center;
@@ -377,7 +370,6 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face,unsi
 			right.k_center=left.k_center;
 			right.omega=left.omega;
 			right.omega_center=left.omega_center;
-
 		} else if (bc.region[face.bc].type==INLET) {
 			right.v=bc.region[face.bc].v;
 			right.v_center=right.v;
@@ -388,6 +380,7 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face,unsi
 		}
 
 	} else { // partition boundary
+
 		int g=-1*grid.face[f].neighbor-1; // ghost cell index
 		Vec3D deltaV;
 		double delta[7];
@@ -397,7 +390,7 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face,unsi
 			}
 		}
 
-		for (unsigned int i=0;i<7;++i) left.update[i]=0.;
+		for (unsigned int i=0;i<7;++i) right.update[i]=grid.ghost[g].update[i];
 		
 		deltaV[0]=delta[1]; deltaV[1]=delta[2]; deltaV[2]=delta[3];
 		right.p=grid.ghost[g].p+delta[0];	
@@ -433,8 +426,7 @@ void face_geom_update(Face_State &face,unsigned int f) {
 	if (face.bc==INTERNAL) { rightCentroid=grid.cell[grid.face[f].neighbor].centroid;}
 	else if (face.bc>=0) {
 		rightCentroid=leftCentroid+2.*(grid.face[f].centroid-leftCentroid).dot(face.normal)*face.normal;
-	}
-	else { rightCentroid=grid.ghost[-1*grid.face[f].neighbor-1].centroid;}
+	} else { rightCentroid=grid.ghost[-1*grid.face[f].neighbor-1].centroid;}
 	face.left2right=rightCentroid-leftCentroid;
 	return;
 } // end face_geom_update
@@ -461,6 +453,7 @@ void face_state_update(Cell_State &left,Cell_State &right,Face_State &face,unsig
 			face.gradOmega+=(*fit).second*grid.ghost[-1*((*fit).first+1)].grad[6];
 		}
 	}
+	
 		
 	face.gradU-=face.gradU.dot(face.normal)*face.normal;
 	face.gradU+=((right.v_center[0]-left.v_center[0])/(face.left2right.dot(face.normal)))*face.normal;
@@ -470,7 +463,7 @@ void face_state_update(Cell_State &left,Cell_State &right,Face_State &face,unsig
 
 	face.gradW-=face.gradW.dot(face.normal)*face.normal;
 	face.gradW+=((right.v_center[2]-left.v_center[2])/(face.left2right.dot(face.normal)))*face.normal;
-				
+	//cout << face.left2right.norm() << endl;
 	// Boundary conditions are already taken care of in right state update
 	face.p=0.5*(left.p+right.p);
 	face.v=0.5*(left.v+right.v);
