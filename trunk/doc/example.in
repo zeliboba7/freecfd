@@ -74,6 +74,10 @@ limiter=doubleMinmod;
 // You may not need this for low speed flows, but if you have
 // stability problems, try using one
 // If skipped, no limiter is used
+preconditioner=ws95;
+// low-Ma preconditioning due to Weiss-Smith'95
+// options are "none" or "ws95"
+// Destroys time accuracy
 } 
  
 linearSolver {
