@@ -90,7 +90,7 @@ void Grid::nodeAverages() {
 		for (it=(*nit).ghosts.begin();it!=(*nit).ghosts.end();it++) stencil.insert(-1*(*it)-1);
 		// if the stencil doesn't have at least 4 points, expand it to include 2nd nearest neighbor cells
 		// NOTE ideally, second nearest ghosts would also need top be included but it is too much complication
-		if (stencil.size()<=4) {
+		if (stencil.size()<4) {
 			// Loop the cells neighboring the current node
 			for (it=(*nit).cells.begin();it!=(*nit).cells.end();it++) {
 				// Loop the cells neighboring the current cell
@@ -197,14 +197,14 @@ bool compare_closest (int first, int second) {
 void Grid::sortStencil(Node& n) {
 	// Split stencil to 8 quadrants around the node
 	vector<list<int> > quadrant; quadrant.resize(8);
-	list<int>::iterator lit;
+	list<int>::iterator lit,lit2;
 	Vec3D node2cell;
 	int stencilSize=stencil.size();
-	// Loop the stencil and start filling in the quadrants
 	
+	// Loop the stencil and start filling in the quadrants
 	for (sit=stencil.begin();sit!=stencil.end();sit++) {
 		centroid1=(*sit>=0) ? cell[*sit].centroid : ghost[-1*(*sit)-1].centroid;
-		node2cell=n-centroid1;
+		node2cell=centroid1-n;
 		if (node2cell[0]>=0.) {
 			if (node2cell[1]>=0.) {
 				if (node2cell[2]>=0.) {
@@ -249,20 +249,39 @@ void Grid::sortStencil(Node& n) {
 		
 	stencil.clear();
 	
+	int non_empty_quadrant_count=0;
+	for (int q=0;q<8;++q) {
+		if (quadrant[q].size()!=0) non_empty_quadrant_count++;
+	}
+	
 	int counter=0;
-	int size_cutoff=min(8,stencilSize);
+	int size_cutoff=max(non_empty_quadrant_count,4);
+	size_cutoff=min(size_cutoff,stencilSize);
+	//size_cutoff=min(8,stencilSize);
+
 	while (counter<size_cutoff) {
 		for (int q=0;q<8;++q) {
 			lit=quadrant[q].begin();
 			if (lit!=quadrant[q].end()) {
-				stencil.insert(*lit);
+				stencil.insert(*lit); counter++;
+				lit2=lit; lit2++;
+				if (lit2!=quadrant[q].end()) {
+					centroid1=(*lit>=0) ? cell[*lit].centroid : ghost[-1*(*lit)-1].centroid;
+					centroid2=(*lit2>=0) ? cell[*lit2].centroid : ghost[-1*(*lit2)-1].centroid;
+					node2cell=centroid1-n;
+					if (fabs(fabs(node2cell)-fabs(centroid2-n))/fabs(node2cell)<1.e-8) {
+						stencil.insert(*lit2);
+						quadrant[q].pop_front();	
+						if (counter<stencilSize) counter++;
+						if (size_cutoff<stencilSize) size_cutoff++;
+					}
+					
+				}
 				quadrant[q].pop_front();
-				counter++;
-				if (counter==size_cutoff) break;
+				if (counter==size_cutoff) break;		
 			}
 		}
 	}
-	
 	quadrant.clear();
 	
 	return;

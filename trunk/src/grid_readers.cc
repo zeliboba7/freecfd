@@ -169,7 +169,7 @@ int Grid::readCGNS() {
 			cg_elements_read(fileIndex,baseIndex,zoneIndex,sectionIndex,*elemNodes,0);
 			
 			// Only pick the volume elements
-			if (elemType==TETRA_4 | elemType==PYRA_5 | elemType==PENTA_6 | elemType==HEXA_8 ) {
+			if (elemType==TETRA_4 || elemType==PYRA_5 || elemType==PENTA_6 || elemType==HEXA_8 ) {
 				if (Rank==0) cout << "[I]    ...Found Volume Section " << sectionName << endl;
 				// elements array serves as a start index for connectivity list elemConnectivity
 				for (int elem=0;elem<=(elemEnd-elemStart);++elem) {
@@ -332,7 +332,7 @@ int Grid::readTEC() {
 		for (int i=0;i<8;++i) {
 			connPrev=conn;
 			file >> conn; conn-=1;
-			if (i==0 | connPrev!=conn) {
+			if (i==0 || connPrev!=conn) {
 				raw.cellConnectivity.push_back(conn);	
 			}
 			
@@ -363,7 +363,7 @@ int Grid::readTEC() {
 				for (int i=0;i<4;++i) {
 					connPrev=conn;
 					file >> conn; conn-=1;
-					if (i==0 | connPrev!=conn) {
+					if (i==0 || connPrev!=conn) {
 						bocoConnectivity.push_back(conn);	
 					}
 				}		

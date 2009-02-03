@@ -143,7 +143,7 @@ void mpi_update_ghost_primitives(void) {
 
 			for (unsigned int g=0;g<recvCount[p];++g) {
 				id=maps.ghostGlobal2Local[recvBuffer[g].globalId];
-				if (timeStep==1) {
+				if (timeStep==restart+1) {
 					for (int i=0;i<7;++i) grid.ghost[id].update[i]=0.;
 				} else {
 					grid.ghost[id].update[0]=recvBuffer[g].vars[0]-grid.ghost[id].p;
