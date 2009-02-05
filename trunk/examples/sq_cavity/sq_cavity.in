@@ -6,13 +6,13 @@ numericalOptions {preconditioner=ws95; limiter=doubleMinmod;}
 
 timeMarching {
         CFLmax=1.e6;
-	numberOfSteps=250;
+	numberOfSteps=200;
 }
 
 linearSolver {
-        relTolerance=1.e-8;
+        relTolerance=1.e-6;
         absTolerance=1.e-12;
-        maxIterations=100;
+        maxIterations=50;
 }
 
 fluidProperties {gamma=1.4; viscosity=1.e-3;} // Re=1000
@@ -31,7 +31,7 @@ boundaryConditions {
 	BC_3 (type=noslip; );
 }
 
-writeOutput {format=tecplot; plotFrequency=50; restartFrequency=250; }
+writeOutput {format=tecplot; plotFrequency=50; restartFrequency=200; }
 
 probes { frequency=1;
 	probe_1 (coord=[0.,0.,0.];);
