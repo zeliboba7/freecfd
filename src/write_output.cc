@@ -221,33 +221,41 @@ void write_vtk(void) {
 	int offset=0;
 	for (unsigned int c=0;c<grid.cellCount;++c) {
 		offset+=grid.cell[c].nodeCount;
-		file << offset << "\t";
+		file << offset << endl;
 	}
-	file << endl;
 	file << "</DataArray>" << endl;
 			
 	file << "<DataArray Name=\"types\" type=\"UInt8\" format=\"ascii\" >" << endl;
 	for (unsigned int c=0;c<grid.cellCount;++c) {
-		if (grid.cell[c].nodeCount==4) file << "10\t"; // Tetra
-		if (grid.cell[c].nodeCount==8) file << "12\t"; // Hexa
-		if (grid.cell[c].nodeCount==6) file << "13\t"; // Prism (Wedge)
-		if (grid.cell[c].nodeCount==5) file << "14\t"; // Pyramid (Wedge)
+		if (grid.cell[c].nodeCount==4) file << "10" << endl; // Tetra
+		if (grid.cell[c].nodeCount==8) file << "12" << endl; // Hexa
+		if (grid.cell[c].nodeCount==6) file << "13" << endl; // Prism (Wedge)
+		if (grid.cell[c].nodeCount==5) file << "14" << endl; // Pyramid (Wedge)
 	}
 	file << endl;
 	file << "</DataArray>" << endl;;
 	
 	file << "</Cells>" << endl;
 
-	file << "<CellData Scalars=\"Density\" Vectors=\"Velocity\" format=\"ascii\">" << endl;
-	file << "<DataArray Name=\"Density\" type=\"Float32\" format=\"ascii\" >" << endl;
-	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].rho << endl;
-	file << "</DataArray>" << endl;
-	file << "<DataArray Name=\"Velocity\" NumberOfComponents=\"3\" type=\"Float32\" format=\"ascii\" >" << endl;
-	for (unsigned int c=0;c<grid.cellCount;++c) for (unsigned int i=0;i<3;++i) file << setw(16) << setprecision(8) << scientific << grid.cell[c].v.comp[i] << endl;
-	file << "</DataArray>" << endl;
+	file << "<CellData Scalars=\"Pressure\" Vectors=\"Velocity\" format=\"ascii\">" << endl;
+	
 	file << "<DataArray Name=\"Pressure\" type=\"Float32\" format=\"ascii\" >" << endl;
 	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].p << endl;
 	file << "</DataArray>" << endl;
+	
+	file << "<DataArray Name=\"Velocity\" NumberOfComponents=\"3\" type=\"Float32\" format=\"ascii\" >" << endl;
+	for (unsigned int c=0;c<grid.cellCount;++c) for (unsigned int i=0;i<3;++i) file << setw(16) << setprecision(8) << scientific << grid.cell[c].v[i] << endl;
+	file << "</DataArray>" << endl;	
+	
+	file << "<DataArray Name=\"Temperature\" type=\"Float32\" format=\"ascii\" >" << endl;
+	for (unsigned int c=0;c<grid.cellCount;++c) for (unsigned int i=0;i<3;++i) file << setw(16) << setprecision(8) << scientific << grid.cell[c].T << endl;
+	file << "</DataArray>" << endl;
+	
+	file << "<DataArray Name=\"Density\" type=\"Float32\" format=\"ascii\" >" << endl;
+	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].rho << endl;
+	file << "</DataArray>" << endl;
+
+
 	file << "</CellData>" << endl;
 	
 	file << "</Piece>" << endl;
@@ -274,10 +282,11 @@ void write_vtk_parallel(void) {
 	file << "<DataArray NumberOfComponents=\"3\" type=\"Float32\" format=\"ascii\" />" << endl;
 	file << "</PPoints>" << endl;
 
-	file << "<PCellData Scalars=\"Density\" Vectors=\"Velocity\" format=\"ascii\">" << endl;
-	file << "<DataArray Name=\"Density\" type=\"Float32\" format=\"ascii\" />" << endl;
-	file << "<DataArray Name=\"Velocity\" NumberOfComponents=\"3\" type=\"Float32\" format=\"ascii\" />" << endl;
+	file << "<PCellData Scalars=\"Pressure\" Vectors=\"Velocity\" format=\"ascii\">" << endl;
 	file << "<DataArray Name=\"Pressure\" type=\"Float32\" format=\"ascii\" />" << endl;
+	file << "<DataArray Name=\"Velocity\" NumberOfComponents=\"3\" type=\"Float32\" format=\"ascii\" />" << endl;
+	file << "<DataArray Name=\"Temperature\" type=\"Float32\" format=\"ascii\" />" << endl;
+	file << "<DataArray Name=\"Density\" type=\"Float32\" format=\"ascii\" />" << endl;
 	file << "</PCellData>" << endl;
 	for (int p=0;p<np;++p) file << "<Piece Source=\"proc" << int2str(p) << ".vtu\" />" << endl;
 	file << "</PUnstructuredGrid>" << endl;

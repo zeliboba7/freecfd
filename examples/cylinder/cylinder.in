@@ -1,11 +1,11 @@
-// Re 150 Ma 0.0015
+// Re 150 Ma 0.004
 
 reference {Mach=1.e-3;p=1.e5;T=273.;}
 
 numericalOptions {limiter=doubleMinmod;}
 
 timeMarching {
-        stepSize=0.0019379845; // 200 time steps per expected period
+        stepSize=0.002;
         numberOfSteps=10000;
 }
 
@@ -35,7 +35,7 @@ boundaryConditions {
 	BC_5 (type=outlet; p=0.;);
 }
 
-writeOutput {format=tecplot; plotFrequency=50; restartFrequency=50; }
+writeOutput {format=tecplot; plotFrequency=50; restartFrequency=200; }
 
 probes { frequency=1;
 	probe_1 (coord=[0.,0.05,0.];);
