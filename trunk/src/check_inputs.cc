@@ -29,7 +29,16 @@ void check_inputs(InputFile &input) {
 	// Pass those to global variables (defined in commons.h) and do some sanity check in the mean time
 	
 	nSolVar=5;
-	
+
+	if (input.section("grid").get_int("dimension").is_found) {
+		if (input.section("grid").get_int("dimension")>3 || input.section("grid").get_int("dimension")<1) {
+			cerr << "[E] Input entry grid -> dimension is not recognized" << endl;
+			cerr << "[E] Acceptable options are 1, 2 or 3" << endl;
+			exit(1);
+		}
+		DIMENSION=input.section("grid").get_int("dimension");
+	}
+
 	string option;
 	option=input.get_string("equations");
 	if (option=="NS") {

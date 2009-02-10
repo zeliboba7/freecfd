@@ -329,7 +329,8 @@ int Grid::create_faces() {
 							if (match) break;
 						} // if node has the boundary region data
 					} // for tempFace nodes
-				} // if not internal	
+				} // if not internal
+				tempFace.parentIndex=cf;
 				face.push_back(tempFace);
 				cell[c].faces.push_back(tempFace.id);
 				if (internal) cell[tempFace.neighbor].faces.push_back(tempFace.id);

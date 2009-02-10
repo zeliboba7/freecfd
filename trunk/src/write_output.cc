@@ -75,6 +75,13 @@ void write_tec(double time) {
 	file << ", N=" << grid.nodeCount << ", E=" << grid.cellCount << endl;
 	file << "DATAPACKING=POINT, ZONETYPE=FEBRICK, SOLUTIONTIME=" << time << endl;
 
+	int zoneNeighborCount=0;
+	 for (unsigned int f=0;f<grid.faceCount; ++f) {                    
+                if (grid.face[f].bc==GHOST) zoneNeighborCount++; 
+        }
+
+	//file << "FACENEIGHBORMODE=GLOBALONETOONE, FACENEIGHBORCONNECTIONS=" << zoneNeighborCount << endl;
+
 	// Write variables
 	map<int,double>::iterator it;
 	set<int>::iterator sit;
@@ -181,7 +188,14 @@ void write_tec(double time) {
 		}
 		file << endl;
 	}
-	
+
+	// Write zone connectivity
+	for (unsigned int f=0;f<grid.faceCount; ++f) {
+		if (grid.face[f].bc==GHOST) {
+			int g=-1*grid.face[f].neighbor-1;
+	//		file << grid.face[f].parent+1 << "\t" << grid.face[f].parentIndex+1 << "\t" << grid.ghost[g].partition+1 << "\t" << grid.ghost[g].matrix_id-grid.partitionOffset[grid.ghost[g].partition]+1 << endl;
+		}
+	}
 	file.close();
 
 }

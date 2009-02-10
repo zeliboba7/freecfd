@@ -29,6 +29,8 @@
 #define INTERPOLATE_TRI 2
 #define INTERPOLATE_TETRA 3
 
+// Names are a bit counter-intutivite here
+// Larger tolerance means more strict quality measures
 double area_tolerance=1.e-3;
 double volume_tolerance=1.e-2;
 
@@ -81,7 +83,9 @@ void Grid::nodeAverages() {
 	int tetra_node_count=0;		
 	int tri_node_count=0;		
 	int line_node_count=0;		
-	int point_node_count=0;		
+	int point_node_count=0;	
+	int stencil_expand_threshold=4;
+	if (DIMENSION==3) stencil_expand_threshold=5;
 	// Loop all the nodes
 	for (nit=node.begin();nit!=node.end();nit++) {
 		// Initialize stencil to nearest neighbor cells
@@ -90,7 +94,7 @@ void Grid::nodeAverages() {
 		for (it=(*nit).ghosts.begin();it!=(*nit).ghosts.end();it++) stencil.insert(-1*(*it)-1);
 		// if the stencil doesn't have at least 4 points, expand it to include 2nd nearest neighbor cells
 		// NOTE ideally, second nearest ghosts would also need top be included but it is too much complication
-		if (stencil.size()<4) {
+		if (stencil.size()<stencil_expand_threshold) {
 			// Loop the cells neighboring the current node
 			for (it=(*nit).cells.begin();it!=(*nit).cells.end();it++) {
 				// Loop the cells neighboring the current cell
@@ -255,9 +259,11 @@ void Grid::sortStencil(Node& n) {
 	}
 	
 	int counter=0;
-	int size_cutoff=max(non_empty_quadrant_count,4);
+	int size_cutoff;
+	if (DIMENSION==1) {size_cutoff=max(non_empty_quadrant_count,2);}
+	else if (DIMENSION==2) {size_cutoff=max(non_empty_quadrant_count,4);}
+	else {size_cutoff=max(non_empty_quadrant_count,8);}
 	size_cutoff=min(size_cutoff,stencilSize);
-	//size_cutoff=min(8,stencilSize);
 
 	while (counter<size_cutoff) {
 		for (int q=0;q<8;++q) {
@@ -311,9 +317,10 @@ void Grid::interpolate_tetra(Node& n) {
 					// How close the tetra center to the node for which we are interpolating
 					// Normalized by average edge length
 					closeness=fabs(n-ave_centroid)/ave_edge;
-					closeness=max(closeness,1.e-2);
+					closeness=max(closeness,1.e-1);
 					closeness=1./closeness;
 					// If it was an equilateral tetra,skewness should be 1, thus the multiplier here.
+					// Low skewness corresponds to highly skewed cells (I know, counter-intuitive)
 					skewness=tetra_volume/(0.11785113*(pow(ave_edge,3)));
 					if (skewness>volume_tolerance) {
 						// Declare an interpolation tetra
@@ -343,22 +350,25 @@ void Grid::interpolate_tetra(Node& n) {
  			b = new double[4];
 			weights= new double [4];
 
+			// Let's move to a new origin located at the first cell's centroid in the stencil
+			// This improves accuracy for large domain sizes
+			centroid1= ((*tet).cell[0]>=0) ? cell[(*tet).cell[0]].centroid : ghost[-1*(*tet).cell[0]-1].centroid;			
 			for (int i=0;i<4;++i) {
 				if ((*tet).cell[i]>=0) {
-					for (int j=0;j<3;++j) a[j][i]=cell[(*tet).cell[i]].centroid[j];
+					for (int j=0;j<3;++j) a[j][i]=cell[(*tet).cell[i]].centroid[j]-centroid1[j];
 				} else {
-					for (int j=0;j<3;++j) a[j][i]=ghost[-((*tet).cell[i])-1].centroid[j];	
+					for (int j=0;j<3;++j) a[j][i]=ghost[-((*tet).cell[i])-1].centroid[j]-centroid1[j];	
 				}
 			}
 
 			a[3][0]=1.; a[3][1]=1.; a[3][2]=1.; a[3][3]=1.;
-			b[0]=n[0]; b[1]=n[1]; b[2]=n[2]; b[3]=1.;
+			b[0]=n[0]-centroid1[0]; b[1]=n[1]-centroid1[1]; b[2]=n[2]-centroid1[2]; b[3]=1.;
 			// Solve the 4x4 linear system by Gaussion Elimination
 			gelimd(a,b,weights,4);
 			// Let's see if the linear system solution is good
 			weightSum2=0.;
 			for (int i=0;i<4;++i) weightSum2+=weights[i];
-			if (fabs(weightSum2-1)>1.e-6) {
+			if (fabs(weightSum2-1.)>1.e-8) {
 				cerr << "[E Rank=" << Rank << "] Tetra interpolation weightSum=" << weightSum2 << " is not unity for node " << n.id  << endl;
 				exit(1);
 			}
@@ -429,18 +439,17 @@ void Grid::interpolate_tri(Node& n) {
 			// Project the node point to the plane
 			pp=n-centroid1;
 			pp-=pp.dot(planeNormal)*planeNormal;
-			pp+=centroid1;
 			// Form the linear system
 			a = new double* [3];
 			for (int i=0;i<3;++i) a[i]=new double[3];
 			b = new double[3];
 			weights= new double [3];
-			a[0][0]=(centroid1).dot(basis1);
-			a[0][1]=(centroid2).dot(basis1);
-			a[0][2]=(centroid3).dot(basis1);
-			a[1][0]=(centroid1).dot(basis2);
-			a[1][1]=(centroid2).dot(basis2);
-			a[1][2]=(centroid3).dot(basis2);
+			a[0][0]=0.;
+			a[0][1]=(centroid2-centroid1).dot(basis1);
+			a[0][2]=(centroid3-centroid1).dot(basis1);
+			a[1][0]=0.;
+			a[1][1]=(centroid2-centroid1).dot(basis2);
+			a[1][2]=(centroid3-centroid1).dot(basis2);
 			a[2][0]=1.;
 			a[2][1]=1.;
 			a[2][2]=1.;
@@ -449,6 +458,13 @@ void Grid::interpolate_tri(Node& n) {
 			b[2]=1.;
 			// Solve the 3x3 linear system by Gaussion Elimination
 			gelimd(a,b,weights,3);
+			// Let's see if the linear system solution is good
+			weightSum2=0.;
+			for (int i=0;i<3;++i) weightSum2+=weights[i];
+			if (fabs(weightSum2-1.)>1.e-8) {
+				cerr << "[E Rank=" << Rank << "] Tri interpolation weightSum=" << weightSum2 << " is not unity for node " << n.id  << endl;
+				exit(1);
+			}
 			
 			for (int i=0;i<3;++i) {
 				if (n.average.find((*tri).cell[i])!=n.average.end()) { // if the cell contributing to the node average is already contained in the map
