@@ -49,7 +49,7 @@ public:
 
 class Face {
 public:
-	int bc;
+	int bc,parentIndex;
 	unsigned int id;
 	int parent,neighbor;
 	unsigned int nodeCount;

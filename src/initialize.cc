@@ -119,6 +119,7 @@ void initialize(InputFile &input) {
 		for (unsigned int i=0;i<7;++i) {
 			grid.cell[c].flux[i]=0.;
 			grid.cell[c].update[i]=0.;
+//grid.cell[c].v[0]=grid.cell[c].centroid[0]*10.;
 		}
 	}
 	
