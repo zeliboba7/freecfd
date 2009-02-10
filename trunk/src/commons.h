@@ -93,6 +93,7 @@ extern int CONVECTIVE_FLUX_FUNCTION,CONVECTIVE_FLUX_FUNCTION_JAC,LIMITER,PRECOND
 extern int OUTPUT_FORMAT;
 
 extern int Rank,np;
+extern int nSolVar;
 extern double dt,dtTarget,CFLmax,CFLmaxTarget,CFLlocal,CFLlocalTarget;
 extern int timeStep,restart;
 extern double Minf,Pref,Tref;

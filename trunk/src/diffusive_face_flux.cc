@@ -27,7 +27,7 @@
 
 extern BC bc;
 
-void diffusive_face_flux(Cell_State &left,Cell_State &right,Face_State &face,unsigned int f,double flux[]) {
+void diffusive_face_flux(Cell_State &left,Cell_State &right,Face_State &face,double flux[]) {
 
 	Vec3D tau_x,tau_y,tau_z,areaVec;
 	

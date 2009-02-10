@@ -141,7 +141,6 @@ void initialize_linear_system() {
 
 		if (TIME_STEP_TYPE==CFL_LOCAL) {
 			// Determine time step with CFL condition
-			lengthScale;
 			dtLocal=1.E20;
 			a=sqrt(Gamma*(grid.cell[c].p+Pref)/grid.cell[c].rho);
 			lengthScale=grid.cell[c].lengthScale;

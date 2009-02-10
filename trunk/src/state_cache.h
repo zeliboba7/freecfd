@@ -29,17 +29,45 @@ class Cell_State {
 	public:
 		double p,T,T_center,rho,a,H,k,omega,mu,k_center,omega_center;
 		Vec3D v,v_center,vN;
-		double update[7];
+		vector<double> update;
+		Cell_State &operator= (const Cell_State & rhs) {
+			p=rhs.p;
+			T=rhs.T;
+			T_center=rhs.T_center;
+			rho=rhs.rho;
+			a=rhs.a;
+			H=rhs.H;
+			k=rhs.k;
+			omega=rhs.omega;
+			k_center=rhs.k_center;
+			omega_center=rhs.omega_center;
+			v=rhs.v;
+			v_center=rhs.v_center;
+			vN=rhs.vN;
+			copy(rhs.update.begin(),rhs.update.end(),update.begin());
+			return *this;
+		}
 };
 
 class Face_State {
 	public:
+		unsigned int index;
 		double p,T,rho,k,omega,mu;
 		Vec3D v;
 		Vec3D gradU,gradV,gradW,gradT,gradK,gradOmega;
 		Vec3D normal,tangent1,tangent2,left2right;
 		double area;
 		int bc;
+};
+
+class Fluxes {
+	public:
+		vector<double> convective,diffusive;
+		Fluxes &operator= (const Fluxes & rhs) {
+			copy(rhs.convective.begin(),rhs.convective.end(),convective.begin());
+			copy(rhs.diffusive.begin(),rhs.diffusive.end(),diffusive.begin());
+			return *this;
+		}
 };
 
 #endif
