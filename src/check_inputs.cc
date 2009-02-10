@@ -28,6 +28,8 @@ void check_inputs(InputFile &input) {
 	// While the input class is awesome, it is slow for frequently accessed variables
 	// Pass those to global variables (defined in commons.h) and do some sanity check in the mean time
 	
+	nSolVar=5;
+	
 	string option;
 	option=input.get_string("equations");
 	if (option=="NS") {
@@ -47,6 +49,7 @@ void check_inputs(InputFile &input) {
 		TURBULENCE_MODEL=NONE;
 	} else if (option=="k-omega") {
 		TURBULENCE_MODEL=KOMEGA;
+		nSolVar+=2;
 	} else {
 		if (Rank==0) {
 			cerr << "[E] Input entry turbulenceModel=" << option << " is not recognized!!" << endl;

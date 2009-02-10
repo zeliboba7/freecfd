@@ -29,6 +29,7 @@ int CONVECTIVE_FLUX_FUNCTION,CONVECTIVE_FLUX_FUNCTION_JAC,LIMITER,PRECONDITIONER
 int OUTPUT_FORMAT;
 
 int Rank,np;
+int nSolVar;
 double dt,dtTarget,CFLmax,CFLmaxTarget,CFLlocal,CFLlocalTarget;
 int timeStep,restart;
 double Minf,Pref,Tref;

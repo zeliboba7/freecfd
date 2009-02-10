@@ -42,7 +42,7 @@ double Mach_split_4_minus (double Mach);
 double p_split_5_plus (double Mach);
 double p_split_5_minus (double Mach);
 
-void convective_face_flux(Cell_State &left,Cell_State &right,Face_State &face,unsigned int f,double flux[]) {
+void convective_face_flux(Cell_State &left,Cell_State &right,Face_State &face,double flux[]) {
 
 	double fluxNormal[7];
 
