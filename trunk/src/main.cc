@@ -74,6 +74,8 @@ InputFile input;
 vector<Probe> probes;
 vector<BoundaryFlux> boundaryFluxes;
 
+double resP,resV,resT;
+
 int main(int argc, char *argv[]) {
 
 	// Set global parameters
@@ -208,8 +210,8 @@ int main(int argc, char *argv[]) {
 		// Advance physical time
 		time += dt;
 		if (Rank==0) {
-			if (timeStep==(restart+1))  cout << "step" << "\t" << "time" << "\t\t" << "dt" << "\t\t" << "CFLmax" << "\t\t" << "nIter" << "\t" << "rNorm" << endl;
-			cout << timeStep << "\t" << setprecision(4) << scientific << time << "\t" << dt << "\t" << CFLmax << "\t" << nIter << "\t" << rNorm << endl;
+			if (timeStep==(restart+1))  cout << "step" << "\t" << "time" << "\t\t" << "dt" << "\t\t" << "CFLmax" << "\t\t" << "nIter" << "\t" << "LinearRes" << "\t" << "pRes" << "\t\t" << "vRes" << "\t\t" << "TRes" << endl;
+			cout << timeStep << "\t" << setprecision(4) << scientific << time << "\t" << dt << "\t" << CFLmax << "\t" << nIter << "\t" << rNorm << "\t" << resP << "\t" << resV << "\t" << resT << endl;
 		}
 		
 		// Ramp-up if needed
@@ -264,14 +266,6 @@ int main(int argc, char *argv[]) {
 			}
 		}
 		
-// 		if (timeStep=restart+1) {
-// 			petsc_finalize();
-// 			MPI_Barrier(MPI_COMM_WORLD);
-// 			petsc_init(argc,argv,
-// 				   input.section("linearSolver").get_double("relTolerance"),
-// 						   input.section("linearSolver").get_double("absTolerance"),
-// 								   input.section("linearSolver").get_int("maxIterations"));
-// 		}
 	
 	}
 
@@ -360,6 +354,7 @@ void update(void) {
 
 void updatePrimitive(void) {
 
+	resP=0.; resV=0.; resT=0.;
 	for (unsigned int c = 0;c < grid.cellCount;++c) {
 		grid.cell[c].p +=grid.cell[c].update[0];
 		grid.cell[c].v[0] +=grid.cell[c].update[1];
@@ -369,7 +364,18 @@ void updatePrimitive(void) {
 		grid.cell[c].k += grid.cell[c].update[5];
 		grid.cell[c].omega += grid.cell[c].update[6];
 		grid.cell[c].rho=eos.rho(grid.cell[c].p,grid.cell[c].T);
+
+		resP+=grid.cell[c].update[0]*grid.cell[c].update[0];
+		resV+=grid.cell[c].update[1]*grid.cell[c].update[1]+grid.cell[c].update[2]*grid.cell[c].update[2]+grid.cell[c].update[3]*grid.cell[c].update[3];
+		resT+=grid.cell[c].update[4]*grid.cell[c].update[4];
 	} // cell loop
+	double residuals[3],totalResiduals[3];
+	residuals[0]=resP; residuals[1]=resV; residuals[2]=resT;
+        if (np!=1) {
+        	MPI_Reduce(&residuals,&totalResiduals,3, MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
+		resP=totalResiduals[0]; resV=totalResiduals[1]; resT=totalResiduals[2];
+        }
+	resP=sqrt(resP); resV=sqrt(resV); resT=sqrt(resT);
 	return;
 }
 
