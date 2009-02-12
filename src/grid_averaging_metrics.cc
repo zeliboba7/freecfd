@@ -84,16 +84,22 @@ void Grid::nodeAverages() {
 	int tri_node_count=0;		
 	int line_node_count=0;		
 	int point_node_count=0;	
-	int stencil_expand_threshold=4;
-	if (DIMENSION==3) stencil_expand_threshold=5;
+	int stencil_expand_threshold=5;
+
+	///////////////////////////////////////////////////////////
+	// TODO with the following, square cavity problem on a uniform grid fails for parallel runs only. Why??
+        //int stencil_expand_threshold=4;
+	//if (DIMENSION==3) stencil_expand_threshold=5;
+        ////////////////////////////////////////////////////////////
+
 	// Loop all the nodes
 	for (nit=node.begin();nit!=node.end();nit++) {
 		// Initialize stencil to nearest neighbor cells
-		for (it=(*nit).cells.begin();it<(*nit).cells.end();it++) stencil.insert(*it);
+		for (it=(*nit).cells.begin();it!=(*nit).cells.end();it++) stencil.insert(*it);
 		// Include nearest ghost cells in the stencil
 		for (it=(*nit).ghosts.begin();it!=(*nit).ghosts.end();it++) stencil.insert(-1*(*it)-1);
 		// if the stencil doesn't have at least 4 points, expand it to include 2nd nearest neighbor cells
-		// NOTE ideally, second nearest ghosts would also need top be included but it is too much complication
+		// NOTE ideally, second nearest ghosts would also need to be included but it is too much complication
 		if (stencil.size()<stencil_expand_threshold) {
 			// Loop the cells neighboring the current node
 			for (it=(*nit).cells.begin();it!=(*nit).cells.end();it++) {
