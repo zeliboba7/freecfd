@@ -361,9 +361,21 @@ void updatePrimitive(void) {
 		grid.cell[c].v[1] +=grid.cell[c].update[2];
 		grid.cell[c].v[2] +=grid.cell[c].update[3];
 		grid.cell[c].T += grid.cell[c].update[4];
+		grid.cell[c].rho=eos.rho(grid.cell[c].p,grid.cell[c].T);
+		
+		// Limit the update so k doesn't end up negative
+		grid.cell[c].update[5]=max(-1.*grid.cell[c].k,grid.cell[c].update[5]);
+		// Limit the update so omega doesn't end up smaller than 100
+		grid.cell[c].update[6]=max(-1.*(grid.cell[c].omega-omegaLowLimit),grid.cell[c].update[6]);
+		
 		grid.cell[c].k += grid.cell[c].update[5];
 		grid.cell[c].omega += grid.cell[c].update[6];
-		grid.cell[c].rho=eos.rho(grid.cell[c].p,grid.cell[c].T);
+		
+		resP+=grid.cell[c].update[0]*grid.cell[c].update[0];
+		resV+=grid.cell[c].update[1]*grid.cell[c].update[1]+grid.cell[c].update[2]*grid.cell[c].update[2]+grid.cell[c].update[3]*grid.cell[c].update[3];
+		resT+=grid.cell[c].update[4]*grid.cell[c].update[4];
+		resK+=grid.cell[c].update[5]*grid.cell[c].update[5];
+		resOmega+=grid.cell[c].update[6]*grid.cell[c].update[6];
 
 		grid.cell[c].k=max(0.,grid.cell[c].k);
 		grid.cell[c].omega=max(1.,grid.cell[c].omega);

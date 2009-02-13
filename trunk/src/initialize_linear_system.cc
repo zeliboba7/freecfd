@@ -117,11 +117,6 @@ void mat_print(double P[][7]);
 
 void initialize_linear_system() {
 
-	int nSolVar=5; // Basic equations to solve
-
-	if (TURBULENCE_MODEL!=NONE) nSolVar+=2;
-
-	//if ((timeStep) % jacobianUpdateFreq == 0 || timeStep==restart+1) MatZeroEntries(impOP);
 	MatZeroEntries(impOP);
 
 	double d,lengthScale,dtLocal,a;
@@ -157,7 +152,6 @@ void initialize_linear_system() {
 			for (int j=0;j<nSolVar;++j) {
 				col=(grid.myOffset+c)*nSolVar+j;
 				value=P[i][j]*d;
-				// TODO if not updating jacobian at this time step, should this be INSERT_VALUES??
 				MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
 			}
 		}

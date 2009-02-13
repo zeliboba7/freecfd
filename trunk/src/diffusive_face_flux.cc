@@ -30,18 +30,15 @@ extern BC bc;
 void diffusive_face_flux(Cell_State &left,Cell_State &right,Face_State &face,double flux[]) {
 
 	Vec3D tau_x,tau_y,tau_z,areaVec;
-	
-	
- 	//double alpha=5./9.;
+
 	double SigmaOmega=0.5;
  	double SigmaK=0.5;
 	double mu_t=0.;
 	
 	double Tvisc=viscosity;
 	if (TURBULENCE_MODEL!=NONE) {
-		mu_t=face.rho*face.k/face.omega;
+		mu_t=fabs(face.rho*face.k/face.omega);
 		Tvisc+=mu_t;
-		
 	}
 	
 	areaVec=face.normal*face.area;

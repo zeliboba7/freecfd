@@ -24,13 +24,13 @@
 #include <cmath>
 #include "state_cache.h"
 
-void sources(Cell_State &state ,double source[]) {
+void sources(Cell_State &state,double source[],bool forJacobian=false) {
 	 
 	if (TURBULENCE_MODEL!=NONE) {
 		double alpha=5./9.;
 		double beta=3./40.;
 		double betaStar=0.09;	
-		double mu_t=state.rho*state.k/state.omega;
+		double mu_t=fabs(state.rho*state.k/state.omega);
 		double divU=0.;
 		double tauGradU=0.;
 		divU=state.gradU[0]+state.gradV[1]+state.gradW[2];
@@ -39,10 +39,12 @@ void sources(Cell_State &state ,double source[]) {
 		tauGradU+=2.*state.gradU[2]*state.gradW[0];
 		tauGradU+=2.*state.gradV[2]*state.gradW[1];
 		tauGradU*=2.*mu_t;
-		tauGradU+=-2./3.*mu_t*divU*divU+state.rho*state.k*divU;
-		source[5]=state.rho*(tauGradU-betaStar*state.omega*state.k)*state.volume;
-		source[6]=state.rho*(alpha*state.omega/state.k*tauGradU-beta*state.omega*state.omega)*state.volume;
-		
+		//tauGradU+=divU*(state.rho*state.k-2./3.*mu_t*divU);
+		tauGradU+=divU*(-2./3.*mu_t*divU);
+		source[5]=tauGradU*state.volume;
+		if (!forJacobian) source[5]-=state.rho*betaStar*state.omega*state.k*state.volume;
+		source[6]=alpha*state.omega/state.k*tauGradU*state.volume;
+		if (!forJacobian) source[6]-=state.rho*beta*state.omega*state.omega*state.volume;
 	}	
 
 	return;

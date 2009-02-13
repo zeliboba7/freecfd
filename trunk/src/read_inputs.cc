@@ -32,8 +32,12 @@ void read_inputs(InputFile &input) {
 	bool numbered=true; bool single=false;
 	
 	input.register_string("equations",optional,"NS");
-	input.register_string("turbulenceModel",optional,"none");
 	input.readEntries();
+	
+	input.registerSection("turbulence",optional);
+	input.section("turbulence").register_string("model",optional,"none");
+	input.section("turbulence").register_double("omegaLowLimit",optional,10.);
+	input.readSection("turbulence");
 	
 	input.registerSection("grid",optional);
 	input.section("grid").register_int("dimension",optional,3);
