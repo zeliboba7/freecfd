@@ -40,12 +40,14 @@ void face_geom_update(Face_State &face,unsigned int f);
 void face_state_update(Cell_State &left,Cell_State &right,Face_State &face);
 void state_perturb(Cell_State &state,Face_State &face,int var,double epsilon);
 void face_state_adjust(Cell_State &left,Cell_State &right,Face_State &face,int var);
+void sources(Cell_State &state,double source[]);
 
 namespace state {
 	Cell_State left,right,leftPlus,rightPlus;
 	Face_State face;
 	Fluxes flux, fluxPlus;
 	vector<double> jacobianLeft, jacobianRight;
+	vector<double> sourceLeft, sourceRight;
 }
 
 void assemble_linear_system(void) {
@@ -56,6 +58,8 @@ void assemble_linear_system(void) {
 	
 	unsigned int parent,neighbor,f;
 	int row,col;
+	vector<bool> cellVisited;
+	for (unsigned int c=0;c<grid.cellCount;++c) cellVisited.push_back(false);
 	PetscScalar value;
 
 	flux.convective.resize(nSolVar);
@@ -68,15 +72,19 @@ void assemble_linear_system(void) {
 	right.update.resize(nSolVar);
 	leftPlus.update.resize(nSolVar);
 	rightPlus.update.resize(nSolVar);
+	sourceLeft.resize(nSolVar);
+	sourceRight.resize(nSolVar);
 	
 	for (int m=0;m<nSolVar;++m) flux.diffusive[m]=0.;
-
+	
 	bool implicit=true;
 	if (TIME_INTEGRATOR==FORWARD_EULER) implicit=false;
-	
 	// Loop through faces
 	for (f=0;f<grid.faceCount;++f) {
-		
+		for (int m=0;m<nSolVar;++m) { 
+			sourceLeft[m]=0.;
+			sourceRight[m]=0.;
+		}
 		parent=grid.face[f].parent; neighbor=grid.face[f].neighbor;
 
 		// Populate the state caches
@@ -88,7 +96,19 @@ void assemble_linear_system(void) {
 		// Get unperturbed flux values
 		convective_face_flux(left,right,face,&flux.convective[0]);
 		if (EQUATIONS==NS) diffusive_face_flux(left,right,face,&flux.diffusive[0]);
-
+		//Add Sources
+		
+		if(face.bc==INTERNAL) {
+			if (!cellVisited[parent]){
+				sources(left,&sourceLeft[0]);
+				cellVisited[parent]=true;
+			}
+			if (!cellVisited[neighbor]){
+				sources(right,&sourceRight[0]);
+				cellVisited[neighbor]=true;
+			}
+		}
+		
 		// Integrate boundary fluxes
 		if ((timeStep) % integrateBoundaryFreq == 0) {
 			if (face.bc>=0) {
@@ -101,11 +121,11 @@ void assemble_linear_system(void) {
 		// Fill in rhs vector
 		for (int i=0;i<nSolVar;++i) {
 			row=(grid.myOffset+parent)*nSolVar+i;
-			value=flux.diffusive[i]-flux.convective[i];
+			value=flux.diffusive[i]-flux.convective[i]+sourceLeft[i];
 			VecSetValues(rhs,1,&row,&value,ADD_VALUES);
 			if (grid.face[f].bc==INTERNAL) { 
 				row=(grid.myOffset+neighbor)*nSolVar+i;
-				value*=-1.;
+				value=-1.*(flux.diffusive[i]-flux.convective[i])+sourceRight[i];
 				VecSetValues(rhs,1,&row,&value,ADD_VALUES);
 			}
 		}
@@ -152,7 +172,6 @@ void assemble_linear_system(void) {
 			} // for i
 		} // if implicit
 	} // for faces
-	
 	return;
 } // end function
 
@@ -230,18 +249,25 @@ void left_state_update(Cell_State &left,Face_State &face) {
 	left.v=left.v_center+deltaV;
 	left.T_center=grid.cell[parent].T;
 	left.T=left.T_center+delta[4];
-	left.k_center=grid.cell[parent].k;
-	left.k=left.k_center+delta[5];
-	left.omega_center=grid.cell[parent].omega;
-	left.omega=left.omega_center+delta[6];
 	left.rho=eos.rho(left.p,left.T);
 	left.a=sqrt(Gamma*(left.p+Pref)/left.rho);
 	left.H=left.a*left.a/(Gamma-1.)+0.5*left.v.dot(left.v);
-	left.mu=grid.cell[parent].mu;
-			
+	left.mu=grid.cell[parent].mu;		
 	left.vN[0]=left.v.dot(face.normal);
 	left.vN[1]=left.v.dot(face.tangent1);
 	left.vN[2]=left.v.dot(face.tangent2);
+	left.volume=grid.cell[parent].volume;
+	if (TURBULENCE_MODEL!=NONE) {
+		left.k_center=grid.cell[parent].k;
+		left.k=left.k_center+delta[5];
+		left.omega_center=grid.cell[parent].omega;
+		left.omega=left.omega_center+delta[6];
+		left.gradU=grid.cell[parent].limited_grad[1];
+		left.gradV=grid.cell[parent].limited_grad[2];
+		left.gradW=grid.cell[parent].limited_grad[3];
+		left.gradK=grid.cell[parent].limited_grad[5];
+		left.gradOmega=grid.cell[parent].limited_grad[6];
+	}
 	
 	return;
 } // end left_state_update
@@ -274,12 +300,20 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 		right.v=right.v_center+deltaV;
 		right.T_center=grid.cell[neighbor].T;
 		right.T=right.T_center+delta[4];
-		right.k_center=grid.cell[neighbor].k;
-		right.k=right.k_center+delta[5];
-		right.omega_center=grid.cell[neighbor].omega;
-		right.omega=right.omega_center+delta[6];
 		right.rho=eos.rho(right.p,right.T);
 		right.mu=grid.cell[neighbor].mu;
+		right.volume=grid.cell[neighbor].volume;
+		if (TURBULENCE_MODEL!=NONE) {
+			right.k_center=grid.cell[neighbor].k;
+			right.k=right.k_center+delta[5];
+			right.omega_center=grid.cell[neighbor].omega;
+			right.omega=right.omega_center+delta[6];
+			right.gradU=grid.cell[neighbor].limited_grad[1];
+			right.gradV=grid.cell[neighbor].limited_grad[2];
+			right.gradW=grid.cell[neighbor].limited_grad[3];
+			right.gradK=grid.cell[neighbor].limited_grad[5];
+			right.gradOmega=grid.cell[neighbor].limited_grad[6];
+		}
 		
 	} else if (face.bc>=0) { // boundary face
 		right.mu=left.mu;
@@ -321,30 +355,32 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 			right.v=left.v;
 			right.v_center=left.v_center+2.*(right.v-left.v_center); 
 			right.k=left.k;
-			right.k_center=left.k_center;
+			right.k_center=left.k_center+2.*(right.k-left.k_center);
 			right.omega=left.omega;
-			right.omega_center=left.omega_center;
+			right.omega_center=left.omega_center+2.*(right.omega-left.omega_center);
 		} else if (bc.region[face.bc].type==SLIP) {
 			right.v=left.v-2.*left.v.dot(face.normal)*face.normal;
 			right.v_center=left.v_center-2.*left.v_center.dot(face.normal)*face.normal;
-			right.k=left.k;
-			right.k_center=left.k_center;
-			right.omega=left.omega;
-			right.omega_center=left.omega_center;
+			right.k=0.;
+			right.k_center=0.;
+			right.omega=60.*viscosity/(right.rho*0.075*pow(0.5*fabs((face.left2right).dot(face.normal)),2.));
+			//right.omega=left.omega;
+			right.omega_center=left.omega_center+2.*(right.omega-left.omega_center);
 		} else if (bc.region[face.bc].type==SYMMETRY) {
 			right.v=left.v-2.*left.v.dot(face.normal)*face.normal;
 			right.v_center=left.v_center-2.*left.v_center.dot(face.normal)*face.normal;
 			right.k=left.k;
-			right.k_center=left.k_center;
+			right.k_center=left.k_center+2.*(right.k-left.k_center);
 			right.omega=left.omega;
-			right.omega_center=left.omega_center;
+			right.omega_center=left.omega_center+2.*(right.omega-left.omega_center);
 		} else if (bc.region[face.bc].type==NOSLIP) {
 			right.v=-1.*left.v;
 			right.v_center=-1.*left.v_center;
-			right.k=left.k;
-			right.k_center=left.k_center;
-			right.omega=left.omega;
-			right.omega_center=left.omega_center;
+			right.k=0.;
+			right.k_center=0.;
+			right.omega=60.*viscosity/(right.rho*0.075*pow(0.5*fabs((face.left2right).dot(face.normal)),2.));
+			//right.omega=left.omega;
+			right.omega_center=left.omega_center+2.*(right.omega-left.omega_center);
 		} else if (bc.region[face.bc].type==INLET) {
 			right.v=bc.region[face.bc].v;
 			right.v_center=right.v;
@@ -373,10 +409,19 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 		right.v=right.v_center+deltaV;
 		right.T_center=grid.ghost[g].T;
 		right.T=right.T_center+delta[4];
-		right.k=grid.ghost[g].k+delta[5];
-		right.omega=grid.ghost[g].omega+delta[6];
 		right.rho=eos.rho(right.p,right.T);
 		right.mu=grid.ghost[g].mu;
+		if (TURBULENCE_MODEL!=NONE) {
+			right.k_center=grid.ghost[g].k;
+			right.k=right.k_center+delta[5];
+			right.omega_center=grid.ghost[g].omega;
+			right.omega=right.omega_center+delta[6];
+			right.gradU=grid.ghost[g].limited_grad[1];
+			right.gradV=grid.ghost[g].limited_grad[2];
+			right.gradW=grid.ghost[g].limited_grad[3];
+			right.gradK=grid.ghost[g].limited_grad[5];
+			right.gradOmega=grid.ghost[g].limited_grad[6];
+		}
 	}
 
 	right.a=sqrt(Gamma*(right.p+Pref)/right.rho);
@@ -438,6 +483,13 @@ void face_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 
 	face.gradW-=face.gradW.dot(face.normal)*face.normal;
 	face.gradW+=((right.v_center[2]-left.v_center[2])/(face.left2right.dot(face.normal)))*face.normal;
+	if (TURBULENCE_MODEL!=NONE) {
+	face.gradK-=face.gradK.dot(face.normal)*face.normal;
+	face.gradK+=((right.k_center-left.k_center)/(face.left2right.dot(face.normal)))*face.normal;
+	
+	face.gradOmega-=face.gradOmega.dot(face.normal)*face.normal;
+	face.gradOmega+=((right.omega_center-left.omega_center)/(face.left2right.dot(face.normal)))*face.normal;
+	}
 	//cout << face.left2right.norm() << endl;
 	// Boundary conditions are already taken care of in right state update
 	face.p=0.5*(left.p+right.p);

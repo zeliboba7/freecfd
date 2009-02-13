@@ -27,8 +27,9 @@
 
 class Cell_State {
 	public:
-		double p,T,T_center,rho,a,H,k,omega,mu,k_center,omega_center;
+		double p,T,T_center,rho,a,H,k,omega,mu,k_center,omega_center,volume;
 		Vec3D v,v_center,vN;
+		Vec3D gradU,gradV,gradW,gradK,gradOmega;
 		vector<double> update;
 		Cell_State &operator= (const Cell_State & rhs) {
 			p=rhs.p;
@@ -42,8 +43,14 @@ class Cell_State {
 			k_center=rhs.k_center;
 			omega_center=rhs.omega_center;
 			v=rhs.v;
+			gradU=rhs.gradU;
+			gradV=rhs.gradV;
+			gradW=rhs.gradW;
+			gradK=rhs.gradK;
+			gradOmega=rhs.gradOmega;
 			v_center=rhs.v_center;
 			vN=rhs.vN;
+			volume=rhs.volume;
 			copy(rhs.update.begin(),rhs.update.end(),update.begin());
 			return *this;
 		}
