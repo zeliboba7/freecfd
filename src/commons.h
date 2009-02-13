@@ -94,6 +94,7 @@ extern int OUTPUT_FORMAT;
 
 extern int Rank,np;
 extern int nSolVar;
+extern double omegaLowLimit;
 extern double dt,dtTarget,CFLmax,CFLmaxTarget,CFLlocal,CFLlocalTarget;
 extern int timeStep,restart;
 extern double Minf,Pref,Tref;

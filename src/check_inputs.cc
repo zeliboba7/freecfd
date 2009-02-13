@@ -27,8 +27,6 @@ void check_inputs(InputFile &input) {
 	
 	// While the input class is awesome, it is slow for frequently accessed variables
 	// Pass those to global variables (defined in commons.h) and do some sanity check in the mean time
-	
-	nSolVar=5;
 
 	if (input.section("grid").get_int("dimension").is_found) {
 		if (input.section("grid").get_int("dimension")>3 || input.section("grid").get_int("dimension")<1) {
@@ -52,8 +50,9 @@ void check_inputs(InputFile &input) {
 			exit(1);
 		}
 	}
-		
-	option=input.get_string("turbulenceModel");
+	
+	nSolVar=5;
+	option=input.section("turbulence").get_string("model");
 	if (option=="none") {
 		TURBULENCE_MODEL=NONE;
 	} else if (option=="k-omega") {
@@ -61,7 +60,7 @@ void check_inputs(InputFile &input) {
 		nSolVar+=2;
 	} else {
 		if (Rank==0) {
-			cerr << "[E] Input entry turbulenceModel=" << option << " is not recognized!!" << endl;
+			cerr << "[E] Input entry turbulence -> model=" << option << " is not recognized!!" << endl;
 			cerr << "[E] Acceptable options are none and k-omega" << endl;
 			exit(1);
 		}
@@ -197,6 +196,7 @@ void check_inputs(InputFile &input) {
 		}
 	}
 	
+	omegaLowLimit=input.section("turbulence").get_double("omegaLowLimit");
 	viscosity=input.section("fluidProperties").get_double("viscosity");
 	conductivity=input.section("fluidProperties").get_double("thermalConductivity");
 	Gamma=input.section("fluidProperties").get_double("gamma");

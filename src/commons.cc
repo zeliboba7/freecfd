@@ -30,6 +30,7 @@ int OUTPUT_FORMAT;
 
 int Rank,np;
 int nSolVar;
+double omegaLowLimit;
 double dt,dtTarget,CFLmax,CFLmaxTarget,CFLlocal,CFLlocalTarget;
 int timeStep,restart;
 double Minf,Pref,Tref;

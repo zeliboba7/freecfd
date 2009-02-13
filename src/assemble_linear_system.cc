@@ -40,14 +40,15 @@ void face_geom_update(Face_State &face,unsigned int f);
 void face_state_update(Cell_State &left,Cell_State &right,Face_State &face);
 void state_perturb(Cell_State &state,Face_State &face,int var,double epsilon);
 void face_state_adjust(Cell_State &left,Cell_State &right,Face_State &face,int var);
-void sources(Cell_State &state,double source[]);
+void sources(Cell_State &state,double source[],bool forJacobian=false);
 
 namespace state {
 	Cell_State left,right,leftPlus,rightPlus;
 	Face_State face;
 	Fluxes flux, fluxPlus;
-	vector<double> jacobianLeft, jacobianRight;
-	vector<double> sourceLeft, sourceRight;
+	vector<double> jacobianLeft,jacobianRight,sourceJacLeft,sourceJacRight;
+	vector<double> sourceLeft,sourceRight,sourceLeftPlus,sourceRightPlus;
+	bool doLeftSourceJac,doRightSourceJac;
 }
 
 void assemble_linear_system(void) {
@@ -58,6 +59,7 @@ void assemble_linear_system(void) {
 	
 	unsigned int parent,neighbor,f;
 	int row,col;
+	
 	vector<bool> cellVisited;
 	for (unsigned int c=0;c<grid.cellCount;++c) cellVisited.push_back(false);
 	PetscScalar value;
@@ -74,6 +76,10 @@ void assemble_linear_system(void) {
 	rightPlus.update.resize(nSolVar);
 	sourceLeft.resize(nSolVar);
 	sourceRight.resize(nSolVar);
+	sourceLeftPlus.resize(nSolVar);
+	sourceRightPlus.resize(nSolVar);
+	sourceJacLeft.resize(nSolVar);
+	sourceJacRight.resize(nSolVar);
 	
 	for (int m=0;m<nSolVar;++m) flux.diffusive[m]=0.;
 	
@@ -81,6 +87,8 @@ void assemble_linear_system(void) {
 	if (TIME_INTEGRATOR==FORWARD_EULER) implicit=false;
 	// Loop through faces
 	for (f=0;f<grid.faceCount;++f) {
+
+		doLeftSourceJac=false; doRightSourceJac=false;
 		for (int m=0;m<nSolVar;++m) { 
 			sourceLeft[m]=0.;
 			sourceRight[m]=0.;
@@ -96,17 +104,18 @@ void assemble_linear_system(void) {
 		// Get unperturbed flux values
 		convective_face_flux(left,right,face,&flux.convective[0]);
 		if (EQUATIONS==NS) diffusive_face_flux(left,right,face,&flux.diffusive[0]);
-		//Add Sources
+
+		// Add Sources
+		if (!cellVisited[parent]){
+			sources(left,&sourceLeft[0]);
+			cellVisited[parent]=true;
+			doLeftSourceJac=true;
+		}
 		
-		if(face.bc==INTERNAL) {
-			if (!cellVisited[parent]){
-				sources(left,&sourceLeft[0]);
-				cellVisited[parent]=true;
-			}
-			if (!cellVisited[neighbor]){
-				sources(right,&sourceRight[0]);
-				cellVisited[neighbor]=true;
-			}
+		if(face.bc==INTERNAL && !cellVisited[neighbor]) {
+			sources(right,&sourceRight[0]);
+			cellVisited[neighbor]=true;
+			doRightSourceJac=true;
 		}
 		
 		// Integrate boundary fluxes
@@ -133,17 +142,22 @@ void assemble_linear_system(void) {
 		if (implicit) {
 
 			for (int i=0;i<nSolVar;++i) {
+				for (int m=0;m<nSolVar;++m) { 
+					sourceJacLeft[m]=0.;
+					sourceJacRight[m]=0.;
+				}
 				get_jacobians(i);
 		
 				// Add change of flux (flux Jacobian) to implicit operator
 				for (int j=0;j<nSolVar;++j) {
-					row=(grid.myOffset+parent)*nSolVar+j;
-					col=(grid.myOffset+parent)*nSolVar+i;
+					col=(grid.myOffset+parent)*nSolVar+i; // Effect of parent ith var perturbation
+					row=(grid.myOffset+parent)*nSolVar+j; // on parent jth flux
 					value=-1.*jacobianLeft[j];
+					if (doLeftSourceJac) value-=sourceJacLeft[j];
 					MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
 					if (face.bc==INTERNAL) { 
-						row=(grid.myOffset+neighbor)*nSolVar+j;
-						value*=-1.;
+						row=(grid.myOffset+neighbor)*nSolVar+j; // on neighbor jth flux
+						value=jacobianLeft[j]; 
 						MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
 					}
 				} // for j
@@ -153,18 +167,18 @@ void assemble_linear_system(void) {
 					// Add change of flux (flux Jacobian) to implicit operator
 					for (int j=0;j<nSolVar;++j) {
 						if (face.bc==INTERNAL) { 
-							row=(grid.myOffset+neighbor)*nSolVar+j;
-							col=(grid.myOffset+neighbor)*nSolVar+i;
+							col=(grid.myOffset+neighbor)*nSolVar+i; // Effect of neighbor ith var perturbation
+							row=(grid.myOffset+neighbor)*nSolVar+j; // on neighbor jth flux
 							value=jacobianRight[j];
+							if (doRightSourceJac) value-=sourceJacRight[j];
 							MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
-							row=(grid.myOffset+parent)*nSolVar+j;
-							value*=-1.;
+							row=(grid.myOffset+parent)*nSolVar+j; // on parent jth flux
+							value=-1.*jacobianRight[j];
 							MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
 						} else  { // Ghost (only add effect on parent cell, effect on itself is taken care of in its own partition
 							row=(grid.myOffset+parent)*nSolVar+j;
 							col=(grid.ghost[-1*neighbor-1].matrix_id)*nSolVar+i;
 							value=jacobianRight[j];
-							value*=-1.;
 							MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
 						}
 					}
@@ -185,20 +199,32 @@ void get_jacobians(const int var) {
 
 	leftPlus=left;
 	rightPlus=right;
+	
+	for (int m=0;m<nSolVar;++m) {
+		sourceLeftPlus[m]=sourceLeft[m];
+		sourceRightPlus[m]=sourceRight[m];
+	}
+	
 	if (left.update[var]>0.) {epsilon=max(sqrt_machine_error,factor*left.update[var]);}
 	else {epsilon=min(-1.*sqrt_machine_error,factor*left.update[var]); }
+	
+	if (var==5 || var==6 ) epsilon=sqrt_machine_error;
 	// Perturb left state
 	state_perturb(leftPlus,face,var,epsilon);
 	// If right state is a boundary, correct the condition according to changes in left state
 	if (face.bc>=0) right_state_update(leftPlus,rightPlus,face);
 	convective_face_flux(leftPlus,rightPlus,face,&fluxPlus.convective[0]);
-
+	
 	if (EQUATIONS==NS) {
 		face_state_adjust(leftPlus,rightPlus,face,var);
 		diffusive_face_flux(leftPlus,rightPlus,face,&fluxPlus.diffusive[0]);
 	} 
+	
+	if (doLeftSourceJac) sources(leftPlus,&sourceLeftPlus[0],true);
+	
 	for (int j=0;j<nSolVar;++j){
 		jacobianLeft[j]=(fluxPlus.diffusive[j]-flux.diffusive[j]-fluxPlus.convective[j]+flux.convective[j])/epsilon;
+		if (doLeftSourceJac) sourceJacLeft[j]=(sourceLeftPlus[j]-sourceLeft[j])/epsilon;
 	}
 
 	if (face.bc==INTERNAL || face.bc==GHOST) { 
@@ -209,22 +235,28 @@ void get_jacobians(const int var) {
 			epsilon=min(-1.*sqrt_machine_error,factor*right.update[var]); 
 		}
 
+		if (var==5 || var==6 ) epsilon=sqrt_machine_error;
+		
 		state_perturb(rightPlus,face,var,epsilon);
-						
+			
 		convective_face_flux(left,rightPlus,face,&fluxPlus.convective[0]);
 		if (EQUATIONS==NS) {
 			face_state_adjust(left,rightPlus,face,var);
 			diffusive_face_flux(left,rightPlus,face,&fluxPlus.diffusive[0]);
 		} 
+		
+		if (doRightSourceJac) sources(rightPlus,&sourceRightPlus[0],true);
+		
 		for (int j=0;j<nSolVar;++j){
-			jacobianRight[j]=(fluxPlus.diffusive[j]-flux.diffusive[j]-fluxPlus.convective[j]+flux.convective[j])/epsilon;;
+			jacobianRight[j]=(fluxPlus.diffusive[j]-flux.diffusive[j]-fluxPlus.convective[j]+flux.convective[j])/epsilon;
+			if (doRightSourceJac) sourceJacRight[j]=(sourceRightPlus[j]-sourceRight[j])/epsilon;
 		}
 	}
 	face_state_adjust(left,right,face,var);
 }
 
 void left_state_update(Cell_State &left,Face_State &face) {
-// use namespace in this one
+
 	unsigned int parent;
 	Vec3D deltaV;
 	double delta[nSolVar];
@@ -259,9 +291,9 @@ void left_state_update(Cell_State &left,Face_State &face) {
 	left.volume=grid.cell[parent].volume;
 	if (TURBULENCE_MODEL!=NONE) {
 		left.k_center=grid.cell[parent].k;
-		left.k=left.k_center+delta[5];
+		left.k=max(0.,left.k_center+delta[5]);
 		left.omega_center=grid.cell[parent].omega;
-		left.omega=left.omega_center+delta[6];
+		left.omega=max(omegaLowLimit,left.omega_center+delta[6]);
 		left.gradU=grid.cell[parent].limited_grad[1];
 		left.gradV=grid.cell[parent].limited_grad[2];
 		left.gradW=grid.cell[parent].limited_grad[3];
@@ -370,26 +402,25 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 			right.v=left.v-2.*left.v.dot(face.normal)*face.normal;
 			right.v_center=left.v_center-2.*left.v_center.dot(face.normal)*face.normal;
 			right.k=left.k;
-			right.k_center=left.k_center+2.*(right.k-left.k_center);
+			right.k_center=left.k_center;
 			right.omega=left.omega;
-			right.omega_center=left.omega_center+2.*(right.omega-left.omega_center);
+			right.omega_center=left.omega_center;
 		} else if (bc.region[face.bc].type==NOSLIP) {
 			right.v=-1.*left.v;
 			right.v_center=-1.*left.v_center;
 			right.k=0.;
 			right.k_center=0.;
 			right.omega=60.*viscosity/(right.rho*0.075*pow(0.5*fabs((face.left2right).dot(face.normal)),2.));
-			//right.omega=left.omega;
 			right.omega_center=left.omega_center+2.*(right.omega-left.omega_center);
 		} else if (bc.region[face.bc].type==INLET) {
 			right.v=bc.region[face.bc].v;
 			right.v_center=right.v;
 			right.k=bc.region[face.bc].k;
-			right.omega=bc.region[face.bc].omega;
 			right.k_center=right.k;
+			right.omega=bc.region[face.bc].omega;
 			right.omega_center=right.omega;
 		}
-
+		
 	} else { // partition boundary
 
 		int g=-1*grid.face[face.index].neighbor-1; // ghost cell index
@@ -415,12 +446,7 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 			right.k_center=grid.ghost[g].k;
 			right.k=right.k_center+delta[5];
 			right.omega_center=grid.ghost[g].omega;
-			right.omega=right.omega_center+delta[6];
-			right.gradU=grid.ghost[g].limited_grad[1];
-			right.gradV=grid.ghost[g].limited_grad[2];
-			right.gradW=grid.ghost[g].limited_grad[3];
-			right.gradK=grid.ghost[g].limited_grad[5];
-			right.gradOmega=grid.ghost[g].limited_grad[6];
+			right.omega=max(omegaLowLimit,right.omega_center+delta[6]);
 		}
 	}
 
@@ -429,6 +455,11 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 	right.vN[0]=right.v.dot(face.normal);
 	right.vN[1]=right.v.dot(face.tangent1);
 	right.vN[2]=right.v.dot(face.tangent2);
+	
+	right.k=max(0.,right.k);
+	right.k_center=max(0.,right.k_center);
+	right.omega=max(omegaLowLimit,right.omega);
+	right.omega_center=max(omegaLowLimit,right.omega_center);
 	
 	return;
 } // end right_state_update
@@ -483,14 +514,15 @@ void face_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 
 	face.gradW-=face.gradW.dot(face.normal)*face.normal;
 	face.gradW+=((right.v_center[2]-left.v_center[2])/(face.left2right.dot(face.normal)))*face.normal;
+
 	if (TURBULENCE_MODEL!=NONE) {
-	face.gradK-=face.gradK.dot(face.normal)*face.normal;
-	face.gradK+=((right.k_center-left.k_center)/(face.left2right.dot(face.normal)))*face.normal;
+		face.gradK-=face.gradK.dot(face.normal)*face.normal;
+		face.gradK+=((right.k_center-left.k_center)/(face.left2right.dot(face.normal)))*face.normal;
 	
-	face.gradOmega-=face.gradOmega.dot(face.normal)*face.normal;
-	face.gradOmega+=((right.omega_center-left.omega_center)/(face.left2right.dot(face.normal)))*face.normal;
+		face.gradOmega-=face.gradOmega.dot(face.normal)*face.normal;
+		face.gradOmega+=((right.omega_center-left.omega_center)/(face.left2right.dot(face.normal)))*face.normal;
 	}
-	//cout << face.left2right.norm() << endl;
+
 	// Boundary conditions are already taken care of in right state update
 	face.p=0.5*(left.p+right.p);
 	face.v=0.5*(left.v+right.v);
@@ -559,14 +591,6 @@ void state_perturb(Cell_State &state,Face_State &face,int var,double epsilon) {
 
 void face_state_adjust(Cell_State &left,Cell_State &right,Face_State &face,int var) {
 
-	double distance;
-	Vec3D direction;
-	
-	if (var!=0) {
-		distance=fabs(face.left2right);
-		direction=face.left2right/distance;
-	}
-
 	switch (var)
 	{
 		case 0 : // p
@@ -575,11 +599,8 @@ void face_state_adjust(Cell_State &left,Cell_State &right,Face_State &face,int v
 			break;
 		case 1 : // u
 			face.v[0]=0.5*(left.v[0]+right.v[0]);
-// 			face.gradU-=face.gradU.dot(direction)*direction;
-// 			face.gradU+=((right.v_center[0]-left.v_center[0])/distance)*direction;
 			face.gradU-=face.gradU.dot(face.normal)*face.normal;
 			face.gradU+=((right.v_center[0]-left.v_center[0])/(face.left2right.dot(face.normal)))*face.normal;
-
 			break;
 		case 2 : // v
 			face.v[1]=0.5*(left.v[1]+right.v[1]);
@@ -594,18 +615,18 @@ void face_state_adjust(Cell_State &left,Cell_State &right,Face_State &face,int v
 		case 4 : // T
 			face.T=0.5*(left.T+right.T);
 			face.rho=eos.rho(face.p,face.T);
-			face.gradT-=face.gradT.dot(direction)*direction;
-			face.gradT+=((right.T_center-left.T_center)/distance)*direction;
+			face.gradT-=face.gradT.dot(face.normal)*face.normal;
+			face.gradT+=((right.T_center-left.T_center)/(face.left2right.dot(face.normal)))*face.normal;
 			break;
 		case 5 : // k
 			face.k=0.5*(left.k+right.k);
-			face.gradK-=face.gradK.dot(direction)*direction;
-			face.gradK+=((right.k_center-left.k_center)/distance)*direction;
+			face.gradK-=face.gradK.dot(face.normal)*face.normal;
+			face.gradK+=((right.k_center-left.k_center)/(face.left2right.dot(face.normal)))*face.normal;
 			break;
 		case 6 : // omega
 			face.omega=0.5*(left.omega+right.omega);
-			face.gradOmega-=face.gradOmega.dot(direction)*direction;
-			face.gradOmega+=((right.omega_center-left.omega_center)/distance)*direction;
+			face.gradOmega-=face.gradOmega.dot(face.normal)*face.normal;
+			face.gradOmega+=((right.omega_center-left.omega_center)/(face.left2right.dot(face.normal)))*face.normal;
 			break;
 	}
 

@@ -34,10 +34,6 @@ VecScatter scatterContext;
 
 void petsc_init(int argc, char *argv[],double rtol,double abstol,int maxits) {
 
-	int nSolVar=5; // Basic equations to solve
-
-	if (TURBULENCE_MODEL!=NONE) nSolVar+=2;
-
 	// Initialize petsc
 	PetscInitialize(&argc,&argv,(char *)0,help);
 	PC pc; // preconditioner context
@@ -89,10 +85,6 @@ void petsc_init(int argc, char *argv[],double rtol,double abstol,int maxits) {
 } // end petsc_init
 
 void petsc_solve(int &nIter,double &rNorm) {
-
-	int nSolVar=5; // Basic equations to solve
-
-	if (TURBULENCE_MODEL!=NONE) nSolVar+=2;
 
 	MatAssemblyBegin(impOP,MAT_FINAL_ASSEMBLY);
 	MatAssemblyEnd(impOP,MAT_FINAL_ASSEMBLY);
