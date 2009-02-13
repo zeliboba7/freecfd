@@ -366,7 +366,9 @@ void Grid::gradients(void) {
 					faceK=bc.region[face[f].bc].k;
 					faceOmega=bc.region[face[f].bc].omega;
 				} else if (bc.region[face[f].bc].type==SLIP) { 
-					faceVel-=faceVel.dot(face[f].normal)*face[f].normal;	
+					faceVel-=faceVel.dot(face[f].normal)*face[f].normal;
+					faceK=0.;
+					faceOmega=60.*viscosity/(faceRho*0.075*pow(fabs((cell[face[f].parent].centroid-face[f].centroid).dot(face[f].normal)),2.));	
 				} else if (bc.region[face[f].bc].type==SYMMETRY) {
 					// Symmetry mirrors everything
 					faceP=cell[face[f].parent].p;
@@ -376,6 +378,8 @@ void Grid::gradients(void) {
 					faceOmega=cell[face[f].parent].omega;
 				} else if (bc.region[face[f].bc].type==NOSLIP) {
 					faceVel=0.;
+					faceK=0.;
+					faceOmega=60.*viscosity/(faceRho*0.075*pow(fabs((cell[face[f].parent].centroid-face[f].centroid).dot(face[f].normal)),2.));
 				}
 				
 				cell[c].grad[0]+=faceP*areaVec;

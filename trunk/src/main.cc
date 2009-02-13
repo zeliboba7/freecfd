@@ -74,7 +74,7 @@ InputFile input;
 vector<Probe> probes;
 vector<BoundaryFlux> boundaryFluxes;
 
-double resP,resV,resT;
+double resP,resV,resT,resK,resOmega;
 
 int main(int argc, char *argv[]) {
 
@@ -211,7 +211,7 @@ int main(int argc, char *argv[]) {
 		time += dt;
 		if (Rank==0) {
 			if (timeStep==(restart+1))  cout << "step" << "\t" << "time" << "\t\t" << "dt" << "\t\t" << "CFLmax" << "\t\t" << "nIter" << "\t" << "LinearRes" << "\t" << "pRes" << "\t\t" << "vRes" << "\t\t" << "TRes" << endl;
-			cout << timeStep << "\t" << setprecision(4) << scientific << time << "\t" << dt << "\t" << CFLmax << "\t" << nIter << "\t" << rNorm << "\t" << resP << "\t" << resV << "\t" << resT << endl;
+			cout << timeStep << "\t" << setprecision(4) << scientific << time << "\t" << dt << "\t" << CFLmax << "\t" << nIter << "\t" << rNorm << "\t" << resP << "\t" << resV << "\t" << resT << "\t" << resK << "\t" << resOmega << endl;
 		}
 		
 		// Ramp-up if needed
@@ -354,7 +354,7 @@ void update(void) {
 
 void updatePrimitive(void) {
 
-	resP=0.; resV=0.; resT=0.;
+	resP=0.; resV=0.; resT=0.; resK=0.; resOmega=0.;
 	for (unsigned int c = 0;c < grid.cellCount;++c) {
 		grid.cell[c].p +=grid.cell[c].update[0];
 		grid.cell[c].v[0] +=grid.cell[c].update[1];
@@ -365,17 +365,25 @@ void updatePrimitive(void) {
 		grid.cell[c].omega += grid.cell[c].update[6];
 		grid.cell[c].rho=eos.rho(grid.cell[c].p,grid.cell[c].T);
 
+		grid.cell[c].k=max(0.,grid.cell[c].k);
+		grid.cell[c].omega=max(1.,grid.cell[c].omega);
+		grid.cell[c].omega=min(5.e5,grid.cell[c].omega);
 		resP+=grid.cell[c].update[0]*grid.cell[c].update[0];
 		resV+=grid.cell[c].update[1]*grid.cell[c].update[1]+grid.cell[c].update[2]*grid.cell[c].update[2]+grid.cell[c].update[3]*grid.cell[c].update[3];
 		resT+=grid.cell[c].update[4]*grid.cell[c].update[4];
+		resK+=grid.cell[c].update[5]*grid.cell[c].update[5];
+		resOmega+=grid.cell[c].update[6]*grid.cell[c].update[6];
 	} // cell loop
-	double residuals[3],totalResiduals[3];
+	double residuals[5],totalResiduals[5];
 	residuals[0]=resP; residuals[1]=resV; residuals[2]=resT;
+	residuals[3]=resK; residuals[4]=resOmega;
         if (np!=1) {
-        	MPI_Reduce(&residuals,&totalResiduals,3, MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
+        	MPI_Reduce(&residuals,&totalResiduals,5, MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
 		resP=totalResiduals[0]; resV=totalResiduals[1]; resT=totalResiduals[2];
+		resK=totalResiduals[3]; resOmega=totalResiduals[4];
         }
 	resP=sqrt(resP); resV=sqrt(resV); resT=sqrt(resT);
+	resK=sqrt(resK); resOmega=sqrt(resOmega);
 	return;
 }
 

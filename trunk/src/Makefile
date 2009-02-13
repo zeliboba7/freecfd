@@ -28,7 +28,7 @@ SRC= \
 	main.cc mpi_functions.cc \
 	petsc_functions.cc probes.cc \
 	read_inputs.cc read_restart.cc \
-	set_bcs.cc \
+	set_bcs.cc sources.cc \
 	write_output.cc write_restart.cc \
 	vec3d.cc 
 
