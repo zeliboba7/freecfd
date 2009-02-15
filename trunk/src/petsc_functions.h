@@ -31,7 +31,7 @@ using namespace std;
 #include "grid.h"
  
 extern KSP ksp; // linear solver context
-extern Vec deltaU,rhs,globalUpdate; // solution, residual vectors
+extern Vec deltaU,rhs; // solution, residual vectors
 extern Mat impOP; // implicit operator matrix
 extern Grid grid;
 extern int np, Rank;

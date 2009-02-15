@@ -294,7 +294,7 @@ void Grid::gradients(void) {
 	map<int,double>::iterator fit;
 	unsigned int f;
 	Vec3D faceVel,areaVec;
-	double faceP,faceT,faceRho,faceK,faceOmega,faceMach;
+	double faceP,faceT,faceRho,faceK,faceOmega;
 	
 	for (unsigned int c=0;c<cellCount;++c) {
 		// Initialize all gradients to zero
@@ -322,7 +322,7 @@ void Grid::gradients(void) {
 			if (face[f].bc>=0) { // if a boundary face
 				areaVec=face[f].normal*face[f].area/cell[c].volume;
 				
-				faceP=0.; faceVel=0.;faceT=0.;;faceK=0.;faceOmega=0.;
+				faceP=0.; faceVel=0.; faceT=0.; faceK=0.; faceOmega=0.;
 				for (fit=face[f].average.begin();fit!=face[f].average.end();fit++) {
 					if ((*fit).first>=0) { // if contribution is coming from a real cell
 						faceP+=(*fit).second*cell[(*fit).first].p;
