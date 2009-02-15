@@ -30,13 +30,11 @@ static char help[] = "Free CFD\n - A free general purpose computational fluid dy
 KSP ksp; // linear solver context
 Vec deltaU,rhs; // solution, residual vectors
 Mat impOP; // implicit operator matrix
-VecScatter scatterContext;
 
 void petsc_init(int argc, char *argv[],double rtol,double abstol,int maxits) {
 
 	// Initialize petsc
 	PetscInitialize(&argc,&argv,(char *)0,help);
-	PC pc; // preconditioner context
 	PetscErrorCode ierr;
 	//Create nonlinear solver context
 	KSPCreate(PETSC_COMM_WORLD,&ksp);
@@ -112,7 +110,6 @@ void petsc_solve(int &nIter,double &rNorm) {
 } // end petsc_solve
 
 void petsc_finalize(void) {
-	VecScatterDestroy(scatterContext);
 	KSPDestroy(ksp);
 	MatDestroy(impOP);
 	VecDestroy(rhs);

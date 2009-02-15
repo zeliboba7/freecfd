@@ -203,6 +203,8 @@ void get_jacobians(const int var) {
 	for (int m=0;m<nSolVar;++m) {
 		sourceLeftPlus[m]=sourceLeft[m];
 		sourceRightPlus[m]=sourceRight[m];
+		sourceJacLeft[m]=0.;
+		sourceJacRight[m]=0.;
 	}
 	
 	if (left.update[var]>0.) {epsilon=max(sqrt_machine_error,factor*left.update[var]);}
@@ -220,11 +222,22 @@ void get_jacobians(const int var) {
 		diffusive_face_flux(leftPlus,rightPlus,face,&fluxPlus.diffusive[0]);
 	} 
 	
-	if (doLeftSourceJac) sources(leftPlus,&sourceLeftPlus[0],true);
+	
+// 	if (doLeftSourceJac) {
+// 		sources(left,&sourceLeft[0],true);
+// 		sources(leftPlus,&sourceLeftPlus[0],true);
+// 	}
+	
+	if (doLeftSourceJac && var==5) {
+		sourceJacLeft[5]=-0.09*left.rho*left.omega*left.volume;
+	}
+	if (doLeftSourceJac && var==6) {
+		sourceJacLeft[6]=-3./40.*2.*left.rho*left.omega*left.volume;
+	}
 	
 	for (int j=0;j<nSolVar;++j){
 		jacobianLeft[j]=(fluxPlus.diffusive[j]-flux.diffusive[j]-fluxPlus.convective[j]+flux.convective[j])/epsilon;
-		if (doLeftSourceJac) sourceJacLeft[j]=(sourceLeftPlus[j]-sourceLeft[j])/epsilon;
+		//if (doLeftSourceJac) sourceJacLeft[j]=(sourceLeftPlus[j]-sourceLeft[j])/epsilon;
 	}
 
 	if (face.bc==INTERNAL || face.bc==GHOST) { 
@@ -245,11 +258,22 @@ void get_jacobians(const int var) {
 			diffusive_face_flux(left,rightPlus,face,&fluxPlus.diffusive[0]);
 		} 
 		
-		if (doRightSourceJac) sources(rightPlus,&sourceRightPlus[0],true);
+// 		if (doRightSourceJac) {
+// 			sources(right,&sourceRight[0],true);
+// 			sources(rightPlus,&sourceRightPlus[0],true);
+// 		}
+		
+		
+		if (doRightSourceJac && var==5) {
+			sourceJacRight[5]=-0.09*right.rho*right.omega*right.volume;
+		}
+		if (doRightSourceJac && var==6) {
+			sourceJacRight[6]=-3./40.*2.*right.rho*right.omega*right.volume;
+		}
 		
 		for (int j=0;j<nSolVar;++j){
 			jacobianRight[j]=(fluxPlus.diffusive[j]-flux.diffusive[j]-fluxPlus.convective[j]+flux.convective[j])/epsilon;
-			if (doRightSourceJac) sourceJacRight[j]=(sourceRightPlus[j]-sourceRight[j])/epsilon;
+			//if (doRightSourceJac) sourceJacRight[j]=(sourceRightPlus[j]-sourceRight[j])/epsilon;
 		}
 	}
 	face_state_adjust(left,right,face,var);
@@ -274,6 +298,8 @@ void left_state_update(Cell_State &left,Face_State &face) {
 	for (unsigned int i=0;i<nSolVar;++i) left.update[i]=grid.cell[parent].update[i];
 	
 	deltaV[0]=delta[1]; deltaV[1]=delta[2]; deltaV[2]=delta[3];
+	
+	delta[5]=0.; delta[6]=0.;
 	
 	// Set left primitive variables
 	left.p=grid.cell[parent].p+delta[0];
@@ -325,6 +351,7 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 		for (unsigned int i=0;i<nSolVar;++i) right.update[i]=grid.cell[neighbor].update[i];
 		
 		deltaV[0]=delta[1]; deltaV[1]=delta[2]; deltaV[2]=delta[3];
+		delta[5]=0.; delta[6]=0.;
 
 		// Set right primitive variables
 		right.p=grid.cell[neighbor].p+delta[0];
@@ -435,6 +462,7 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 		for (unsigned int i=0;i<nSolVar;++i) right.update[i]=grid.ghost[g].update[i];
 		
 		deltaV[0]=delta[1]; deltaV[1]=delta[2]; deltaV[2]=delta[3];
+		delta[5]=0.; delta[6]=0.;
 		right.p=grid.ghost[g].p+delta[0];	
 		right.v_center=grid.ghost[g].v;
 		right.v=right.v_center+deltaV;
