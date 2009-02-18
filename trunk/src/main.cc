@@ -56,14 +56,17 @@ double doubleMinmod(double a, double b);
 double harmonic(double a, double b);
 double superbee(double a, double b);
 void update(void);
-void updatePrimitive(void);
+void update_turb(void);
 string int2str(int number) ;
 void assemble_linear_system(void);
 void initialize_linear_system(void);
+void update_face_mdot(void);
+void linear_system_turb(void);
 void get_dt(void);
 void get_CFLmax(void);
 void set_probes(void);
 void set_integrateBoundary(void);
+void set_turbulence_model_constants(void);
 inline double signof(double a) { return (a == 0.) ? 0. : (a<0. ? -1. : 1.); }
 double temp;
 
@@ -125,12 +128,14 @@ int main(int argc, char *argv[]) {
 
 	grid.lengthScales();
 	
-	if (Rank==0) cout << "[I] Calculating node averaging metrics, this might take a while :(" << endl;
+	if (Rank==0) cout << "[I] Calculating node averaging metrics, this might take a while..." << endl;
 	grid.nodeAverages(); // Linear triangular (tetrahedral) + idw blended mode
 	//grid.nodeAverages_idw(); // Inverse distance based mode
 	grid.faceAverages();
 	grid.gradMaps();
 	
+	set_turbulence_model_constants();
+			
 	if (restart!=0) {
 		for (int p=0;p<np;++p) {
 			if (Rank==p) read_restart(time);
@@ -160,11 +165,11 @@ int main(int argc, char *argv[]) {
 	/*****************************************************************************************/
 	// Begin time loop
 	/*****************************************************************************************/
-	
+	bool firstTimeStep=true;
 	for (timeStep=restart+1;timeStep<=timeStepMax+restart;++timeStep) {
 
-		int nIter; // Number of linear solver iterations
-		double rNorm; // Residual norm of the linear solver
+		int nIter,nIterTurb; // Number of linear solver iterations
+		double rNorm,rNormTurb; // Residual norm of the linear solver
 
 		// Flush boundary forces
 		if ((timeStep) % integrateBoundaryFreq == 0) {
@@ -178,40 +183,65 @@ int main(int argc, char *argv[]) {
 		// Update the primitive variables of the ghost cells
 		// At first iteration, done here
 		// For the remaining, done after solving
-		if (timeStep==restart+1) mpi_update_ghost_primitives();
+		if (firstTimeStep) {
+			mpi_update_ghost_primitives();
+			if (TURBULENCE_MODEL!=NONE) mpi_update_ghost_turb();
+			// Gradient are calculated for NS and/or second order schemes
+			if (EQUATIONS==NS | order==SECOND ) {
+				// Calculate all the cell gradients for each variable
+				grid.gradients();
+				// Update gradients of the ghost cells
+				mpi_update_ghost_gradients();
+			}
+			// Limit gradients (limited gradients are stored separately)
+			grid.limit_gradients();
+			// Update limited gradients of the ghost cells
+			mpi_update_ghost_limited_gradients();
+		}
 
 		// Get time step (will handle fixed, CFL and CFLramp)
 		get_dt();
 		if (TIME_STEP_TYPE==FIXED) { get_CFLmax(); } 
 		else if (TIME_STEP_TYPE==CFL_LOCAL) { CFLmax=CFLlocal;}
+
+		initialize_linear_system();
+		assemble_linear_system();
+		petsc_solve(nIter,rNorm);
+		update();
+		// Update the primitive variables of the ghost cells
+		mpi_update_ghost_primitives();
 		
-		// Gradient are calculated for NS and/or second order schemes
+		// Gradients are calculated for NS and/or second order schemes
 		if (EQUATIONS==NS | order==SECOND ) {
 			// Calculate all the cell gradients for each variable
 			grid.gradients();
 			// Update gradients of the ghost cells
 			mpi_update_ghost_gradients();
 		}
-
+		
 		// Limit gradients (limited gradients are stored separately)
-		if (order==SECOND) {
-			grid.limit_gradients();
-			// Update limited gradients of the ghost cells
-			mpi_update_ghost_limited_gradients();
+		grid.limit_gradients();
+		// Update limited gradients of the ghost cells
+		mpi_update_ghost_limited_gradients();
+		
+		if (TURBULENCE_MODEL!=NONE) {
+			grid.gradients_turb();
+			grid.limit_gradients_turb();
+			// TODO update ghost gradients
+			update_face_mdot();
+			linear_system_turb();
+			petsc_solve_turb(nIterTurb,rNormTurb);
+			update_turb();
+			// Update the primitive variables of the ghost cells
+			mpi_update_ghost_turb();
 		}
-
-		initialize_linear_system();
-		assemble_linear_system();
-		petsc_solve(nIter,rNorm);
-		updatePrimitive();
-		// Update the primitive variables of the ghost cells
-		mpi_update_ghost_primitives();
 		
 		// Advance physical time
 		time += dt;
 		if (Rank==0) {
 			if (timeStep==(restart+1))  cout << "step" << "\t" << "time" << "\t\t" << "dt" << "\t\t" << "CFLmax" << "\t\t" << "nIter" << "\t" << "LinearRes" << "\t" << "pRes" << "\t\t" << "vRes" << "\t\t" << "TRes" << endl;
 			cout << timeStep << "\t" << setprecision(4) << scientific << time << "\t" << dt << "\t" << CFLmax << "\t" << nIter << "\t" << rNorm << "\t" << resP << "\t" << resV << "\t" << resT << "\t" << resK << "\t" << resOmega << endl;
+			cout << nIterTurb << "\t" << rNormTurb << endl;
 		}
 		
 		// Ramp-up if needed
@@ -237,7 +267,9 @@ int main(int argc, char *argv[]) {
 				Cell &c=grid.cell[probes[p].nearestCell];
 				ofstream file;
 				file.open((probes[p].fileName).c_str(),ios::app);
-				file << timeStep << setw(16) << setprecision(8)  << "\t" << time << "\t" << c.p << "\t" << c.v[0] << "\t" << c.v[1] << "\t" << c.v[2] << "\t" << c.T << "\t" << c.rho << endl;
+				file << timeStep << "\t" << setw(16) << setprecision(8)  << time << "\t" << c.p << "\t" << c.v[0] << "\t" << c.v[1] << "\t" << c.v[2] << "\t" << c.T << "\t" << c.rho << "\t" ;
+				if (TURBULENCE_MODEL!=NONE) file << c.k << "\t" << c.omega << "\t" << c.rho*c.k/c.omega ;
+				file << endl;
 				file.close();
 			}
 		}
@@ -265,7 +297,7 @@ int main(int argc, char *argv[]) {
 				}
 			}
 		}
-		
+		firstTimeStep=false;
 	
 	}
 
@@ -331,30 +363,7 @@ double superbee(double a, double b) {
 
 void update(void) {
 
-	double conservative[5];
-	for (unsigned int c = 0;c < grid.cellCount;++c) {
-		conservative[0] = grid.cell[c].rho;
-		conservative[1] = grid.cell[c].rho * grid.cell[c].v.comp[0];
-		conservative[2] = grid.cell[c].rho * grid.cell[c].v.comp[1];
-		conservative[3] = grid.cell[c].rho * grid.cell[c].v.comp[2];
-		conservative[4] = 0.5 * grid.cell[c].rho * grid.cell[c].v.dot(grid.cell[c].v) + (grid.cell[c].p+Pref) / (Gamma - 1.);
-		for (int i = 0;i < 5;++i) {
-			conservative[i] -= dt / grid.cell[c].volume * grid.cell[c].flux[i];
-			grid.cell[c].flux[i] = 0.;
-		}
-		grid.cell[c].rho = conservative[0];
-		grid.cell[c].v.comp[0] = conservative[1] / conservative[0];
-		grid.cell[c].v.comp[1] = conservative[2] / conservative[0];
-		grid.cell[c].v.comp[2] = conservative[3] / conservative[0];
-		grid.cell[c].p = (conservative[4] - 0.5 * conservative[0] * grid.cell[c].v.dot(grid.cell[c].v)) * (Gamma - 1.)-Pref;
-	} // cell loop
-	return;
-}
-
-
-void updatePrimitive(void) {
-
-	resP=0.; resV=0.; resT=0.; resK=0.; resOmega=0.;
+	resP=0.; resV=0.; resT=0.;
 	for (unsigned int c = 0;c < grid.cellCount;++c) {
 		grid.cell[c].p +=grid.cell[c].update[0];
 		grid.cell[c].v[0] +=grid.cell[c].update[1];
@@ -362,39 +371,45 @@ void updatePrimitive(void) {
 		grid.cell[c].v[2] +=grid.cell[c].update[3];
 		grid.cell[c].T += grid.cell[c].update[4];
 		grid.cell[c].rho=eos.rho(grid.cell[c].p,grid.cell[c].T);
-		
-		// Limit the update so k doesn't end up negative
-		grid.cell[c].update[5]=max(-1.*grid.cell[c].k,grid.cell[c].update[5]);
-		// Limit the update so omega doesn't end up smaller than 100
-		grid.cell[c].update[6]=max(-1.*(grid.cell[c].omega-omegaLowLimit),grid.cell[c].update[6]);
-		
-		grid.cell[c].k += grid.cell[c].update[5];
-		grid.cell[c].omega += grid.cell[c].update[6];
-		
-		resP+=grid.cell[c].update[0]*grid.cell[c].update[0];
-		resV+=grid.cell[c].update[1]*grid.cell[c].update[1]+grid.cell[c].update[2]*grid.cell[c].update[2]+grid.cell[c].update[3]*grid.cell[c].update[3];
-		resT+=grid.cell[c].update[4]*grid.cell[c].update[4];
-		resK+=grid.cell[c].update[5]*grid.cell[c].update[5];
-		resOmega+=grid.cell[c].update[6]*grid.cell[c].update[6];
 
-		grid.cell[c].k=max(0.,grid.cell[c].k);
-		grid.cell[c].omega=max(1.,grid.cell[c].omega);
-		grid.cell[c].omega=min(5.e5,grid.cell[c].omega);
 		resP+=grid.cell[c].update[0]*grid.cell[c].update[0];
 		resV+=grid.cell[c].update[1]*grid.cell[c].update[1]+grid.cell[c].update[2]*grid.cell[c].update[2]+grid.cell[c].update[3]*grid.cell[c].update[3];
 		resT+=grid.cell[c].update[4]*grid.cell[c].update[4];
-		resK+=grid.cell[c].update[5]*grid.cell[c].update[5];
-		resOmega+=grid.cell[c].update[6]*grid.cell[c].update[6];
 	} // cell loop
-	double residuals[5],totalResiduals[5];
+	double residuals[3],totalResiduals[3];
 	residuals[0]=resP; residuals[1]=resV; residuals[2]=resT;
-	residuals[3]=resK; residuals[4]=resOmega;
+
         if (np!=1) {
-        	MPI_Reduce(&residuals,&totalResiduals,5, MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
+        	MPI_Reduce(&residuals,&totalResiduals,3, MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
 		resP=totalResiduals[0]; resV=totalResiduals[1]; resT=totalResiduals[2];
-		resK=totalResiduals[3]; resOmega=totalResiduals[4];
         }
 	resP=sqrt(resP); resV=sqrt(resV); resT=sqrt(resT);
+	return;
+}
+
+void update_turb(void) {
+
+	resK=0.; resOmega=0.;
+	for (unsigned int c = 0;c < grid.cellCount;++c) {
+
+		// Limit the update_turb so k doesn't end up negative
+		grid.cell[c].update_turb[0]=max(-1.*(grid.cell[c].k-kLowLimit),grid.cell[c].update_turb[0]);
+		// Limit the update_turb so omega doesn't end up smaller than 100
+		grid.cell[c].update_turb[1]=max(-1.*(grid.cell[c].omega-omegaLowLimit),grid.cell[c].update_turb[1]);
+		
+		grid.cell[c].k += grid.cell[c].update_turb[0];
+		grid.cell[c].omega += grid.cell[c].update_turb[1];
+		
+		resK+=grid.cell[c].update_turb[0]*grid.cell[c].update_turb[0];
+		resOmega+=grid.cell[c].update_turb[1]*grid.cell[c].update_turb[1];
+
+	} // cell loop
+	double residuals[2],totalResiduals[2];
+	residuals[0]=resK; residuals[1]=resOmega;
+	if (np!=1) {
+		MPI_Reduce(&residuals,&totalResiduals,2, MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
+		resK=totalResiduals[0]; resOmega=totalResiduals[1];
+	}
 	resK=sqrt(resK); resOmega=sqrt(resOmega);
 	return;
 }

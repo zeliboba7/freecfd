@@ -27,9 +27,9 @@
 
 class Cell_State {
 	public:
-		double p,T,T_center,rho,a,H,k,omega,mu,k_center,omega_center,volume;
+		double p,T,T_center,rho,a,H,volume;
 		Vec3D v,v_center,vN;
-		Vec3D gradU,gradV,gradW,gradK,gradOmega;
+		Vec3D gradU,gradV,gradW;
 		vector<double> update;
 		Cell_State &operator= (const Cell_State & rhs) {
 			p=rhs.p;
@@ -38,16 +38,10 @@ class Cell_State {
 			rho=rhs.rho;
 			a=rhs.a;
 			H=rhs.H;
-			k=rhs.k;
-			omega=rhs.omega;
-			k_center=rhs.k_center;
-			omega_center=rhs.omega_center;
 			v=rhs.v;
 			gradU=rhs.gradU;
 			gradV=rhs.gradV;
 			gradW=rhs.gradW;
-			gradK=rhs.gradK;
-			gradOmega=rhs.gradOmega;
 			v_center=rhs.v_center;
 			vN=rhs.vN;
 			volume=rhs.volume;
@@ -59,9 +53,9 @@ class Cell_State {
 class Face_State {
 	public:
 		unsigned int index;
-		double p,T,rho,k,omega,mu;
+		double p,T,rho,k,omega;
 		Vec3D v;
-		Vec3D gradU,gradV,gradW,gradT,gradK,gradOmega;
+		Vec3D gradU,gradV,gradW,gradT;
 		Vec3D normal,tangent1,tangent2,left2right;
 		double area;
 		int bc;

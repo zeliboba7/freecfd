@@ -31,13 +31,12 @@ void diffusive_face_flux(Cell_State &left,Cell_State &right,Face_State &face,dou
 
 	Vec3D tau_x,tau_y,tau_z,areaVec;
 
-	double SigmaOmega=0.5;
- 	double SigmaK=0.5;
 	double mu_t=0.;
 	
 	double Tvisc=viscosity;
 	if (TURBULENCE_MODEL!=NONE) {
 		mu_t=fabs(face.rho*face.k/face.omega);
+		mu_t=min(mu_t,viscosityRatioLimit*viscosity);
 		Tvisc+=mu_t;
 	}
 	
@@ -57,16 +56,7 @@ void diffusive_face_flux(Cell_State &left,Cell_State &right,Face_State &face,dou
 	flux[3]=Tvisc*tau_z.dot(areaVec);
 	flux[4]=Tvisc*(tau_x.dot(face.v)*areaVec[0]+tau_y.dot(face.v)*areaVec[1]+tau_z.dot(face.v)*areaVec[2]);
 	flux[4]+=conductivity*face.T*face.area; // TODO Viscous dissipation needs to be added too
-	
-	// Diffusive k and omega fluxes
- 	flux[5]=(viscosity+mu_t*SigmaK)*face.gradK.dot(areaVec);
- 	flux[6]=(viscosity+mu_t*SigmaOmega)*face.gradOmega.dot(areaVec);
 
-	/*
-	double tauUgrad=face.rho/(viscosity+mu_t)*(face.v[0]*flux[1]+face.v[1]*flux[2]+face.v[2]*flux[3]);
-	flux[5]=tauUgrad;
-	flux[6]=alpha*face.omega/face.k*tauUgrad;
-	*/
 
 	return;
 } // end function

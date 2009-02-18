@@ -1,6 +1,6 @@
 /************************************************************************
 	
-	Copyright 2007-2008 Emre Sozer & Patrick Clark Trizila
+	Copyright 2007-2009 Emre Sozer & Patrick Clark Trizila
 
 	Contact: emresozer@freecfd.com , ptrizila@freecfd.com
 
@@ -27,6 +27,7 @@ unsigned int *recvCount;
 MPI_Datatype MPI_GRAD;
 MPI_Datatype MPI_VEC3D;
 MPI_Datatype MPI_GHOST;
+MPI_Datatype MPI_GHOST_TURB;
 
 void mpi_init(int argc, char *argv[]) {
 	// Initialize mpi
@@ -39,7 +40,7 @@ void mpi_init(int argc, char *argv[]) {
 	sendCells = new vector<unsigned int> [np];
 	recvCount = new unsigned int [np];
 	// Commit custom communication datatypes
-	int array_of_block_lengths[2]={1,8};
+	int array_of_block_lengths[2]={1,5};
 	MPI_Aint extent;
 	MPI_Type_extent(MPI_UNSIGNED,&extent);
 	MPI_Aint array_of_displacements[2]={0,extent};
@@ -47,7 +48,13 @@ void mpi_init(int argc, char *argv[]) {
 	MPI_Type_struct(2,array_of_block_lengths,array_of_displacements,array_of_types,&MPI_GHOST);
 	MPI_Type_commit(&MPI_GHOST);
 	
-	array_of_block_lengths[0]=1;array_of_block_lengths[1]=21;
+	if (TURBULENCE_MODEL!=NONE) {
+		array_of_block_lengths[2]=2;
+		MPI_Type_struct(2,array_of_block_lengths,array_of_displacements,array_of_types,&MPI_GHOST_TURB);
+		MPI_Type_commit(&MPI_GHOST_TURB);
+	}
+	
+	array_of_block_lengths[0]=1;array_of_block_lengths[1]=15;
 	MPI_Type_struct(2,array_of_block_lengths,array_of_displacements,array_of_types,&MPI_GRAD);
 	MPI_Type_commit(&MPI_GRAD);
 	
@@ -133,9 +140,6 @@ void mpi_update_ghost_primitives(void) {
 				sendBuffer[g].vars[2]=grid.cell[id].v[1];
 				sendBuffer[g].vars[3]=grid.cell[id].v[2];
 				sendBuffer[g].vars[4]=grid.cell[id].T;
-				sendBuffer[g].vars[5]=grid.cell[id].k;
-				sendBuffer[g].vars[6]=grid.cell[id].omega;
-				sendBuffer[g].vars[7]=grid.cell[id].mu;
 			}
 
 			int tag=Rank; // tag is set to source
@@ -144,30 +148,59 @@ void mpi_update_ghost_primitives(void) {
 			for (unsigned int g=0;g<recvCount[p];++g) {
 				id=maps.ghostGlobal2Local[recvBuffer[g].globalId];
 				if (timeStep==restart+1) {
-					for (int i=0;i<7;++i) grid.ghost[id].update[i]=0.;
+					for (int i=0;i<5;++i) grid.ghost[id].update[i]=0.;
 				} else {
 					grid.ghost[id].update[0]=recvBuffer[g].vars[0]-grid.ghost[id].p;
 					grid.ghost[id].update[1]=recvBuffer[g].vars[1]-grid.ghost[id].v[0];
 					grid.ghost[id].update[2]=recvBuffer[g].vars[2]-grid.ghost[id].v[1];
 					grid.ghost[id].update[3]=recvBuffer[g].vars[3]-grid.ghost[id].v[2];
 					grid.ghost[id].update[4]=recvBuffer[g].vars[4]-grid.ghost[id].T;
-					grid.ghost[id].update[5]=recvBuffer[g].vars[5]-grid.ghost[id].k;
-					grid.ghost[id].update[6]=recvBuffer[g].vars[6]-grid.ghost[id].omega;
 				}
 				grid.ghost[id].p=recvBuffer[g].vars[0];
 				grid.ghost[id].v.comp[0]=recvBuffer[g].vars[1];
 				grid.ghost[id].v.comp[1]=recvBuffer[g].vars[2];
 				grid.ghost[id].v.comp[2]=recvBuffer[g].vars[3];
 				grid.ghost[id].T=recvBuffer[g].vars[4];
-				grid.ghost[id].k=recvBuffer[g].vars[5];
-				grid.ghost[id].omega=recvBuffer[g].vars[6];
-				grid.ghost[id].mu=recvBuffer[g].vars[7];
 				grid.ghost[id].rho=eos.rho(grid.ghost[id].p,grid.ghost[id].T);
 			}
 		}
 	}
 	return;
 } // end mpi_update_ghost_primitives
+
+void mpi_update_ghost_turb(void) {
+	
+	for (unsigned int p=0;p<np;++p) {
+		if (Rank!=p) {
+			mpiGhost_turb sendBuffer[sendCells[p].size()];
+			mpiGhost_turb recvBuffer[recvCount[p]];
+			int id;
+			for (unsigned int g=0;g<sendCells[p].size();++g)	{
+				id=maps.cellGlobal2Local[sendCells[p][g]];
+				sendBuffer[g].globalId=grid.cell[id].globalId;
+				sendBuffer[g].vars[0]=grid.cell[id].k;
+				sendBuffer[g].vars[1]=grid.cell[id].omega;
+			}
+
+			int tag=Rank; // tag is set to source
+			MPI_Sendrecv(sendBuffer,sendCells[p].size(),MPI_GHOST_TURB,p,0,recvBuffer,recvCount[p],MPI_GHOST_TURB,p,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+
+			for (unsigned int g=0;g<recvCount[p];++g) {
+				id=maps.ghostGlobal2Local[recvBuffer[g].globalId];
+				if (timeStep==restart+1) {
+					for (int i=0;i<2;++i) grid.ghost[id].update_turb[i]=0.;
+				} else {
+					grid.ghost[id].update_turb[0]=recvBuffer[g].vars[0]-grid.ghost[id].k;
+					grid.ghost[id].update_turb[1]=recvBuffer[g].vars[1]-grid.ghost[id].omega;
+				}
+				grid.ghost[id].k=recvBuffer[g].vars[0];
+				grid.ghost[id].omega=recvBuffer[g].vars[1];
+			}
+		}
+	}
+	return;
+} // end mpi_update_ghost_turb
+
 
 void mpi_update_ghost_gradients(void) {
 	
@@ -180,7 +213,7 @@ void mpi_update_ghost_gradients(void) {
 			id=maps.cellGlobal2Local[sendCells[p][g]];
 			sendBuffer[g].globalId=grid.cell[id].globalId;
 			int count=0;
-			for (unsigned int var=0;var<7;++var) {
+			for (unsigned int var=0;var<5;++var) {
 				for (unsigned int comp=0;comp<3;++comp) {
 					sendBuffer[g].grads[count]=grid.cell[id].grad[var].comp[comp];
 					count++;
@@ -194,7 +227,7 @@ void mpi_update_ghost_gradients(void) {
 		for (unsigned int g=0;g<recvCount[p];++g) {
 			id=maps.ghostGlobal2Local[recvBuffer[g].globalId];
 			int count=0;
-			for (unsigned int var=0;var<7;++var) {
+			for (unsigned int var=0;var<5;++var) {
 				for (unsigned int comp=0;comp<3;++comp) {
 					grid.ghost[id].grad[var].comp[comp]=recvBuffer[g].grads[count];
 					count++;
@@ -215,7 +248,7 @@ void mpi_update_ghost_limited_gradients(void) {
 			id=maps.cellGlobal2Local[sendCells[p][g]];
 			sendBuffer[g].globalId=grid.cell[id].globalId;
 			int count=0;
-			for (unsigned int var=0;var<7;++var) {
+			for (unsigned int var=0;var<5;++var) {
 				for (unsigned int comp=0;comp<3;++comp) {
 					sendBuffer[g].grads[count]=grid.cell[id].limited_grad[var].comp[comp];
 					count++;
@@ -229,7 +262,7 @@ void mpi_update_ghost_limited_gradients(void) {
 		for (unsigned int g=0;g<recvCount[p];++g) {
 			id=maps.ghostGlobal2Local[recvBuffer[g].globalId];
 			int count=0;
-			for (unsigned int var=0;var<7;++var) {
+			for (unsigned int var=0;var<5;++var) {
 				for (unsigned int comp=0;comp<3;++comp) {
 					grid.ghost[id].limited_grad[var].comp[comp]=recvBuffer[g].grads[count];
 					count++;
