@@ -51,17 +51,21 @@ void check_inputs(InputFile &input) {
 		}
 	}
 	
-	nSolVar=5;
 	option=input.section("turbulence").get_string("model");
 	if (option=="none") {
 		TURBULENCE_MODEL=NONE;
 	} else if (option=="k-omega") {
 		TURBULENCE_MODEL=KOMEGA;
-		nSolVar+=2;
+	} else if (option=="k-epsilon") {
+		TURBULENCE_MODEL=KEPSILON;
+	} else if (option=="bsl") {
+		TURBULENCE_MODEL=BSL;
+	} else if (option=="sst") {
+		TURBULENCE_MODEL=SST;
 	} else {
 		if (Rank==0) {
 			cerr << "[E] Input entry turbulence -> model=" << option << " is not recognized!!" << endl;
-			cerr << "[E] Acceptable options are none and k-omega" << endl;
+			cerr << "[E] Acceptable options are none, k-omega, k-epsilon, bsl and sst" << endl;
 			exit(1);
 		}
 	}
@@ -197,6 +201,8 @@ void check_inputs(InputFile &input) {
 	}
 	
 	omegaLowLimit=input.section("turbulence").get_double("omegaLowLimit");
+	kLowLimit=input.section("turbulence").get_double("kLowLimit");
+	viscosityRatioLimit=input.section("turbulence").get_double("viscosityRatioLimit");
 	viscosity=input.section("fluidProperties").get_double("viscosity");
 	conductivity=input.section("fluidProperties").get_double("thermalConductivity");
 	Gamma=input.section("fluidProperties").get_double("gamma");

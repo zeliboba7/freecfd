@@ -1,6 +1,6 @@
 /************************************************************************
 	
-	Copyright 2007-2008 Emre Sozer & Patrick Clark Trizila
+	Copyright 2007-2009 Emre Sozer & Patrick Clark Trizila
 
 	Contact: emresozer@freecfd.com , ptrizila@freecfd.com
 
@@ -36,6 +36,9 @@
 #define EULER 2
 // Options for TURBULENCE_MODEL
 #define KOMEGA 1
+#define KEPSILON 2
+#define BSL 3
+#define SST 4
 // Options for TIME_INTEGRATOR
 #define FORWARD_EULER 1
 #define BACKWARD_EULER 2
@@ -93,8 +96,7 @@ extern int CONVECTIVE_FLUX_FUNCTION,CONVECTIVE_FLUX_FUNCTION_JAC,LIMITER,PRECOND
 extern int OUTPUT_FORMAT;
 
 extern int Rank,np;
-extern int nSolVar;
-extern double omegaLowLimit;
+extern double omegaLowLimit,kLowLimit,viscosityRatioLimit;
 extern double dt,dtTarget,CFLmax,CFLmaxTarget,CFLlocal,CFLlocalTarget;
 extern int timeStep,restart;
 extern double Minf,Pref,Tref;

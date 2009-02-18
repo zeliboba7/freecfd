@@ -1,6 +1,6 @@
 /************************************************************************
 	
-	Copyright 2007-2008 Emre Sozer & Patrick Clark Trizila
+	Copyright 2007-2009 Emre Sozer & Patrick Clark Trizila
 
 	Contact: emresozer@freecfd.com , ptrizila@freecfd.com
 
@@ -145,6 +145,11 @@ void setBCs(InputFile &input, BC &bc) {
 			for (unsigned int fn=0;fn<grid.face[f].nodeCount;++fn) {
 				grid.face[f].node(fn).bcs.insert(grid.face[f].bc);
 			}
+			if (bc.region[grid.face[f].bc].type==NOSLIP) {
+				grid.noSlipFaces.push_back(f);
+				// TODO this one is for the closest wall distance for turbulence model
+				// what if the closest face lies on another partition?
+			}
 		}
 	}
 
@@ -154,6 +159,14 @@ void setBCs(InputFile &input, BC &bc) {
 		if (bcIndex>=0) {
 			bc.region[bcIndex].area+=grid.face[f].area;
 			bc.region[bcIndex].areaVec+=grid.face[f].area*grid.face[f].normal;
+		}
+	}
+	
+	for (unsigned int c=0;c<grid.cellCount;++c) {
+		grid.cell[c].closest_wall_distance=1.e20;
+		for (unsigned int nsf=0;nsf<grid.noSlipFaces.size();++nsf) {
+			grid.cell[c].closest_wall_distance=min(grid.cell[c].closest_wall_distance
+					,fabs(grid.cell[c].centroid-grid.face[grid.noSlipFaces[nsf]].centroid));
 		}
 	}
 	

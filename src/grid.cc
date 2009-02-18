@@ -1,6 +1,6 @@
 /************************************************************************
 	
-	Copyright 2007-2008 Emre Sozer & Patrick Clark Trizila
+	Copyright 2007-2009 Emre Sozer & Patrick Clark Trizila
 
 	Contact: emresozer@freecfd.com , ptrizila@freecfd.com
 
@@ -294,25 +294,21 @@ void Grid::gradients(void) {
 	map<int,double>::iterator fit;
 	unsigned int f;
 	Vec3D faceVel,areaVec;
-	double faceP,faceT,faceRho,faceK,faceOmega;
+	double faceP,faceT,faceRho;
 	
 	for (unsigned int c=0;c<cellCount;++c) {
 		// Initialize all gradients to zero
-		for (unsigned int i=0;i<7;++i) cell[c].grad[i]=0.;
+		for (unsigned int i=0;i<5;++i) cell[c].grad[i]=0.;
 		// Add internal and interpartition face contributions
 		for (it=cell[c].gradMap.begin();it!=cell[c].gradMap.end(); it++ ) {
 			if ((*it).first>=0) { // if contribution is coming from a real cell
 				cell[c].grad[0]+=(*it).second*cell[(*it).first].p;
 				for (unsigned int i=1;i<4;++i) cell[c].grad[i]+=(*it).second*cell[(*it).first].v.comp[i-1];
 				cell[c].grad[4]+=(*it).second*cell[(*it).first].T;
-				cell[c].grad[5]+=(*it).second*cell[(*it).first].k;
-				cell[c].grad[6]+=(*it).second*cell[(*it).first].omega;
 			} else { // if contribution is coming from a ghost cell
 				cell[c].grad[0]+=(*it).second*ghost[-1*((*it).first+1)].p;
 				for (unsigned int i=1;i<4;++i) cell[c].grad[i]+=(*it).second*ghost[-1*((*it).first+1)].v.comp[i-1];
 				cell[c].grad[4]+=(*it).second*ghost[-1*((*it).first+1)].T;
-				cell[c].grad[5]+=(*it).second*ghost[-1*((*it).first+1)].k;
-				cell[c].grad[6]+=(*it).second*ghost[-1*((*it).first+1)].omega;
 			}
 		} // end gradMap loop
 
@@ -322,20 +318,16 @@ void Grid::gradients(void) {
 			if (face[f].bc>=0) { // if a boundary face
 				areaVec=face[f].normal*face[f].area/cell[c].volume;
 				
-				faceP=0.; faceVel=0.; faceT=0.; faceK=0.; faceOmega=0.;
+				faceP=0.; faceVel=0.; faceT=0.;
 				for (fit=face[f].average.begin();fit!=face[f].average.end();fit++) {
 					if ((*fit).first>=0) { // if contribution is coming from a real cell
 						faceP+=(*fit).second*cell[(*fit).first].p;
 						faceVel+=(*fit).second*cell[(*fit).first].v;
 						faceT+=(*fit).second*cell[(*fit).first].T;
-						faceK+=(*fit).second*cell[(*fit).first].k;
-						faceOmega+=(*fit).second*cell[(*fit).first].omega;
 					} else { // if contribution is coming from a ghost cell
 						faceP+=(*fit).second*ghost[-1*((*fit).first+1)].p;
 						faceVel+=(*fit).second*ghost[-1*((*fit).first+1)].v;
-						faceT+=(*fit).second*ghost[-1*((*fit).first+1)].T;
-						faceK+=(*fit).second*ghost[-1*((*fit).first+1)].k;
-						faceOmega+=(*fit).second*ghost[-1*((*fit).first+1)].omega;
+						faceT+=(*fit).second*ghost[-1*((*fit).first+1)].T;;
 					}
 				}
 
@@ -362,24 +354,16 @@ void Grid::gradients(void) {
 				} // If nothing is specified, everything is extrapolated
 				
 				if (bc.region[face[f].bc].type==INLET) {
-					faceVel=0.5*(faceVel+bc.region[face[f].bc].v);
-					faceK=bc.region[face[f].bc].k;
-					faceOmega=bc.region[face[f].bc].omega;
+					faceVel=bc.region[face[f].bc].v;
 				} else if (bc.region[face[f].bc].type==SLIP) { 
 					faceVel-=faceVel.dot(face[f].normal)*face[f].normal;
-					faceK=0.;
-					faceOmega=60.*viscosity/(faceRho*0.075*pow(fabs((cell[face[f].parent].centroid-face[f].centroid).dot(face[f].normal)),2.));	
 				} else if (bc.region[face[f].bc].type==SYMMETRY) {
 					// Symmetry mirrors everything
 					faceP=cell[face[f].parent].p;
 					faceVel=cell[face[f].parent].v;
 					faceVel-=faceVel.dot(face[f].normal)*face[f].normal;
-					faceK=cell[face[f].parent].k;
-					faceOmega=cell[face[f].parent].omega;
 				} else if (bc.region[face[f].bc].type==NOSLIP) {
 					faceVel=0.;
-					faceK=0.;
-					faceOmega=60.*viscosity/(faceRho*0.075*pow(fabs((cell[face[f].parent].centroid-face[f].centroid).dot(face[f].normal)),2.));
 				}
 				
 				cell[c].grad[0]+=faceP*areaVec;
@@ -387,8 +371,6 @@ void Grid::gradients(void) {
 				cell[c].grad[2]+=faceVel[1]*areaVec;
 				cell[c].grad[3]+=faceVel[2]*areaVec;
 				cell[c].grad[4]+=faceT*areaVec;
-				cell[c].grad[5]+=faceK*areaVec;
-				cell[c].grad[6]+=faceOmega*areaVec;
 
 			} // end if a boundary face
 		} // end cell face loop
@@ -397,21 +379,87 @@ void Grid::gradients(void) {
  	
 } // end Grid::gradients(void)
 
+void Grid::gradients_turb(void) {
+
+	// Calculate cell gradients
+	map<int,Vec3D>::iterator it;
+	map<int,double>::iterator fit;
+	unsigned int f;
+	Vec3D areaVec;
+	double faceK,faceOmega,faceRho;
+	
+	for (unsigned int c=0;c<cellCount;++c) {
+		// Initialize all gradients to zero
+		for (unsigned int i=0;i<2;++i) cell[c].grad_turb[i]=0.;
+		// Add internal and interpartition face contributions
+		for (it=cell[c].gradMap.begin();it!=cell[c].gradMap.end(); it++ ) {
+			if ((*it).first>=0) { // if contribution is coming from a real cell
+				cell[c].grad_turb[0]+=(*it).second*cell[(*it).first].k;
+				cell[c].grad_turb[1]+=(*it).second*cell[(*it).first].omega;
+			} else { // if contribution is coming from a ghost cell
+				cell[c].grad_turb[0]+=(*it).second*ghost[-1*((*it).first+1)].k;
+				cell[c].grad_turb[1]+=(*it).second*ghost[-1*((*it).first+1)].omega;
+			}
+		} // end gradMap loop
+
+ 		// Add boundary face contributions
+		for (unsigned int cf=0;cf<cell[c].faceCount;++cf) {
+			f=cell[c].faces[cf];
+			if (face[f].bc>=0) { // if a boundary face
+				areaVec=face[f].normal*face[f].area/cell[c].volume;
+				faceK=0.; faceOmega=0.; faceRho=0.;
+				for (fit=face[f].average.begin();fit!=face[f].average.end();fit++) {
+					if ((*fit).first>=0) { // if contribution is coming from a real cell
+						faceK+=(*fit).second*cell[(*fit).first].k;
+						faceOmega+=(*fit).second*cell[(*fit).first].omega;
+						faceRho+=(*fit).second*cell[(*fit).first].rho;
+					} else { // if contribution is coming from a ghost cell
+						faceK+=(*fit).second*ghost[-1*((*fit).first+1)].k;
+						faceOmega+=(*fit).second*ghost[-1*((*fit).first+1)].omega;
+						faceRho+=(*fit).second*ghost[-1*((*fit).first+1)].rho;
+					}
+				}
+				
+				faceK=max(faceK,kLowLimit);
+				faceOmega=max(faceOmega,omegaLowLimit);
+				
+				if (bc.region[face[f].bc].type==INLET) {
+					faceK=bc.region[face[f].bc].k;
+					faceOmega=bc.region[face[f].bc].omega;
+				} else if (bc.region[face[f].bc].type==SYMMETRY) {
+					// Symmetry mirrors everything
+					faceK=cell[face[f].parent].k;
+					faceOmega=cell[face[f].parent].omega;
+				} else if (bc.region[face[f].bc].type==NOSLIP) {
+					faceK=0.;
+					faceOmega=60.*viscosity/(faceRho*0.075*pow(fabs((cell[face[f].parent].centroid-face[f].centroid).dot(face[f].normal)),2.));
+				}
+				
+				cell[c].grad_turb[0]+=faceK*areaVec;
+				cell[c].grad_turb[1]+=faceOmega*areaVec;
+				
+			} // end if a boundary face
+		} // end cell face loop
+	} // end cell loop
+	
+ 	
+} // end Grid::gradients_turb(void)
+
 void Grid::limit_gradients(void) {
 	
 	unsigned int neighbor,g;
-	Vec3D maxGrad[7],minGrad[7];
-	if(LIMITER==NONE) {
-		for (unsigned int c=0;c<cellCount;++c) for (unsigned int var=0;var<7;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].limited_grad[var].comp[comp]=cell[c].grad[var].comp[comp];
+	Vec3D maxGrad[5],minGrad[5];
+	if(LIMITER==NONE || order==FIRST) {
+		for (unsigned int c=0;c<cellCount;++c) for (unsigned int var=0;var<5;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].limited_grad[var].comp[comp]=cell[c].grad[var].comp[comp];
 	} else {
 		for (unsigned int c=0;c<cellCount;++c) {
 	
 			// Initialize min and max to current cells values
-			for (unsigned int i=0;i<7;++i) maxGrad[i]=minGrad[i]=cell[c].grad[i];
+			for (unsigned int i=0;i<5;++i) maxGrad[i]=minGrad[i]=cell[c].grad[i];
 			// Find extremes in neighboring real cells
 			for (unsigned int cc=0;cc<cell[c].neighborCellCount;++cc) {
 				neighbor=cell[c].neighborCells[cc];
-				for (unsigned int var=0;var<7;++var) {
+				for (unsigned int var=0;var<5;++var) {
 					for (unsigned int comp=0;comp<3;++comp) {
 						maxGrad[var].comp[comp]=max(
 								maxGrad[var].comp[comp],
@@ -426,7 +474,7 @@ void Grid::limit_gradients(void) {
 			// Find extremes in neighboring ghost cells
 			for (unsigned int cg=0;cg<cell[c].ghostCount;++cg) {
 				g=cell[c].ghosts[cg];
-				for (unsigned int var=0;var<7;++var) {
+				for (unsigned int var=0;var<5;++var) {
 					for (unsigned int comp=0;comp<3;++comp) {
 						maxGrad[var].comp[comp]=max(
 								maxGrad[var].comp[comp],
@@ -440,11 +488,10 @@ void Grid::limit_gradients(void) {
 				}
 			}
 			
-			if(LIMITER==MINMOD) for (unsigned int var=0;var<7;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].limited_grad[var].comp[comp]=minmod(maxGrad[var].comp[comp],minGrad[var].comp[comp]);
-			if(LIMITER==DOUBLEMINMOD) for (unsigned int var=0;var<7;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].limited_grad[var].comp[comp]=doubleMinmod(maxGrad[var].comp[comp],minGrad[var].comp[comp]);
-			if(LIMITER==HARMONIC) for (unsigned int var=0;var<7;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].limited_grad[var].comp[comp]=harmonic(maxGrad[var].comp[comp],minGrad[var].comp[comp]);
-			if(LIMITER==SUPERBEE) for (unsigned int var=0;var<7;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].limited_grad[var].comp[comp]=superbee(maxGrad[var].comp[comp],minGrad[var].comp[comp]);
-			
+			if(LIMITER==MINMOD) for (unsigned int var=0;var<5;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].limited_grad[var].comp[comp]=minmod(maxGrad[var].comp[comp],minGrad[var].comp[comp]);
+			if(LIMITER==DOUBLEMINMOD) for (unsigned int var=0;var<5;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].limited_grad[var].comp[comp]=doubleMinmod(maxGrad[var].comp[comp],minGrad[var].comp[comp]);
+			if(LIMITER==HARMONIC) for (unsigned int var=0;var<5;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].limited_grad[var].comp[comp]=harmonic(maxGrad[var].comp[comp],minGrad[var].comp[comp]);
+			if(LIMITER==SUPERBEE) for (unsigned int var=0;var<5;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].limited_grad[var].comp[comp]=superbee(maxGrad[var].comp[comp],minGrad[var].comp[comp]);
 			
 		}
 	}
@@ -452,6 +499,59 @@ void Grid::limit_gradients(void) {
 	return;
 
 } // end Grid::limit_gradients()
+
+void Grid::limit_gradients_turb(void) {
+	
+	unsigned int neighbor,g;
+	Vec3D maxGrad[2],minGrad[2];
+	if (LIMITER==NONE || order==FIRST) {
+		// Don't do anything
+	} else {
+		for (unsigned int c=0;c<cellCount;++c) {
+	
+			// Initialize min and max to current cells values
+			for (unsigned int i=0;i<2;++i) maxGrad[i]=minGrad[i]=cell[c].grad_turb[i];
+			// Find extremes in neighboring real cells
+			for (unsigned int cc=0;cc<cell[c].neighborCellCount;++cc) {
+				neighbor=cell[c].neighborCells[cc];
+				for (unsigned int var=0;var<2;++var) {
+					for (unsigned int comp=0;comp<3;++comp) {
+						maxGrad[var][comp]=max(maxGrad[var][comp]
+							,(1.-limiter_sharpening)*cell[neighbor].grad_turb[var][comp]
+							+limiter_sharpening*cell[c].grad_turb[var][comp]);
+						
+						minGrad[var][comp]=min(minGrad[var][comp]
+							,(1.-limiter_sharpening)*cell[neighbor].grad_turb[var][comp]
+							+limiter_sharpening*cell[c].grad_turb[var][comp]);
+					}
+				}
+			}
+			// Find extremes in neighboring ghost cells
+			for (unsigned int cg=0;cg<cell[c].ghostCount;++cg) {
+				g=cell[c].ghosts[cg];
+				for (unsigned int var=0;var<2;++var) {
+					for (unsigned int comp=0;comp<3;++comp) {
+						maxGrad[var][comp]=max(maxGrad[var].comp[comp]
+							,(1.-limiter_sharpening)*ghost[g].grad_turb[var][comp]
+							+limiter_sharpening*cell[c].grad_turb[var][comp]);
+						minGrad[var].comp[comp]=min(minGrad[var].comp[comp]
+							,(1.-limiter_sharpening)*ghost[g].grad_turb[var][comp]
+							+limiter_sharpening*cell[c].grad_turb[var][comp]);
+					}
+				}
+			}
+			
+			if(LIMITER==MINMOD) for (unsigned int var=0;var<2;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].grad_turb[var][comp]=minmod(maxGrad[var][comp],minGrad[var][comp]);
+			if(LIMITER==DOUBLEMINMOD) for (unsigned int var=0;var<2;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].grad_turb[var][comp]=doubleMinmod(maxGrad[var][comp],minGrad[var][comp]);
+			if(LIMITER==HARMONIC) for (unsigned int var=0;var<2;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].grad_turb[var][comp]=harmonic(maxGrad[var][comp],minGrad[var][comp]);
+			if(LIMITER==SUPERBEE) for (unsigned int var=0;var<2;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].grad_turb[var][comp]=superbee(maxGrad[var][comp],minGrad[var][comp]);
+	
+		}
+	}
+	
+	return;
+
+} // end Grid::limit_gradients_turb()
 
 void Grid::lengthScales(void) {
 	// Loop through the cells and calculate length scales

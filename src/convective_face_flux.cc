@@ -33,8 +33,8 @@ extern BC bc;
 double beta=0.125;
 double alpha;
 
-void roe_flux(Cell_State &left,Cell_State &right,double fluxNormal[]);
-void AUSMplusUP_flux(Cell_State &left,Cell_State &right,double fluxNormal[]);
+void roe_flux(Cell_State &left,Cell_State &right,double fluxNormal[],double &weightL,double &weightR);
+void AUSMplusUP_flux(Cell_State &left,Cell_State &right,double fluxNormal[],double &weightL,double &weightR);
 double Mach_split_2_plus (double Mach);
 double Mach_split_2_minus (double Mach);
 double Mach_split_4_plus (double Mach);
@@ -46,23 +46,20 @@ void convective_face_flux(Cell_State &left,Cell_State &right,Face_State &face,do
 
 	double fluxNormal[7];
 
-	if (CONVECTIVE_FLUX_FUNCTION==ROE) roe_flux(left,right,fluxNormal);
-	if (CONVECTIVE_FLUX_FUNCTION==AUSM_PLUS_UP) AUSMplusUP_flux(left,right,fluxNormal);
+	if (CONVECTIVE_FLUX_FUNCTION==ROE) roe_flux(left,right,fluxNormal,grid.face[face.index].weightL,grid.face[face.index].weightR);
+	if (CONVECTIVE_FLUX_FUNCTION==AUSM_PLUS_UP) AUSMplusUP_flux(left,right,fluxNormal,grid.face[face.index].weightL,grid.face[face.index].weightR);
 	
+	grid.face[face.index].mdot=fluxNormal[0];
 	flux[0] = fluxNormal[0]*face.area;
 	flux[1] = (fluxNormal[1]*face.normal[0]+fluxNormal[2]*face.tangent1[0]+fluxNormal[3]*face.tangent2[0])*face.area;
 	flux[2] = (fluxNormal[1]*face.normal[1]+fluxNormal[2]*face.tangent1[1]+fluxNormal[3]*face.tangent2[1])*face.area;
 	flux[3] = (fluxNormal[1]*face.normal[2]+fluxNormal[2]*face.tangent1[2]+fluxNormal[3]*face.tangent2[2])*face.area;
 	flux[4] = fluxNormal[4]*face.area;
-	if (TURBULENCE_MODEL!=NONE) {
-		flux[5] = fluxNormal[5]*face.area;
-		flux[6] = fluxNormal[6]*face.area;
-	}
 	
 	return;
 } // end face flux
 
-void roe_flux(Cell_State &left,Cell_State &right,double fluxNormal[]) {
+void roe_flux(Cell_State &left,Cell_State &right,double fluxNormal[],double &weightL,double &weightR) {
 
 	// Local variables
 	double rho,u,v,w,H,a;
@@ -112,8 +109,6 @@ void roe_flux(Cell_State &left,Cell_State &right,double fluxNormal[]) {
 		fluxNormal[2]=mdot*left.vN.comp[1]+lambda1*alpha1*right31;
 		fluxNormal[3]=mdot*left.vN.comp[2]+lambda1*alpha1*right41;
 		fluxNormal[4]=mdot*left.H+lambda1*alpha1*right51;
-		fluxNormal[5]=fluxNormal[0]*left.k;
-		fluxNormal[6]=fluxNormal[0]*left.omega;
 
 	} else { // Calculate from the right side
 		lambda5=u+a;
@@ -139,14 +134,13 @@ void roe_flux(Cell_State &left,Cell_State &right,double fluxNormal[]) {
 		fluxNormal[2]=mdot*right.vN.comp[1]-lambda5*alpha5*right35;
 		fluxNormal[3]=mdot*right.vN.comp[2]-lambda5*alpha5*right45;
 		fluxNormal[4]=mdot*right.H-lambda5*alpha5*right55;
-		fluxNormal[5]=fluxNormal[0]*right.k;
-		fluxNormal[6]=fluxNormal[0]*right.omega;
 	}
 
+	weightL=0.5; weightR=0.5; // TODO find out proper values for these
 	return;
 } // end roe_flux
 
-void AUSMplusUP_flux(Cell_State &left,Cell_State &right,double fluxNormal[]) {
+void AUSMplusUP_flux(Cell_State &left,Cell_State &right,double fluxNormal[],double &weightL,double &weightR) {
 
 	double Kp=0.25;
 	double Ku=0.75;
@@ -197,22 +191,22 @@ void AUSMplusUP_flux(Cell_State &left,Cell_State &right,double fluxNormal[]) {
 	p=p_split_5_plus(ML)*left.p+p_split_5_minus(MR)*right.p
 	  -Ku*p_split_5_plus(ML)*p_split_5_minus(MR)*(left.rho+right.rho)*fa*a*(right.vN.comp[0]-left.vN.comp[0]);
 			
-			
+	// Run the weights through pressure averaging too
+	weightL=p_split_5_plus(ML); 
+	//if (weightL<0. || weightL >1.) cout << "[W] Left weight returned by AUSM+-up flux is out of range" << endl;
+	weightR=1.-weightL;
+	
 	fluxNormal[0]=mdot;
 	if (mdot>0.) { // Calculate from the left side
 		fluxNormal[1]=mdot*left.vN.comp[0]+p;
 		fluxNormal[2]=mdot*left.vN.comp[1];
 		fluxNormal[3]=mdot*left.vN.comp[2];
 		fluxNormal[4]=mdot*left.H;
-		fluxNormal[5]=mdot*left.k;
-		fluxNormal[6]=mdot*left.omega;
 	} else { // Calculate from the right side
 		fluxNormal[1]=mdot*right.vN.comp[0]+p;
 		fluxNormal[2]=mdot*right.vN.comp[1];
 		fluxNormal[3]=mdot*right.vN.comp[2];
 		fluxNormal[4]=mdot*right.H;
-		fluxNormal[5]=mdot*right.k;
-		fluxNormal[6]=mdot*right.omega;
 	}
 
 	return;

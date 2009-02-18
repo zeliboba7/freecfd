@@ -1,6 +1,6 @@
 /************************************************************************
 	
-	Copyright 2007-2008 Emre Sozer & Patrick Clark Trizila
+	Copyright 2007-2009 Emre Sozer & Patrick Clark Trizila
 
 	Contact: emresozer@freecfd.com , ptrizila@freecfd.com
 
@@ -71,7 +71,7 @@ void read_restart(double &time) {
 		getline(file,data,'\n'); getline(file,data,'\n');
 		// Skip node data
 		for (unsigned int n=0;n<3*nnodes[p];++n) file >> dummy;
-		// Read density
+		// Read pressure
 		for (unsigned int c=0;c<ncells[p];++c) {
 			// Get local cell id
 			id=-1;
@@ -105,7 +105,7 @@ void read_restart(double &time) {
 			}
 			if (id>=0) { file >> grid.cell[id].v.comp[2]; } else { file >> dummy; }
 		}		
-		// Read pressure
+		// Read temperature
 		for (unsigned int c=0;c<ncells[p];++c) {
 			id=-1;
 			if (maps.cellGlobal2Local.find(partitionMap[p][c])!=maps.cellGlobal2Local.end()) {
@@ -117,6 +117,33 @@ void read_restart(double &time) {
 			
 			} else { file >> dummy; }
 		}
+		
+		if (TURBULENCE_MODEL!=NONE) {
+			// Read k
+			for (unsigned int c=0;c<ncells[p];++c) {
+				id=-1;
+				if (maps.cellGlobal2Local.find(partitionMap[p][c])!=maps.cellGlobal2Local.end()) {
+					id=maps.cellGlobal2Local[partitionMap[p][c]];
+				}
+				if (id>=0) { 
+					file >> grid.cell[id].k;
+				
+				} else { file >> dummy; }
+			}
+			
+			// Read omega
+			for (unsigned int c=0;c<ncells[p];++c) {
+				id=-1;
+				if (maps.cellGlobal2Local.find(partitionMap[p][c])!=maps.cellGlobal2Local.end()) {
+					id=maps.cellGlobal2Local[partitionMap[p][c]];
+				}
+				if (id>=0) { 
+					file >> grid.cell[id].omega; 
+				
+				} else { file >> dummy; }
+			}
+		}
+		
 		// Skip connectivity list
 		getline(file,data,'\n');
 		for (unsigned int c=0;c<ncells[p];++c) getline(file,data,'\n');

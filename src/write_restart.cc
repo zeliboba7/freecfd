@@ -45,14 +45,20 @@ void write_restart(double time) {
 	// Proc 0 creates the output file and writes variable list
 	if (Rank==0) {
 		file.open((fileName).c_str(),ios::out); 
-		file << "VARIABLES = \"x\", \"y\", \"z\",\"p\",\"u\",\"v\",\"w\",\"T\" " << endl; // DEBUG
+		file << "VARIABLES = \"x\", \"y\", \"z\",\"p\",\"u\",\"v\",\"w\",\"T\" " ;
+		if (TURBULENCE_MODEL!=NONE) {
+			file << "\"k\", \"omega\" " ;
+		}
+		file << endl; // DEBUG
 	} else {
 		file.open((fileName).c_str(),ios::app);
 	}
 
+	int nVar=8; if (TURBULENCE_MODEL!=NONE) nVar+=2;
+	
 	// Write header (each proc has its own zone)
 	file << "ZONE, T=\"Partition " << Rank << "\"" ;
-	file << ", N=" << grid.nodeCount << ", E=" << grid.cellCount << ", VARLOCATION=([4-8]=CellCentered)" << endl;
+	file << ", N=" << grid.nodeCount << ", E=" << grid.cellCount << ", VARLOCATION=([4-" << nVar << "8]=CellCentered)" << endl;
 	file << "DATAPACKING=BLOCK, ZONETYPE=FEBRICK, SOLUTIONTIME=" << time << endl;
 
 	// Write coordinates
@@ -69,7 +75,10 @@ void write_restart(double time) {
 	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].v.comp[1] << endl;
 	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].v.comp[2] << endl;
 	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].T << endl;
-
+	if (TURBULENCE_MODEL!=NONE) {
+		for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].k << endl;
+		for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].omega << endl;
+	}
 	
 	// Write coonnectivity
 	for (unsigned int c=0;c<grid.cellCount;++c) {

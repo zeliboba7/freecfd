@@ -104,8 +104,6 @@ void initialize(InputFile &input) {
 					grid.cell[c].rho=regionRho;
 					grid.cell[c].k=regionK;
 					grid.cell[c].omega=regionOmega;
-					grid.cell[c].k=region.get_double("k");
-					grid.cell[c].omega=region.get_double("omega");
 					// first component of the specified velocity is interpreted as the radial velocity
 					// second and third components of the specified velocity are ignored
 					grid.cell[c].v=	regionV[0]*(grid.cell[c].centroid-region.get_Vec3D("center"));
@@ -115,12 +113,15 @@ void initialize(InputFile &input) {
 	}
 
 	for (unsigned int c=0;c<grid.cellCount;++c) {
-		grid.cell[c].mu=viscosity;
-		for (unsigned int i=0;i<7;++i) {
-			grid.cell[c].flux[i]=0.;
-			grid.cell[c].update[i]=0.;
-//grid.cell[c].v[0]=grid.cell[c].centroid[0]*10.;
-		}
+		for (unsigned int i=0;i<5;++i) grid.cell[c].update[i]=0.;
+		grid.cell[c].update_turb[0]=0.;
+		grid.cell[c].update_turb[1]=0.;
+	}
+	
+	for (unsigned int g=0;g<grid.ghostCount;++g) {
+		for (unsigned int i=0;i<5;++i) grid.ghost[g].update[i]=0.;
+		grid.ghost[g].update_turb[0]=0.;
+		grid.ghost[g].update_turb[1]=0.;
 	}
 	
 	return;

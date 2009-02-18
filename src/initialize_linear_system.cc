@@ -1,6 +1,6 @@
 /************************************************************************
 	
-	Copyright 2007-2008 Emre Sozer & Patrick Clark Trizila
+	Copyright 2007-2009 Emre Sozer & Patrick Clark Trizila
 
 	Contact: emresozer@freecfd.com , ptrizila@freecfd.com
 
@@ -26,13 +26,12 @@
 
 extern BC bc;
 
-inline void preconditioner_none(Cell &c, double P[][7]) {
+inline void preconditioner_none(Cell &c, double P[][5]) {
 	
 	double p=c.p+Pref;
 	double T=c.T+Tref;
 	double drho_dT; // Derivative of density w.r.t temp. @ const. press
 	double drho_dp; // Derivative of density w.r.t press. @ const temp.
-	
 	
 	// For ideal gas
 	drho_dT=-1.*c.rho/T;
@@ -53,14 +52,11 @@ inline void preconditioner_none(Cell &c, double P[][7]) {
 	P[4][2]=c.rho*c.v[1];
 	P[4][3]=c.rho*c.v[2];
 	P[4][4]=drho_dT*H+c.rho*c_p; 
-
-	// For k and omega
-	P[5][5]=c.rho; P[6][6]=c.rho;
 	
 	return;
 }
 		
-inline void preconditioner_ws95(Cell &c, double P[][7]) {
+inline void preconditioner_ws95(Cell &c, double P[][5]) {
 	
 	double p=c.p+Pref;
 	double T=c.T+Tref;
@@ -72,7 +68,7 @@ inline void preconditioner_ws95(Cell &c, double P[][7]) {
 	
 	Ur=max(fabs(c.v),1.e-5*a);
 	Ur=min(Ur,a);
-	if (EQUATIONS==NS) Ur=max(Ur,c.mu/(c.rho*c.lengthScale));
+	if (EQUATIONS==NS) Ur=max(Ur,viscosity/(c.rho*c.lengthScale));
 	
 	double deltaPmax=0.;
 	// Now loop through neighbor cells to check pressure differences
@@ -105,23 +101,20 @@ inline void preconditioner_ws95(Cell &c, double P[][7]) {
 	P[4][2]=c.rho*c.v[1];
 	P[4][3]=c.rho*c.v[2];
 	P[4][4]=drho_dT*H+c.rho*c_p; 
-
-	// For k and omega
-	P[5][5]=c.rho; P[6][6]=c.rho;
 	
 	return;
 	
 }
 
-void mat_print(double P[][7]);
+void mat_print(double P[][5]);
 
 void initialize_linear_system() {
 
 	MatZeroEntries(impOP);
 
 	double d,lengthScale,dtLocal,a;
-	double P [7][7]; // preconditioner
-	for (int i=0;i<7;++i) for (int j=0;j<7;++j) P[i][j]=0.;
+	double P [5][5]; // preconditioner
+	for (int i=0;i<5;++i) for (int j=0;j<5;++j) P[i][j]=0.;
 
 	PetscInt row,col;
 	PetscScalar value;
@@ -147,16 +140,17 @@ void initialize_linear_system() {
 			d=grid.cell[c].volume/dt;
 		}
 		
-		for (int i=0;i<nSolVar;++i) {
-			row=(grid.myOffset+c)*nSolVar+i;
-			for (int j=0;j<nSolVar;++j) {
-				col=(grid.myOffset+c)*nSolVar+j;
+		for (int i=0;i<5;++i) {
+			row=(grid.myOffset+c)*5+i;
+			for (int j=0;j<5;++j) {
+				col=(grid.myOffset+c)*5+j;
 				value=P[i][j]*d;
 				MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
 			}
 		}
-			
+		
 	}
+
 	return;
 }
 

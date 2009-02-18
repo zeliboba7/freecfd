@@ -57,6 +57,7 @@ public:
 	Vec3D normal;
 	std::map<int,double> average;
 	double area;
+	double mdot,weightL,weightR;
 	std::vector<int> nodes;
 	Node& node(int n);
 };
@@ -65,18 +66,18 @@ class Cell {
 public:
 	unsigned int nodeCount,faceCount,neighborCellCount,ghostCount,globalId,globalCellCount;
 	ElementType_t type; // TODO get rid of this one
-	double volume,lengthScale;
+	double volume,lengthScale,closest_wall_distance;
 	Vec3D centroid;
 	std::vector<int> nodes;
 	std::vector<int> faces;
 	std::vector<int> neighborCells;
 	std::vector<int> ghosts;
-	double p,T,rho,k,omega,mu;
-	Vec3D v,grad[7],limited_grad[7];
+	double p,T,rho,k,omega;
+	Vec3D v,grad[5],limited_grad[5]; //TODO Do we need to store the limited gradients separately???
+	Vec3D grad_turb[2];
 	// Gradients are stored as p,u,v,w,T,k,omega in order
 	std::map<int,Vec3D> gradMap;
-	double flux[7];
-	double update[7];
+	double update[5],update_turb[2]; // TODO Do we need update_turb?
 	Cell(void);
 	bool HaveNodes(unsigned int &nodelistsize, unsigned int nodelist[]) ;
 	Node& node(int n);
@@ -89,10 +90,11 @@ public:
 	unsigned int globalId;
 	unsigned int matrix_id;
 	std::vector<unsigned int> cells;
-	double p,T,rho,k,omega,mu;
+	double p,T,rho,k,omega;
 	// Gradients are stored as p,u,v,w,T,k,omega in order
-	Vec3D v,centroid,grad[7],limited_grad[7];
-	double update[7];
+	Vec3D v,centroid,grad[5],limited_grad[5];
+	Vec3D grad_turb[2];
+	double update[5],update_turb[2]; // TODO do we need these updates for ghosts?
 };
 
 class Grid {
@@ -106,6 +108,7 @@ public:
 	std::vector<Face> face;
 	std::vector<Cell> cell;
 	std::vector<Ghost> ghost;
+	std::vector<int> noSlipFaces;
 	Grid();
 	int read(string);
 	int readCGNS();
@@ -129,6 +132,8 @@ public:
 	void gradMaps();
 	void gradients();
  	void limit_gradients(void);
+	void gradients_turb();
+	void limit_gradients_turb(void);
 	void lengthScales(void);
 };
 
