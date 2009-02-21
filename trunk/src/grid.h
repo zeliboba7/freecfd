@@ -58,6 +58,7 @@ public:
 	std::map<int,double> average;
 	double area;
 	double mdot,weightL,weightR;
+	double mu_t;
 	std::vector<int> nodes;
 	Node& node(int n);
 };
@@ -65,7 +66,6 @@ public:
 class Cell {
 public:
 	unsigned int nodeCount,faceCount,neighborCellCount,ghostCount,globalId,globalCellCount;
-	ElementType_t type; // TODO get rid of this one
 	double volume,lengthScale,closest_wall_distance;
 	Vec3D centroid;
 	std::vector<int> nodes;
@@ -73,7 +73,7 @@ public:
 	std::vector<int> neighborCells;
 	std::vector<int> ghosts;
 	double p,T,rho,k,omega;
-	Vec3D v,grad[5],limited_grad[5]; //TODO Do we need to store the limited gradients separately???
+	Vec3D v,grad[5];
 	Vec3D grad_turb[2];
 	// Gradients are stored as p,u,v,w,T,k,omega in order
 	std::map<int,Vec3D> gradMap;
@@ -92,7 +92,7 @@ public:
 	std::vector<unsigned int> cells;
 	double p,T,rho,k,omega;
 	// Gradients are stored as p,u,v,w,T,k,omega in order
-	Vec3D v,centroid,grad[5],limited_grad[5];
+	Vec3D v,centroid,grad[5];
 	Vec3D grad_turb[2];
 	double update[5],update_turb[2]; // TODO do we need these updates for ghosts?
 };

@@ -107,6 +107,9 @@ void write_tec(double time) {
 			}
 		}
 		rho_node=eos.rho(p_node,T_node);
+		k_node=max(k_node,kLowLimit);
+		omega_node=max(omega_node,omegaLowLimit);
+		
 		count_p=0; count_v=0; count_T=0; count_rho=0.; count_k=0; count_omega=0;
 		for (sit=grid.node[n].bcs.begin();sit!=grid.node[n].bcs.end();sit++) {
 			if (bc.region[(*sit)].specified==BC_RHO) {

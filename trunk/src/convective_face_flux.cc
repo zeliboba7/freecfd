@@ -48,14 +48,12 @@ void convective_face_flux(Cell_State &left,Cell_State &right,Face_State &face,do
 
 	if (CONVECTIVE_FLUX_FUNCTION==ROE) roe_flux(left,right,fluxNormal,grid.face[face.index].weightL,grid.face[face.index].weightR);
 	if (CONVECTIVE_FLUX_FUNCTION==AUSM_PLUS_UP) AUSMplusUP_flux(left,right,fluxNormal,grid.face[face.index].weightL,grid.face[face.index].weightR);
-	
-	grid.face[face.index].mdot=fluxNormal[0];
 	flux[0] = fluxNormal[0]*face.area;
 	flux[1] = (fluxNormal[1]*face.normal[0]+fluxNormal[2]*face.tangent1[0]+fluxNormal[3]*face.tangent2[0])*face.area;
 	flux[2] = (fluxNormal[1]*face.normal[1]+fluxNormal[2]*face.tangent1[1]+fluxNormal[3]*face.tangent2[1])*face.area;
 	flux[3] = (fluxNormal[1]*face.normal[2]+fluxNormal[2]*face.tangent1[2]+fluxNormal[3]*face.tangent2[2])*face.area;
 	flux[4] = fluxNormal[4]*face.area;
-	
+	grid.face[face.index].mdot=fluxNormal[0];
 	return;
 } // end face flux
 
@@ -188,9 +186,11 @@ void AUSMplusUP_flux(Cell_State &left,Cell_State &right,double fluxNormal[],doub
 
 	alpha=3./16.*(-4.+5.*fa*fa);
 			
-	p=p_split_5_plus(ML)*left.p+p_split_5_minus(MR)*right.p
+	p=p_split_5_plus(ML)*(left.p+Pref)+p_split_5_minus(MR)*(right.p+Pref)
 	  -Ku*p_split_5_plus(ML)*p_split_5_minus(MR)*(left.rho+right.rho)*fa*a*(right.vN.comp[0]-left.vN.comp[0]);
-			
+	
+	p-=Pref;
+	
 	// Run the weights through pressure averaging too
 	weightL=p_split_5_plus(ML); 
 	//if (weightL<0. || weightL >1.) cout << "[W] Left weight returned by AUSM+-up flux is out of range" << endl;

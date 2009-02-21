@@ -50,6 +50,7 @@ void set_probes(void) {
 	for (int p=0;p<probeCount;++p) {
 		temp.coord=input.section("probes").subsection("probe",p).get_Vec3D("coord");
 		// Find the nearest cell
+		distance=1.e20;
 		for (unsigned int c=0;c<grid.cellCount;++c) {
 			distanceTest=fabs(temp.coord-grid.cell[c].centroid);
 			if (distanceTest<distance) {

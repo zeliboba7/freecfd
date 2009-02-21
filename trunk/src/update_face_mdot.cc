@@ -22,36 +22,43 @@
 *************************************************************************/
 #include "commons.h"
 #include <cmath>
+#include "grid.h"
 #include "bc.h"
+#include "inputs.h"
 #include "state_cache.h"
+#include "petsc_functions.h"
 
 extern BC bc;
+extern InputFile input;
 
-void diffusive_face_flux(Cell_State &left,Cell_State &right,Face_State &face,double flux[]) {
+void convective_face_flux(Cell_State &left,Cell_State &right,Face_State &face,double flux[]);
+void left_state_update(Cell_State &left,Face_State &face);
+void right_state_update(Cell_State &left,Cell_State &right,Face_State &face);
+void face_geom_update(Face_State &face,unsigned int f);
 
-	Vec3D tau_x,tau_y,tau_z,areaVec;
-
-	double Tvisc=viscosity;
-	if (TURBULENCE_MODEL!=NONE) Tvisc+=grid.face[face.index].mu_t;
+void update_face_mdot(void) {
 	
-	areaVec=face.normal*face.area;
-	tau_x[0]=2./3.*(2.*face.gradU[0]-face.gradV[1]-face.gradW[2]);
-	tau_x[1]=face.gradU[1]+face.gradV[0];
-	tau_x[2]=face.gradU[2]+face.gradW[0];
-	tau_y[0]=tau_x[1];
-	tau_y[1]=2./3.* (2.*face.gradV[1]-face.gradU[0]-face.gradW[2]);
-	tau_y[2]=face.gradV[2]+face.gradW[1];
-	tau_z[0]=tau_x[2];
-	tau_z[1]=tau_y[2];
-	tau_z[2]=2./3.*(2.*face.gradW[2]-face.gradU[0]-face.gradV[1]);
+	Cell_State left,right;
+	Face_State face;
+	Fluxes flux;
+	
+	flux.diffusive.resize(5);
+	flux.convective.resize(5);
+	left.update.resize(5);
+	right.update.resize(5);
 
-	flux[1]=Tvisc*tau_x.dot(areaVec);
-	flux[2]=Tvisc*tau_y.dot(areaVec);
-	flux[3]=Tvisc*tau_z.dot(areaVec);
-	flux[4]=Tvisc*(tau_x.dot(face.v)*areaVec[0]+tau_y.dot(face.v)*areaVec[1]+tau_z.dot(face.v)*areaVec[2]);
-	flux[4]+=conductivity*face.T*face.area; // TODO Viscous dissipation needs to be added too
+	flux.convective.resize(5);
+	
+	// Loop through faces
+	for (int f=0;f<grid.faceCount;++f) {
 
+		// Populate the state caches
+		face_geom_update(face,f);
+		left_state_update(left,face);
+		right_state_update(left,right,face);
 
+		// Get unperturbed flux values
+		convective_face_flux(left,right,face,&flux.convective[0]);
+	} // for faces
 	return;
 } // end function
-

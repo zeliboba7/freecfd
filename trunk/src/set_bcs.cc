@@ -48,8 +48,8 @@ void setBCs(InputFile &input, BC &bc) {
 		if (type=="outlet") bcRegion.type=OUTLET;
 
 		if (kind=="none") bcRegion.kind=NONE;
-		if (kind=="fixedPressure") bcRegion.kind=FIXED_PRESSURE;
-		if (kind=="fixedPressureEntrainment") bcRegion.kind=FIXED_PRESSURE_ENTRAINMENT;
+		if (kind=="noReverse") bcRegion.kind=NO_REVERSE;
+		if (kind=="dampReverse") bcRegion.kind=DAMP_REVERSE;
 		
 		bcRegion.specified=NONE;
 		

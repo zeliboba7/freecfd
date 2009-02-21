@@ -118,6 +118,10 @@ void initialize(InputFile &input) {
 		grid.cell[c].update_turb[1]=0.;
 	}
 	
+	for (unsigned int f=0;f<grid.faceCount;++f) {
+		grid.face[f].mu_t=0.;
+	}
+	
 	for (unsigned int g=0;g<grid.ghostCount;++g) {
 		for (unsigned int i=0;i<5;++i) grid.ghost[g].update[i]=0.;
 		grid.ghost[g].update_turb[0]=0.;
