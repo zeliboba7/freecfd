@@ -364,6 +364,15 @@ void Grid::gradients(void) {
 					faceVel-=faceVel.dot(face[f].normal)*face[f].normal;
 				} else if (bc.region[face[f].bc].type==NOSLIP) {
 					faceVel=0.;
+				} else if (bc.region[face[f].bc].type==OUTLET) {
+					if (faceVel.dot(face[f].normal)<0.) {
+						if (bc.region[face[f].bc].kind==DAMP_REVERSE) {
+							faceP-=0.5*faceRho*faceVel.dot(faceVel);
+							faceT=eos.T(faceP,faceRho);
+						} else if (bc.region[face[f].bc].kind==NO_REVERSE) {
+							faceVel=0.;
+						}
+					}
 				}
 				
 				cell[c].grad[0]+=faceP*areaVec;
@@ -390,7 +399,7 @@ void Grid::gradients_turb(void) {
 	
 	for (unsigned int c=0;c<cellCount;++c) {
 		// Initialize all gradients to zero
-		for (unsigned int i=0;i<2;++i) cell[c].grad_turb[i]=0.;
+		cell[c].grad_turb[0]=0.; cell[c].grad_turb[1]=0.;
 		// Add internal and interpartition face contributions
 		for (it=cell[c].gradMap.begin();it!=cell[c].gradMap.end(); it++ ) {
 			if ((*it).first>=0) { // if contribution is coming from a real cell
@@ -450,7 +459,7 @@ void Grid::limit_gradients(void) {
 	unsigned int neighbor,g;
 	Vec3D maxGrad[5],minGrad[5];
 	if(LIMITER==NONE || order==FIRST) {
-		for (unsigned int c=0;c<cellCount;++c) for (unsigned int var=0;var<5;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].limited_grad[var].comp[comp]=cell[c].grad[var].comp[comp];
+		// Do nothing
 	} else {
 		for (unsigned int c=0;c<cellCount;++c) {
 	
@@ -461,13 +470,13 @@ void Grid::limit_gradients(void) {
 				neighbor=cell[c].neighborCells[cc];
 				for (unsigned int var=0;var<5;++var) {
 					for (unsigned int comp=0;comp<3;++comp) {
-						maxGrad[var].comp[comp]=max(
-								maxGrad[var].comp[comp],
-								(1.-limiter_sharpening)*cell[neighbor].grad[var].comp[comp]
-									+limiter_sharpening*cell[c].grad[var].comp[comp]);
-						minGrad[var].comp[comp]=min(minGrad[var].comp[comp],
-								(1.-limiter_sharpening)*cell[neighbor].grad[var].comp[comp]
-									+limiter_sharpening*cell[c].grad[var].comp[comp]);
+						maxGrad[var][comp]=max(
+								maxGrad[var][comp],
+								(1.-limiter_sharpening)*cell[neighbor].grad[var][comp]
+									+limiter_sharpening*cell[c].grad[var][comp]);
+						minGrad[var][comp]=min(minGrad[var][comp],
+								(1.-limiter_sharpening)*cell[neighbor].grad[var][comp]
+									+limiter_sharpening*cell[c].grad[var][comp]);
 					}
 				}
 			}
@@ -476,22 +485,22 @@ void Grid::limit_gradients(void) {
 				g=cell[c].ghosts[cg];
 				for (unsigned int var=0;var<5;++var) {
 					for (unsigned int comp=0;comp<3;++comp) {
-						maxGrad[var].comp[comp]=max(
-								maxGrad[var].comp[comp],
-								(1.-limiter_sharpening)*ghost[g].grad[var].comp[comp]
-									+limiter_sharpening*cell[c].grad[var].comp[comp]);
-						minGrad[var].comp[comp]=min(
-								minGrad[var].comp[comp],
-								(1.-limiter_sharpening)*ghost[g].grad[var].comp[comp]
-									+limiter_sharpening*cell[c].grad[var].comp[comp]);
+						maxGrad[var][comp]=max(
+								maxGrad[var][comp],
+								(1.-limiter_sharpening)*ghost[g].grad[var][comp]
+									+limiter_sharpening*cell[c].grad[var][comp]);
+						minGrad[var][comp]=min(
+								minGrad[var][comp],
+								(1.-limiter_sharpening)*ghost[g].grad[var][comp]
+									+limiter_sharpening*cell[c].grad[var][comp]);
 					}
 				}
 			}
 			
-			if(LIMITER==MINMOD) for (unsigned int var=0;var<5;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].limited_grad[var].comp[comp]=minmod(maxGrad[var].comp[comp],minGrad[var].comp[comp]);
-			if(LIMITER==DOUBLEMINMOD) for (unsigned int var=0;var<5;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].limited_grad[var].comp[comp]=doubleMinmod(maxGrad[var].comp[comp],minGrad[var].comp[comp]);
-			if(LIMITER==HARMONIC) for (unsigned int var=0;var<5;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].limited_grad[var].comp[comp]=harmonic(maxGrad[var].comp[comp],minGrad[var].comp[comp]);
-			if(LIMITER==SUPERBEE) for (unsigned int var=0;var<5;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].limited_grad[var].comp[comp]=superbee(maxGrad[var].comp[comp],minGrad[var].comp[comp]);
+			if(LIMITER==MINMOD) for (unsigned int var=0;var<5;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].grad[var][comp]=minmod(maxGrad[var][comp],minGrad[var][comp]);
+			if(LIMITER==DOUBLEMINMOD) for (unsigned int var=0;var<5;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].grad[var][comp]=doubleMinmod(maxGrad[var][comp],minGrad[var][comp]);
+			if(LIMITER==HARMONIC) for (unsigned int var=0;var<5;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].grad[var][comp]=harmonic(maxGrad[var][comp],minGrad[var][comp]);
+			if(LIMITER==SUPERBEE) for (unsigned int var=0;var<5;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].grad[var][comp]=superbee(maxGrad[var][comp],minGrad[var][comp]);
 			
 		}
 	}

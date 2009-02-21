@@ -66,8 +66,8 @@
 #define INLET 4
 #define OUTLET 5
 // Options for Boundary Condition Type variants (kind)
-#define FIXED_PRESSURE 1
-#define FIXED_PRESSURE_ENTRAINMENT 2
+#define NO_REVERSE 1
+#define DAMP_REVERSE 2
 // Face bc type numbering
 #define INTERNAL -1
 #define UNASSIGNED -2

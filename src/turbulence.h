@@ -20,52 +20,14 @@
     see <http://www.gnu.org/licenses/>.
 
 *************************************************************************/
-#ifndef MPI_FUNCTIONS_H
-#define MPI_FUNCTIONS_H
+#ifndef TURBULENCE_H
+#define TURBULENCE_H
 
-#include <mpi.h>
-#include <vector>
 using namespace std;
 
-#include "grid.h"
-
-extern Grid grid;
-extern int np, Rank;
-extern IndexMaps maps;
-
-	
-void mpi_init(int argc, char *argv[]);
-void mpi_handshake(void);
-void mpi_get_ghost_centroids(void);
-void mpi_update_ghost_primitives(void);
-void mpi_update_ghost_turb(void);
-void mpi_update_ghost_gradients(void);
-void mpi_update_ghost_gradients_turb(void);
-
-struct mpiGhost {
-	unsigned int globalId;
-	double vars[5];
-};
-
-struct mpiGhost_turb {
-	unsigned int globalId;
-	double vars[2];
-};
-
-struct mpiGrad {
-	unsigned int globalId;
-	double grads[15];
-};
-
-struct mpiGrad_turb {
-	unsigned int globalId;
-	double grads[6];
-};
-
-struct mpiVec3D {
-	unsigned int globalId;
-	unsigned int matrix_id;
-	double comp[3];
+class TurbulenceModel {
+public:
+	double sigma_k,sigma_omega,beta,beta_star,kappa,alpha;
 };
 
 #endif

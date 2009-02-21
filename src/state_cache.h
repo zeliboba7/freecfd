@@ -53,7 +53,7 @@ class Cell_State {
 class Face_State {
 	public:
 		unsigned int index;
-		double p,T,rho,k,omega;
+		double p,T,rho,mu_t;
 		Vec3D v;
 		Vec3D gradU,gradV,gradW,gradT;
 		Vec3D normal,tangent1,tangent2,left2right;

@@ -62,6 +62,7 @@ void assemble_linear_system(void);
 void initialize_linear_system(void);
 void update_face_mdot(void);
 void linear_system_turb(void);
+void update_eddy_viscosity(void);
 void get_dt(void);
 void get_CFLmax(void);
 void set_probes(void);
@@ -111,7 +112,6 @@ int main(int argc, char *argv[]) {
 	int timeStepMax=input.section("timeMarching").get_int("numberOfSteps");
 	
 	grid.read(gridFileName);
-	
 	// Hand shake with other processors
 	// (agree on which cells' data to be shared)
 	mpi_handshake();
@@ -180,38 +180,8 @@ int main(int argc, char *argv[]) {
 			}
 		}
 
-		// Update the primitive variables of the ghost cells
-		// At first iteration, done here
-		// For the remaining, done after solving
-		if (firstTimeStep) {
-			mpi_update_ghost_primitives();
-			if (TURBULENCE_MODEL!=NONE) mpi_update_ghost_turb();
-			// Gradient are calculated for NS and/or second order schemes
-			if (EQUATIONS==NS | order==SECOND ) {
-				// Calculate all the cell gradients for each variable
-				grid.gradients();
-				// Update gradients of the ghost cells
-				mpi_update_ghost_gradients();
-			}
-			// Limit gradients (limited gradients are stored separately)
-			grid.limit_gradients();
-			// Update limited gradients of the ghost cells
-			mpi_update_ghost_limited_gradients();
-		}
-
-		// Get time step (will handle fixed, CFL and CFLramp)
-		get_dt();
-		if (TIME_STEP_TYPE==FIXED) { get_CFLmax(); } 
-		else if (TIME_STEP_TYPE==CFL_LOCAL) { CFLmax=CFLlocal;}
-
-		initialize_linear_system();
-		assemble_linear_system();
-		petsc_solve(nIter,rNorm);
-		update();
-		// Update the primitive variables of the ghost cells
 		mpi_update_ghost_primitives();
-		
-		// Gradients are calculated for NS and/or second order schemes
+		// Gradient are calculated for NS and/or second order schemes
 		if (EQUATIONS==NS | order==SECOND ) {
 			// Calculate all the cell gradients for each variable
 			grid.gradients();
@@ -219,29 +189,48 @@ int main(int argc, char *argv[]) {
 			mpi_update_ghost_gradients();
 		}
 		
-		// Limit gradients (limited gradients are stored separately)
-		grid.limit_gradients();
-		// Update limited gradients of the ghost cells
-		mpi_update_ghost_limited_gradients();
+		if (LIMITER!=NONE) {
+			// Limit gradients
+			grid.limit_gradients(); 
+			// Update limited gradients of the ghost cells
+			mpi_update_ghost_gradients();
+		}
+
+		// Get time step (will handle fixed, CFL and CFLramp)
+		get_dt();
+		if (TIME_STEP_TYPE==FIXED) { get_CFLmax(); } 
+		else if (TIME_STEP_TYPE==CFL_LOCAL) { CFLmax=CFLlocal;}
 		
 		if (TURBULENCE_MODEL!=NONE) {
-			grid.gradients_turb();
-			grid.limit_gradients_turb();
-			// TODO update ghost gradients
-			update_face_mdot();
-			linear_system_turb();
-			petsc_solve_turb(nIterTurb,rNormTurb);
-			update_turb();
-			// Update the primitive variables of the ghost cells
-			mpi_update_ghost_turb();
+			if (firstTimeStep) {
+				mpi_update_ghost_turb();
+				update_eddy_viscosity();
+			} else {
+				mpi_update_ghost_turb();
+				grid.gradients_turb();
+				mpi_update_ghost_gradients_turb();
+				grid.limit_gradients_turb();
+				mpi_update_ghost_gradients_turb();
+				update_face_mdot();
+				linear_system_turb();
+				petsc_solve_turb(nIterTurb,rNormTurb);
+				update_turb();
+				mpi_update_ghost_turb();
+				update_eddy_viscosity();
+			}
 		}
 		
+		initialize_linear_system();
+		assemble_linear_system();
+		petsc_solve(nIter,rNorm);
+		update();
+
 		// Advance physical time
 		time += dt;
 		if (Rank==0) {
 			if (timeStep==(restart+1))  cout << "step" << "\t" << "time" << "\t\t" << "dt" << "\t\t" << "CFLmax" << "\t\t" << "nIter" << "\t" << "LinearRes" << "\t" << "pRes" << "\t\t" << "vRes" << "\t\t" << "TRes" << endl;
 			cout << timeStep << "\t" << setprecision(4) << scientific << time << "\t" << dt << "\t" << CFLmax << "\t" << nIter << "\t" << rNorm << "\t" << resP << "\t" << resV << "\t" << resT << "\t" << resK << "\t" << resOmega << endl;
-			cout << nIterTurb << "\t" << rNormTurb << endl;
+			if (!firstTimeStep) cout << nIterTurb << "\t" << rNormTurb << endl;
 		}
 		
 		// Ramp-up if needed
@@ -390,6 +379,8 @@ void update(void) {
 void update_turb(void) {
 
 	resK=0.; resOmega=0.;
+	int counter=0.;
+	int counter2=0.;
 	for (unsigned int c = 0;c < grid.cellCount;++c) {
 
 		// Limit the update_turb so k doesn't end up negative
@@ -397,13 +388,26 @@ void update_turb(void) {
 		// Limit the update_turb so omega doesn't end up smaller than 100
 		grid.cell[c].update_turb[1]=max(-1.*(grid.cell[c].omega-omegaLowLimit),grid.cell[c].update_turb[1]);
 		
+		double new_mu_t=grid.cell[c].rho*(grid.cell[c].k+grid.cell[c].update_turb[0])/(grid.cell[c].omega+grid.cell[c].update_turb[1]);
+		
+		if (new_mu_t/viscosity>viscosityRatioLimit) {
+			counter2++; 
+			double under_relax;
+			double limit_nu=viscosityRatioLimit*viscosity/grid.cell[c].rho;
+			under_relax=(limit_nu*grid.cell[c].omega-grid.cell[c].k)/(grid.cell[c].update_turb[0]-limit_nu*grid.cell[c].update_turb[1]);
+			under_relax=max(1.,under_relax);
+			grid.cell[c].update_turb[0]*=under_relax;
+			grid.cell[c].update_turb[1]*=under_relax;
+		}
+		
 		grid.cell[c].k += grid.cell[c].update_turb[0];
-		grid.cell[c].omega += grid.cell[c].update_turb[1];
+		grid.cell[c].omega+= grid.cell[c].update_turb[1];
 		
 		resK+=grid.cell[c].update_turb[0]*grid.cell[c].update_turb[0];
 		resOmega+=grid.cell[c].update_turb[1]*grid.cell[c].update_turb[1];
 
 	} // cell loop
+	if (counter2>0) cout << "[I] Update of k and omega limited due to mu_t constraint for " << counter2 << " cells" << endl;
 	double residuals[2],totalResiduals[2];
 	residuals[0]=resK; residuals[1]=resOmega;
 	if (np!=1) {

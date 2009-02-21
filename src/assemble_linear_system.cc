@@ -274,7 +274,7 @@ void left_state_update(Cell_State &left,Face_State &face) {
 
 	if (order==SECOND) {
 		for (unsigned int i=0;i<5;++i) {
-			delta[i]=(grid.face[face.index].centroid-grid.cell[parent].centroid).dot(grid.cell[parent].limited_grad[i]);
+			delta[i]=(grid.face[face.index].centroid-grid.cell[parent].centroid).dot(grid.cell[parent].grad[i]);
 		}
 	} else {
 		for (unsigned int i=0;i<5;++i) delta[i]=0.;
@@ -313,7 +313,7 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 
 		if (order==SECOND) {
 			for (unsigned int i=0;i<5;++i) {
-				delta[i]=(grid.face[face.index].centroid-grid.cell[neighbor].centroid).dot(grid.cell[neighbor].limited_grad[i]);
+				delta[i]=(grid.face[face.index].centroid-grid.cell[neighbor].centroid).dot(grid.cell[neighbor].grad[i]);
 			}
 		} else {
 			for (unsigned int i=0;i<5;++i) delta[i]=0.;
@@ -342,7 +342,7 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 			right.T_center=right.T;
 			right.rho=bc.region[face.bc].rho;
 		} else if (bc.region[face.bc].specified==BC_P) {
-			right.p=0.5*(left.p+bc.region[face.bc].p);
+			right.p=bc.region[face.bc].p;
 			right.T=left.T; // temperature is extrapolated
 			right.T_center=left.T_center+2.*(right.T-left.T_center);
 			right.rho=eos.rho(right.p,right.T); 
@@ -352,7 +352,7 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 			right.p=left.p; // pressure is extrapolated
 			right.rho=eos.rho(right.p,right.T); 
 		} else if (bc.region[face.bc].specified==BC_RHO) {
-			right.rho=0.5*(left.rho+bc.region[face.bc].rho);
+			right.rho=bc.region[face.bc].rho;
 			right.p=left.p; // pressure is extrapolated
 			right.T=eos.T(right.p,right.rho); 
 			right.T_center=left.T_center+2.*(right.T-left.T_center);
@@ -375,12 +375,22 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 		} else if (bc.region[face.bc].type==SYMMETRY) {
 			right.v=left.v-2.*left.v.dot(face.normal)*face.normal;
 			right.v_center=left.v_center-2.*left.v_center.dot(face.normal)*face.normal;
+			right.T_center=left.T_center;
 		} else if (bc.region[face.bc].type==NOSLIP) {
 			right.v=-1.*left.v;
 			right.v_center=-1.*left.v_center;
 		} else if (bc.region[face.bc].type==INLET) {
 			right.v=bc.region[face.bc].v;
 			right.v_center=right.v;
+		} else if (bc.region[face.bc].type==OUTLET) {
+			if (right.v.dot(face.normal)<0.) {
+				if (bc.region[face.bc].kind==DAMP_REVERSE) {
+					right.p-=0.5*right.rho*right.v.dot(right.v);
+					right.T=eos.T(right.p,right.rho);
+				} else if (bc.region[face.bc].kind==NO_REVERSE) {
+					right.v=0.;
+				}
+			}
 		}
 		
 	} else { // partition boundary
@@ -390,7 +400,7 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 		double delta[5];
 		if (order==SECOND) {
 			for (unsigned int i=0;i<5;++i) {
-				delta[i]=(grid.face[face.index].centroid-grid.ghost[g].centroid).dot(grid.ghost[g].limited_grad[i]);
+				delta[i]=(grid.face[face.index].centroid-grid.ghost[g].centroid).dot(grid.ghost[g].grad[i]);
 			}
 		}
 
@@ -438,22 +448,18 @@ void face_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 
 	map<int,double>::iterator fit;
 	// Find face averaged variables
-	face.gradU=0.; face.gradV=0.; face.gradW=0.; face.gradT=0.; face.k=0.; face.omega=0.;
+	face.gradU=0.; face.gradV=0.; face.gradW=0.; face.gradT=0.;
 	for (fit=grid.face[face.index].average.begin();fit!=grid.face[face.index].average.end();fit++) {
 		if ((*fit).first>=0) { // if contribution is coming from a real cell
 			face.gradU+=(*fit).second*grid.cell[(*fit).first].grad[1];
 			face.gradV+=(*fit).second*grid.cell[(*fit).first].grad[2];
 			face.gradW+=(*fit).second*grid.cell[(*fit).first].grad[3];
 			face.gradT+=(*fit).second*grid.cell[(*fit).first].grad[4];
-			face.k+=(*fit).second*grid.cell[(*fit).first].k;
-			face.omega+=(*fit).second*grid.cell[(*fit).first].omega;
 		} else { // if contribution is coming from a ghost cell
 			face.gradU+=(*fit).second*grid.ghost[-1*((*fit).first+1)].grad[1];
 			face.gradV+=(*fit).second*grid.ghost[-1*((*fit).first+1)].grad[2];
 			face.gradW+=(*fit).second*grid.ghost[-1*((*fit).first+1)].grad[3];
 			face.gradT+=(*fit).second*grid.ghost[-1*((*fit).first+1)].grad[4];
-			face.k+=(*fit).second*grid.ghost[-1*((*fit).first+1)].k;
-			face.omega+=(*fit).second*grid.ghost[-1*((*fit).first+1)].omega;
 		}
 	}
 			
@@ -472,21 +478,6 @@ void face_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 	face.T=0.5*(left.T+right.T);
 	face.rho=0.5*(left.rho+right.rho);
 	
-	if (TURBULENCE_MODEL!=NONE) {
-		face.k=max(kLowLimit,face.k);
-		if (face.bc>=0) { // boundary face
-			if (bc.region[face.bc].type==NOSLIP) {
-				face.k=0.;
-				face.omega=60.*viscosity/(face.rho*0.075*pow(0.5*(face.left2right).dot(face.normal),2.));
-			} else if (bc.region[face.bc].type==INLET) {
-				face.k=bc.region[face.bc].k;
-				face.omega=bc.region[face.bc].omega;
-			}
-		}
-		face.omega=max(omegaLowLimit,face.omega);
-	}
-	
-
 	return;
 } // end face_state_update
 

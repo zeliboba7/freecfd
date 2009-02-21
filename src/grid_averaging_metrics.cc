@@ -267,7 +267,7 @@ void Grid::sortStencil(Node& n) {
 	int counter=0;
 	int size_cutoff;
 	if (DIMENSION==1) {size_cutoff=max(non_empty_quadrant_count,2);}
-	else if (DIMENSION==2) {size_cutoff=max(non_empty_quadrant_count,4);}
+	else if (DIMENSION==2) {size_cutoff=max(non_empty_quadrant_count,4);} // These are experimental
 	else {size_cutoff=max(non_empty_quadrant_count,8);}
 	size_cutoff=min(size_cutoff,stencilSize);
 
@@ -318,6 +318,7 @@ void Grid::interpolate_tetra(Node& n) {
                                                        +fabs(centroid2-centroid3)+fabs(centroid2-centroid4)+fabs(centroid3-centroid4));
 					ave_centroid=0.25*(centroid1+centroid2+centroid3+centroid4);
 
+	//cout << centroid1 << "\t" << centroid2 << "\t" << centroid3 << "\t" << centroid4 << endl;
                                         // Compare volume with that of an equilateral tetra
 
 					// How close the tetra center to the node for which we are interpolating
@@ -510,10 +511,19 @@ void Grid::interpolate_line(Node& n) {
 		}		
 	}
 	
-	lineDirection=(centroid1-centroid2).norm();
+	lineDirection=(centroid2-centroid1).norm();
 	weights= new double [2];
-	weights[0]=(n-centroid2).dot(lineDirection)/fabs(centroid1-centroid2);
-	weights[1]=1.-weights[0];
+	centroid2-=centroid1;
+	Vec3D pn;
+	pn=n-centroid1;
+	pn=pn.dot(lineDirection);
+	
+	weights[1]=fabs(pn)/fabs(centroid2);
+	weights[0]=1.-weights[1];
+	
+	weightSum=weights[0]+weights[1];
+	weights[0]/=weightSum; weights[1]/=weightSum; 
+	
 	n.average.insert(pair<int,double>(p1,weights[0]));
 	n.average.insert(pair<int,double>(p2,weights[1]));
 	return;

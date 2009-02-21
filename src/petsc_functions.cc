@@ -27,9 +27,9 @@
 extern InputFile input;
 
 static char help[] = "Free CFD\n - A free general purpose computational fluid dynamics code";
-KSP ksp,kspTurb; // linear solver context
-Vec deltaU,deltaUturb,rhs,rhsTurb; // solution, residual vectors
-Mat impOP,impOPturb; // implicit operator matrix
+KSP ksp,ksp_turb; // linear solver context
+Vec deltaU,deltaU_turb,rhs,rhs_turb; // solution, residual vectors
+Mat impOP,impOP_turb; // implicit operator matrix
 
 void petsc_init(int argc, char *argv[],double rtol,double abstol,int maxits) {
 
@@ -74,19 +74,19 @@ void petsc_init(int argc, char *argv[],double rtol,double abstol,int maxits) {
 	
 	KSPSetOperators(ksp,impOP,impOP,SAME_NONZERO_PATTERN);
 	KSPSetTolerances(ksp,rtol,abstol,1.e10,maxits);
-	KSPSetInitialGuessNonzero(ksp,PETSC_TRUE);
+	//KSPSetInitialGuessNonzero(ksp,PETSC_TRUE);
 	KSPSetInitialGuessKnoll(ksp,PETSC_TRUE);
 	KSPSetType(ksp,KSPFGMRES);
 	KSPGMRESSetRestart(ksp,100);
 	KSPSetFromOptions(ksp);
 	
 	if (TURBULENCE_MODEL!=NONE) {
-		KSPCreate(PETSC_COMM_WORLD,&kspTurb);
-		VecCreateMPI(PETSC_COMM_WORLD,grid.cellCount*2,grid.globalCellCount*2,&rhsTurb);
-		VecSetFromOptions(rhsTurb);
-		VecDuplicate(rhsTurb,&deltaUturb);
-		VecSet(rhsTurb,0.);
-		VecSet(deltaUturb,0.);
+		KSPCreate(PETSC_COMM_WORLD,&ksp_turb);
+		VecCreateMPI(PETSC_COMM_WORLD,grid.cellCount*2,grid.globalCellCount*2,&rhs_turb);
+		VecSetFromOptions(rhs_turb);
+		VecDuplicate(rhs_turb,&deltaU_turb);
+		VecSet(rhs_turb,0.);
+		VecSet(deltaU_turb,0.);
 		
 		diagonal_nonzeros.clear(), off_diagonal_nonzeros.clear();
 	
@@ -112,15 +112,14 @@ void petsc_init(int argc, char *argv[],double rtol,double abstol,int maxits) {
 				grid.globalCellCount*2,
 				0,&diagonal_nonzeros[0],
 				0,&off_diagonal_nonzeros[0],
-				&impOPturb);
+				&impOP_turb);
 	
-		KSPSetOperators(kspTurb,impOPturb,impOPturb,SAME_NONZERO_PATTERN);
-		KSPSetTolerances(kspTurb,rtol,abstol,1.e10,maxits);
-		KSPSetInitialGuessNonzero(kspTurb,PETSC_TRUE);
-		KSPSetInitialGuessKnoll(kspTurb,PETSC_TRUE);
-		KSPSetType(kspTurb,KSPFGMRES);
-		KSPGMRESSetRestart(kspTurb,100);
-		KSPSetFromOptions(kspTurb);
+		KSPSetOperators(ksp_turb,impOP_turb,impOP_turb,SAME_NONZERO_PATTERN);
+		KSPSetTolerances(ksp_turb,rtol,abstol,1.e10,maxits);
+		KSPSetInitialGuessKnoll(ksp_turb,PETSC_TRUE);
+		KSPSetType(ksp_turb,KSPFGMRES);
+		KSPGMRESSetRestart(ksp_turb,100);
+		KSPSetFromOptions(ksp_turb);
 	}
 	
 	return;
@@ -155,27 +154,27 @@ void petsc_solve(int &nIter,double &rNorm) {
 
 void petsc_solve_turb(int &nIterTurb, double &rNormTurb) {
 
-	MatAssemblyBegin(impOPturb,MAT_FINAL_ASSEMBLY);
-	MatAssemblyEnd(impOPturb,MAT_FINAL_ASSEMBLY);
+	MatAssemblyBegin(impOP_turb,MAT_FINAL_ASSEMBLY);
+	MatAssemblyEnd(impOP_turb,MAT_FINAL_ASSEMBLY);
 
-	VecAssemblyBegin(rhsTurb);
-	VecAssemblyEnd(rhsTurb);
+	VecAssemblyBegin(rhs_turb);
+	VecAssemblyEnd(rhs_turb);
 
-	KSPSolve(kspTurb,rhsTurb,deltaUturb);
+	KSPSolve(ksp_turb,rhs_turb,deltaU_turb);
 
-	KSPGetIterationNumber(kspTurb,&nIterTurb);
-	KSPGetResidualNorm(kspTurb,&rNormTurb); 
+	KSPGetIterationNumber(ksp_turb,&nIterTurb);
+	KSPGetResidualNorm(ksp_turb,&rNormTurb); 
 
 	int index;
 	for (unsigned int c=0;c<grid.cellCount;++c) {
 		for (int i=0;i<2;++i) {
 			index=(grid.myOffset+c)*2+i;
-			VecGetValues(deltaUturb,1,&index,&grid.cell[c].update_turb[i]);
+			VecGetValues(deltaU_turb,1,&index,&grid.cell[c].update_turb[i]);
 		}
 	}
 
-	VecSet(rhsTurb,0.);
-	KSPSetOperators(kspTurb,impOPturb,impOPturb,SAME_NONZERO_PATTERN);	
+	VecSet(rhs_turb,0.);
+	KSPSetOperators(ksp_turb,impOP_turb,impOP_turb,SAME_NONZERO_PATTERN);	
 
 	return;
 	
@@ -186,10 +185,10 @@ void petsc_finalize(void) {
 	MatDestroy(impOP);
 	VecDestroy(rhs);
 	VecDestroy(deltaU);
-	KSPDestroy(kspTurb);
-	MatDestroy(impOPturb);
-	VecDestroy(rhsTurb);
-	VecDestroy(deltaUturb);
+	KSPDestroy(ksp_turb);
+	MatDestroy(impOP_turb);
+	VecDestroy(rhs_turb);
+	VecDestroy(deltaU_turb);
 	PetscFinalize();
 	return;
 } // end petsc finalize

@@ -1,6 +1,6 @@
 /************************************************************************
 	
-	Copyright 2007-2008 Emre Sozer & Patrick Clark Trizila
+	Copyright 2007-2009 Emre Sozer & Patrick Clark Trizila
 
 	Contact: emresozer@freecfd.com , ptrizila@freecfd.com
 
@@ -30,15 +30,15 @@ using namespace std;
 
 #include "grid.h"
  
-extern KSP ksp,kspTurb; // linear solver context
-extern Vec deltaU,deltaUturb,rhs,rhsTurb; // solution, residual vectors
-extern Mat impOP,impOPturb; // implicit operator matrix
+extern KSP ksp,ksp_turb; // linear solver context
+extern Vec deltaU,deltaU_turb,rhs,rhs_turb; // solution, residual vectors
+extern Mat impOP,impOP_turb; // implicit operator matrix
 extern Grid grid;
 extern int np, Rank;
 
 void petsc_init(int argc, char *argv[],double rtol,double abstol,int maxits);
 void petsc_solve(int &nIter,double &rNorm);
-void petsc_solve_turb(int &nIterTurb, double &rNormTurb);
+void petsc_solve_turb(int &nIter_turb, double &rNorm_turb);
 void petsc_finalize(void);
 
 #endif
