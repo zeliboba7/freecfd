@@ -1,6 +1,6 @@
 /************************************************************************
 	
-	Copyright 2007-2008 Emre Sozer & Patrick Clark Trizila
+	Copyright 2007-2009 Emre Sozer & Patrick Clark Trizila
 
 	Contact: emresozer@freecfd.com , ptrizila@freecfd.com
 
@@ -84,8 +84,9 @@ void Grid::nodeAverages() {
 	int tri_node_count=0;		
 	int line_node_count=0;		
 	int point_node_count=0;	
-	int stencil_expand_threshold=5;
-
+	int stencil_expand_threshold=4;
+	if (DIMENSION==3) stencil_expand_threshold=5;
+	
 	///////////////////////////////////////////////////////////
 	// TODO with the following, square cavity problem on a uniform grid fails for parallel runs only. Why??
         //int stencil_expand_threshold=4;
@@ -98,22 +99,23 @@ void Grid::nodeAverages() {
 		for (it=(*nit).cells.begin();it!=(*nit).cells.end();it++) stencil.insert(*it);
 		// Include nearest ghost cells in the stencil
 		for (it=(*nit).ghosts.begin();it!=(*nit).ghosts.end();it++) stencil.insert(-1*(*it)-1);
-		// if the stencil doesn't have at least 4 points, expand it to include 2nd nearest neighbor cells
+		// if the stencil doesn't have at least stencil_expand_threshold number of points, expand it to include 2nd nearest neighbor cells
 		// NOTE ideally, second nearest ghosts would also need to be included but it is too much complication
 		if (stencil.size()<stencil_expand_threshold) {
-			// Loop the cells neighboring the current node
+			//Loop the cells neighboring the current node
 			for (it=(*nit).cells.begin();it!=(*nit).cells.end();it++) {
-				// Loop the cells neighboring the current cell
+				//Loop the cells neighboring the current cell
 				for (it2=cell[*it].neighborCells.begin();it2!=cell[*it].neighborCells.end();it2++) {
 					stencil.insert(*it2);
 				}
-				// Loop the ghost cells neighboring the current cell
+				//Loop the ghost cells neighboring the current cell
 				for (it2=cell[*it].ghosts.begin();it2!=cell[*it].ghosts.end();it2++) {
 					stencil.insert(-1*(*it2)-1);
 				}
 				
 			}
 		}	
+		
 		sortStencil(*nit);
 		
 		if (stencil.size()==1) {

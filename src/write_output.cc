@@ -1,6 +1,6 @@
 /************************************************************************
 	
-	Copyright 2007-2008 Emre Sozer & Patrick Clark Trizila
+	Copyright 2007-2009 Emre Sozer & Patrick Clark Trizila
 
 	Contact: emresozer@freecfd.com , ptrizila@freecfd.com
 
@@ -126,6 +126,7 @@ void write_tec(double time) {
 			}
 			if (bc.region[(*sit)].type==NOSLIP) {
 				if (count_v==0) v_node=0.; count_v++;
+				if (count_k==0) k_node=0.; count_k++;
 			}
 
 			if (count_rho>0) rho_node/=double(count_rho);

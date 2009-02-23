@@ -1,6 +1,6 @@
 /************************************************************************
 	
-	Copyright 2007-2008 Emre Sozer & Patrick Clark Trizila
+	Copyright 2007-2009 Emre Sozer & Patrick Clark Trizila
 
 	Contact: emresozer@freecfd.com , ptrizila@freecfd.com
 
@@ -179,22 +179,25 @@ int main(int argc, char *argv[]) {
 				bc.region[i].energy=0.;
 			}
 		}
-
-		mpi_update_ghost_primitives();
-		// Gradient are calculated for NS and/or second order schemes
-		if (EQUATIONS==NS | order==SECOND ) {
-			// Calculate all the cell gradients for each variable
-			grid.gradients();
-			// Update gradients of the ghost cells
-			mpi_update_ghost_gradients();
-		}
 		
-		if (LIMITER!=NONE) {
+		if (firstTimeStep) {
+			mpi_update_ghost_primitives();
+			// Gradient are calculated for NS and/or second order schemes
+			if (EQUATIONS==NS | order==SECOND ) {
+			// Calculate all the cell gradients for each variable
+				grid.gradients();
+			// Update gradients of the ghost cells
+				mpi_update_ghost_gradients();
+			}
+		
+			if (LIMITER!=NONE) {
 			// Limit gradients
-			grid.limit_gradients(); 
+				grid.limit_gradients(); 
 			// Update limited gradients of the ghost cells
-			mpi_update_ghost_gradients();
+				mpi_update_ghost_gradients();
+			}
 		}
+
 
 		// Get time step (will handle fixed, CFL and CFLramp)
 		get_dt();
@@ -206,7 +209,6 @@ int main(int argc, char *argv[]) {
 				mpi_update_ghost_turb();
 				update_eddy_viscosity();
 			} else {
-				mpi_update_ghost_turb();
 				grid.gradients_turb();
 				mpi_update_ghost_gradients_turb();
 				grid.limit_gradients_turb();
@@ -224,6 +226,21 @@ int main(int argc, char *argv[]) {
 		assemble_linear_system();
 		petsc_solve(nIter,rNorm);
 		update();
+		mpi_update_ghost_primitives();
+		// Gradient are calculated for NS and/or second order schemes
+		if (EQUATIONS==NS | order==SECOND ) {
+			// Calculate all the cell gradients for each variable
+			grid.gradients();
+			// Update gradients of the ghost cells
+			mpi_update_ghost_gradients();
+		}
+		
+		if (LIMITER!=NONE) {
+			// Limit gradients
+			grid.limit_gradients(); 
+			// Update limited gradients of the ghost cells
+			mpi_update_ghost_gradients();
+		}
 
 		// Advance physical time
 		time += dt;
@@ -380,7 +397,6 @@ void update_turb(void) {
 
 	resK=0.; resOmega=0.;
 	int counter=0.;
-	int counter2=0.;
 	for (unsigned int c = 0;c < grid.cellCount;++c) {
 
 		// Limit the update_turb so k doesn't end up negative
@@ -391,7 +407,7 @@ void update_turb(void) {
 		double new_mu_t=grid.cell[c].rho*(grid.cell[c].k+grid.cell[c].update_turb[0])/(grid.cell[c].omega+grid.cell[c].update_turb[1]);
 		
 		if (new_mu_t/viscosity>viscosityRatioLimit) {
-			counter2++; 
+			counter++; 
 			double under_relax;
 			double limit_nu=viscosityRatioLimit*viscosity/grid.cell[c].rho;
 			under_relax=(limit_nu*grid.cell[c].omega-grid.cell[c].k)/(grid.cell[c].update_turb[0]-limit_nu*grid.cell[c].update_turb[1]);
@@ -407,7 +423,7 @@ void update_turb(void) {
 		resOmega+=grid.cell[c].update_turb[1]*grid.cell[c].update_turb[1];
 
 	} // cell loop
-	if (counter2>0) cout << "[I] Update of k and omega limited due to mu_t constraint for " << counter2 << " cells" << endl;
+	if (counter>0) cout << "[I] Update of k and omega is limited due to viscosityRatioLimit constraint for " << counter << " cells" << endl;
 	double residuals[2],totalResiduals[2];
 	residuals[0]=resK; residuals[1]=resOmega;
 	if (np!=1) {

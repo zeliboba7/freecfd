@@ -1,6 +1,6 @@
 /************************************************************************
 	
-	Copyright 2007-2008 Emre Sozer & Patrick Clark Trizila
+	Copyright 2007-2009 Emre Sozer & Patrick Clark Trizila
 
 	Contact: emresozer@freecfd.com , ptrizila@freecfd.com
 
@@ -124,8 +124,6 @@ void initialize(InputFile &input) {
 	
 	for (unsigned int g=0;g<grid.ghostCount;++g) {
 		for (unsigned int i=0;i<5;++i) grid.ghost[g].update[i]=0.;
-		grid.ghost[g].update_turb[0]=0.;
-		grid.ghost[g].update_turb[1]=0.;
 	}
 	
 	return;

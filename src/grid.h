@@ -1,6 +1,6 @@
 /************************************************************************
 	
-	Copyright 2007-2008 Emre Sozer & Patrick Clark Trizila
+	Copyright 2007-2009 Emre Sozer & Patrick Clark Trizila
 
 	Contact: emresozer@freecfd.com , ptrizila@freecfd.com
 
@@ -77,7 +77,7 @@ public:
 	Vec3D grad_turb[2];
 	// Gradients are stored as p,u,v,w,T,k,omega in order
 	std::map<int,Vec3D> gradMap;
-	double update[5],update_turb[2]; // TODO Do we need update_turb?
+	double update[5],update_turb[2];
 	Cell(void);
 	bool HaveNodes(unsigned int &nodelistsize, unsigned int nodelist[]) ;
 	Node& node(int n);
@@ -94,7 +94,7 @@ public:
 	// Gradients are stored as p,u,v,w,T,k,omega in order
 	Vec3D v,centroid,grad[5];
 	Vec3D grad_turb[2];
-	double update[5],update_turb[2]; // TODO do we need these updates for ghosts?
+	double update[5]; // TODO do we need these updates for ghosts?
 };
 
 class Grid {

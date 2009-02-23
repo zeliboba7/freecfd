@@ -1,6 +1,6 @@
 /************************************************************************
 	
-	Copyright 2007-2008 Emre Sozer & Patrick Clark Trizila
+	Copyright 2007-2009 Emre Sozer & Patrick Clark Trizila
 
 	Contact: emresozer@freecfd.com , ptrizila@freecfd.com
 
@@ -20,20 +20,7 @@
     see <http://www.gnu.org/licenses/>.
 
 *************************************************************************/
-#ifndef PROBE_H
-#define PROBE_H
-
-#include <fstream>
-#include <mpi.h>
-using namespace std;
-#include "vec3d.h"
-
-class Probe {
-	public:
-		int id;
-		int Rank;
-		unsigned int nearestCell;
-		Vec3D coord;
-};
+#ifndef LIMITERS_H
+#define LIMITER_H
 
 #endif
