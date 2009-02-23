@@ -106,16 +106,10 @@ void linear_system_turb(void) {
 // 		weightL+=0.05*weightMax;
 // 		weightR+=0.05*weightMax;
 
-// 		convectiveFlux[0]=grid.face[f].mdot*(weightL*leftK+weightR*rightK)*grid.face[f].area;
-// 		convectiveFlux[1]=grid.face[f].mdot*(weightL*leftOmega+weightR*rightOmega)*grid.face[f].area;
-		
-		convectiveFlux[0]=grid.face[f].mdot*faceK*grid.face[f].area;
-		convectiveFlux[1]=grid.face[f].mdot*faceOmega*grid.face[f].area;
-		
-		// Diffusive k and omega fluxes
-		// TODO eddy viscosity at the face uses parent cell rho instead of face average
-		// this is approximate and needs to be changed
-		
+		convectiveFlux[0]=grid.face[f].mdot*(weightL*leftK+weightR*rightK)*grid.face[f].area;
+		convectiveFlux[1]=grid.face[f].mdot*(weightL*leftOmega+weightR*rightOmega)*grid.face[f].area;
+
+		// Diffusive k and omega fluxes	
 		if (TURBULENCE_MODEL==BSL) {
 			closest_wall_distance=grid.cell[parent].closest_wall_distance;
 			blending=get_blending(faceK,faceOmega,faceRho,closest_wall_distance,faceGradK,faceGradOmega);
@@ -194,7 +188,13 @@ void linear_system_turb(void) {
 			// right_omega/left_omega
 			row++; col++; value=-jacL[1];
 			MatSetValues(impOP_turb,1,&row,1,&col,&value,ADD_VALUES);
-	
+		} else if (grid.face[f].bc==GHOST) { 
+			// left_k/right_k
+			row=(grid.myOffset+parent)*2; col=(grid.ghost[-1*neighbor-1].matrix_id)*2; value=jacR[0];
+			MatSetValues(impOP_turb,1,&row,1,&col,&value,ADD_VALUES);
+			// left_omega/right_omega
+			row++; col++; value=jacR[1];
+			MatSetValues(impOP_turb,1,&row,1,&col,&value,ADD_VALUES);
 		}
 
 	} // for faces
@@ -398,11 +398,11 @@ void get_kOmega() {
 		
 	} else { // partition boundary
 
-		int g=-1*grid.face[grid.face[f].bc].neighbor-1; // ghost cell index
+		int g=-1*grid.face[f].neighbor-1; // ghost cell index
 
 		if (order==SECOND) {
 			for (unsigned int i=0;i<2;++i) {
-				delta[i]=(grid.face[grid.face[f].bc].centroid-grid.ghost[g].centroid).dot(grid.ghost[g].grad_turb[i]);
+				delta[i]=(grid.face[f].centroid-grid.ghost[g].centroid).dot(grid.ghost[g].grad_turb[i]);
 			}
 		}
 		
@@ -458,7 +458,7 @@ void update_eddy_viscosity(void) {
 			} else { // if contribution is coming from a ghost cell
 				faceK+=(*fit).second*grid.ghost[-1*((*fit).first+1)].k;
 				faceOmega+=(*fit).second*grid.ghost[-1*((*fit).first+1)].omega;
-				faceRho+=(*fit).second*grid.cell[(*fit).first].rho;
+				faceRho+=(*fit).second*grid.ghost[-1*((*fit).first+1)].rho;
 			}
 		}
 		

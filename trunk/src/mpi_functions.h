@@ -33,7 +33,6 @@ extern Grid grid;
 extern int np, Rank;
 extern IndexMaps maps;
 
-	
 void mpi_init(int argc, char *argv[]);
 void mpi_handshake(void);
 void mpi_get_ghost_centroids(void);
@@ -63,8 +62,7 @@ struct mpiGrad_turb {
 };
 
 struct mpiVec3D {
-	unsigned int globalId;
-	unsigned int matrix_id;
+	unsigned int ids[2]; // constains globalId and matrix_id;
 	double comp[3];
 };
 

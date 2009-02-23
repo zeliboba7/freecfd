@@ -303,11 +303,11 @@ void Grid::gradients(void) {
 		for (it=cell[c].gradMap.begin();it!=cell[c].gradMap.end(); it++ ) {
 			if ((*it).first>=0) { // if contribution is coming from a real cell
 				cell[c].grad[0]+=(*it).second*cell[(*it).first].p;
-				for (unsigned int i=1;i<4;++i) cell[c].grad[i]+=(*it).second*cell[(*it).first].v.comp[i-1];
+				for (unsigned int i=1;i<4;++i) cell[c].grad[i]+=(*it).second*cell[(*it).first].v[i-1];
 				cell[c].grad[4]+=(*it).second*cell[(*it).first].T;
 			} else { // if contribution is coming from a ghost cell
 				cell[c].grad[0]+=(*it).second*ghost[-1*((*it).first+1)].p;
-				for (unsigned int i=1;i<4;++i) cell[c].grad[i]+=(*it).second*ghost[-1*((*it).first+1)].v.comp[i-1];
+				for (unsigned int i=1;i<4;++i) cell[c].grad[i]+=(*it).second*ghost[-1*((*it).first+1)].v[i-1];
 				cell[c].grad[4]+=(*it).second*ghost[-1*((*it).first+1)].T;
 			}
 		} // end gradMap loop
@@ -470,8 +470,7 @@ void Grid::limit_gradients(void) {
 				neighbor=cell[c].neighborCells[cc];
 				for (unsigned int var=0;var<5;++var) {
 					for (unsigned int comp=0;comp<3;++comp) {
-						maxGrad[var][comp]=max(
-								maxGrad[var][comp],
+						maxGrad[var][comp]=max(maxGrad[var][comp],
 								(1.-limiter_sharpening)*cell[neighbor].grad[var][comp]
 									+limiter_sharpening*cell[c].grad[var][comp]);
 						minGrad[var][comp]=min(minGrad[var][comp],
@@ -485,12 +484,10 @@ void Grid::limit_gradients(void) {
 				g=cell[c].ghosts[cg];
 				for (unsigned int var=0;var<5;++var) {
 					for (unsigned int comp=0;comp<3;++comp) {
-						maxGrad[var][comp]=max(
-								maxGrad[var][comp],
+						maxGrad[var][comp]=max(maxGrad[var][comp],
 								(1.-limiter_sharpening)*ghost[g].grad[var][comp]
 									+limiter_sharpening*cell[c].grad[var][comp]);
-						minGrad[var][comp]=min(
-								minGrad[var][comp],
+						minGrad[var][comp]=min(minGrad[var][comp],
 								(1.-limiter_sharpening)*ghost[g].grad[var][comp]
 									+limiter_sharpening*cell[c].grad[var][comp]);
 					}
@@ -540,10 +537,10 @@ void Grid::limit_gradients_turb(void) {
 				g=cell[c].ghosts[cg];
 				for (unsigned int var=0;var<2;++var) {
 					for (unsigned int comp=0;comp<3;++comp) {
-						maxGrad[var][comp]=max(maxGrad[var].comp[comp]
+						maxGrad[var][comp]=max(maxGrad[var][comp]
 							,(1.-limiter_sharpening)*ghost[g].grad_turb[var][comp]
 							+limiter_sharpening*cell[c].grad_turb[var][comp]);
-						minGrad[var].comp[comp]=min(minGrad[var].comp[comp]
+						minGrad[var][comp]=min(minGrad[var][comp]
 							,(1.-limiter_sharpening)*ghost[g].grad_turb[var][comp]
 							+limiter_sharpening*cell[c].grad_turb[var][comp]);
 					}

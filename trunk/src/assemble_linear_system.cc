@@ -180,7 +180,7 @@ void assemble_linear_system(void) {
 						} else  { // Ghost (only add effect on parent cell, effect on itself is taken care of in its own partition
 							row=(grid.myOffset+parent)*5+j;
 							col=(grid.ghost[-1*neighbor-1].matrix_id)*5+i;
-							value=jacobianRight[j];
+							value=-1.*jacobianRight[j];
 							MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
 						}
 					}
@@ -211,8 +211,9 @@ void get_jacobians(const int var) {
 		sourceJacRight[m]=0.;
 	}
 	
-	if (left.update[var]>0.) {epsilon=max(sqrt_machine_error,factor*left.update[var]);}
+	if (left.update[var]>=0.) {epsilon=max(sqrt_machine_error,factor*left.update[var]);}
 	else {epsilon=min(-1.*sqrt_machine_error,factor*left.update[var]); }
+
 	
 	// Perturb left state
 	state_perturb(leftPlus,face,var,epsilon);
@@ -237,12 +238,12 @@ void get_jacobians(const int var) {
 
 	if (face.bc==INTERNAL || face.bc==GHOST) { 
 		
-		if (right.update[var]>0.) {
+		if (right.update[var]>=0.) {
 			epsilon=max(sqrt_machine_error,factor*right.update[var]); 
 		} else {
 			epsilon=min(-1.*sqrt_machine_error,factor*right.update[var]); 
 		}
-		
+				
 		state_perturb(rightPlus,face,var,epsilon);	
 		convective_face_flux(left,rightPlus,face,&fluxPlus.convective[0]);
 		
@@ -387,6 +388,7 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 				if (bc.region[face.bc].kind==DAMP_REVERSE) {
 					right.p-=0.5*right.rho*right.v.dot(right.v);
 					right.T=eos.T(right.p,right.rho);
+					right.T_center=left.T_center+2.*(right.T-left.T_center);
 				} else if (bc.region[face.bc].kind==NO_REVERSE) {
 					right.v=0.;
 				}
@@ -402,6 +404,8 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 			for (unsigned int i=0;i<5;++i) {
 				delta[i]=(grid.face[face.index].centroid-grid.ghost[g].centroid).dot(grid.ghost[g].grad[i]);
 			}
+		} else {
+			for (unsigned int i=0;i<5;++i) delta[i]=0.;
 		}
 
 		for (unsigned int i=0;i<5;++i) right.update[i]=grid.ghost[g].update[i];
@@ -414,6 +418,7 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 		right.T_center=grid.ghost[g].T;
 		right.T=right.T_center+delta[4];
 		right.rho=eos.rho(right.p,right.T);
+	
 	}
 
 	right.a=sqrt(Gamma*(right.p+Pref)/right.rho);
@@ -456,10 +461,10 @@ void face_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 			face.gradW+=(*fit).second*grid.cell[(*fit).first].grad[3];
 			face.gradT+=(*fit).second*grid.cell[(*fit).first].grad[4];
 		} else { // if contribution is coming from a ghost cell
-			face.gradU+=(*fit).second*grid.ghost[-1*((*fit).first+1)].grad[1];
-			face.gradV+=(*fit).second*grid.ghost[-1*((*fit).first+1)].grad[2];
-			face.gradW+=(*fit).second*grid.ghost[-1*((*fit).first+1)].grad[3];
-			face.gradT+=(*fit).second*grid.ghost[-1*((*fit).first+1)].grad[4];
+			face.gradU+=(*fit).second*grid.ghost[-1*(*fit).first-1].grad[1];
+			face.gradV+=(*fit).second*grid.ghost[-1*(*fit).first-1].grad[2];
+			face.gradW+=(*fit).second*grid.ghost[-1*(*fit).first-1].grad[3];
+			face.gradT+=(*fit).second*grid.ghost[-1*(*fit).first-1].grad[4];
 		}
 	}
 			
