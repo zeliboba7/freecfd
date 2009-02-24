@@ -22,14 +22,11 @@
 *************************************************************************/
 #include "mpi_functions.h"
 #include "commons.h"
-std::vector< std::vector<unsigned int> > sendCells;
-std::vector<unsigned int>  recvCount;
+
 
 MPI_Datatype MPI_GRAD;
-MPI_Datatype MPI_GRAD_TURB;
 MPI_Datatype MPI_VEC3D;
 MPI_Datatype MPI_GHOST;
-MPI_Datatype MPI_GHOST_TURB;
 
 void mpi_init(int argc, char *argv[]) {
 	// Initialize mpi
@@ -43,32 +40,6 @@ void mpi_init(int argc, char *argv[]) {
 	recvCount.resize(np);
 
 	// Commit custom communication datatypes
-	
-	int size;
-	MPI_Aint lower_bound,upper_bound,extent;
-	MPI_Type_size(MPI_UNSIGNED, &size);
-	if (size!=sizeof(unsigned int)) {
-		cerr << "[E] MPI_Type_size of MPI_UNSIGNED returns incorrect size " << size << " ; should be " << sizeof(unsigned int) << endl;
-		exit(1);
-	}
-	
-	MPI_Type_get_extent(MPI_UNSIGNED,&lower_bound,&extent);
-	if (extent!=sizeof(unsigned int)) {
-		cerr << "[E] MPI_Type_get_extent of MPI_UNSIGNED returns incorrect extent " << extent << " ; should be " << sizeof(unsigned int) << endl;
-		exit(1);
-	}
-	
-	if (lower_bound!=0) {
-		cerr << "[E] MPI_Type_get_extent of MPI_UNSIGNED returns incorrect lower bound " << lower_bound << " ; should be 0" << endl;
-		exit(1);
-	}
- 
-	MPI_Type_ub(MPI_UNSIGNED,&upper_bound);
-	if (upper_bound!=extent-lower_bound) {
-		cerr << "[E] MPI_Type_ub of MPI_UNSIGNED returns incorrect upper bound " << upper_bound << " ; should be " << extent-lower_bound << endl;
-		exit(1);
-	}
-	
 
 	MPI_Datatype types[2]={MPI_UNSIGNED,MPI_DOUBLE};
 	int block_lengths[2];
@@ -84,15 +55,6 @@ void mpi_init(int argc, char *argv[]) {
 	MPI_Type_create_struct(2,block_lengths,displacements,types,&MPI_GHOST);
 	MPI_Type_commit(&MPI_GHOST);
 
-	// MPI_GHOST_TURB
-	mpiGhost_turb dummy1;
-	displacements[0]=(long) &dummy1.globalId - (long) &dummy1;
-	displacements[1]=(long) &dummy1.vars[0] - (long) &dummy1;
-	block_lengths[0]=1;
-	block_lengths[1]=2;
-	MPI_Type_create_struct(2,block_lengths,displacements,types,&MPI_GHOST_TURB);
-	MPI_Type_commit(&MPI_GHOST_TURB);
-
 	// MPI_GRAD
 	mpiGrad dummy2;
 	displacements[0]=(long) &dummy2.globalId - (long) &dummy2;
@@ -101,15 +63,6 @@ void mpi_init(int argc, char *argv[]) {
 	block_lengths[1]=15;
 	MPI_Type_create_struct(2,block_lengths,displacements,types,&MPI_GRAD);
 	MPI_Type_commit(&MPI_GRAD);
-
-	// MPI_GRAD_TURB
-	mpiGrad_turb dummy3;
-	displacements[0]=(long) &dummy3.globalId - (long) &dummy3;
-	displacements[1]=(long) &dummy3.grads[0] - (long) &dummy3;
-	block_lengths[0]=1;
-	block_lengths[1]=6;
-	MPI_Type_create_struct(2,block_lengths,displacements,types,&MPI_GRAD_TURB);
-	MPI_Type_commit(&MPI_GRAD_TURB);
 
 	// MPI_VEC3D
 	mpiVec3D dummy4;
@@ -153,7 +106,6 @@ void mpi_handshake(void) {
 	}
 
 } // end mpi_handshake
-
 
 void mpi_get_ghost_centroids(void) {
 	
@@ -229,33 +181,6 @@ void mpi_update_ghost_primitives(void) {
 	return;
 } // end mpi_update_ghost_primitives
 
-void mpi_update_ghost_turb(void) {
-	
-	for (unsigned int p=0;p<np;++p) {
-		if (Rank!=p) {
-			mpiGhost_turb sendBuffer[sendCells[p].size()];
-			mpiGhost_turb recvBuffer[recvCount[p]];
-			int id;
-			for (unsigned int g=0;g<sendCells[p].size();++g)	{
-				id=maps.cellGlobal2Local[sendCells[p][g]];
-				sendBuffer[g].globalId=grid.cell[id].globalId;
-				sendBuffer[g].vars[0]=grid.cell[id].k;
-				sendBuffer[g].vars[1]=grid.cell[id].omega;
-			}
-
-			int tag=Rank; // tag is set to source
-			MPI_Sendrecv(sendBuffer,sendCells[p].size(),MPI_GHOST_TURB,p,0,recvBuffer,recvCount[p],MPI_GHOST_TURB,p,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-
-			for (unsigned int g=0;g<recvCount[p];++g) {
-				id=maps.ghostGlobal2Local[recvBuffer[g].globalId];
-				grid.ghost[id].k=recvBuffer[g].vars[0];
-				grid.ghost[id].omega=recvBuffer[g].vars[1];
-			}
-		}
-	}
-	return;
-} // end mpi_update_ghost_turb
-
 void mpi_update_ghost_gradients(void) {
 	
 	// Update ghost gradients
@@ -292,38 +217,4 @@ void mpi_update_ghost_gradients(void) {
 	return;
 } // end mpi_update_ghost_gradients
 
-void mpi_update_ghost_gradients_turb(void) {
-	
-	// Update ghost gradients of turbulence variables
-	for (unsigned int p=0;p<np;++p) {
-		mpiGrad_turb sendBuffer[sendCells[p].size()];
-		mpiGrad_turb recvBuffer[recvCount[p]];
-		int id;
-		for (unsigned int g=0;g<sendCells[p].size();++g) {
-			id=maps.cellGlobal2Local[sendCells[p][g]];
-			sendBuffer[g].globalId=grid.cell[id].globalId;
-			int count=0;
-			for (unsigned int var=0;var<2;++var) {
-				for (unsigned int comp=0;comp<3;++comp) {
-					sendBuffer[g].grads[count]=grid.cell[id].grad_turb[var][comp];
-					count++;
-				}
-			}
-		}
 
-		int tag=Rank; // tag is set to source
-		MPI_Sendrecv(sendBuffer,sendCells[p].size(),MPI_GRAD_TURB,p,0,recvBuffer,recvCount[p],MPI_GRAD_TURB,p,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-
-		for (unsigned int g=0;g<recvCount[p];++g) {
-			id=maps.ghostGlobal2Local[recvBuffer[g].globalId];
-			int count=0;
-			for (unsigned int var=0;var<2;++var) {
-				for (unsigned int comp=0;comp<3;++comp) {
-					grid.ghost[id].grad_turb[var].comp[comp]=recvBuffer[g].grads[count];
-					count++;
-				}
-			}
-		}
-	}
-	return;
-} // end mpi_update_ghost_gradients_turb

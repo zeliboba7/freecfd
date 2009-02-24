@@ -33,6 +33,7 @@
 #include <limits>
 
 #include "commons.h"
+#include "turbulence.h"
 #include "inputs.h"
 #include "bc.h"
 #include "mpi_functions.h"
@@ -56,18 +57,15 @@ double doubleMinmod(double a, double b);
 double harmonic(double a, double b);
 double superbee(double a, double b);
 void update(void);
-void update_turb(void);
 string int2str(int number) ;
 void assemble_linear_system(void);
 void initialize_linear_system(void);
 void update_face_mdot(void);
 void linear_system_turb(void);
-void update_eddy_viscosity(void);
 void get_dt(void);
 void get_CFLmax(void);
 void set_probes(void);
 void set_integrateBoundary(void);
-void set_turbulence_model_constants(void);
 inline double signof(double a) { return (a == 0.) ? 0. : (a<0. ? -1. : 1.); }
 double temp;
 
@@ -75,13 +73,18 @@ double temp;
 BC bc;
 InputFile input;
 
+// Turbulence model needs to be declared regardless of being used or not
+// But memory won't be allocated for cell,face,etc.. variables for laminar cases
+// So it is OK
+Turbulence turbulence;
+
 vector<Probe> probes;
 vector<BoundaryFlux> boundaryFluxes;
 
 double resP,resV,resT,resK,resOmega;
 
 int main(int argc, char *argv[]) {
-
+	
 	// Set global parameters
 	sqrt_machine_error=sqrt(std::numeric_limits<double>::epsilon());
 	
@@ -117,6 +120,11 @@ int main(int argc, char *argv[]) {
 	mpi_handshake();
 	mpi_get_ghost_centroids();
 	
+	if (TURBULENCE_MODEL!=NONE) {
+		turbulence.allocate();
+		turbulence.mpi_init();
+	}
+	
 	initialize(input);
 	if (Rank==0) cout << "[I] Applied initial conditions" << endl;
 
@@ -133,8 +141,6 @@ int main(int argc, char *argv[]) {
 	//grid.nodeAverages_idw(); // Inverse distance based mode
 	grid.faceAverages();
 	grid.gradMaps();
-	
-	set_turbulence_model_constants();
 			
 	if (restart!=0) {
 		for (int p=0;p<np;++p) {
@@ -148,6 +154,13 @@ int main(int argc, char *argv[]) {
 				input.section("linearSolver").get_double("relTolerance"),
 				input.section("linearSolver").get_double("absTolerance"),
 				input.section("linearSolver").get_int("maxIterations"));
+	
+	if (TURBULENCE_MODEL!=NONE) {
+		// Initialize petsc for turbulence model
+		turbulence.petsc_init(input.section("linearSolver").get_double("relTolerance"),
+					input.section("linearSolver").get_double("absTolerance"),
+					input.section("linearSolver").get_int("maxIterations"));
+	}
 	
 	// Initialize time step or CFL size if ramping
 	if (ramp) {
@@ -206,19 +219,19 @@ int main(int argc, char *argv[]) {
 		
 		if (TURBULENCE_MODEL!=NONE) {
 			if (firstTimeStep) {
-				mpi_update_ghost_turb();
-				update_eddy_viscosity();
+				turbulence.mpi_update_ghost();
+				turbulence.update_eddy_viscosity();
 			} else {
-				grid.gradients_turb();
-				mpi_update_ghost_gradients_turb();
-				grid.limit_gradients_turb();
-				mpi_update_ghost_gradients_turb();
+				turbulence.gradients();
+				turbulence.mpi_update_ghost_gradients();
+				turbulence.limit_gradients();
+				turbulence.mpi_update_ghost_gradients(); // Called again to update the ghost gradients
 				update_face_mdot();
-				linear_system_turb();
-				petsc_solve_turb(nIterTurb,rNormTurb);
-				update_turb();
-				mpi_update_ghost_turb();
-				update_eddy_viscosity();
+				turbulence.terms();
+				turbulence.petsc_solve(nIterTurb,rNormTurb);
+				turbulence.update(resK,resOmega);
+				turbulence.mpi_update_ghost();
+				turbulence.update_eddy_viscosity();
 			}
 		}
 		
@@ -274,7 +287,10 @@ int main(int argc, char *argv[]) {
 				ofstream file;
 				file.open((probes[p].fileName).c_str(),ios::app);
 				file << timeStep << "\t" << setw(16) << setprecision(8)  << time << "\t" << c.p << "\t" << c.v[0] << "\t" << c.v[1] << "\t" << c.v[2] << "\t" << c.T << "\t" << c.rho << "\t" ;
-				if (TURBULENCE_MODEL!=NONE) file << c.k << "\t" << c.omega << "\t" << c.rho*c.k/c.omega ;
+				if (TURBULENCE_MODEL!=NONE) {
+					unsigned int cc=probes[p].nearestCell;
+					file << turbulence.cell[cc].k << "\t" << turbulence.cell[cc].omega << "\t" << c.rho*turbulence.cell[cc].k/turbulence.cell[cc].omega ;
+				}
 				file << endl;
 				file.close();
 			}
@@ -320,7 +336,10 @@ int main(int argc, char *argv[]) {
 		timeEnd=MPI_Wtime();
 		cout << "* Wall time: " << timeEnd-timeRef << " seconds" << endl;
 	}
-		
+	
+	turbulence.petsc_destroy();
+	petsc_finalize();
+
 	return 0;
 }
 
@@ -390,47 +409,6 @@ void update(void) {
 		resP=totalResiduals[0]; resV=totalResiduals[1]; resT=totalResiduals[2];
         }
 	resP=sqrt(resP); resV=sqrt(resV); resT=sqrt(resT);
-	return;
-}
-
-void update_turb(void) {
-
-	resK=0.; resOmega=0.;
-	int counter=0.;
-	for (unsigned int c = 0;c < grid.cellCount;++c) {
-
-		// Limit the update_turb so k doesn't end up negative
-		grid.cell[c].update_turb[0]=max(-1.*(grid.cell[c].k-kLowLimit),grid.cell[c].update_turb[0]);
-		// Limit the update_turb so omega doesn't end up smaller than 100
-		grid.cell[c].update_turb[1]=max(-1.*(grid.cell[c].omega-omegaLowLimit),grid.cell[c].update_turb[1]);
-		
-		double new_mu_t=grid.cell[c].rho*(grid.cell[c].k+grid.cell[c].update_turb[0])/(grid.cell[c].omega+grid.cell[c].update_turb[1]);
-		
-		if (new_mu_t/viscosity>viscosityRatioLimit) {
-			counter++; 
-			double under_relax;
-			double limit_nu=viscosityRatioLimit*viscosity/grid.cell[c].rho;
-			under_relax=(limit_nu*grid.cell[c].omega-grid.cell[c].k)/(grid.cell[c].update_turb[0]-limit_nu*grid.cell[c].update_turb[1]);
-			under_relax=max(1.,under_relax);
-			grid.cell[c].update_turb[0]*=under_relax;
-			grid.cell[c].update_turb[1]*=under_relax;
-		}
-		
-		grid.cell[c].k += grid.cell[c].update_turb[0];
-		grid.cell[c].omega+= grid.cell[c].update_turb[1];
-		
-		resK+=grid.cell[c].update_turb[0]*grid.cell[c].update_turb[0];
-		resOmega+=grid.cell[c].update_turb[1]*grid.cell[c].update_turb[1];
-
-	} // cell loop
-	if (counter>0) cout << "[I] Update of k and omega is limited due to viscosityRatioLimit constraint for " << counter << " cells" << endl;
-	double residuals[2],totalResiduals[2];
-	residuals[0]=resK; residuals[1]=resOmega;
-	if (np!=1) {
-		MPI_Reduce(&residuals,&totalResiduals,2, MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
-		resK=totalResiduals[0]; resOmega=totalResiduals[1];
-	}
-	resK=sqrt(resK); resOmega=sqrt(resOmega);
 	return;
 }
 

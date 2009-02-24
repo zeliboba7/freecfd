@@ -135,7 +135,7 @@ void Grid::nodeAverages() {
 			method=INTERPOLATE_LINE;
 			for (;sit2!=stencil.end();sit2++) {
 				centroid3=(*sit2>=0) ? cell[*sit2].centroid : ghost[-1*(*sit2)-1].centroid;
-				ave_edge=0.333*(fabs(centroid2-centroid1)+fabs(centroid3-centroid1)+fabs(centroid3-centroid2));
+				ave_edge=1./3.*(fabs(centroid2-centroid1)+fabs(centroid3-centroid1)+fabs(centroid3-centroid2));
                                 // Calculate the normal vector of the plane formed by these 3 points
                                 tri_area=0.5*fabs((centroid2-centroid1).cross(centroid3-centroid1));
 				// Compare triangle area to that of an equilateral one
@@ -430,8 +430,8 @@ void Grid::interpolate_tri(Node& n) {
 	} // Loop through stencil 
 	if (tris.size()==0) { // This really shouldn't happen
 		cerr << "[E] An interpolation triangle couldn't be found for node " << n << endl;
-		cerr << "[E] This really shouldn't happen " << n << endl;
-		cerr << "[E] Please report this bug !! " << n << endl;
+		cerr << "[E] This really shouldn't happen " << endl;
+		cerr << "[E] Please report this bug !! " << endl;
 		exit(1);
 	} else { // Everyting is normal, go ahead
 		// Normalize the weights
