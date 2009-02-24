@@ -27,7 +27,8 @@
 using namespace std;
 
 #include <cgnslib.h>
-
+#include "turbulence.h"
+extern Turbulence turbulence;
 extern IndexMaps maps;
 extern string int2str(int number) ;
 
@@ -126,7 +127,7 @@ void read_restart(double &time) {
 					id=maps.cellGlobal2Local[partitionMap[p][c]];
 				}
 				if (id>=0) { 
-					file >> grid.cell[id].k;
+					file >> turbulence.cell[id].k;
 				
 				} else { file >> dummy; }
 			}
@@ -138,7 +139,7 @@ void read_restart(double &time) {
 					id=maps.cellGlobal2Local[partitionMap[p][c]];
 				}
 				if (id>=0) { 
-					file >> grid.cell[id].omega; 
+					file >> turbulence.cell[id].omega; 
 				
 				} else { file >> dummy; }
 			}

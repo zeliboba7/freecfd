@@ -29,8 +29,8 @@ SRC= \
 	petsc_functions.cc probes.cc \
 	read_inputs.cc read_restart.cc \
 	set_bcs.cc sources.cc \
-	turbulence.cc \
-	update_face_mdot.cc\
+	turbulence.cc turbulence_terms.cc\
+	update_eddy_viscosity.cc update_face_mdot.cc\
 	write_output.cc write_restart.cc \
 	vec3d.cc 
 

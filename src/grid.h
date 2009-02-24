@@ -58,7 +58,6 @@ public:
 	std::map<int,double> average;
 	double area;
 	double mdot,weightL,weightR;
-	double mu_t;
 	std::vector<int> nodes;
 	Node& node(int n);
 };
@@ -72,12 +71,11 @@ public:
 	std::vector<int> faces;
 	std::vector<int> neighborCells;
 	std::vector<int> ghosts;
-	double p,T,rho,k,omega;
+	double p,T,rho;
 	Vec3D v,grad[5];
-	Vec3D grad_turb[2];
-	// Gradients are stored as p,u,v,w,T,k,omega in order
+	// Gradients are stored as p,u,v,w,T in order
 	std::map<int,Vec3D> gradMap;
-	double update[5],update_turb[2];
+	double update[5];
 	Cell(void);
 	bool HaveNodes(unsigned int &nodelistsize, unsigned int nodelist[]) ;
 	Node& node(int n);
@@ -91,9 +89,8 @@ public:
 	unsigned int matrix_id;
 	std::vector<unsigned int> cells;
 	double p,T,rho,k,omega;
-	// Gradients are stored as p,u,v,w,T,k,omega in order
+	// Gradients are stored as p,u,v,w,T in order
 	Vec3D v,centroid,grad[5];
-	Vec3D grad_turb[2];
 	double update[5]; // TODO do we need these updates for ghosts?
 };
 

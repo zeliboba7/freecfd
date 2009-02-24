@@ -31,7 +31,9 @@
 using namespace std;
 
 #include <cgnslib.h>
+#include "turbulence.h"
 
+extern Turbulence turbulence;
 
 extern string int2str(int number) ;
 
@@ -76,8 +78,8 @@ void write_restart(double time) {
 	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].v.comp[2] << endl;
 	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].T << endl;
 	if (TURBULENCE_MODEL!=NONE) {
-		for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].k << endl;
-		for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].omega << endl;
+		for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << turbulence.cell[c].k << endl;
+		for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << turbulence.cell[c].omega << endl;
 	}
 	
 	// Write coonnectivity

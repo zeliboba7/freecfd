@@ -37,28 +37,16 @@ void mpi_init(int argc, char *argv[]);
 void mpi_handshake(void);
 void mpi_get_ghost_centroids(void);
 void mpi_update_ghost_primitives(void);
-void mpi_update_ghost_turb(void);
 void mpi_update_ghost_gradients(void);
-void mpi_update_ghost_gradients_turb(void);
 
 struct mpiGhost {
 	unsigned int globalId;
 	double vars[5];
 };
 
-struct mpiGhost_turb {
-	unsigned int globalId;
-	double vars[2];
-};
-
 struct mpiGrad {
 	unsigned int globalId;
 	double grads[15];
-};
-
-struct mpiGrad_turb {
-	unsigned int globalId;
-	double grads[6];
 };
 
 struct mpiVec3D {

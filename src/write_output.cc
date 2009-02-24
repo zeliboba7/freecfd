@@ -31,12 +31,12 @@
 #include <sys/types.h>
 using namespace std;
 
-
 #include "bc.h"
 #include "inputs.h"
-#include <cgnslib.h>
+#include "turbulence.h"
 
 extern BC bc;
+extern Turbulence turbulence;
 
 extern string int2str(int number) ;
 void write_tec(double time);
@@ -60,12 +60,20 @@ void write_output(double time, InputFile input) {
 }
 
 void write_tec(double time) {
+	
 	ofstream file;
 	string fileName="./output/out"+int2str(timeStep)+".dat";
+	
+	// Shothand for turbulence model test
+	bool turb=(TURBULENCE_MODEL!=NONE);
+	
 	// Proc 0 creates the output file and writes variable list
+	
 	if (Rank==0) {
 		file.open((fileName).c_str(),ios::out); 
-		file << "VARIABLES = \"x\", \"y\", \"z\",\"p\",\"u\",\"v\",\"w\",\"T\",\"rho\",\"Ma\",\"k\",\"omega\" " << endl;
+		file << "VARIABLES = \"x\", \"y\", \"z\",\"p\",\"u\",\"v\",\"w\",\"T\",\"rho\",\"Ma\"";
+		if (turb) file << ",\"k\",\"omega\" ";
+		file << endl;
 	} else {
 		file.open((fileName).c_str(),ios::app);
 	}
@@ -96,14 +104,14 @@ void write_tec(double time) {
 				p_node+=(*it).second*grid.cell[(*it).first].p;
 				v_node+=(*it).second*grid.cell[(*it).first].v;
 				T_node+=(*it).second*grid.cell[(*it).first].T;
-				k_node+=(*it).second*grid.cell[(*it).first].k;
-				omega_node+=(*it).second*grid.cell[(*it).first].omega;
+				if (turb) k_node+=(*it).second*turbulence.cell[(*it).first].k;
+				if (turb) omega_node+=(*it).second*turbulence.cell[(*it).first].omega;
 			} else { // if contribution is coming from a ghost cell
 				p_node+=(*it).second*grid.ghost[-1*((*it).first+1)].p;
 				v_node+=(*it).second*grid.ghost[-1*((*it).first+1)].v;
 				T_node+=(*it).second*grid.ghost[-1*((*it).first+1)].T;
-				k_node+=(*it).second*grid.ghost[-1*((*it).first+1)].k;
-				omega_node+=(*it).second*grid.ghost[-1*((*it).first+1)].omega;
+				if (turb) k_node+=(*it).second*turbulence.ghost[-1*((*it).first+1)].k;
+				if (turb) omega_node+=(*it).second*turbulence.ghost[-1*((*it).first+1)].omega;
 			}
 		}
 		rho_node=eos.rho(p_node,T_node);
@@ -149,8 +157,8 @@ void write_tec(double time) {
 		file << T_node << "\t";
 		file << rho_node << "\t";
 		file << Ma << "\t";
-		file << k_node << "\t";
-		file << omega_node << "\t";
+		if (turb) file << k_node << "\t";
+		if (turb) file << omega_node << "\t";
 		file << endl;
 	}
 

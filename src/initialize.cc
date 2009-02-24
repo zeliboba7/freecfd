@@ -23,6 +23,8 @@
 #include "commons.h"
 #include "grid.h"
 #include "inputs.h"
+#include "turbulence.h"
+extern Turbulence turbulence;
 
 bool withinBox(Vec3D point, Vec3D corner_1, Vec3D corner_2);
 bool withinCylinder(Vec3D point, Vec3D center, double radius, Vec3D axisDirection, double height);
@@ -67,8 +69,10 @@ void initialize(InputFile &input) {
 					grid.cell[c].T=regionT;
 					grid.cell[c].rho=regionRho;
 					grid.cell[c].v=regionV;
-					grid.cell[c].k=regionK;
-					grid.cell[c].omega=regionOmega;
+					if (TURBULENCE_MODEL!=NONE) {
+						turbulence.cell[c].k=regionK;
+						turbulence.cell[c].omega=regionOmega;
+					}
 				}
 			}
 		} else if (region.get_string("region")=="cylinder") {
@@ -81,8 +85,10 @@ void initialize(InputFile &input) {
 					grid.cell[c].p=regionP;
 					grid.cell[c].T=regionT;
 					grid.cell[c].rho=regionRho;
-					grid.cell[c].k=regionK;
-					grid.cell[c].omega=regionOmega;
+					if (TURBULENCE_MODEL!=NONE) {
+						turbulence.cell[c].k=regionK;
+						turbulence.cell[c].omega=regionOmega;
+					}
 					// first component of the specified velocity is interpreted as the axial velocity
 					// second component of the specified velocity is interpreted as the radial velocity
 					// third component of the specified velocity is interpreted as the circumferential velocity
@@ -102,11 +108,13 @@ void initialize(InputFile &input) {
 					grid.cell[c].p=regionP;
 					grid.cell[c].T=regionT;
 					grid.cell[c].rho=regionRho;
-					grid.cell[c].k=regionK;
-					grid.cell[c].omega=regionOmega;
+					if (TURBULENCE_MODEL!=NONE) {
+						turbulence.cell[c].k=regionK;
+						turbulence.cell[c].omega=regionOmega;
+					}
 					// first component of the specified velocity is interpreted as the radial velocity
 					// second and third components of the specified velocity are ignored
-					grid.cell[c].v=	regionV[0]*(grid.cell[c].centroid-region.get_Vec3D("center"));
+					grid.cell[c].v=regionV[0]*(grid.cell[c].centroid-region.get_Vec3D("center"));
 				}
 			}
 		}
@@ -114,13 +122,10 @@ void initialize(InputFile &input) {
 
 	for (unsigned int c=0;c<grid.cellCount;++c) {
 		for (unsigned int i=0;i<5;++i) grid.cell[c].update[i]=0.;
-		grid.cell[c].update_turb[0]=0.;
-		grid.cell[c].update_turb[1]=0.;
 	}
 	
-	for (unsigned int f=0;f<grid.faceCount;++f) {
-		grid.face[f].mu_t=0.;
-	}
+	if (TURBULENCE_MODEL!=NONE) for (unsigned int f=0;f<grid.faceCount;++f) turbulence.face[f].mu_t=0.;
+	
 	
 	for (unsigned int g=0;g<grid.ghostCount;++g) {
 		for (unsigned int i=0;i<5;++i) grid.ghost[g].update[i]=0.;

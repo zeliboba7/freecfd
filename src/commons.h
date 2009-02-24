@@ -124,4 +124,8 @@ extern std::vector<int>::iterator it;
 extern std::vector<int>::iterator it2;
 extern std::vector<double>::iterator dit;
 
+// TODO move these over to maps class
+extern std::vector< std::vector<unsigned int> > sendCells;
+extern std::vector<unsigned int>  recvCount;
+
 #endif
