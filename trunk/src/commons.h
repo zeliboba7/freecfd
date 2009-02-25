@@ -94,6 +94,7 @@ extern int DIMENSION,EQUATIONS,TURBULENCE_MODEL;
 extern int TIME_INTEGRATOR,TIME_STEP_TYPE;
 extern int CONVECTIVE_FLUX_FUNCTION,CONVECTIVE_FLUX_FUNCTION_JAC,LIMITER,PRECONDITIONER;
 extern int OUTPUT_FORMAT;
+extern bool FLAMELET;
 
 extern int Rank,np;
 extern double omegaLowLimit,kLowLimit,viscosityRatioLimit;

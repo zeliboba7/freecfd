@@ -20,8 +20,8 @@
     see <http://www.gnu.org/licenses/>.
 
 *************************************************************************/
-#include "turbulence.h"
-extern Turbulence turbulence;
+#include "rans.h"
+extern RANS rans;
 double EPS=1.e-10;
 
 void get_kOmega(void);
@@ -35,7 +35,7 @@ double mu_t=0.;
 double weightL,weightR;
 	
 
-void Turbulence::terms(void) {
+void RANS::terms(void) {
 
 	double blending;
 	double sigma_k,sigma_omega,beta,beta_star,kappa,alpha;
@@ -91,7 +91,7 @@ void Turbulence::terms(void) {
 		diffusiveFlux[0]=(viscosity+mu_t*sigma_k)*faceGradK.dot(grid.face[f].normal)*grid.face[f].area;
 		diffusiveFlux[1]=(viscosity+mu_t*sigma_omega)*faceGradOmega.dot(grid.face[f].normal)*grid.face[f].area;
 		
-		// Fill in rhs vector for turbulence scalars
+		// Fill in rhs vector for rans scalars
 		for (int i=0;i<2;++i) {
 			row=(grid.myOffset+parent)*2+i;
 			value=diffusiveFlux[i]-convectiveFlux[i];
@@ -199,8 +199,7 @@ void Turbulence::terms(void) {
 		beta_star=blending*komega.beta_star+(1.-blending)*kepsilon.beta_star;
 		
 		// Calculate the source terms
-		mu_t=fabs(grid.cell[c].rho*cell[c].k/cell[c].omega);
-		mu_t=min(mu_t,viscosityRatioLimit*viscosity);
+		mu_t=grid.cell[c].rho*cell[c].k/cell[c].omega;
 		
 		dudx=grid.cell[c].grad[1][0];
 		dudy=grid.cell[c].grad[1][1];
@@ -267,7 +266,7 @@ void Turbulence::terms(void) {
 	} // end cell loop
 	
 	return;
-} // end Turbulence::terms
+} // end RANS::terms
 
 void get_kOmega() {
 	
@@ -276,15 +275,15 @@ void get_kOmega() {
 
 	if (order==SECOND) {
 		for (unsigned int i=0;i<2;++i) {
-			delta[i]=(grid.face[f].centroid-grid.cell[parent].centroid).dot(turbulence.cell[parent].grad[i]);
+			delta[i]=(grid.face[f].centroid-grid.cell[parent].centroid).dot(rans.cell[parent].grad[i]);
 		}
 	} else {
 		for (unsigned int i=0;i<2;++i) delta[i]=0.;
 	}
 	
-	leftK_center=turbulence.cell[parent].k;
+	leftK_center=rans.cell[parent].k;
 	leftK=leftK_center+delta[0];
-	leftOmega_center=turbulence.cell[parent].omega;
+	leftOmega_center=rans.cell[parent].omega;
 	leftOmega=leftOmega_center+delta[1];
 	
 	leftK=max(leftK,kLowLimit);
@@ -296,12 +295,12 @@ void get_kOmega() {
 	for (fit=grid.face[f].average.begin();fit!=grid.face[f].average.end();fit++) {
 		if ((*fit).first>=0) { // if contribution is coming from a real cell
 			faceRho+=(*fit).second*grid.cell[(*fit).first].rho;
-			faceGradK+=(*fit).second*turbulence.cell[(*fit).first].grad[0];
-			faceGradOmega+=(*fit).second*turbulence.cell[(*fit).first].grad[1];
+			faceGradK+=(*fit).second*rans.cell[(*fit).first].grad[0];
+			faceGradOmega+=(*fit).second*rans.cell[(*fit).first].grad[1];
 		} else { // if contribution is coming from a ghost cell
 			faceRho+=(*fit).second*grid.ghost[-1*((*fit).first+1)].rho;
-			faceGradK+=(*fit).second*turbulence.ghost[-1*((*fit).first+1)].grad[0];
-			faceGradOmega+=(*fit).second*turbulence.ghost[-1*((*fit).first+1)].grad[1];
+			faceGradK+=(*fit).second*rans.ghost[-1*((*fit).first+1)].grad[0];
+			faceGradOmega+=(*fit).second*rans.ghost[-1*((*fit).first+1)].grad[1];
 		}
 	}
 	
@@ -320,15 +319,15 @@ void get_kOmega() {
 
 		if (order==SECOND) {
 			for (unsigned int i=0;i<2;++i) {
-				delta[i]=(grid.face[f].centroid-grid.cell[neighbor].centroid).dot(turbulence.cell[neighbor].grad[i]);
+				delta[i]=(grid.face[f].centroid-grid.cell[neighbor].centroid).dot(rans.cell[neighbor].grad[i]);
 			}
 		} else {
 			for (unsigned int i=0;i<2;++i) delta[i]=0.;
 		}
 
-		rightK_center=turbulence.cell[neighbor].k;
+		rightK_center=rans.cell[neighbor].k;
 		rightK=rightK_center+delta[0];
-		rightOmega_center=turbulence.cell[neighbor].omega;
+		rightOmega_center=rans.cell[neighbor].omega;
 		rightOmega=rightOmega_center+delta[1];
 	
 		rightK=max(rightK,kLowLimit);
@@ -341,23 +340,22 @@ void get_kOmega() {
 		if (bc.region[grid.face[f].bc].type==NOSLIP) {
 			rightK=0.;
 			rightOmega=60.*viscosity/(faceRho*0.075*pow(0.5*left2right.dot(grid.face[f].normal),2.));
-			rightK_center=2.*rightK-leftK_center; 
-			rightOmega_center=2.*rightOmega-leftOmega_center;
+			rightK_center=max(0.,2.*rightK-leftK_center); 
+			rightOmega_center=max(0.,2.*rightOmega-leftOmega_center);
 		} else if (bc.region[grid.face[f].bc].type==SYMMETRY) {
 			rightK_center=leftK_center; 
 			rightOmega_center=leftOmega_center;
 		} else if (bc.region[grid.face[f].bc].type==SLIP) {
-			rightK_center=leftK_center; 
-			rightOmega_center=leftOmega_center;
+			rightK_center=max(0.,2.*rightK-leftK_center); 
+			rightOmega_center=max(0.,2.*rightOmega-leftOmega_center);
 		} else if (bc.region[grid.face[f].bc].type==INLET) {
 			rightK=bc.region[grid.face[f].bc].k;
 			rightOmega=bc.region[grid.face[f].bc].omega;
 			rightK_center=rightK;
 			rightOmega_center=rightOmega;
-			//cout << bc.region[grid.face[f].bc].omega << "\t" << leftOmega << "\t" << faceOmega << "\t" << leftOmega_center << endl;
 		} else if (bc.region[grid.face[f].bc].type==OUTLET) {
-			rightK_center=rightK;
-			rightOmega_center=rightOmega;
+			rightK_center=max(0.,2.*rightK-leftK_center); 
+			rightOmega_center=max(0.,2.*rightOmega-leftOmega_center);
 		}
 		
 	} else { // partition boundary
@@ -366,13 +364,13 @@ void get_kOmega() {
 
 		if (order==SECOND) {
 			for (unsigned int i=0;i<2;++i) {
-				delta[i]=(grid.face[f].centroid-grid.ghost[g].centroid).dot(turbulence.ghost[g].grad[i]);
+				delta[i]=(grid.face[f].centroid-grid.ghost[g].centroid).dot(rans.ghost[g].grad[i]);
 			}
 		}
 		
-		rightK_center=turbulence.ghost[g].k;
+		rightK_center=rans.ghost[g].k;
 		rightK=rightK_center+delta[0];
-		rightOmega_center=turbulence.ghost[g].omega;
+		rightOmega_center=rans.ghost[g].omega;
 		rightOmega=rightOmega_center+delta[1];
 		
 		rightK=max(rightK,kLowLimit);
@@ -396,10 +394,10 @@ double get_blending(double &k,double &omega,double &rho,double &y,Vec3D &gradK,V
 	double F,arg,arg1,arg2,arg3,CD,cross_diff;
 	
 	cross_diff=gradK[0]*gradOmega[0]+gradK[1]*gradOmega[1]+gradK[2]*gradOmega[2];
-	CD=max(2.*rho*turbulence.komega.sigma_omega*cross_diff/omega,1.e-20);
+	CD=max(2.*rho*rans.komega.sigma_omega*cross_diff/omega,1.e-20);
 	arg1=sqrt(k)/(0.09*omega*y);
 	arg2=500.*viscosity/(rho*y*y*omega);
-	arg3=4.*rho*turbulence.komega.sigma_omega*k/(CD*y*y);
+	arg3=4.*rho*rans.komega.sigma_omega*k/(CD*y*y);
 	arg=min(max(arg1,arg2),arg3);
 	F=tanh(pow(arg,4.));
 

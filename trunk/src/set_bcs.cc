@@ -97,6 +97,8 @@ void setBCs(InputFile &input, BC &bc) {
 		
 		bcRegion.k=region.get_double("k");
 		bcRegion.omega=region.get_double("omega");
+		bcRegion.Z=region.get_double("Z");
+		bcRegion.Zvar=region.get_double("Zvar");
 		bcRegion.v=region.get_Vec3D("v");
 		bcRegion.area=0.;
 		bcRegion.areaVec=0.;

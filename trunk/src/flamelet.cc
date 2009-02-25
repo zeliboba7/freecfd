@@ -22,7 +22,7 @@
 *************************************************************************/
 #include "commons.h"
 #include "petscksp.h"
-#include "turbulence.h"
+#include "flamelet.h"
 
 extern double minmod(double a, double b);
 extern double doubleMinmod(double a, double b);
@@ -39,33 +39,20 @@ struct mpiGrad {
 	double grads[6];
 };
 
-Turbulence::Turbulence(void) {
-	kepsilon.sigma_k=1.;
-	kepsilon.sigma_omega=0.856;
-	kepsilon.beta=0.0828;
-	kepsilon.beta_star=0.09;
-	kepsilon.kappa=0.41;
-	kepsilon.alpha=kepsilon.beta/kepsilon.beta_star
-			-kepsilon.sigma_omega*kepsilon.kappa*kepsilon.kappa/sqrt(kepsilon.beta_star);
-	
-	komega.sigma_k=0.5;
-	komega.sigma_omega=0.5;
-	komega.beta=0.075;
-	komega.beta_star=0.09;
-	komega.kappa=0.41;
-	komega.alpha=komega.beta/komega.beta_star
-			-komega.sigma_omega*komega.kappa*komega.kappa/sqrt(komega.beta_star);
+Flamelet::Flamelet(void) {
+	constants.sigma_t=0.7;
+	constants.Cg=2.86;
+	constants.Cd=2.0;
 	return; 
-} // end Turbulence::Turbulence
+} // end Flamelet::Flamelet
 
-void Turbulence::allocate(void) {
+void Flamelet::allocate(void) {
 	cell.resize(grid.cellCount);
-	face.resize(grid.faceCount);
 	ghost.resize(grid.ghostCount);
 	return; 
-} // end Turbulence::allocate
+} // end Flamelet::allocate
 
-void Turbulence::petsc_init(double rtol,double abstol,int maxits) {
+void Flamelet::petsc_init(double rtol,double abstol,int maxits) {
 	
 	KSPCreate(PETSC_COMM_WORLD,&ksp);
 	VecCreateMPI(PETSC_COMM_WORLD,grid.cellCount*2,grid.globalCellCount*2,&rhs);
@@ -108,9 +95,9 @@ void Turbulence::petsc_init(double rtol,double abstol,int maxits) {
 	KSPGMRESSetRestart(ksp,100);
 	KSPSetFromOptions(ksp);
 	return;
-} // end Turbulence::petsc_init
+} // end Flamelet::petsc_init
 
-void Turbulence::petsc_solve(int &nIter, double &rNorm) {
+void Flamelet::petsc_solve(int &nIter, double &rNorm) {
 
 	MatAssemblyBegin(impOP,MAT_FINAL_ASSEMBLY);
 	MatAssemblyEnd(impOP,MAT_FINAL_ASSEMBLY);
@@ -136,17 +123,17 @@ void Turbulence::petsc_solve(int &nIter, double &rNorm) {
 
 	return;
 	
-} // end Turbulence::petsc_solve
+} // end Flamelet::petsc_solve
 
-void Turbulence::petsc_destroy(void) {
+void Flamelet::petsc_destroy(void) {
 	KSPDestroy(ksp);
 	MatDestroy(impOP);
 	VecDestroy(rhs);
 	VecDestroy(deltaU);
 	return;
-} // end Turbulence::petsc destroy
+} // end Flamelet::petsc destroy
 
-void Turbulence::mpi_init(void) {
+void Flamelet::mpi_init(void) {
 
 	// Commit custom communication datatypes
 	MPI_Datatype types[2]={MPI_UNSIGNED,MPI_DOUBLE};
@@ -172,9 +159,9 @@ void Turbulence::mpi_init(void) {
 	MPI_Type_commit(&MPI_GRAD);
 
 	return;
-} // end Turbulence::mpi_init
+} // end Flamelet::mpi_init
 
-void Turbulence::mpi_update_ghost(void) {
+void Flamelet::mpi_update_ghost(void) {
 	
 	for (unsigned int p=0;p<np;++p) {
 		if (Rank!=p) {
@@ -184,26 +171,25 @@ void Turbulence::mpi_update_ghost(void) {
 			for (unsigned int g=0;g<sendCells[p].size();++g) {
 				id=maps.cellGlobal2Local[sendCells[p][g]];
 				sendBuffer[g].globalId=grid.cell[id].globalId;
-				sendBuffer[g].vars[0]=cell[id].k;
-				sendBuffer[g].vars[1]=cell[id].omega;
+				sendBuffer[g].vars[0]=cell[id].Z;
+				sendBuffer[g].vars[1]=cell[id].Zvar;
 			}
 
 			MPI_Sendrecv(sendBuffer,sendCells[p].size(),MPI_GHOST,p,0,recvBuffer,recvCount[p],MPI_GHOST,p,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
 
 			for (unsigned int g=0;g<recvCount[p];++g) {
 				id=maps.ghostGlobal2Local[recvBuffer[g].globalId];
-				ghost[id].k=recvBuffer[g].vars[0];
-				ghost[id].omega=recvBuffer[g].vars[1];
+				ghost[id].Z=recvBuffer[g].vars[0];
+				ghost[id].Zvar=recvBuffer[g].vars[1];
 			}
 		}
 	}
 	
 	return;
-} // end Turbulence::mpi_update_ghost
+} // end Flamelet::mpi_update_ghost
 
-void Turbulence::mpi_update_ghost_gradients(void) {
+void Flamelet::mpi_update_ghost_gradients(void) {
 	
-	// Update ghost gradients of turbulence variables
 	for (unsigned int p=0;p<np;++p) {
 		mpiGrad sendBuffer[sendCells[p].size()];
 		mpiGrad recvBuffer[recvCount[p]];
@@ -235,16 +221,16 @@ void Turbulence::mpi_update_ghost_gradients(void) {
 	}
 	
 	return;
-} // end Turbulence::mpi_update_ghost_gradients
+} // end Flamelet::mpi_update_ghost_gradients
 
-void Turbulence::gradients(void) {
+void Flamelet::gradients(void) {
 
 	// Calculate cell gradients
 	map<int,Vec3D>::iterator it;
 	map<int,double>::iterator fit;
 	unsigned int f;
 	Vec3D areaVec;
-	double faceK,faceOmega,faceRho;
+	double faceZ,faceZvar;
 	
 	for (unsigned int c=0;c<grid.cellCount;++c) {
 		// Initialize all gradients to zero
@@ -252,11 +238,11 @@ void Turbulence::gradients(void) {
 		// Add internal and interpartition face contributions
 		for (it=grid.cell[c].gradMap.begin();it!=grid.cell[c].gradMap.end(); it++ ) {
 			if ((*it).first>=0) { // if contribution is coming from a real cell
-				cell[c].grad[0]+=(*it).second*cell[(*it).first].k;
-				cell[c].grad[1]+=(*it).second*cell[(*it).first].omega;
+				cell[c].grad[0]+=(*it).second*cell[(*it).first].Z;
+				cell[c].grad[1]+=(*it).second*cell[(*it).first].Zvar;
 			} else { // if contribution is coming from a ghost cell
-				cell[c].grad[0]+=(*it).second*ghost[-1*((*it).first+1)].k;
-				cell[c].grad[1]+=(*it).second*ghost[-1*((*it).first+1)].omega;
+				cell[c].grad[0]+=(*it).second*ghost[-1*((*it).first+1)].Z;
+				cell[c].grad[1]+=(*it).second*ghost[-1*((*it).first+1)].Zvar;
 			}
 		} // end gradMap loop
 
@@ -265,46 +251,40 @@ void Turbulence::gradients(void) {
 			f=grid.cell[c].faces[cf];
 			if (grid.face[f].bc>=0) { // if a boundary face
 				areaVec=grid.face[f].normal*grid.face[f].area/grid.cell[c].volume;
-				faceK=0.; faceOmega=0.; faceRho=0.;
+				faceZ=0.; faceZvar=0.;
 				for (fit=grid.face[f].average.begin();fit!=grid.face[f].average.end();fit++) {
 					if ((*fit).first>=0) { // if contribution is coming from a real cell
-						faceK+=(*fit).second*cell[(*fit).first].k;
-						faceOmega+=(*fit).second*cell[(*fit).first].omega;
-						faceRho+=(*fit).second*grid.cell[(*fit).first].rho;
+						faceZ+=(*fit).second*cell[(*fit).first].Z;
+						faceZvar+=(*fit).second*cell[(*fit).first].Zvar;
 					} else { // if contribution is coming from a ghost cell
-						faceK+=(*fit).second*ghost[-1*((*fit).first+1)].k;
-						faceOmega+=(*fit).second*ghost[-1*((*fit).first+1)].omega;
-						faceRho+=(*fit).second*grid.ghost[-1*((*fit).first+1)].rho;
+						faceZ+=(*fit).second*ghost[-1*((*fit).first+1)].Z;
+						faceZvar+=(*fit).second*ghost[-1*((*fit).first+1)].Zvar;
 					}
 				}
 				
-				faceK=max(faceK,kLowLimit);
-				faceOmega=max(faceOmega,omegaLowLimit);
-				
 				if (bc.region[grid.face[f].bc].type==INLET) {
-					faceK=bc.region[grid.face[f].bc].k;
-					faceOmega=bc.region[grid.face[f].bc].omega;
+					faceZ=bc.region[grid.face[f].bc].Z;
+					faceZvar=bc.region[grid.face[f].bc].Zvar;
 				} else if (bc.region[grid.face[f].bc].type==SYMMETRY) {
 					// Symmetry mirrors everything
-					faceK=cell[grid.face[f].parent].k;
-					faceOmega=cell[grid.face[f].parent].omega;
+					faceZ=cell[grid.face[f].parent].Z;
+					faceZvar=cell[grid.face[f].parent].Zvar;
 				} else if (bc.region[grid.face[f].bc].type==NOSLIP) {
-					faceK=0.;
-					faceOmega=60.*viscosity/(faceRho*0.075*
-							pow(fabs((grid.cell[grid.face[f].parent].centroid-grid.face[f].centroid).dot(grid.face[f].normal)),2.));
+					// Z is extrapolated
+					faceZvar=0.; // TODO check this BC
 				}
 				
-				cell[c].grad[0]+=faceK*areaVec;
-				cell[c].grad[1]+=faceOmega*areaVec;
+				cell[c].grad[0]+=faceZ*areaVec;
+				cell[c].grad[1]+=faceZvar*areaVec;
 				
 			} // end if a boundary face
 		} // end cell face loop
 	} // end cell loop
 	
  	
-} // end Turbulence::gradients(void)
+} // end Flamelet::gradients(void)
 
-void Turbulence::limit_gradients(void) {
+void Flamelet::limit_gradients(void) {
 	
 	unsigned int neighbor,g;
 	Vec3D maxGrad[2],minGrad[2];
@@ -355,47 +335,30 @@ void Turbulence::limit_gradients(void) {
 	
 	return;
 
-} // end Turbulence::limit_gradients()
+} // end Flamelet::limit_gradients()
 
-void Turbulence::update(double &resK, double &resOmega) {
+void Flamelet::update(double &resZ, double &resZvar) {
 
-	resK=0.; resOmega=0.;
-	int counter=0.;
+	resZ=0.; resZvar=0.;
+
 	for (unsigned int c = 0;c < grid.cellCount;++c) {
-
-		// Limit the update so k doesn't end up negative
-		cell[c].update[0]=max(-1.*(cell[c].k-kLowLimit),cell[c].update[0]);
-		// Limit the update so omega doesn't end up smaller than 100
-		cell[c].update[1]=max(-1.*(cell[c].omega-omegaLowLimit),cell[c].update[1]);
 		
-		double new_mu_t=grid.cell[c].rho*(cell[c].k+cell[c].update[0])/(cell[c].omega+cell[c].update[1]);
+		cell[c].Z += cell[c].update[0];
+		cell[c].Zvar+= cell[c].update[1];
 		
-		if (new_mu_t/viscosity>viscosityRatioLimit) {
-			counter++; 
-			double under_relax;
-			double limit_nu=viscosityRatioLimit*viscosity/grid.cell[c].rho;
-			under_relax=(limit_nu*cell[c].omega-cell[c].k)/(cell[c].update[0]-limit_nu*cell[c].update[1]);
-			under_relax=max(1.,under_relax);
-			cell[c].update[0]*=under_relax;
-			cell[c].update[1]*=under_relax;
-		}
-		
-		cell[c].k += cell[c].update[0];
-		cell[c].omega+= cell[c].update[1];
-		
-		resK+=cell[c].update[0]*cell[c].update[0];
-		resOmega+=cell[c].update[1]*cell[c].update[1];
+		resZ+=cell[c].update[0]*cell[c].update[0];
+		resZvar+=cell[c].update[1]*cell[c].update[1];
 
 	} // cell loop
-	if (counter>0) cout << "[I] Update of k and omega is limited due to viscosityRatioLimit constraint for " << counter << " cells" << endl;
+
 	double residuals[2],totalResiduals[2];
-	residuals[0]=resK; residuals[1]=resOmega;
+	residuals[0]=resZ; residuals[1]=resZvar;
 	if (np!=1) {
 		MPI_Reduce(&residuals,&totalResiduals,2, MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
-		resK=totalResiduals[0]; resOmega=totalResiduals[1];
+		resZ=totalResiduals[0]; resZvar=totalResiduals[1];
 	}
-	resK=sqrt(resK); resOmega=sqrt(resOmega);
+	resZ=sqrt(resZ); resZvar=sqrt(resZvar);
 	
 	return;
 
-} // end Turbulence::update
+} // end Flamelet::update

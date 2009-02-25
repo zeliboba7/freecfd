@@ -200,6 +200,7 @@ void check_inputs(InputFile &input) {
 		}
 	}
 	
+	FLAMELET=input.section("flamelet").get_string("tableFile").is_found;
 	omegaLowLimit=input.section("turbulence").get_double("omegaLowLimit");
 	kLowLimit=input.section("turbulence").get_double("kLowLimit");
 	viscosityRatioLimit=input.section("turbulence").get_double("viscosityRatioLimit");

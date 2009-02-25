@@ -31,7 +31,7 @@ public:
 	int kind;
 	int thermalType;
 	int specified;
-	double T,p,k,omega,rho;
+	double T,p,k,omega,rho,Z,Zvar;
 	Vec3D v;
 	double area;
 	Vec3D areaVec;

@@ -31,9 +31,11 @@
 using namespace std;
 
 #include <cgnslib.h>
-#include "turbulence.h"
+#include "rans.h"
+#include "flamelet.h"
 
-extern Turbulence turbulence;
+extern RANS rans;
+extern Flamelet flamelet;
 
 extern string int2str(int number) ;
 
@@ -45,22 +47,24 @@ void write_restart(double time) {
 	mkdir(dirname.c_str(),S_IRWXU);
 	string fileName="./restart/"+int2str(timeStep)+"/field.dat";
 	// Proc 0 creates the output file and writes variable list
+	int nVar=8;
 	if (Rank==0) {
 		file.open((fileName).c_str(),ios::out); 
 		file << "VARIABLES = \"x\", \"y\", \"z\",\"p\",\"u\",\"v\",\"w\",\"T\" " ;
 		if (TURBULENCE_MODEL!=NONE) {
-			file << "\"k\", \"omega\" " ;
+			file << "\"k\", \"omega\" " ; nVar+=2;
+		}
+		if (FLAMELET) {
+			file << "\"Mixture Fraction\", \"Mixture Fraction Variance\" " ; nVar+=2;
 		}
 		file << endl; // DEBUG
 	} else {
 		file.open((fileName).c_str(),ios::app);
 	}
-
-	int nVar=8; if (TURBULENCE_MODEL!=NONE) nVar+=2;
 	
 	// Write header (each proc has its own zone)
 	file << "ZONE, T=\"Partition " << Rank << "\"" ;
-	file << ", N=" << grid.nodeCount << ", E=" << grid.cellCount << ", VARLOCATION=([4-" << nVar << "8]=CellCentered)" << endl;
+	file << ", N=" << grid.nodeCount << ", E=" << grid.cellCount << ", VARLOCATION=([4-" << nVar << "]=CellCentered)" << endl;
 	file << "DATAPACKING=BLOCK, ZONETYPE=FEBRICK, SOLUTIONTIME=" << time << endl;
 
 	// Write coordinates
@@ -78,10 +82,13 @@ void write_restart(double time) {
 	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].v.comp[2] << endl;
 	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].T << endl;
 	if (TURBULENCE_MODEL!=NONE) {
-		for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << turbulence.cell[c].k << endl;
-		for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << turbulence.cell[c].omega << endl;
+		for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << rans.cell[c].k << endl;
+		for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << rans.cell[c].omega << endl;
 	}
-	
+	if (FLAMELET) {
+		for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << flamelet.cell[c].Z << endl;
+		for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << flamelet.cell[c].Zvar << endl;
+	}
 	// Write coonnectivity
 	for (unsigned int c=0;c<grid.cellCount;++c) {
 		if (grid.cell[c].nodeCount==4) {

@@ -22,14 +22,14 @@ PETSC_INCLUDE = -I$(PETSC_DIR)/include -I$(PETSC_DIR)/bmake/$(PETSC_ARCH)
 SRC= \
 	assemble_linear_system.cc \
 	check_inputs.cc convective_face_flux.cc commons.cc \
-	diffusive_face_flux.cc eos.cc\
+	diffusive_face_flux.cc eos.cc flamelet.cc flamelet_terms.cc\
 	grid.cc grid_averaging_metrics.cc grid_create_elements.cc grid_partition.cc grid_readers.cc  \
 	initialize.cc initialize_linear_system.cc inputs.cc \
 	main.cc mpi_functions.cc \
 	petsc_functions.cc probes.cc \
 	read_inputs.cc read_restart.cc \
 	set_bcs.cc sources.cc \
-	turbulence.cc turbulence_terms.cc\
+	rans.cc rans_terms.cc\
 	update_eddy_viscosity.cc update_face_mdot.cc\
 	write_output.cc write_restart.cc \
 	vec3d.cc 

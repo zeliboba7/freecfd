@@ -33,10 +33,12 @@ using namespace std;
 
 #include "bc.h"
 #include "inputs.h"
-#include "turbulence.h"
+#include "rans.h"
+#include "flamelet.h"
 
 extern BC bc;
-extern Turbulence turbulence;
+extern RANS rans;
+extern Flamelet flamelet;
 
 extern string int2str(int number) ;
 void write_tec(double time);
@@ -64,7 +66,7 @@ void write_tec(double time) {
 	ofstream file;
 	string fileName="./output/out"+int2str(timeStep)+".dat";
 	
-	// Shothand for turbulence model test
+	// Shorthand for turbulence model test
 	bool turb=(TURBULENCE_MODEL!=NONE);
 	
 	// Proc 0 creates the output file and writes variable list
@@ -73,6 +75,7 @@ void write_tec(double time) {
 		file.open((fileName).c_str(),ios::out); 
 		file << "VARIABLES = \"x\", \"y\", \"z\",\"p\",\"u\",\"v\",\"w\",\"T\",\"rho\",\"Ma\"";
 		if (turb) file << ",\"k\",\"omega\" ";
+		if (FLAMELET) file << ",\"Mixture Fraction\",\"Mixture Fraction Variance\" ";
 		file << endl;
 	} else {
 		file.open((fileName).c_str(),ios::app);
@@ -93,32 +96,36 @@ void write_tec(double time) {
 	// Write variables
 	map<int,double>::iterator it;
 	set<int>::iterator sit;
-	double p_node,T_node,rho_node,k_node,omega_node;
+	double p_node,T_node,rho_node,k_node,omega_node,Z_node,Zvar_node;
     	Vec3D v_node;
-	int count_p,count_v,count_T,count_k,count_omega,count_rho;
+	int count_p,count_v,count_T,count_k,count_omega,count_rho,count_Z,count_Zvar;
 	double Ma;
 	for (unsigned int n=0;n<grid.nodeCount;++n) {
-		p_node=0.;v_node=0.;T_node=0.;k_node=0.;omega_node=0.;
+		p_node=0.;v_node=0.;T_node=0.;k_node=0.;omega_node=0.;Z_node=0.;Zvar_node=0.;
 		for ( it=grid.node[n].average.begin() ; it != grid.node[n].average.end(); it++ ) {
 			if ((*it).first>=0) { // if contribution is coming from a real cell
 				p_node+=(*it).second*grid.cell[(*it).first].p;
 				v_node+=(*it).second*grid.cell[(*it).first].v;
 				T_node+=(*it).second*grid.cell[(*it).first].T;
-				if (turb) k_node+=(*it).second*turbulence.cell[(*it).first].k;
-				if (turb) omega_node+=(*it).second*turbulence.cell[(*it).first].omega;
+				if (turb) k_node+=(*it).second*rans.cell[(*it).first].k;
+				if (turb) omega_node+=(*it).second*rans.cell[(*it).first].omega;
+				if (FLAMELET) Z_node+=(*it).second*flamelet.cell[(*it).first].Z;
+				if (FLAMELET) Zvar_node+=(*it).second*flamelet.cell[(*it).first].Zvar;
 			} else { // if contribution is coming from a ghost cell
 				p_node+=(*it).second*grid.ghost[-1*((*it).first+1)].p;
 				v_node+=(*it).second*grid.ghost[-1*((*it).first+1)].v;
 				T_node+=(*it).second*grid.ghost[-1*((*it).first+1)].T;
-				if (turb) k_node+=(*it).second*turbulence.ghost[-1*((*it).first+1)].k;
-				if (turb) omega_node+=(*it).second*turbulence.ghost[-1*((*it).first+1)].omega;
+				if (turb) k_node+=(*it).second*rans.ghost[-1*((*it).first+1)].k;
+				if (turb) omega_node+=(*it).second*rans.ghost[-1*((*it).first+1)].omega;
+				if (FLAMELET) Z_node+=(*it).second*flamelet.ghost[-1*((*it).first+1)].Z;
+				if (FLAMELET) Zvar_node+=(*it).second*flamelet.ghost[-1*((*it).first+1)].Zvar;
 			}
 		}
 		rho_node=eos.rho(p_node,T_node);
 		k_node=max(k_node,kLowLimit);
 		omega_node=max(omega_node,omegaLowLimit);
 		
-		count_p=0; count_v=0; count_T=0; count_rho=0.; count_k=0; count_omega=0;
+		count_p=0; count_v=0; count_T=0; count_rho=0.; count_k=0; count_omega=0; count_Z=0; count_Zvar=0;
 		for (sit=grid.node[n].bcs.begin();sit!=grid.node[n].bcs.end();sit++) {
 			if (bc.region[(*sit)].specified==BC_RHO) {
 				rho_node=bc.region[(*sit)].rho; count_rho++;
@@ -142,6 +149,8 @@ void write_tec(double time) {
 			if (count_v>0) v_node/=double(count_v);
 			if (count_k>0) k_node/=double(count_k);
 			if (count_omega>0) omega_node/=double(count_omega);
+			if (count_Z>0) k_node/=double(count_Z);
+			if (count_Zvar>0) omega_node/=double(count_Zvar);
 		}
 		
 		Ma=sqrt((v_node.dot(v_node))/(Gamma*(p_node+Pref)/rho_node));
@@ -159,6 +168,8 @@ void write_tec(double time) {
 		file << Ma << "\t";
 		if (turb) file << k_node << "\t";
 		if (turb) file << omega_node << "\t";
+		if (FLAMELET) file << Z_node << "\t";
+		if (FLAMELET) file << Zvar_node << "\t";
 		file << endl;
 	}
 
