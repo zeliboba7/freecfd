@@ -20,8 +20,8 @@
     see <http://www.gnu.org/licenses/>.
 
 *************************************************************************/
-#ifndef TURBULENCE_H
-#define TURBULENCE_H
+#ifndef FLAMELET_H
+#define FLAMELET_H
 
 #include "petscksp.h"
 #include <mpi.h>
@@ -32,41 +32,35 @@
 extern IndexMaps maps;
 extern BC bc;
 
-class Turbulence_Model {
+class Flamelet_Constants {
 	public:
-	double sigma_k,sigma_omega,beta,beta_star,kappa,alpha;
+	double sigma_t,Cg,Cd;
 };
 
-class Turbulence_Face {
+class Flamelet_Cell {
 	public:
-	double mu_t;
-};
-
-class Turbulence_Cell {
-	public:
-	double k,omega,closest_wall_distance;
+	double Z,Zvar;
 	double update[2];
 	Vec3D grad[2]; // k and omega gradients
 };
 
-class Turbulence_Ghost {
+class Flamelet_Ghost {
 	public:
-	double k,omega,closest_wall_distance,update;
+	double Z,Zvar;
 	Vec3D grad[2]; // k and omega gradients
 };
 
-class Turbulence {
+class Flamelet {
 	public:
-	std::vector<Turbulence_Face> face;
-	std::vector<Turbulence_Cell> cell;
-	std::vector<Turbulence_Ghost> ghost;
-	Turbulence_Model kepsilon,komega;
+	std::vector<Flamelet_Cell> cell;
+	std::vector<Flamelet_Ghost> ghost;
+	Flamelet_Constants constants;
 	KSP ksp; // linear solver context
 	Vec deltaU,rhs; // solution, residual vectors
 	Mat impOP; // implicit operator matrix
 	MPI_Datatype MPI_GHOST;
 	MPI_Datatype MPI_GRAD;
-	Turbulence(void); // constructor
+	Flamelet(void); // constructor
 	void allocate(void); // allocate memory for cell and face variables
 	void petsc_init(double rtol,double abstol,int maxits);
 	void petsc_solve(int &nIter, double &rNorm);
@@ -74,11 +68,14 @@ class Turbulence {
 	void mpi_init(void);
 	void mpi_update_ghost(void);
 	void mpi_update_ghost_gradients(void);
-	void update_eddy_viscosity(void); // Updates eddy viscosity stored at the faces
 	void gradients(void);
 	void limit_gradients(void);
 	void terms(void);
-	void update(double &resK, double &resOmega);
+	void get_Z_Zvar(unsigned int &parent,unsigned int &neighbor,unsigned int &f,
+				double &leftZ,double &leftZvar,
+      				double &rightZ,double &rightZvar,
+      				Vec3D &faceGradZ,Vec3D &faceGradZvar,Vec3D &left2right);
+	void update(double &resZ, double &resZvar);
 };
 
 #endif

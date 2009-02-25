@@ -88,7 +88,7 @@ public:
 	unsigned int globalId;
 	unsigned int matrix_id;
 	std::vector<unsigned int> cells;
-	double p,T,rho,k,omega;
+	double p,T,rho,closest_wall_distance;
 	// Gradients are stored as p,u,v,w,T in order
 	Vec3D v,centroid,grad[5];
 	double update[5]; // TODO do we need these updates for ghosts?

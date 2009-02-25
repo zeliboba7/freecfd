@@ -34,6 +34,10 @@ void read_inputs(InputFile &input) {
 	input.register_string("equations",optional,"NS");
 	input.readEntries();
 	
+	input.registerSection("flamelet",optional);
+	input.section("flamelet").register_string("tableFile",optional,"none");
+	input.readSection("flamelet");
+	
 	input.registerSection("turbulence",optional);
 	input.section("turbulence").register_string("model",optional,"none");
 	input.section("turbulence").register_double("omegaLowLimit",optional,1.);
@@ -128,6 +132,8 @@ void read_inputs(InputFile &input) {
 	input.section("initialConditions").subsection("IC",0).register_double("rho",optional);
 	input.section("initialConditions").subsection("IC",0).register_double("k",optional,0.);
 	input.section("initialConditions").subsection("IC",0).register_double("omega",optional,0.);
+	input.section("initialConditions").subsection("IC",0).register_double("Z",optional,0.);
+	input.section("initialConditions").subsection("IC",0).register_double("Zvar",optional,0.);
 	input.readSection("initialConditions");
 	
 	input.registerSection("boundaryConditions",required);
@@ -144,6 +150,8 @@ void read_inputs(InputFile &input) {
 	input.section("boundaryConditions").subsection("BC",0).register_double("rho",optional);	
 	input.section("boundaryConditions").subsection("BC",0).register_double("k",optional,0.);
 	input.section("boundaryConditions").subsection("BC",0).register_double("omega",optional,0.);
+	input.section("boundaryConditions").subsection("BC",0).register_double("Z",optional,0.);
+	input.section("boundaryConditions").subsection("BC",0).register_double("Zvar",optional,0.);
 	input.readSection("boundaryConditions");
 	
 	check_inputs(input);

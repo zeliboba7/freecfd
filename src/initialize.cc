@@ -23,8 +23,10 @@
 #include "commons.h"
 #include "grid.h"
 #include "inputs.h"
-#include "turbulence.h"
-extern Turbulence turbulence;
+#include "rans.h"
+#include "flamelet.h"
+extern RANS rans;
+extern Flamelet flamelet;
 
 bool withinBox(Vec3D point, Vec3D corner_1, Vec3D corner_2);
 bool withinCylinder(Vec3D point, Vec3D center, double radius, Vec3D axisDirection, double height);
@@ -38,7 +40,7 @@ void initialize(InputFile &input) {
 		// Store the reference to current IC region
 		Subsection &region=input.section("initialConditions").subsection("IC",ic);
 		Vec3D regionV=region.get_Vec3D("v");
-		double regionRho,regionP,regionT,regionK,regionOmega;
+		double regionRho,regionP,regionT,regionK,regionOmega,regionZ,regionZvar;
 		// Assign specified values
 		regionP=region.get_double("p");
 		if (region.get_double("rho").is_found) { // Rho is specified in the input file
@@ -58,6 +60,8 @@ void initialize(InputFile &input) {
 		}
 		regionK=region.get_double("k");
 		regionOmega=region.get_double("omega");
+		regionZ=region.get_double("Z");
+		regionZvar=region.get_double("Zvar");
 		// If region is specified with a box method
 		if (region.get_string("region")=="box") {
 			// Loop the cells
@@ -70,8 +74,12 @@ void initialize(InputFile &input) {
 					grid.cell[c].rho=regionRho;
 					grid.cell[c].v=regionV;
 					if (TURBULENCE_MODEL!=NONE) {
-						turbulence.cell[c].k=regionK;
-						turbulence.cell[c].omega=regionOmega;
+						rans.cell[c].k=regionK;
+						rans.cell[c].omega=regionOmega;
+					}
+					if (FLAMELET) {
+						flamelet.cell[c].Z=regionZ;
+						flamelet.cell[c].Zvar=regionZvar;
 					}
 				}
 			}
@@ -86,8 +94,12 @@ void initialize(InputFile &input) {
 					grid.cell[c].T=regionT;
 					grid.cell[c].rho=regionRho;
 					if (TURBULENCE_MODEL!=NONE) {
-						turbulence.cell[c].k=regionK;
-						turbulence.cell[c].omega=regionOmega;
+						rans.cell[c].k=regionK;
+						rans.cell[c].omega=regionOmega;
+					}
+					if (FLAMELET) {
+						flamelet.cell[c].Z=regionZ;
+						flamelet.cell[c].Zvar=regionZvar;
 					}
 					// first component of the specified velocity is interpreted as the axial velocity
 					// second component of the specified velocity is interpreted as the radial velocity
@@ -109,8 +121,12 @@ void initialize(InputFile &input) {
 					grid.cell[c].T=regionT;
 					grid.cell[c].rho=regionRho;
 					if (TURBULENCE_MODEL!=NONE) {
-						turbulence.cell[c].k=regionK;
-						turbulence.cell[c].omega=regionOmega;
+						rans.cell[c].k=regionK;
+						rans.cell[c].omega=regionOmega;
+					}
+					if (FLAMELET) {
+						flamelet.cell[c].Z=regionZ;
+						flamelet.cell[c].Zvar=regionZvar;
 					}
 					// first component of the specified velocity is interpreted as the radial velocity
 					// second and third components of the specified velocity are ignored
@@ -124,7 +140,7 @@ void initialize(InputFile &input) {
 		for (unsigned int i=0;i<5;++i) grid.cell[c].update[i]=0.;
 	}
 	
-	if (TURBULENCE_MODEL!=NONE) for (unsigned int f=0;f<grid.faceCount;++f) turbulence.face[f].mu_t=0.;
+	if (TURBULENCE_MODEL!=NONE) for (unsigned int f=0;f<grid.faceCount;++f) rans.face[f].mu_t=0.;
 	
 	
 	for (unsigned int g=0;g<grid.ghostCount;++g) {

@@ -33,7 +33,8 @@
 #include <limits>
 
 #include "commons.h"
-#include "turbulence.h"
+#include "rans.h"
+#include "flamelet.h"
 #include "inputs.h"
 #include "bc.h"
 #include "mpi_functions.h"
@@ -76,12 +77,14 @@ InputFile input;
 // Turbulence model needs to be declared regardless of being used or not
 // But memory won't be allocated for cell,face,etc.. variables for laminar cases
 // So it is OK
-Turbulence turbulence;
+RANS rans;
+// Same goes for the flamelet model
+Flamelet flamelet;
 
 vector<Probe> probes;
 vector<BoundaryFlux> boundaryFluxes;
 
-double resP,resV,resT,resK,resOmega;
+double resP,resV,resT,resK,resOmega,resZ,resZvar;
 
 int main(int argc, char *argv[]) {
 	
@@ -121,8 +124,13 @@ int main(int argc, char *argv[]) {
 	mpi_get_ghost_centroids();
 	
 	if (TURBULENCE_MODEL!=NONE) {
-		turbulence.allocate();
-		turbulence.mpi_init();
+		rans.allocate();
+		rans.mpi_init();
+	}
+	
+	if (FLAMELET) {
+		flamelet.allocate();
+		flamelet.mpi_init();
 	}
 	
 	initialize(input);
@@ -157,9 +165,16 @@ int main(int argc, char *argv[]) {
 	
 	if (TURBULENCE_MODEL!=NONE) {
 		// Initialize petsc for turbulence model
-		turbulence.petsc_init(input.section("linearSolver").get_double("relTolerance"),
+		rans.petsc_init(input.section("linearSolver").get_double("relTolerance"),
 					input.section("linearSolver").get_double("absTolerance"),
 					input.section("linearSolver").get_int("maxIterations"));
+	}
+	
+	if (FLAMELET) {
+		// Initialize petsc for turbulence model
+		flamelet.petsc_init(input.section("linearSolver").get_double("relTolerance"),
+				input.section("linearSolver").get_double("absTolerance"),
+				input.section("linearSolver").get_int("maxIterations"));
 	}
 	
 	// Initialize time step or CFL size if ramping
@@ -181,8 +196,8 @@ int main(int argc, char *argv[]) {
 	bool firstTimeStep=true;
 	for (timeStep=restart+1;timeStep<=timeStepMax+restart;++timeStep) {
 
-		int nIter,nIterTurb; // Number of linear solver iterations
-		double rNorm,rNormTurb; // Residual norm of the linear solver
+		int nIter,nIterTurb,nIterFlame; // Number of linear solver iterations
+		double rNorm,rNormTurb,rNormFlame; // Residual norm of the linear solver
 
 		// Flush boundary forces
 		if ((timeStep) % integrateBoundaryFreq == 0) {
@@ -219,19 +234,35 @@ int main(int argc, char *argv[]) {
 		
 		if (TURBULENCE_MODEL!=NONE) {
 			if (firstTimeStep) {
-				turbulence.mpi_update_ghost();
-				turbulence.update_eddy_viscosity();
+				rans.mpi_update_ghost();
+				rans.update_eddy_viscosity();
 			} else {
-				turbulence.gradients();
-				turbulence.mpi_update_ghost_gradients();
-				turbulence.limit_gradients();
-				turbulence.mpi_update_ghost_gradients(); // Called again to update the ghost gradients
+				rans.gradients();
+				rans.mpi_update_ghost_gradients();
+				rans.limit_gradients();
+				rans.mpi_update_ghost_gradients(); // Called again to update the ghost gradients
 				update_face_mdot();
-				turbulence.terms();
-				turbulence.petsc_solve(nIterTurb,rNormTurb);
-				turbulence.update(resK,resOmega);
-				turbulence.mpi_update_ghost();
-				turbulence.update_eddy_viscosity();
+				rans.terms();
+				rans.petsc_solve(nIterTurb,rNormTurb);
+				rans.update(resK,resOmega);
+				rans.mpi_update_ghost();
+				rans.update_eddy_viscosity();
+			}
+		}
+		
+		if (FLAMELET) {
+			if (firstTimeStep) {
+				flamelet.mpi_update_ghost();
+			} else {
+				flamelet.gradients();
+				flamelet.mpi_update_ghost_gradients();
+				flamelet.limit_gradients();
+				flamelet.mpi_update_ghost_gradients(); // Called again to update the ghost gradients
+				// update_face_mdot(); is done with the turbulence model part
+				flamelet.terms();
+				flamelet.petsc_solve(nIterFlame,rNormFlame);
+				flamelet.update(resZ,resZvar);
+				flamelet.mpi_update_ghost();
 			}
 		}
 		
@@ -259,8 +290,9 @@ int main(int argc, char *argv[]) {
 		time += dt;
 		if (Rank==0) {
 			if (timeStep==(restart+1))  cout << "step" << "\t" << "time" << "\t\t" << "dt" << "\t\t" << "CFLmax" << "\t\t" << "nIter" << "\t" << "LinearRes" << "\t" << "pRes" << "\t\t" << "vRes" << "\t\t" << "TRes" << endl;
-			cout << timeStep << "\t" << setprecision(4) << scientific << time << "\t" << dt << "\t" << CFLmax << "\t" << nIter << "\t" << rNorm << "\t" << resP << "\t" << resV << "\t" << resT << "\t" << resK << "\t" << resOmega << endl;
-			if (!firstTimeStep) cout << nIterTurb << "\t" << rNormTurb << endl;
+			cout << timeStep << "\t" << setprecision(4) << scientific << time << "\t" << dt << "\t" << CFLmax << "\t" << nIter << "\t" << rNorm << "\t" << resP << "\t" << resV << "\t" << resT << endl;
+			if (!firstTimeStep && TURBULENCE_MODEL!=NONE) cout << nIterTurb << "\t" << rNormTurb << "\t" << resK << "\t" << resOmega << endl;
+			if (!firstTimeStep && FLAMELET) cout << nIterFlame << "\t" << rNormFlame << "\t" << resZ << "\t" << resZvar << endl;
 		}
 		
 		// Ramp-up if needed
@@ -289,7 +321,11 @@ int main(int argc, char *argv[]) {
 				file << timeStep << "\t" << setw(16) << setprecision(8)  << time << "\t" << c.p << "\t" << c.v[0] << "\t" << c.v[1] << "\t" << c.v[2] << "\t" << c.T << "\t" << c.rho << "\t" ;
 				if (TURBULENCE_MODEL!=NONE) {
 					unsigned int cc=probes[p].nearestCell;
-					file << turbulence.cell[cc].k << "\t" << turbulence.cell[cc].omega << "\t" << c.rho*turbulence.cell[cc].k/turbulence.cell[cc].omega ;
+					file << rans.cell[cc].k << "\t" << rans.cell[cc].omega << "\t" << c.rho*rans.cell[cc].k/rans.cell[cc].omega ;
+				}
+				if (FLAMELET) {
+					unsigned int cc=probes[p].nearestCell;
+					file << flamelet.cell[cc].Z << "\t" << flamelet.cell[cc].Zvar ;
 				}
 				file << endl;
 				file.close();
@@ -337,7 +373,8 @@ int main(int argc, char *argv[]) {
 		cout << "* Wall time: " << timeEnd-timeRef << " seconds" << endl;
 	}
 	
-	turbulence.petsc_destroy();
+	rans.petsc_destroy();
+	flamelet.petsc_destroy();
 	petsc_finalize();
 
 	return 0;

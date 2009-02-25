@@ -20,10 +20,10 @@
     see <http://www.gnu.org/licenses/>.
 
 *************************************************************************/
-#include "turbulence.h"
+#include "rans.h"
 
 // Updates the eddy viscosity stores at the faces
-void Turbulence::update_eddy_viscosity(void) {
+void RANS::update_eddy_viscosity(void) {
 	
 	map<int,double>::iterator fit;
 	double faceK,faceOmega,faceRho,mu_t;
@@ -66,7 +66,7 @@ void Turbulence::update_eddy_viscosity(void) {
 		
 	}
 	
-} // end Turbulence::update_eddy_viscosity
+} // end RANS::update_eddy_viscosity
 
 
 
