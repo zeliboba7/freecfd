@@ -262,6 +262,10 @@ void Flamelet::gradients(void) {
 					}
 				}
 				
+				faceZ=max(0.,faceZ);
+				faceZ=min(1.,faceZ);
+				faceZvar=max(0.,faceZvar);
+				
 				if (bc.region[grid.face[f].bc].type==INLET) {
 					faceZ=bc.region[grid.face[f].bc].Z;
 					faceZvar=bc.region[grid.face[f].bc].Zvar;
@@ -340,8 +344,15 @@ void Flamelet::limit_gradients(void) {
 void Flamelet::update(double &resZ, double &resZvar) {
 
 	resZ=0.; resZvar=0.;
-
+	
 	for (unsigned int c = 0;c < grid.cellCount;++c) {
+		
+		// Limit the update so Z doesn't end up negative
+		cell[c].update[0]=max(-cell[c].Z,cell[c].update[0]);
+		// Limit the update so Z doesn't end up larger than 1
+		cell[c].update[0]=min(1.-cell[c].Z,cell[c].update[0]);
+		// Limit the update so Zvar doesn't end up smaller than 100
+		cell[c].update[1]=max(-cell[c].Zvar,cell[c].update[1]);
 		
 		cell[c].Z += cell[c].update[0];
 		cell[c].Zvar+= cell[c].update[1];
