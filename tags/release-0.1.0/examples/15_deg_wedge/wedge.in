@@ -1,0 +1,45 @@
+// Mach 2.5 oblique shock induced by a 15 degree wedge
+
+equations=Euler;
+
+grid {dimension=2;}
+
+reference {p=1.e5;}
+
+numericalOptions {
+	limiter=doubleMinmod;
+}
+
+timeMarching {
+	CFLmax=1.e2;
+        numberOfSteps=200;
+}
+
+linearSolver {
+        relTolerance=1.e-6;
+        absTolerance=1.e-12;
+        maxIterations=50;
+}
+
+fluidProperties {gamma=1.4;}
+
+initialConditions {
+        IC_1(rho=1.; v=[935.414347,0.,0.]; p=0.;);
+}
+
+//   bc1 symetry planes
+//   bc2 walls
+//   bc3 top
+//   bc4 outlet
+//   bc5 inlet
+   
+boundaryConditions {
+	BC_1 (type=symmetry;); 
+	BC_2 (type=slip;);
+	BC_3 (type=symmetry;); 
+	BC_4 (type=outlet; ); 
+	BC_5 (type=inlet; rho=1.; v=[935.414347,0.,0.]; p=0.;);
+}
+
+writeOutput {format=tecplot; plotFrequency=100; restartFrequency=100; }
+

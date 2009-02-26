@@ -1,0 +1,50 @@
+// Re 150 Ma 0.004
+
+grid {dimension=2;}
+
+reference {Mach=1.e-3;p=1.e5;T=273.;}
+
+numericalOptions {limiter=doubleMinmod;}
+
+timeMarching {
+        stepSize=0.002;
+        numberOfSteps=10000;
+}
+
+linearSolver {
+        relTolerance=1.e-5;
+        absTolerance=1.e-12;
+        maxIterations=50;
+}
+
+fluidProperties {gamma=1.4; viscosity=1e-3;;}
+
+initialConditions {
+        IC_1(rho=1.; v=[1.5,0.,0.]; p=0.;);
+}
+
+//   bc1 symetry planes
+//   bc2 wall
+//   bc3 top&bottom
+//   bc4 inlet
+//   bc5 exit
+   
+boundaryConditions {
+	BC_1 (type=symmetry;); 
+	BC_2 (type=noslip;);
+	BC_3 (type=slip;); 
+	BC_4 (type=inlet; rho=1.; v=[1.5,0.,0.];); 
+	BC_5 (type=outlet; p=0.;);
+}
+
+writeOutput {format=tecplot; plotFrequency=50; restartFrequency=200; }
+
+probes { frequency=1;
+	probe_1 (coord=[0.,0.05,0.];);
+	probe_2 (coord=[1.,0.,0.];);
+}
+
+integrateBoundary { frequency=1;
+	flux_1 (bc=2;);
+}
+
