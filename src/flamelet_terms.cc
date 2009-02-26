@@ -210,6 +210,10 @@ void Flamelet::get_Z_Zvar(unsigned int &parent,unsigned int &neighbor,unsigned i
 	leftZvar_center=cell[parent].Zvar;
 	leftZvar=leftZvar_center+delta[1];
 
+	leftZ=max(0.,leftZ);
+	leftZ=min(1.,leftZ);
+	leftZvar=max(0.,leftZvar);
+	
 	// Find face averaged quantities
 	faceGradZ=0.; faceGradZvar=0.;
  	map<int,double>::iterator fit;
@@ -249,27 +253,31 @@ void Flamelet::get_Z_Zvar(unsigned int &parent,unsigned int &neighbor,unsigned i
 		rightZvar_center=cell[neighbor].Zvar;
 		rightZvar=rightZvar_center+delta[1];
 		
+		rightZ=max(0.,rightZ);
+		rightZ=min(1.,rightZ);
+		rightZvar=max(0.,rightZvar);
+		
 	} else if (grid.face[f].bc>=0) { // boundary face
 		
 		rightZ=leftZ; rightZvar=leftZvar;
 
 		if (bc.region[grid.face[f].bc].type==NOSLIP) {
 			rightZvar=0.; rightZvar_center=0.;
-			rightZ_center=max(0.,2.*rightZ-leftZ_center);
+			rightZ_center=2.*rightZ-leftZ_center;
 		} else if (bc.region[grid.face[f].bc].type==SYMMETRY) {
 			rightZ_center=leftZ_center; 
 			rightZvar_center=leftZvar_center;
 		} else if (bc.region[grid.face[f].bc].type==SLIP) {
-			rightZ_center=max(0.,2.*rightZ-leftZ_center);
-			rightZvar_center=max(0.,2.*rightZvar-leftZvar_center);
+			rightZ_center=2.*rightZ-leftZ_center;
+			rightZvar_center=2.*rightZvar-leftZvar_center;
 		} else if (bc.region[grid.face[f].bc].type==INLET) {
 			rightZ=bc.region[grid.face[f].bc].Z;
 			rightZvar=bc.region[grid.face[f].bc].Zvar;
 			rightZ_center=rightZ;
 			rightZvar_center=rightZvar;
 		} else if (bc.region[grid.face[f].bc].type==OUTLET) {
-			rightZ_center=max(0.,2.*rightZ-leftZ_center);
-			rightZvar_center=max(0.,2.*rightZvar-leftZvar_center);
+			rightZ_center=2.*rightZ-leftZ_center;
+			rightZvar_center=2.*rightZvar-leftZvar_center;
 		}
 		
 	} else { // partition boundary
@@ -286,6 +294,10 @@ void Flamelet::get_Z_Zvar(unsigned int &parent,unsigned int &neighbor,unsigned i
 		rightZ=rightZ_center+delta[0];
 		rightZvar_center=ghost[g].Zvar;
 		rightZvar=rightZvar_center+delta[1];
+		
+		rightZ=max(0.,rightZ);
+		rightZ=min(1.,rightZ);
+		rightZvar=max(0.,rightZvar);
 
 	}
 	

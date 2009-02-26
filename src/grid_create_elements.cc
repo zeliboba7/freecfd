@@ -36,7 +36,6 @@ extern IndexMaps maps;
 int Grid::create_nodes_cells() {
 
 	// Reserve the right amount of memory beforehand
-	node.reserve(nodeCount);
 	cell.reserve(cellCount);
 	
 	// This stores the total node count in the current partition
@@ -86,6 +85,7 @@ int Grid::create_nodes_cells() {
 					break;
 			}
 			temp.nodes.reserve(cellNodeCount);
+			
 			// Fill in the node list
 			for (int n=0;n<temp.nodeCount;++n) {
 				temp.nodes.push_back(cellNodes[n]);
@@ -97,7 +97,7 @@ int Grid::create_nodes_cells() {
 			cell.push_back(temp);
 		} // end if cell is in current proc
 	} // end loop global cell count
-
+	
 	cout << "[I Rank=" << Rank << "] Created cells and nodes" << endl;
 
 	// Construct the list of cells for each node

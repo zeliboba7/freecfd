@@ -129,6 +129,7 @@ int main(int argc, char *argv[]) {
 	}
 	
 	if (FLAMELET) {
+		flamelet.table.read(input.section("flamelet").get_string("tableFile"));
 		flamelet.allocate();
 		flamelet.mpi_init();
 	}
@@ -159,9 +160,9 @@ int main(int argc, char *argv[]) {
 
 	// Initialize petsc
 	petsc_init(argc,argv,
-				input.section("linearSolver").get_double("relTolerance"),
-				input.section("linearSolver").get_double("absTolerance"),
-				input.section("linearSolver").get_int("maxIterations"));
+			input.section("linearSolver").get_double("relTolerance"),
+			input.section("linearSolver").get_double("absTolerance"),
+			input.section("linearSolver").get_int("maxIterations"));
 	
 	if (TURBULENCE_MODEL!=NONE) {
 		// Initialize petsc for turbulence model
@@ -373,8 +374,8 @@ int main(int argc, char *argv[]) {
 		cout << "* Wall time: " << timeEnd-timeRef << " seconds" << endl;
 	}
 	
-	rans.petsc_destroy();
-	flamelet.petsc_destroy();
+	if (TURBULENCE_MODEL!=NONE) rans.petsc_destroy();
+	if (FLAMELET) flamelet.petsc_destroy();
 	petsc_finalize();
 
 	return 0;

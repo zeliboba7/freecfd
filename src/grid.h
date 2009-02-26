@@ -118,6 +118,7 @@ public:
 	int create_nodes_cells();
 	int create_faces();
 	int create_ghosts();
+	void trim_memory();
 	int areas_volumes();
 	void nodeAverages();
 	void sortStencil(Node& n);
@@ -129,8 +130,6 @@ public:
 	void gradMaps();
 	void gradients();
  	void limit_gradients(void);
-	void gradients_turb();
-	void limit_gradients_turb(void);
 	void lengthScales(void);
 };
 

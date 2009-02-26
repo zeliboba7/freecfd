@@ -32,6 +32,21 @@
 extern IndexMaps maps;
 extern BC bc;
 
+class Flamelet_Table {
+	public:
+	int nZ,nZvar,nChi;
+	vector<double> Z;
+	vector<double> Zvar;
+	vector<double> Chi;
+	vector<vector<vector<double> > > rho;
+	vector<vector<vector<double> > > T;
+	vector<vector<vector<double> > > viscosity;
+	vector<vector<vector<double> > > diffusivity;
+	vector<vector<vector<double> > > conductivity;
+	void read(string fileName);
+	double get_rho(double &Z, double &Zvar, double &Chi);
+};
+
 class Flamelet_Constants {
 	public:
 	double sigma_t,Cg,Cd;
@@ -55,6 +70,7 @@ class Flamelet {
 	std::vector<Flamelet_Cell> cell;
 	std::vector<Flamelet_Ghost> ghost;
 	Flamelet_Constants constants;
+	Flamelet_Table table;
 	KSP ksp; // linear solver context
 	Vec deltaU,rhs; // solution, residual vectors
 	Mat impOP; // implicit operator matrix

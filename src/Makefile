@@ -22,7 +22,9 @@ PETSC_INCLUDE = -I$(PETSC_DIR)/include -I$(PETSC_DIR)/bmake/$(PETSC_ARCH)
 SRC= \
 	assemble_linear_system.cc \
 	check_inputs.cc convective_face_flux.cc commons.cc \
-	diffusive_face_flux.cc eos.cc flamelet.cc flamelet_terms.cc\
+	diffusive_face_flux.cc \
+	eos.cc \
+	flamelet.cc flamelet_table.cc flamelet_terms.cc\
 	grid.cc grid_averaging_metrics.cc grid_create_elements.cc grid_partition.cc grid_readers.cc  \
 	initialize.cc initialize_linear_system.cc inputs.cc \
 	main.cc mpi_functions.cc \

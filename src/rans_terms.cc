@@ -340,22 +340,22 @@ void get_kOmega() {
 		if (bc.region[grid.face[f].bc].type==NOSLIP) {
 			rightK=0.;
 			rightOmega=60.*viscosity/(faceRho*0.075*pow(0.5*left2right.dot(grid.face[f].normal),2.));
-			rightK_center=max(0.,2.*rightK-leftK_center); 
-			rightOmega_center=max(0.,2.*rightOmega-leftOmega_center);
+			rightK_center=2.*rightK-leftK_center; 
+			rightOmega_center=2.*rightOmega-leftOmega_center;
 		} else if (bc.region[grid.face[f].bc].type==SYMMETRY) {
 			rightK_center=leftK_center; 
 			rightOmega_center=leftOmega_center;
 		} else if (bc.region[grid.face[f].bc].type==SLIP) {
-			rightK_center=max(0.,2.*rightK-leftK_center); 
-			rightOmega_center=max(0.,2.*rightOmega-leftOmega_center);
+			rightK_center=2.*rightK-leftK_center; 
+			rightOmega_center=2.*rightOmega-leftOmega_center;
 		} else if (bc.region[grid.face[f].bc].type==INLET) {
 			rightK=bc.region[grid.face[f].bc].k;
 			rightOmega=bc.region[grid.face[f].bc].omega;
 			rightK_center=rightK;
 			rightOmega_center=rightOmega;
 		} else if (bc.region[grid.face[f].bc].type==OUTLET) {
-			rightK_center=max(0.,2.*rightK-leftK_center); 
-			rightOmega_center=max(0.,2.*rightOmega-leftOmega_center);
+			rightK_center=2.*rightK-leftK_center; 
+			rightOmega_center=2.*rightOmega-leftOmega_center;
 		}
 		
 	} else { // partition boundary

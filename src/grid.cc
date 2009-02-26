@@ -68,6 +68,7 @@ int Grid::read(string fname) {
 		mesh2dual();
 		create_faces();
 		create_ghosts();
+		trim_memory();
 		areas_volumes();
 		return 1;
 	} else {
@@ -90,6 +91,50 @@ int Grid::read(string fname) {
 // 	genrcmi(raw.cellConnIndex.size(),0,&adjIndex[0],&raw.cellConnectivity[0],&RCMpermutation[0],&mask[0],&deg[0]);
 // 	return 1;
 // }
+
+void Grid::trim_memory() {
+	// Shrink vector capacities to just the right amounts
+	
+	for (unsigned int n=0;n<nodeCount;++n) {
+		vector<int> (node[n].cells).swap(node[n].cells);
+		vector<int> (node[n].ghosts).swap(node[n].ghosts);
+	}
+	
+	for (unsigned int f=0;f<faceCount;++f) { 
+		vector<int> (face[f].nodes).swap(face[f].nodes);
+	}
+
+	for (unsigned int c=0;c<cellCount;++c) { 
+		vector<int> (cell[c].nodes).swap(cell[c].nodes);
+		vector<int> (cell[c].faces).swap(cell[c].faces);
+		vector<int> (cell[c].neighborCells).swap(cell[c].neighborCells);
+		vector<int> (cell[c].ghosts).swap(cell[c].ghosts);
+	}
+	
+	for (unsigned int g=0;g<ghostCount;++g) { 
+		vector<unsigned int> (ghost[g].cells).swap(ghost[g].cells);
+	}
+	
+	vector<Node> (node).swap(node);
+	vector<Face> (face).swap(face);
+	vector<Cell> (cell).swap(cell);
+	vector<Ghost> (ghost).swap(ghost);
+	
+	vector<int> (partitionOffset).swap(partitionOffset);
+	vector<int> (noSlipFaces).swap(noSlipFaces);
+	
+	// Destroy grid raw data
+	raw.x.clear();
+	raw.y.clear();
+	raw.z.clear();
+	raw.cellConnIndex.clear();
+	raw.cellConnectivity.clear();
+	raw.bocoConnIndex.clear();
+	raw.bocoConnectivity.clear();
+	raw.bocoNameMap.clear();
+	
+	return;
+}
 
 int Grid::scale() {
 	if (input.section("grid").get_Vec3D("scaleBy").is_found) {
