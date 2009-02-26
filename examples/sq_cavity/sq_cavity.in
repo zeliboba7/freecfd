@@ -1,5 +1,7 @@
 // Re 1000 lid driven square cavity
 
+grid {dimension=2;}
+
 reference {Mach=1.e-3;p=1.e5;T=273.;}
 
 numericalOptions {preconditioner=ws95; limiter=doubleMinmod;}
