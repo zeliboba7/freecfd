@@ -20,7 +20,6 @@
     see <http://www.gnu.org/licenses/>.
 
 *************************************************************************/
-#define DEBUG 0
 
 #include <iostream>
 #include <fstream>
@@ -126,12 +125,15 @@ int main(int argc, char *argv[]) {
 	if (TURBULENCE_MODEL!=NONE) {
 		rans.allocate();
 		rans.mpi_init();
+		if (Rank==0) cout << "[I] Initialized turbulence model" << endl;
 	}
 	
 	if (FLAMELET) {
-		flamelet.table.read(input.section("flamelet").get_string("tableFile"));
 		flamelet.allocate();
 		flamelet.mpi_init();
+		if (Rank==0) cout << "[I] Initialized flamelet model" << endl;
+		flamelet.table.read(input.section("flamelet").get_string("tableFile"));
+		if (Rank==0) cout << "[I] Read flamelet pdf table" << endl;
 	}
 	
 	initialize(input);
@@ -186,6 +188,11 @@ int main(int argc, char *argv[]) {
 	}
 
 	if (Rank==0) cout << "[I] Beginning time loop" << endl;
+	// Open residual file 
+	ofstream iterFile;
+	iterFile.open ("linear_solver.log", ios::out);
+	iterFile.precision(3); iterFile << left << scientific;
+	if (Rank==0) cout << "[I] Linear solver details are logged in linear_solver.log" << endl;
 	// Begin timing
 	MPI_Barrier(MPI_COMM_WORLD);
 	double timeRef, timeEnd;
@@ -290,10 +297,45 @@ int main(int argc, char *argv[]) {
 		// Advance physical time
 		time += dt;
 		if (Rank==0) {
-			if (timeStep==(restart+1))  cout << "step" << "\t" << "time" << "\t\t" << "dt" << "\t\t" << "CFLmax" << "\t\t" << "nIter" << "\t" << "LinearRes" << "\t" << "pRes" << "\t\t" << "vRes" << "\t\t" << "TRes" << endl;
-			cout << timeStep << "\t" << setprecision(4) << scientific << time << "\t" << dt << "\t" << CFLmax << "\t" << nIter << "\t" << rNorm << "\t" << resP << "\t" << resV << "\t" << resT << endl;
-			if (!firstTimeStep && TURBULENCE_MODEL!=NONE) cout << nIterTurb << "\t" << rNormTurb << "\t" << resK << "\t" << resOmega << endl;
-			if (!firstTimeStep && FLAMELET) cout << nIterFlame << "\t" << rNormFlame << "\t" << resZ << "\t" << resZvar << endl;
+			// Output residual stream labels
+			cout.precision(3);
+			cout << left << scientific;
+			
+ 			if (timeStep==(restart+1))  {
+				// Write screen labels
+				cout << setw(8) << "step";
+				cout << setw(12) << "time";
+				cout << setw(12) << "dt";
+				cout << setw(12) << "CFLmax";
+				cout << setw(12) << "resP";
+				cout << setw(12) << "resV";
+				cout << setw(12) << "resT";
+				if (TURBULENCE_MODEL!=NONE) cout << setw(12) << "resK" << setw(12) << "resOmega";
+				if (FLAMELET) cout << setw(12) << "resZ" << setw(12) << "resZvar";
+				cout << endl;	
+ 			}
+
+			cout << setw(8) << timeStep;
+			cout << setw(12) << time;
+			cout << setw(12) << dt;
+			cout << setw(12) << CFLmax;
+			cout << setw(12) << resP;
+			cout << setw(12) << resV;
+			cout << setw(12) << resT;
+			iterFile << timeStep << "\t" << nIter << "\t" << rNorm;
+			
+			if (!firstTimeStep && TURBULENCE_MODEL!=NONE) {
+				cout << setw(12) << resK << setw(12) << resOmega;
+				iterFile << "\t" << nIterTurb << "\t" << rNormTurb;
+			}
+			if (!firstTimeStep && FLAMELET) {
+				cout << setw(12) << resZ << setw(12) << resZvar;
+				iterFile << "\t" << nIterFlame << "\t" << rNormFlame;
+			}
+			cout << endl; iterFile << endl;
+			
+			
+			
 		}
 		
 		// Ramp-up if needed
@@ -360,11 +402,10 @@ int main(int argc, char *argv[]) {
 	
 	}
 
+	iterFile.close();
 	/*****************************************************************************************/
 	// End time loop
 	/*****************************************************************************************/
-	
-	//writeTecplotMacro(restart,timeStepMax, outFreq);
 	// Syncronize the processors
 	MPI_Barrier(MPI_COMM_WORLD);
 

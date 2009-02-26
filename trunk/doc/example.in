@@ -2,13 +2,34 @@ equations=NS;
 // Choose the equation system to solve.
 // Available options are "NS", for Navier-Stokes, and "Euler".
 // If not specified, default value is "NS". 
- 
-grid { 
+
+turbulence {
+model=bsl;
+// Choice of the model. Available options are
+// "none", "k-epsilon", "k-omega" and "bsl"
+// "bsl" corresponds to Menter's BSL model
+// *NOTE* Even if you are using k-epsilon, Free CFD
+// will still be using omega instead of epsilon
+omegaLowLimit=1.;
+// Optional, default value is 1.
+kLowLimit=1.e-8;
+// Optional, default value is 1.e-8
+viscosityRatioLimit=1.e5;
+// Optional. Caps the maximum ration of
+// eddy viscosity / laminar viscosity
+// Default value is 1.e5;
+}
+
+grid {
+dimension=2; // Optional, default is 3
+// In 1D or 2D runs, you can still use dimension=3. But specifying the
+// correct value will reduce the node interpolation stencil size.
 scaleBy=[1.,1.,1.];
-// Vector entry "scaleBy" contains factors with which the whole mesh is scaled
-// A vector entry has three components listed within square brackets, 
+// Vector entry "scaleBy" contains factors with which the mesh is scaled
+// A vector entry has three components listed within square brackets,
 // separated with commas
-// In case of scaleBy, the three components contain x,y and z scale factors
+// In case of scaleBy, the three components contain
+// x,y and z scale factors
 // Skip this if you don't need scaling
 rotationCenter=[0.,0.,0.]; rotationAngles=[10.,0.,0.];
 // Rotate the whole grid around a point
@@ -28,14 +49,14 @@ Mach=1.;
 // 1.e-4 should be a safe value
 p=0.;
 // "p" is the reference pressure. Every other pressure specification is
-// treated as relative to this value. 
+// treated as relative to this value.
 // If skipped, 0. is assumed
 T=273.;
-// "T" is the reference temperature. Every other temperature specification is
-// treated as relative to this value.
-// If skipped, 273. is assumed 
+// "T" is the reference temperature. Every other temperature
+// specification is treated as relative to this value.
+// If skipped, 273. is assumed
 } 
- 
+
 timeMarching {
 integrator=backwardEuler;
 // Available options for integrator is "forwardEuler" and "backwardEuler"
@@ -54,11 +75,11 @@ stepSize=1.e-3;
 ramp (initial=1.e-4; growth=1.1);
 // Whatever method of time stepping is chosen above, there is an
 // option to start with a lower value and ramp up with a growth factor
-// If the "ramp" subsection is skipped, ramping it not used
+// If the "ramp" subsection is skipped, ramping is not used
 numberOfSteps=1000;
 // "numberOfSteps" specifies how many time steps will be marched
 }
- 
+
 numericalOptions{
 convectiveFlux=AUSM+up;
 // Select inviscid flux function. Available options are
@@ -77,9 +98,9 @@ limiter=doubleMinmod;
 preconditioner=ws95;
 // low-Ma preconditioning due to Weiss-Smith'95
 // options are "none" or "ws95"
-// Destroys time accuracy
+// Hurts time accuracy
 } 
- 
+
 linearSolver {
 relTolerance=1.e-5;
 // Drop in residual before proceeding to the next time step
@@ -89,20 +110,21 @@ maxIterations=50;
 // Maximum number of iterations before giving up, a required entry
 // When one of the above criteria is reached, time is marched
 } 
- 
+
 fluidProperties {
 gamma=1.4; // Required
 viscosity=1.e-3; // Required if "equations" selection is "NS"
 molarMass=0.02897; // in kg/mol
-// molarMass is used in calculating the ideal gas constant 
-// If skipped,air's molar mass is used by default
+// molarMass is used in calculating the ideal gas constant
+// If skipped, air's molar mass is used by default
 } 
- 
+
 writeOutput {
 format=tecplot;
 // Available options are "tecplot" and "vtk"
 // "tecplot" writes out ASCII format output for Tecplot
-// "vtk" writes out binary parallel vtk format for Paraview
+// "vtk" writes out parallel unstructured vtk format
+// which Paraview can read
 plotFrequency=10;
 // Frequency of time steps at which output file is written
 restartFrequency=100;
@@ -110,31 +132,34 @@ restartFrequency=100;
 // Frequency of zero will crash the code, so if you don't want
 // output, just set the frequency to a large number
 } 
- 
-initialConditions{
+
+initialConditions {
 // You can have multiple initial conditions for different regions
 // Each initial condition is a subsection named as IC_#
 // Conditions are applied sequentially based on the number
-IC_1 (rho=1; p=1; v=[0,0,0];);
+// "k" and "omega" is required only if using a turbulence model
+IC_1 (rho=1; p=1; v=[0,0,0]; k=0.1; omega=1.e5;);
 // "IC_1" will initialize the whole domain to the given conditions
 // You need to specify two of "p", "rho" and "T" to fix the state
-// "p" and "T" are relative to the valus specified in the "reference" section
+// "p" and "T" should be thought as relative to the values given in
+//  the "reference" section
 // Note that v is the velocity vector. As such it has three components
 // listed within square brackets, separated with commas
 IC_2 (region=box; corner_1=[0.5,-1,-1]; corner_2=[1,1,1];
-    rho=2; p=2; v=[1,0,0];)
+    rho=2; p=2; v=[1,0,0]; k=0.1; omega=1.e5;)
 // "IC_2" selects a box region defined by two corner coordinates
 // Any cell center of which lies within the defined box is selected
 IC_3 (region=cylinder; center=[1,1,1]; radius=0.5; height=1;
-    axisDirection=[0,0,1]; rho=2; p=2; v=[0.1,0,0];)
+    axisDirection=[0,0,1]; rho=2; p=2; v=[0.1,0,0]; k=0.1; omega=1.e5;)
 // "IC_3" selects a cylindrical region, note that center
 // and axisDirection are vectors. The velocity vector components are
 // now treated as axial, radial and circumferential velocities
-IC_4 (region=sphere; center=[1,1,1]; radius=0.5; rho=2; p=2; v=[1.,0,0];)
+IC_4 (region=sphere; center=[1,1,1]; radius=0.5; rho=2; p=2; v=[1.,0,0];
+      k=0.1; omega=1.e5;)
 // "IC_4" selects a spherical region. First velocity component is
 // treated as the radial velocity while the rest is ignored
 } 
- 
+
 boundaryConditions {
 // Boundary conditions are also a numbered list of subsections
 BC_1(type=symmetry;);
@@ -149,11 +174,13 @@ BC_2(type=slip;);
 BC_3 (type=noslip;);
 // "BC_3" is a noslip wall condition. Velocity vector is set to zero
 // If "T" is specified, temperature is fixed, else adiabatic assumed
-BC_4 (type=inlet; rho=1; v=[1,0,0];);
+BC_4 (type=inlet; rho=1; v=[1,0,0]; k=0.1; omega=1.e5;);
 // "BC_4" is an inlet. We don't have a separation between subsonic and
-// supersonic inlet types. In subsonic cases, you should generally specify
-// pressure at the outlet. In supersonic, you need to specify the 
-// thermodynamic state at the inlet by providing two of "rho", "p" and "T"
+// supersonic inlet types. In subsonic cases, you should generally
+// specify pressure at the outlet. In supersonic, you need to specify
+// the thermodynamic state at the inlet by providing two of
+// "rho", "p" and "T"
+// "k" and "omega" is required only if using a turbulence model
 BC_5 (type=outlet;);
 // "BC_5" is an outlet. Every variable is extrapolated from inside
 BC_6(type=outlet; p=1;);
@@ -164,7 +191,7 @@ BC_6(type=outlet; p=1;);
 All of the above boundary condition regions (which are faces on the grid)
 followed from the grid file in the exact order it was written. Sometimes
 it is useful to override/split some of those.
- 
+
 An example below demonstrates this.
 */
 
@@ -185,7 +212,7 @@ probes { frequency=1;
         probe_2 (coord=[1.,0.,0.];);
 // Probe a certain point in the flowfield
 // probe#.dat file is created in the case folder and
-// timeStep time p u v w T rho
+// timeStep time p u v w T rho k omega eddyViscosity
 // is appended on specified frequency of timeSteps
 // **NOTE** specified coordinate may not be exactly matched
 // Nearest cell center value is written
@@ -194,7 +221,28 @@ probes { frequency=1;
 integrateBoundary { frequency=1;
         flux_1 (bc=2;);
 	flux_2 (bc=4;);
-// integrated values of fluxes are written to flux_bc_#.dat on specified 
+// integrated values of fluxes are written to flux_bc_#.dat on specified
 // frequency of time steps. The file contains:
 // timeStep time mass x-momentum y-momentum z-momentum energy
+}
+
+The input file above is detailed and crowded with comments and may look scary, let's look at another example using default values for clarity:
+
+reference { Mach=1.e-3; p=1.e5; }
+
+timeMarching { CFLmax=1.e4; numberOfSteps=1000; }
+
+linearSolver { relTolerance=1.e-4; absTolerance=1.e-8; maxIterations=50;}
+
+fluidProperties {gamma=1.4; viscosity=1.e-5; }
+
+writeOutput { plotFrequency=10; restartFrequency=100; }
+
+initialConditions { IC_1 (rho=1; p=1; v=[0,0,0];); }
+
+boundaryConditions {
+    BC_1 (type=symmetry;);
+    BC_2 (type=noslip;);
+    BC_3 (type=inlet; rho=1;  v=[1,0,0];);
+    BC_4 (type=outlet; p=0;);
 }

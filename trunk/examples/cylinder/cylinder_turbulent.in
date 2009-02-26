@@ -1,4 +1,9 @@
-// Re 150 Ma 0.004
+// Turbulent flow over a circular cylinder
+// Cylinder diameter=0.1
+// Grid is 2D with  a z-thickness of 0.01
+// Re=1000 Ma=0.0027
+
+turbulence {model=bsl; omegaLowLimit=1.; kLowLimit=1.e-8; viscosityRatioLimit=1.e5;}
 
 grid {dimension=2;}
 
@@ -7,20 +12,20 @@ reference {Mach=1.e-3;p=1.e5;T=273.;}
 numericalOptions {limiter=doubleMinmod;}
 
 timeMarching {
-        stepSize=0.002;
+        stepSize=5.e-3; // ~100 samples per cycle
         numberOfSteps=10000;
 }
 
 linearSolver {
-        relTolerance=1.e-5;
+        relTolerance=1.e-7;
         absTolerance=1.e-12;
         maxIterations=50;
 }
 
-fluidProperties {gamma=1.4; viscosity=1e-3;;}
+fluidProperties {gamma=1.4; viscosity=1e-5;} // Re=10000
 
 initialConditions {
-        IC_1(rho=1.; v=[1.5,0.,0.]; p=0.;);
+        IC_1(rho=1.; v=[1.,0.,0.]; p=0.; k=1.e-5; omega=10.;);
 }
 
 //   bc1 symetry planes
@@ -32,12 +37,12 @@ initialConditions {
 boundaryConditions {
 	BC_1 (type=symmetry;); 
 	BC_2 (type=noslip;);
-	BC_3 (type=slip;); 
-	BC_4 (type=inlet; rho=1.; v=[1.5,0.,0.];); 
+	BC_3 (type=symmetry;); 
+	BC_4 (type=inlet; rho=1.; v=[1.,0.,0.]; k=1.e-5; omega=10.;); 
 	BC_5 (type=outlet; p=0.;);
 }
 
-writeOutput {format=tecplot; plotFrequency=50; restartFrequency=200; }
+writeOutput {format=tecplot; plotFrequency=25; restartFrequency=100; }
 
 probes { frequency=1;
 	probe_1 (coord=[0.,0.05,0.];);

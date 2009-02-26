@@ -2,6 +2,8 @@
 
 equations=Euler;
 
+grid {dimension=2;}
+
 reference {p=1.e5;}
 
 numericalOptions {
