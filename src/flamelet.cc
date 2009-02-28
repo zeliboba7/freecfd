@@ -23,11 +23,13 @@
 #include "commons.h"
 #include "petscksp.h"
 #include "flamelet.h"
+#include "rans.h"
 
 extern double minmod(double a, double b);
 extern double doubleMinmod(double a, double b);
 extern double harmonic(double a, double b);
 extern double superbee(double a, double b);
+extern RANS rans;
 
 struct mpiGhost {
 	unsigned int globalId;
@@ -261,7 +263,7 @@ void Flamelet::gradients(void) {
 						faceZvar+=(*fit).second*ghost[-1*((*fit).first+1)].Zvar;
 					}
 				}
-				
+				// SO this only done on the boundary contribution to gradienst WHYY EZ
 				faceZ=max(0.,faceZ);
 				faceZ=min(1.,faceZ);
 				faceZvar=max(0.,faceZvar);
@@ -342,6 +344,7 @@ void Flamelet::limit_gradients(void) {
 } // end Flamelet::limit_gradients()
 
 void Flamelet::update(double &resZ, double &resZvar) {
+	
 
 	resZ=0.; resZvar=0.;
 	
@@ -351,7 +354,6 @@ void Flamelet::update(double &resZ, double &resZvar) {
 		cell[c].update[0]=max(-cell[c].Z,cell[c].update[0]);
 		// Limit the update so Z doesn't end up larger than 1
 		cell[c].update[0]=min(1.-cell[c].Z,cell[c].update[0]);
-		// Limit the update so Zvar doesn't end up smaller than 100
 		cell[c].update[1]=max(-cell[c].Zvar,cell[c].update[1]);
 		
 		cell[c].Z += cell[c].update[0];
@@ -373,3 +375,18 @@ void Flamelet::update(double &resZ, double &resZvar) {
 	return;
 
 } // end Flamelet::update
+
+void Flamelet::update_rho(){
+	
+//updates the denisty at the cell center
+	for (unsigned int c = 0;c < grid.cellCount;++c) {
+		double Chi=2.0*rans.kepsilon.beta_star*rans.cell[c].omega*cell[c].Zvar;
+		grid.cell[c].rho= table.get_rho(cell[c].Z, cell[c].Zvar,Chi );
+		grid.cell[c].T= table.get_temperature(cell[c].Z, cell[c].Zvar,Chi );
+	
+
+	} // cell loop
+
+
+}
+

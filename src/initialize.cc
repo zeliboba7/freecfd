@@ -60,8 +60,13 @@ void initialize(InputFile &input) {
 		}
 		regionK=region.get_double("k");
 		regionOmega=region.get_double("omega");
-		regionZ=region.get_double("Z");
-		regionZvar=region.get_double("Zvar");
+		if (FLAMELET) {
+			regionZ=region.get_double("Z");
+			regionZvar=region.get_double("Zvar");
+			double Chi=2.*regionOmega*regionZvar*rans.kepsilon.beta_star;
+			regionRho=flamelet.table.get_rho(regionZ,regionZvar,Chi);
+			regionT=flamelet.table.get_temperature(regionZ,regionZvar,Chi);
+		}
 		// If region is specified with a box method
 		if (region.get_string("region")=="box") {
 			// Loop the cells
