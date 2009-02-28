@@ -40,6 +40,7 @@ void Flamelet::terms(void) {
 	MatZeroEntries(impOP); // Flush the implicit operator
 
 	// Loop through faces
+	Vec3D sum=0.;
 	for (f=0;f<grid.faceCount;++f) {
 		
 		parent=grid.face[f].parent; neighbor=grid.face[f].neighbor;
@@ -55,6 +56,30 @@ void Flamelet::terms(void) {
 		// These weights are coming from the Riemann solver
 		weightL=grid.face[f].weightL; weightR=grid.face[f].weightR;
 
+// 		if (Rank==1 && f==1254) {
+// 			cout << grid.face[f].centroid << "\t" << faceGradZ << endl;
+// 			
+// 		}
+// 		if (Rank==1) {
+// 			if (parent==304) {
+// 				cout.precision(4);
+// 				1254
+// 								//cout << grid.cell[parent].centroid << endl;
+// 				cout << f << "\t" << sum << "\t" << grid.face[f].normal << "\t" << grid.face[f].area << endl;
+// 				//cout << cell[parent].grad[0] << endl;
+// 				sum+=grid.face[f].area*grid.face[f].normal;
+// 				
+// 				//if (grid.face[f].normal[1]<-0.5) cout << f << "\t" << grid.face[f].centroid << "\t" << grid.face[f].area << endl;
+// 			}
+// 		}
+		
+//  		double weightMax=max(weightL,weightR);
+// 		if (grid.face[f].mdot>=0.) {
+// 			weightL+=0.05*weightMax;
+// 		} else { weightL-=0.05*weightMax; }
+		
+// 		weightR=1.-weightL;
+		
 		convectiveFlux[0]=grid.face[f].mdot*(weightL*leftZ+weightR*rightZ)*grid.face[f].area;
 		convectiveFlux[1]=grid.face[f].mdot*(weightL*leftZvar+weightR*rightZvar)*grid.face[f].area;
 
@@ -205,6 +230,12 @@ void Flamelet::get_Z_Zvar(unsigned int &parent,unsigned int &neighbor,unsigned i
 		for (unsigned int i=0;i<2;++i) delta[i]=0.;
 	}
 	
+	if (Rank==1 && parent==767) {
+		if (grid.face[f].normal[0]<-0.5) {
+			cout << f << "\t" << cell[parent].Z << "\t" << delta[0] << "\t" << grid.face[f].normal << endl;
+		}
+	}
+	
 	leftZ_center=cell[parent].Z;
 	leftZ=leftZ_center+delta[0];
 	leftZvar_center=cell[parent].Zvar;
@@ -260,24 +291,29 @@ void Flamelet::get_Z_Zvar(unsigned int &parent,unsigned int &neighbor,unsigned i
 	} else if (grid.face[f].bc>=0) { // boundary face
 		
 		rightZ=leftZ; rightZvar=leftZvar;
-
+		rightZ_center=leftZ_center;
+		rightZvar_center=leftZvar_center;
 		if (bc.region[grid.face[f].bc].type==NOSLIP) {
-			rightZvar=0.; rightZvar_center=0.;
-			rightZ_center=2.*rightZ-leftZ_center;
+// 			rightZ_center=2.*rightZ-leftZ_center;
+// 			rightZvar_center=2.*rightZvar-leftZvar_center;
+// 			rightZ_center=rightZ;
+// 			rightZvar_center=rightZvar;
 		} else if (bc.region[grid.face[f].bc].type==SYMMETRY) {
-			rightZ_center=leftZ_center; 
-			rightZvar_center=leftZvar_center;
+// 			rightZ_center=leftZ_center; 
+// 			rightZvar_center=leftZvar_center;
 		} else if (bc.region[grid.face[f].bc].type==SLIP) {
-			rightZ_center=2.*rightZ-leftZ_center;
-			rightZvar_center=2.*rightZvar-leftZvar_center;
+// 			rightZ_center=2.*rightZ-leftZ_center;
+// 			rightZvar_center=2.*rightZvar-leftZvar_center;
 		} else if (bc.region[grid.face[f].bc].type==INLET) {
 			rightZ=bc.region[grid.face[f].bc].Z;
 			rightZvar=bc.region[grid.face[f].bc].Zvar;
 			rightZ_center=rightZ;
 			rightZvar_center=rightZvar;
+// 			leftZ=rightZ;
+// 			leftZ_center=rightZ;
 		} else if (bc.region[grid.face[f].bc].type==OUTLET) {
-			rightZ_center=2.*rightZ-leftZ_center;
-			rightZvar_center=2.*rightZvar-leftZvar_center;
+// 			rightZ_center=2.*rightZ-leftZ_center;
+// 			rightZvar_center=2.*rightZvar-leftZvar_center;
 		}
 		
 	} else { // partition boundary

@@ -260,11 +260,26 @@ int main(int argc, char *argv[]) {
 		
 		if (FLAMELET) {
 			if (firstTimeStep) {
+				flamelet.update_rho();
 				flamelet.mpi_update_ghost();
-			} else {
 				flamelet.gradients();
 				flamelet.mpi_update_ghost_gradients();
 				flamelet.limit_gradients();
+				flamelet.mpi_update_ghost_gradients(); // Called again to update the ghost gradients
+			} else {
+				flamelet.gradients();
+// 				if (Rank==1) {
+// 				cout << flamelet.cell[748].Z << "\t" << flamelet.cell[748].grad[0] << endl;
+// 				cout << flamelet.cell[767].Z << "\t" << flamelet.cell[767].grad[0] << endl;
+// 				cout << flamelet.cell[786].Z << "\t" << flamelet.cell[786].grad[0] << endl;
+// 				}
+				flamelet.mpi_update_ghost_gradients();
+				flamelet.limit_gradients();
+// 				if (Rank==1) {
+// 				cout << flamelet.cell[748].Z << "\t" << flamelet.cell[748].grad[0] << endl;
+// 				cout << flamelet.cell[767].Z << "\t" << flamelet.cell[767].grad[0] << endl;
+// 				cout << flamelet.cell[786].Z << "\t" << flamelet.cell[786].grad[0] << endl;
+// 				}
 				flamelet.mpi_update_ghost_gradients(); // Called again to update the ghost gradients
 				// update_face_mdot(); is done with the turbulence model part
 				flamelet.terms();
@@ -479,7 +494,7 @@ void update(void) {
 		grid.cell[c].v[0] +=grid.cell[c].update[1];
 		grid.cell[c].v[1] +=grid.cell[c].update[2];
 		grid.cell[c].v[2] +=grid.cell[c].update[3];
-		grid.cell[c].T += grid.cell[c].update[4];
+		if (!FLAMELET) grid.cell[c].T += grid.cell[c].update[4];
 		grid.cell[c].rho=eos.rho(grid.cell[c].p,grid.cell[c].T);
 
 		resP+=grid.cell[c].update[0]*grid.cell[c].update[0];
