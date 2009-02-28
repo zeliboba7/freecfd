@@ -31,12 +31,13 @@ EOS::EOS() {
 void EOS::set() {
 	if (input.section("fluidProperties").get_string("eos")=="idealGas") {
 		type=IDEAL_GAS;
-		R=UNIV_GAS_CONST/input.section("fluidProperties").get_double("molarMass");;
+		R=UNIV_GAS_CONST/input.section("fluidProperties").get_double("molarMass");
 	}
 }
 
-double EOS::rho (double p, double T) {
+double EOS::rho (double p, double T) { 
 	return (p+Pref)/(R*(T+Tref));
+	
 }
 
 double EOS::p (double rho, double T) {

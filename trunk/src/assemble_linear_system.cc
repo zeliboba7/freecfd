@@ -27,9 +27,13 @@
 #include "inputs.h"
 #include "state_cache.h"
 #include "petsc_functions.h"
+#include "flamelet.h"
+#include "rans.h"
 
 extern BC bc;
 extern InputFile input;
+extern Flamelet flamelet;
+extern RANS rans;
 
 void get_jacobians(const int var);
 void convective_face_flux(Cell_State &left,Cell_State &right,Face_State &face,double flux[]);
@@ -292,6 +296,19 @@ void left_state_update(Cell_State &left,Face_State &face) {
 	left.T_center=grid.cell[parent].T;
 	left.T=left.T_center+delta[4];
 	left.rho=eos.rho(left.p,left.T);
+	if (FLAMELET){
+		double leftZ,leftZvar,leftOmega,Chi;
+		leftZ=flamelet.cell[parent].Z;
+		leftZvar=flamelet.cell[parent].Zvar;
+		leftOmega=rans.cell[parent].omega;
+		if (order==SECOND) {
+			leftZ+=(grid.face[face.index].centroid-grid.cell[parent].centroid).dot(flamelet.cell[parent].grad[0]);
+			leftZvar+=(grid.face[face.index].centroid-grid.cell[parent].centroid).dot(flamelet.cell[parent].grad[1]);
+			leftOmega+=(grid.face[face.index].centroid-grid.cell[parent].centroid).dot(rans.cell[parent].grad[1]);
+		}
+		Chi=2.*leftOmega*leftZvar*rans.kepsilon.beta_star;
+		left.rho=flamelet.table.get_rho(leftZ,leftZvar,Chi);
+	}
 	left.a=sqrt(Gamma*(left.p+Pref)/left.rho);
 	left.H=left.a*left.a/(Gamma-1.)+0.5*left.v.dot(left.v);	
 	left.vN[0]=left.v.dot(face.normal);
@@ -331,6 +348,19 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 		right.T_center=grid.cell[neighbor].T;
 		right.T=right.T_center+delta[4];
 		right.rho=eos.rho(right.p,right.T);
+		if (FLAMELET){
+			double rightZ,rightZvar,rightOmega,Chi;
+			rightZ=flamelet.cell[neighbor].Z;
+			rightZvar=flamelet.cell[neighbor].Zvar;
+			rightOmega=rans.cell[neighbor].omega;
+			if (order==SECOND) {
+				rightZ+=(grid.face[face.index].centroid-grid.cell[neighbor].centroid).dot(flamelet.cell[neighbor].grad[0]);
+				rightZvar+=(grid.face[face.index].centroid-grid.cell[neighbor].centroid).dot(flamelet.cell[neighbor].grad[1]);
+				rightOmega+=(grid.face[face.index].centroid-grid.cell[neighbor].centroid).dot(rans.cell[neighbor].grad[1]);
+			}
+			Chi=2.*rightOmega*rightZvar*rans.kepsilon.beta_star;
+			right.rho=flamelet.table.get_rho(rightZ,rightZvar,Chi);
+		}
 		right.volume=grid.cell[neighbor].volume;
 		
 	} else if (face.bc>=0) { // boundary face
@@ -418,6 +448,19 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 		right.T_center=grid.ghost[g].T;
 		right.T=right.T_center+delta[4];
 		right.rho=eos.rho(right.p,right.T);
+		if (FLAMELET){
+			double rightZ,rightZvar,rightOmega,Chi;
+			rightZ=flamelet.ghost[g].Z;
+			rightZvar=flamelet.ghost[g].Zvar;
+			rightOmega=rans.ghost[g].omega;
+			if (order==SECOND) {
+				rightZ+=(grid.face[face.index].centroid-grid.ghost[g].centroid).dot(flamelet.ghost[g].grad[0]);
+				rightZvar+=(grid.face[face.index].centroid-grid.ghost[g].centroid).dot(flamelet.ghost[g].grad[1]);
+				rightOmega+=(grid.face[face.index].centroid-grid.ghost[g].centroid).dot(rans.ghost[g].grad[1]);
+			}
+			Chi=2.*rightOmega*rightZvar*rans.kepsilon.beta_star;
+			right.rho=flamelet.table.get_rho(rightZ,rightZvar,Chi);
+		}
 	
 	}
 
@@ -492,7 +535,7 @@ void state_perturb(Cell_State &state,Face_State &face,int var,double epsilon) {
 	{
 		case 0 : // p
 			state.p+=epsilon;
-			state.rho=eos.rho(state.p,state.T);
+			if (!FLAMELET) state.rho=eos.rho(state.p,state.T);
 			state.a=sqrt(Gamma*(state.p+Pref)/state.rho);
 			state.H=state.a*state.a/(Gamma-1.)+0.5*state.v.dot(state.v);
 			break;
@@ -523,7 +566,7 @@ void state_perturb(Cell_State &state,Face_State &face,int var,double epsilon) {
 		case 4 : // T
 			state.T+=epsilon;
 			state.T_center+=epsilon;
-			state.rho=eos.rho(state.p,state.T);
+			if (!FLAMELET) state.rho=eos.rho(state.p,state.T);
 			state.a=sqrt(Gamma*(state.p+Pref)/state.rho);
 			state.H=state.a*state.a/(Gamma-1.)+0.5*state.v.dot(state.v);
 			break;
@@ -538,7 +581,7 @@ void face_state_adjust(Cell_State &left,Cell_State &right,Face_State &face,int v
 	{
 		case 0 : // p
 			face.p=0.5*(left.p+right.p);
-			face.rho=eos.rho(face.p,face.T);
+			if (!FLAMELET) face.rho=eos.rho(face.p,face.T);
 			break;
 		case 1 : // u
 			face.v[0]=0.5*(left.v[0]+right.v[0]);
@@ -557,7 +600,7 @@ void face_state_adjust(Cell_State &left,Cell_State &right,Face_State &face,int v
 			break;
 		case 4 : // T
 			face.T=0.5*(left.T+right.T);
-			face.rho=eos.rho(face.p,face.T);
+			if (!FLAMELET) face.rho=eos.rho(face.p,face.T);
 			face.gradT-=face.gradT.dot(face.normal)*face.normal;
 			face.gradT+=((right.T_center-left.T_center)/(face.left2right.dot(face.normal)))*face.normal;
 			break;

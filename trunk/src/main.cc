@@ -270,7 +270,13 @@ int main(int argc, char *argv[]) {
 				flamelet.terms();
 				flamelet.petsc_solve(nIterFlame,rNormFlame);
 				flamelet.update(resZ,resZvar);
+				flamelet.update_rho();
 				flamelet.mpi_update_ghost();
+				flamelet.gradients();
+				flamelet.mpi_update_ghost_gradients();
+				flamelet.limit_gradients();
+				flamelet.mpi_update_ghost_gradients(); // Called again to update the ghost gradients
+				
 			}
 		}
 		

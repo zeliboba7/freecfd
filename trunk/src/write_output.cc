@@ -152,8 +152,8 @@ void write_tec(double time) {
 			if (count_v>0) v_node/=double(count_v);
 			if (count_k>0) k_node/=double(count_k);
 			if (count_omega>0) omega_node/=double(count_omega);
-			if (count_Z>0) k_node/=double(count_Z);
-			if (count_Zvar>0) omega_node/=double(count_Zvar);
+			if (count_Z>0) Z_node/=double(count_Z);
+			if (count_Zvar>0) Zvar_node/=double(count_Zvar);
 		}
 		
 		Ma=sqrt((v_node.dot(v_node))/(Gamma*(p_node+Pref)/rho_node));
