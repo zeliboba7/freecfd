@@ -202,7 +202,14 @@ int Grid::areas_volumes() {
 		areaVec=0.;
 		int next;
 		// First calculate face normal
-		face[f].normal=(face[f].node(2)-face[f].node(1)).cross(face[f].node(0)-face[f].node(1)).norm();
+		face[f].normal=(face[f].node(2)-face[f].node(1)).cross(face[f].node(0)-face[f].node(1));
+		double length=fabs(face[f].normal);
+		if (length<1.e-20) length=1.e-8;
+		face[f].normal/=length;
+		//if (length<1.) length=1.e-8;
+		//if (f==1590) cout << length << endl;
+		//if ( !(fabs(fabs(face[f].normal)-1.)<1.e-7))
+		//cout << f << "\t" << fabs(face[f].normal) << endl;
 		for (unsigned int n=0;n<face[f].nodeCount;++n) {
 			next=n+1;
 			if (next==face[f].nodeCount) next=0;
@@ -215,7 +222,9 @@ int Grid::areas_volumes() {
 		face[f].centroid/=face[f].area;
 
 	}
-			
+	
+	cout << "[I Rank=" << Rank << "] Calcualted face areas and centroids" << endl;
+	
 	// Loop through the cells and calculate the volumes
 	double totalVolume=0.;
 	for (unsigned int c=0;c<cellCount;++c) {
@@ -230,7 +239,6 @@ int Grid::areas_volumes() {
 			centroid+=cell[c].node(cn);
 		}
 		centroid/=double(cell[c].nodeCount);
-		
 		// Break-up the volume into tetrahedras and add the volumes
 		// Calculate the centroid of the cell by taking moments of each tetra
 		cell[c].centroid=0.;
@@ -240,12 +248,16 @@ int Grid::areas_volumes() {
 			// Every cell face is broken to triangles
 			for (unsigned int n=0;n<face[f].nodeCount;++n) {
 				next=n+1;
+//cout << face[f].nodeCount << "\t" << cf << "\t" << n << "\t" << face[f].node(n) << endl;
 				if (next==face[f].nodeCount) next=0;
 				// Triangle area
+//cout << cell[c].faceCount << "\t" << cell[c].faces.size() << endl;
+				//cerr << face[f].node(n) << "\t" << face[f].node(next) << "\t" << face[f].centroid << endl;
 				basePatchArea=0.5*(face[f].node(n)-face[f].centroid).cross(face[f].node(next)-face[f].centroid);
 				// Height of the tetrahedra
 				height=(face[f].centroid-centroid).dot(face[f].normal)*face[f].normal;
 				// Fix face orientation issue
+	//cout << basePatchArea << "\t" << height << endl;
 				sign=-1.;
 				if (face[f].parent==c) sign=1.;
 				patchVolume=sign*basePatchArea.dot(height)/3.;
@@ -362,7 +374,6 @@ void Grid::gradients(void) {
 			f=cell[c].faces[cf];
 			if (face[f].bc>=0) { // if a boundary face
 				areaVec=face[f].normal*face[f].area/cell[c].volume;
-				
 				faceP=0.; faceVel=0.; faceT=0.;
 				for (fit=face[f].average.begin();fit!=face[f].average.end();fit++) {
 					if ((*fit).first>=0) { // if contribution is coming from a real cell
@@ -379,7 +390,7 @@ void Grid::gradients(void) {
  				faceRho=eos.rho(faceP,faceT);
 				
 				if (bc.region[face[f].bc].thermalType==ADIABATIC) {
-					faceT=cell[face[f].parent].T;
+					faceT=cell[c].T;
 					faceRho=eos.rho(faceP,faceT);
 				}
 				
@@ -404,8 +415,8 @@ void Grid::gradients(void) {
 					faceVel-=faceVel.dot(face[f].normal)*face[f].normal;
 				} else if (bc.region[face[f].bc].type==SYMMETRY) {
 					// Symmetry mirrors everything
-					faceP=cell[face[f].parent].p;
-					faceVel=cell[face[f].parent].v;
+					faceP=cell[c].p;
+					faceVel=cell[c].v;
 					faceVel-=faceVel.dot(face[f].normal)*face[f].normal;
 				} else if (bc.region[face[f].bc].type==NOSLIP) {
 					faceVel=0.;

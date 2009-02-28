@@ -268,6 +268,7 @@ int Grid::create_faces() {
 			tempFace.bc=INTERNAL;
 			// Store the node local ids of the current face	
 			for (unsigned int fn=0;fn<tempFace.nodeCount;++fn) {
+//if (cell[c].nodeCount<4 || cell[c].nodeCount>8) cout << "here" << "\t" << cell[c].nodeCount << endl;
 				switch (cell[c].nodeCount) {
 					case 4: tempNodes[fn]=cell[c].node(tetraFaces[cf][fn]).id; break;
 					case 5: tempNodes[fn]=cell[c].node(pyraFaces[cf][fn]).id; break;

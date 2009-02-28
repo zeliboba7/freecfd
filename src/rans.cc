@@ -286,12 +286,12 @@ void RANS::gradients(void) {
 					faceOmega=bc.region[grid.face[f].bc].omega;
 				} else if (bc.region[grid.face[f].bc].type==SYMMETRY) {
 					// Symmetry mirrors everything
-					faceK=cell[grid.face[f].parent].k;
-					faceOmega=cell[grid.face[f].parent].omega;
+					faceK=cell[c].k;
+					faceOmega=cell[c].omega;
 				} else if (bc.region[grid.face[f].bc].type==NOSLIP) {
 					faceK=0.;
 					faceOmega=60.*viscosity/(faceRho*0.075*
-							pow(fabs((grid.cell[grid.face[f].parent].centroid-grid.face[f].centroid).dot(grid.face[f].normal)),2.));
+							pow(fabs((grid.cell[c].centroid-grid.face[f].centroid).dot(grid.face[f].normal)),2.));
 				}
 				
 				cell[c].grad[0]+=faceK*areaVec;

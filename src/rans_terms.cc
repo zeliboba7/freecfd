@@ -107,22 +107,22 @@ void RANS::terms(void) {
 		
 		// Assumes k flux doesn't change with omega and vice versa 
 		// This is true for convective flux (effect of mu_t in diffusive flux ignored)
-		// TODO What is density doing in diffusive flux jacobians?
+
 		double leftRho=grid.cell[parent].rho;
 		double rightRho=1.; // if right cell is not internal, jacobian is not inserted into the matrix, so this doesn't matter
 		if (grid.face[f].bc==INTERNAL) rightRho=grid.cell[neighbor].rho;
 		// dF_k/dk_left
 		jacL[0]=weightL*grid.face[f].mdot*grid.face[f].area; // convective
-		jacL[0]+=(viscosity+mu_t*sigma_k)/(leftRho*left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
+		jacL[0]+=(viscosity+mu_t*sigma_k)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
 		// dF_k/dk_right
 		jacR[0]=weightR*grid.face[f].mdot*grid.face[f].area; // convective
-		jacR[0]-=(viscosity+mu_t*sigma_k)/(rightRho*left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
+		jacR[0]-=(viscosity+mu_t*sigma_k)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
 		// dF_omega/dOmega_left
 		jacL[1]=weightL*grid.face[f].mdot*grid.face[f].area; // convective
-		jacL[1]+=(viscosity+mu_t*sigma_omega)/(leftRho*left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
+		jacL[1]+=(viscosity+mu_t*sigma_omega)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
 		// dF_omega/dOmega_right
 		jacR[1]=weightR*grid.face[f].mdot*grid.face[f].area; // convective
-		jacR[1]-=(viscosity+mu_t*sigma_omega)/(rightRho*left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
+		jacR[1]-=(viscosity+mu_t*sigma_omega)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
 		
 		// Insert flux jacobians for the parent cell
 		// left_k/left_k
