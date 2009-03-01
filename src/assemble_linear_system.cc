@@ -387,6 +387,11 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 			right.p=left.p; // pressure is extrapolated
 			right.T=eos.T(right.p,right.rho); 
 			right.T_center=left.T_center+2.*(right.T-left.T_center);
+		} else if (bc.region[face.bc].specified==BC_FLAMELET_INLET) {
+			right.p=left.p; // pressure is extrapolated
+			right.T=bc.region[face.bc].T;
+			right.T_center=right.T;
+			right.rho=bc.region[face.bc].rho;
 		} else {
 			// If nothing is specified, everything is extrapolated
 			right.p=left.p;

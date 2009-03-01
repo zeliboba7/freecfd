@@ -41,7 +41,7 @@ void mpi_update_ghost_gradients(void);
 
 struct mpiGhost {
 	unsigned int globalId;
-	double vars[5];
+	double vars[6];
 };
 
 struct mpiGrad {

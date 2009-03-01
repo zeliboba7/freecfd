@@ -90,7 +90,7 @@ class Flamelet {
 	void limit_gradients(void);
 	void terms(void);
 	void get_Z_Zvar(unsigned int &parent,unsigned int &neighbor,unsigned int &f,
-				double &leftZ,double &leftZvar,
+				double &faceRho,double &leftZ,double &leftZvar,
       				double &rightZ,double &rightZvar,
       				Vec3D &faceGradZ,Vec3D &faceGradZvar,Vec3D &left2right);
 	void update(double &resZ, double &resZvar);

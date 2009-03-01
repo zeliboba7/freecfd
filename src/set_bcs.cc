@@ -103,14 +103,12 @@ void setBCs(InputFile &input, BC &bc) {
 		} else {
 			bcRegion.thermalType=ADIABATIC;
 			if (region.get_double("Z").is_found) {
-				bcRegion.specified=BC_STATE;
+				bcRegion.specified=BC_FLAMELET_INLET;
 				bcRegion.Z=region.get_double("Z");
 				bcRegion.Zvar=region.get_double("Zvar");
 				double Chi=2.*bcRegion.omega*bcRegion.Zvar*rans.kepsilon.beta_star;
 				bcRegion.rho=flamelet.table.get_rho(bcRegion.Z,bcRegion.Zvar,Chi);	
 				bcRegion.T=flamelet.table.get_temperature(bcRegion.Z,bcRegion.Zvar,Chi);
-				cout<<bcRegion.rho<<endl;
-				cout<<bcRegion.T<<endl;
 				bcRegion.thermalType=FIXED_T;
 			}
 		}

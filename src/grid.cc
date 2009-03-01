@@ -407,7 +407,10 @@ void Grid::gradients(void) {
 				} else if (bc.region[face[f].bc].specified==BC_RHO) {
 					faceRho=bc.region[face[f].bc].rho;
 					faceT=eos.T(faceP,faceRho); // pressure is extrapolated
-				} // If nothing is specified, everything is extrapolated
+				} else if (bc.region[face[f].bc].specified==BC_FLAMELET_INLET) {
+					faceT=bc.region[face[f].bc].T;
+					faceRho=bc.region[face[f].bc].rho;
+				}// If nothing is specified, everything is extrapolated
 				
 				if (bc.region[face[f].bc].type==INLET) {
 					faceVel=bc.region[face[f].bc].v;

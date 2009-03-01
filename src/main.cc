@@ -240,6 +240,30 @@ int main(int argc, char *argv[]) {
 		if (TIME_STEP_TYPE==FIXED) { get_CFLmax(); } 
 		else if (TIME_STEP_TYPE==CFL_LOCAL) { CFLmax=CFLlocal;}
 		
+		if (FLAMELET) {
+			if (firstTimeStep) {
+				flamelet.mpi_update_ghost();
+				flamelet.gradients();
+				flamelet.mpi_update_ghost_gradients();
+				flamelet.limit_gradients();
+				flamelet.mpi_update_ghost_gradients(); // Called again to update the ghost gradients
+				update_face_mdot();
+			} else {
+				update_face_mdot();
+				flamelet.terms();
+				flamelet.petsc_solve(nIterFlame,rNormFlame);
+				flamelet.update(resZ,resZvar);
+				flamelet.update_rho(); // TODO Update the ghost rho's in flamelet mpi structure
+				mpi_update_ghost_primitives();
+				flamelet.mpi_update_ghost();
+				flamelet.gradients();
+				flamelet.mpi_update_ghost_gradients();
+				flamelet.limit_gradients();
+				flamelet.mpi_update_ghost_gradients(); // Called again to update the ghost gradients
+			}
+		}
+		
+		
 		if (TURBULENCE_MODEL!=NONE) {
 			if (firstTimeStep) {
 				rans.mpi_update_ghost();
@@ -249,7 +273,7 @@ int main(int argc, char *argv[]) {
 				rans.mpi_update_ghost_gradients();
 				rans.limit_gradients();
 				rans.mpi_update_ghost_gradients(); // Called again to update the ghost gradients
-				update_face_mdot();
+				if (!FLAMELET) update_face_mdot(); // Already done if flamelet model is being used
 				rans.terms();
 				rans.petsc_solve(nIterTurb,rNormTurb);
 				rans.update(resK,resOmega);
@@ -257,44 +281,7 @@ int main(int argc, char *argv[]) {
 				rans.update_eddy_viscosity();
 			}
 		}
-		
-		if (FLAMELET) {
-			if (firstTimeStep) {
-				flamelet.update_rho();
-				flamelet.mpi_update_ghost();
-				flamelet.gradients();
-				flamelet.mpi_update_ghost_gradients();
-				flamelet.limit_gradients();
-				flamelet.mpi_update_ghost_gradients(); // Called again to update the ghost gradients
-			} else {
-				flamelet.gradients();
-// 				if (Rank==1) {
-// 				cout << flamelet.cell[748].Z << "\t" << flamelet.cell[748].grad[0] << endl;
-// 				cout << flamelet.cell[767].Z << "\t" << flamelet.cell[767].grad[0] << endl;
-// 				cout << flamelet.cell[786].Z << "\t" << flamelet.cell[786].grad[0] << endl;
-// 				}
-				flamelet.mpi_update_ghost_gradients();
-				flamelet.limit_gradients();
-// 				if (Rank==1) {
-// 				cout << flamelet.cell[748].Z << "\t" << flamelet.cell[748].grad[0] << endl;
-// 				cout << flamelet.cell[767].Z << "\t" << flamelet.cell[767].grad[0] << endl;
-// 				cout << flamelet.cell[786].Z << "\t" << flamelet.cell[786].grad[0] << endl;
-// 				}
-				flamelet.mpi_update_ghost_gradients(); // Called again to update the ghost gradients
-				// update_face_mdot(); is done with the turbulence model part
-				flamelet.terms();
-				flamelet.petsc_solve(nIterFlame,rNormFlame);
-				flamelet.update(resZ,resZvar);
-				flamelet.update_rho();
-				flamelet.mpi_update_ghost();
-				flamelet.gradients();
-				flamelet.mpi_update_ghost_gradients();
-				flamelet.limit_gradients();
-				flamelet.mpi_update_ghost_gradients(); // Called again to update the ghost gradients
 				
-			}
-		}
-		
 		initialize_linear_system();
 		assemble_linear_system();
 		petsc_solve(nIter,rNorm);
@@ -494,9 +481,11 @@ void update(void) {
 		grid.cell[c].v[0] +=grid.cell[c].update[1];
 		grid.cell[c].v[1] +=grid.cell[c].update[2];
 		grid.cell[c].v[2] +=grid.cell[c].update[3];
-		if (!FLAMELET) grid.cell[c].T += grid.cell[c].update[4];
-		grid.cell[c].rho=eos.rho(grid.cell[c].p,grid.cell[c].T);
-
+		if (!FLAMELET) {
+			grid.cell[c].T += grid.cell[c].update[4];
+			grid.cell[c].rho=eos.rho(grid.cell[c].p,grid.cell[c].T);
+		}
+		
 		resP+=grid.cell[c].update[0]*grid.cell[c].update[0];
 		resV+=grid.cell[c].update[1]*grid.cell[c].update[1]+grid.cell[c].update[2]*grid.cell[c].update[2]+grid.cell[c].update[3]*grid.cell[c].update[3];
 		resT+=grid.cell[c].update[4]*grid.cell[c].update[4];

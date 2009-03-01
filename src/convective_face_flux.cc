@@ -34,7 +34,7 @@ double beta=0.125;
 double alpha;
 
 void roe_flux(Cell_State &left,Cell_State &right,double fluxNormal[],double &weightL,double &weightR);
-void AUSMplusUP_flux(Cell_State &left,Cell_State &right,double fluxNormal[],double &weightL,double &weightR);
+void AUSMplusUP_flux(Cell_State &left,Cell_State &right,double fluxNormal[],double &weightL,double &weightR,double &uN);
 double Mach_split_2_plus (double Mach);
 double Mach_split_2_minus (double Mach);
 double Mach_split_4_plus (double Mach);
@@ -47,7 +47,7 @@ void convective_face_flux(Cell_State &left,Cell_State &right,Face_State &face,do
 	double fluxNormal[7];
 
 	if (CONVECTIVE_FLUX_FUNCTION==ROE) roe_flux(left,right,fluxNormal,grid.face[face.index].weightL,grid.face[face.index].weightR);
-	if (CONVECTIVE_FLUX_FUNCTION==AUSM_PLUS_UP) AUSMplusUP_flux(left,right,fluxNormal,grid.face[face.index].weightL,grid.face[face.index].weightR);
+	if (CONVECTIVE_FLUX_FUNCTION==AUSM_PLUS_UP) AUSMplusUP_flux(left,right,fluxNormal,grid.face[face.index].weightL,grid.face[face.index].weightR,grid.face[face.index].uN);
 	flux[0] = fluxNormal[0]*face.area;
 	flux[1] = (fluxNormal[1]*face.normal[0]+fluxNormal[2]*face.tangent1[0]+fluxNormal[3]*face.tangent2[0])*face.area;
 	flux[2] = (fluxNormal[1]*face.normal[1]+fluxNormal[2]*face.tangent1[1]+fluxNormal[3]*face.tangent2[1])*face.area;
@@ -138,7 +138,7 @@ void roe_flux(Cell_State &left,Cell_State &right,double fluxNormal[],double &wei
 	return;
 } // end roe_flux
 
-void AUSMplusUP_flux(Cell_State &left,Cell_State &right,double fluxNormal[],double &weightL,double &weightR) {
+void AUSMplusUP_flux(Cell_State &left,Cell_State &right,double fluxNormal[],double &weightL,double &weightR,double &uN) {
 
 	double Kp=0.25;
 	double Ku=0.75;
@@ -183,6 +183,8 @@ void AUSMplusUP_flux(Cell_State &left,Cell_State &right,double fluxNormal[],doub
 	} else {
 		mdot=a*M*right.rho;
 	}
+	
+	uN=a*M;
 
 	alpha=3./16.*(-4.+5.*fa*fa);
 			
