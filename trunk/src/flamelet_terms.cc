@@ -28,7 +28,7 @@ extern RANS rans;
 void Flamelet::terms(void) {
 
 	unsigned int parent,neighbor,f;
-	double leftZ,leftZvar,rightZ,rightZvar;
+	double leftZ,leftZvar,rightZ,rightZvar,faceRho;
 	Vec3D faceGradZ, faceGradZvar, left2right;
 	double mu_t=0.;
 	double weightL,weightR;
@@ -46,7 +46,7 @@ void Flamelet::terms(void) {
 		parent=grid.face[f].parent; neighbor=grid.face[f].neighbor;
 		
 		// Get left, right and face values of Z and Zvar as well as the face normal gradients
-		get_Z_Zvar(parent,neighbor,f,
+		get_Z_Zvar(parent,neighbor,f,faceRho,
 			   leftZ,leftZvar,rightZ,rightZvar,
       			   faceGradZ,faceGradZvar,left2right);
 		
@@ -80,8 +80,8 @@ void Flamelet::terms(void) {
 		
 // 		weightR=1.-weightL;
 		
-		convectiveFlux[0]=grid.face[f].mdot*(weightL*leftZ+weightR*rightZ)*grid.face[f].area;
-		convectiveFlux[1]=grid.face[f].mdot*(weightL*leftZvar+weightR*rightZvar)*grid.face[f].area;
+		convectiveFlux[0]=grid.face[f].uN*(weightL*leftZ+weightR*rightZ)*grid.face[f].area;
+		convectiveFlux[1]=grid.face[f].uN*(weightL*leftZvar+weightR*rightZvar)*grid.face[f].area;
 
 		mu_t=rans.face[f].mu_t;
 		
@@ -103,16 +103,16 @@ void Flamelet::terms(void) {
 		// Calculate flux jacobians
 		
 		// dF_Z/dZ_left
-		jacL[0]=weightL*grid.face[f].mdot*grid.face[f].area; // convective
+		jacL[0]=weightL*grid.face[f].uN*grid.face[f].area; // convective
 		jacL[0]+=(viscosity+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
 		// dF_Z/dZ_right
-		jacR[0]=weightR*grid.face[f].mdot*grid.face[f].area; // convective
+		jacR[0]=weightR*grid.face[f].uN*grid.face[f].area; // convective
 		jacR[0]-=(viscosity+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
 		// dF_Zvar/dZvar_left
-		jacL[1]=weightL*grid.face[f].mdot*grid.face[f].area; // convective
+		jacL[1]=weightL*grid.face[f].uN*grid.face[f].area; // convective
 		jacL[1]+=(viscosity+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
 		// dF_Zvar/dZvar_right
-		jacR[1]=weightR*grid.face[f].mdot*grid.face[f].area; // convective
+		jacR[1]=weightR*grid.face[f].uN*grid.face[f].area; // convective
 		jacR[1]-=(viscosity+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
 		
 		// Insert flux jacobians for the parent cell
@@ -174,7 +174,7 @@ void Flamelet::terms(void) {
 
 		// Insert unsteady term
 		row=(grid.myOffset+c)*2;
-		value=grid.cell[c].rho*d;
+		value=d;
 		MatSetValues(impOP,1,&row,1,&row,&value,ADD_VALUES);
 		row++;
 		MatSetValues(impOP,1,&row,1,&row,&value,ADD_VALUES);
@@ -212,7 +212,7 @@ void Flamelet::terms(void) {
 } // end Flamelet::terms
 
 void Flamelet::get_Z_Zvar(unsigned int &parent,unsigned int &neighbor,unsigned int &f,
-			  double &leftZ,double &leftZvar,
+			  double &faceRho,double &leftZ,double &leftZvar,
 			  double &rightZ,double &rightZvar,
 	  		  Vec3D &faceGradZ,Vec3D &faceGradZvar,Vec3D &left2right) {
 	
@@ -230,11 +230,11 @@ void Flamelet::get_Z_Zvar(unsigned int &parent,unsigned int &neighbor,unsigned i
 		for (unsigned int i=0;i<2;++i) delta[i]=0.;
 	}
 	
-	if (Rank==1 && parent==767) {
-		if (grid.face[f].normal[0]<-0.5) {
-			cout << f << "\t" << cell[parent].Z << "\t" << delta[0] << "\t" << grid.face[f].normal << endl;
-		}
-	}
+// 	if (Rank==1 && parent==767) {
+// 		if (grid.face[f].normal[0]<-0.5) {
+// 			cout << f << "\t" << cell[parent].Z << "\t" << delta[0] << "\t" << grid.face[f].normal << endl;
+// 		}
+// 	}
 	
 	leftZ_center=cell[parent].Z;
 	leftZ=leftZ_center+delta[0];
@@ -246,15 +246,17 @@ void Flamelet::get_Z_Zvar(unsigned int &parent,unsigned int &neighbor,unsigned i
 	leftZvar=max(0.,leftZvar);
 	
 	// Find face averaged quantities
-	faceGradZ=0.; faceGradZvar=0.;
+	faceGradZ=0.; faceGradZvar=0.; faceRho=0.;
  	map<int,double>::iterator fit;
 	for (fit=grid.face[f].average.begin();fit!=grid.face[f].average.end();fit++) {
 		if ((*fit).first>=0) { // if contribution is coming from a real cell
 			faceGradZ+=(*fit).second*cell[(*fit).first].grad[0];
 			faceGradZvar+=(*fit).second*cell[(*fit).first].grad[1];
+			faceRho+=(*fit).second*grid.cell[(*fit).first].rho;
 		} else { // if contribution is coming from a ghost cell
 			faceGradZ+=(*fit).second*ghost[-1*((*fit).first+1)].grad[0];
 			faceGradZvar+=(*fit).second*ghost[-1*((*fit).first+1)].grad[1];
+			faceRho+=(*fit).second*grid.ghost[-1*((*fit).first+1)].rho;
 		}
 	}
 	

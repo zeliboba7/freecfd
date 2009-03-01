@@ -51,7 +51,7 @@ void mpi_init(int argc, char *argv[]) {
 	displacements[0]=(long) &dummy.globalId - (long) &dummy;
 	displacements[1]=(long) &dummy.vars[0] - (long) &dummy;
 	block_lengths[0]=1;
-	block_lengths[1]=5;
+	block_lengths[1]=6;
 	MPI_Type_create_struct(2,block_lengths,displacements,types,&MPI_GHOST);
 	MPI_Type_commit(&MPI_GHOST);
 
@@ -151,6 +151,7 @@ void mpi_update_ghost_primitives(void) {
 				sendBuffer[g].vars[2]=grid.cell[id].v[1];
 				sendBuffer[g].vars[3]=grid.cell[id].v[2];
 				sendBuffer[g].vars[4]=grid.cell[id].T;
+				sendBuffer[g].vars[5]=grid.cell[id].rho;
 			}
 
 			int tag=Rank; // tag is set to source
@@ -172,7 +173,7 @@ void mpi_update_ghost_primitives(void) {
 				grid.ghost[id].v[1]=recvBuffer[g].vars[2];
 				grid.ghost[id].v[2]=recvBuffer[g].vars[3];
 				grid.ghost[id].T=recvBuffer[g].vars[4];
-				grid.ghost[id].rho=eos.rho(grid.ghost[id].p,grid.ghost[id].T);
+				grid.ghost[id].rho=recvBuffer[g].vars[5];
 			}
 		}
 	}

@@ -57,7 +57,7 @@ public:
 	Vec3D normal;
 	std::map<int,double> average;
 	double area;
-	double mdot,weightL,weightR;
+	double mdot,weightL,weightR,uN;
 	std::vector<int> nodes;
 	Node& node(int n);
 };
