@@ -96,6 +96,11 @@ int Grid::create_nodes_cells() {
 			
 			cell.push_back(temp);
 		} // end if cell is in current proc
+// [DEBUG]
+// 		if (c==311) {
+// 			cout << cell[c].nodeCount << endl;
+// 			for (int i=0;i<cell[c].nodeCount;++i) cout << "\t" << cell[c].nodes[i] << "\t" << cell[c].node(i) << endl;
+// 		}
 	} // end loop global cell count
 	
 	cout << "[I Rank=" << Rank << "] Created cells and nodes" << endl;
@@ -199,7 +204,7 @@ int Grid::create_faces() {
 		{3,4,5,0},
 		{0,3,5,2},
 		{1,2,5,4},
-		{0,1,4,3},
+		{0,1,4,3}
 	};
 	int pyraFaces[5][4]= {
 		{0,3,2,1},
@@ -268,7 +273,6 @@ int Grid::create_faces() {
 			tempFace.bc=INTERNAL;
 			// Store the node local ids of the current face	
 			for (unsigned int fn=0;fn<tempFace.nodeCount;++fn) {
-//if (cell[c].nodeCount<4 || cell[c].nodeCount>8) cout << "here" << "\t" << cell[c].nodeCount << endl;
 				switch (cell[c].nodeCount) {
 					case 4: tempNodes[fn]=cell[c].node(tetraFaces[cf][fn]).id; break;
 					case 5: tempNodes[fn]=cell[c].node(pyraFaces[cf][fn]).id; break;
@@ -310,7 +314,7 @@ int Grid::create_faces() {
 						if(maps.nodeBCregions.find(nn)!=maps.nodeBCregions.end()) { // If this node touches a boundary
 							// Loop through the different boundary regions assigned for that node
 							for (int j=0;j<maps.nodeBCregions[nn].size();++j) {
-								// For each boundary region type, loop the current face nodes to see it matches the boundary face 
+								// For each boundary region type, loop the current face nodes to see if it matches the boundary face 
 								// Loop the current face nodes
 								match=true;
 								for (int k=0;k<tempFace.nodeCount;++k) {
@@ -341,6 +345,10 @@ int Grid::create_faces() {
 		} //for face cf
 	} // for cells c
 
+	for (unsigned int c=0; c<cellCount; ++c) {
+		if (cell[c].faceCount != cell[c].faces.size() ) cout << "no match" << "\t" << c << "\t" << cell[c].faceCount << "\t" << cell[c].faces.size() << "\t" << cell[c].nodeCount << endl;
+	}
+	
 	cout << "[I Rank=" << Rank << "] Number of Faces=" << faceCount << endl;
 	for (int boco=0;boco<raw.bocoNameMap.size();++boco) cout << "[I Rank=" << Rank << "] Number of Faces on BC_" << boco+1 << "=" << boundaryFaceCount[boco] << endl;
 	

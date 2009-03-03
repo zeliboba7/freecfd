@@ -33,7 +33,7 @@ double leftK_center, rightK_center, leftOmega_center, rightOmega_center;
 Vec3D faceGradK, faceGradOmega, left2right;
 double mu_t=0.;
 double weightL,weightR;
-	
+bool extrapolated;
 
 void RANS::terms(void) {
 
@@ -56,19 +56,16 @@ void RANS::terms(void) {
 		if (TURBULENCE_MODEL==KEPSILON) blending=0.;
 		
 		parent=grid.face[f].parent; neighbor=grid.face[f].neighbor;
-		
-		// Get left, right and face values of k and omega as well as the face normal gradients
-		get_kOmega();
-		
+				
 		// Convective flux is based on mdot calculated through the Riemann solver right after
 		// main flow was updated
 		
 		// These weights are coming from the Riemann solver
-		weightL=grid.face[f].weightL; weightR=grid.face[f].weightR;
-				
-// 		double weightMax=max(weightL,weightR);
-// 		weightL+=0.05*weightMax;
-// 		weightR+=0.05*weightMax;
+		weightL=grid.face[f].weightL;
+		extrapolated=false;
+		// Get left, right and face values of k and omega as well as the face normal gradients
+		get_kOmega();
+		weightR=1.-weightL;
 
 		convectiveFlux[0]=grid.face[f].mdot*(weightL*leftK+weightR*rightK)*grid.face[f].area;
 		convectiveFlux[1]=grid.face[f].mdot*(weightL*leftOmega+weightR*rightOmega)*grid.face[f].area;
@@ -113,16 +110,16 @@ void RANS::terms(void) {
 		if (grid.face[f].bc==INTERNAL) rightRho=grid.cell[neighbor].rho;
 		// dF_k/dk_left
 		jacL[0]=weightL*grid.face[f].mdot*grid.face[f].area; // convective
-		jacL[0]+=(viscosity+mu_t*sigma_k)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
+		if (!extrapolated) jacL[0]+=(viscosity+mu_t*sigma_k)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
 		// dF_k/dk_right
 		jacR[0]=weightR*grid.face[f].mdot*grid.face[f].area; // convective
-		jacR[0]-=(viscosity+mu_t*sigma_k)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
+		if (!extrapolated) jacR[0]-=(viscosity+mu_t*sigma_k)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
 		// dF_omega/dOmega_left
 		jacL[1]=weightL*grid.face[f].mdot*grid.face[f].area; // convective
-		jacL[1]+=(viscosity+mu_t*sigma_omega)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
+		if (!extrapolated) jacL[1]+=(viscosity+mu_t*sigma_omega)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
 		// dF_omega/dOmega_right
 		jacR[1]=weightR*grid.face[f].mdot*grid.face[f].area; // convective
-		jacR[1]-=(viscosity+mu_t*sigma_omega)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
+		if (!extrapolated) jacR[1]-=(viscosity+mu_t*sigma_omega)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
 		
 		// Insert flux jacobians for the parent cell
 		// left_k/left_k
@@ -165,6 +162,7 @@ void RANS::terms(void) {
 	
 	// Now to a cell loop to add the unsteady and source terms
 	double divU,Prod_k;
+	int count_prod_k_clip=0;
 	for (unsigned int c=0;c<grid.cellCount;++c) {
 		double d=0.;
 		
@@ -221,8 +219,10 @@ void RANS::terms(void) {
 		
 		Prod_k=mu_t*(strainRate*strainRate-2./3.*divU*divU)-2./3.*grid.cell[c].rho*cell[c].k*divU;
 
-		//if (Prod_k>10./grid.cell[c].volume) cout << "[I] k-production term clipped" << endl;
-		//Prod_k=min(Prod_k,10./grid.cell[c].volume);
+		if (Prod_k>10./grid.cell[c].volume) {
+			count_prod_k_clip++;
+			Prod_k=10./grid.cell[c].volume;
+		}
 		
 		cross_diffusion=0.;
 		if (TURBULENCE_MODEL!=KOMEGA) cross_diffusion=cell[c].grad[0].dot(cell[c].grad[1]);
@@ -265,6 +265,10 @@ void RANS::terms(void) {
 		
 	} // end cell loop
 	
+	if (count_prod_k_clip>0) {
+		cout << "[I Rank=" << Rank << "] k-production term is clipped for " <<  count_prod_k_clip << " cells" << endl;
+	}
+	
 	return;
 } // end RANS::terms
 
@@ -287,6 +291,7 @@ void get_kOmega() {
 	leftOmega=leftOmega_center+delta[1];
 	
 	leftK=max(leftK,kLowLimit);
+	leftK=min(leftK,kHighLimit);
 	leftOmega=max(leftOmega,omegaLowLimit);
 
 	// Find face averaged quantities
@@ -331,6 +336,7 @@ void get_kOmega() {
 		rightOmega=rightOmega_center+delta[1];
 	
 		rightK=max(rightK,kLowLimit);
+		rightK=min(rightK,kHighLimit);
 		rightOmega=max(rightOmega,omegaLowLimit);
 		
 	} else if (grid.face[f].bc>=0) { // boundary face
@@ -340,23 +346,32 @@ void get_kOmega() {
 		if (bc.region[grid.face[f].bc].type==NOSLIP) {
 			rightK=0.;
 			rightOmega=60.*viscosity/(faceRho*0.075*pow(0.5*left2right.dot(grid.face[f].normal),2.));
-			rightK_center=2.*rightK-leftK_center; 
+			rightK_center=2.*rightK-leftK_center;
 			rightOmega_center=2.*rightOmega-leftOmega_center;
 		} else if (bc.region[grid.face[f].bc].type==SYMMETRY) {
 			rightK_center=leftK_center; 
 			rightOmega_center=leftOmega_center;
+			extrapolated=true;
+			weightL=1.;// This is true when rightK=leftK and rightOmega=leftOmega
 		} else if (bc.region[grid.face[f].bc].type==SLIP) {
-			rightK_center=2.*rightK-leftK_center; 
-			rightOmega_center=2.*rightOmega-leftOmega_center;
+			rightK_center=leftK_center; 
+			rightOmega_center=leftOmega_center;
+			extrapolated=true;
+			weightL=1.;
 		} else if (bc.region[grid.face[f].bc].type==INLET) {
 			rightK=bc.region[grid.face[f].bc].k;
 			rightOmega=bc.region[grid.face[f].bc].omega;
 			rightK_center=rightK;
 			rightOmega_center=rightOmega;
+			//weightL=0.; 
 		} else if (bc.region[grid.face[f].bc].type==OUTLET) {
-			rightK_center=2.*rightK-leftK_center; 
-			rightOmega_center=2.*rightOmega-leftOmega_center;
+			rightK_center=leftK_center; 
+			rightOmega_center=leftOmega_center;
+			extrapolated=true;
+			weightL=1.;
 		}
+		
+		
 		
 	} else { // partition boundary
 
@@ -374,6 +389,7 @@ void get_kOmega() {
 		rightOmega=rightOmega_center+delta[1];
 		
 		rightK=max(rightK,kLowLimit);
+		rightK=min(rightK,kHighLimit);
 		rightOmega=max(rightOmega,omegaLowLimit);
 	}
 	

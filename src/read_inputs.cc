@@ -42,6 +42,7 @@ void read_inputs(InputFile &input) {
 	input.section("turbulence").register_string("model",optional,"none");
 	input.section("turbulence").register_double("omegaLowLimit",optional,1.);
 	input.section("turbulence").register_double("kLowLimit",optional,1.e-8);
+	input.section("turbulence").register_double("kHighLimit",optional,1.e4);
 	input.section("turbulence").register_double("viscosityRatioLimit",optional,1.e5);
 	input.readSection("turbulence");
 	

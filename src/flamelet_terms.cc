@@ -36,6 +36,7 @@ void Flamelet::terms(void) {
 	int row,col;
 	double convectiveFlux[2],diffusiveFlux[2],source[2];
 	double jacL[2],jacR[2];
+	bool extrapolated;
 	
 	MatZeroEntries(impOP); // Flush the implicit operator
 
@@ -43,42 +44,22 @@ void Flamelet::terms(void) {
 	Vec3D sum=0.;
 	for (f=0;f<grid.faceCount;++f) {
 		
+		extrapolated=false;
+		
+		// This weight coming from the Riemann solver
+		weightL=grid.face[f].weightL;
+		
 		parent=grid.face[f].parent; neighbor=grid.face[f].neighbor;
 		
 		// Get left, right and face values of Z and Zvar as well as the face normal gradients
 		get_Z_Zvar(parent,neighbor,f,faceRho,
 			   leftZ,leftZvar,rightZ,rightZvar,
-      			   faceGradZ,faceGradZvar,left2right);
+      			   faceGradZ,faceGradZvar,left2right,weightL,extrapolated);
 		
-		// Convective flux is based on mdot calculated through the Riemann solver right after
+		weightR=1.-weightL;
+		
+		// Convective flux is based on the normal velocity calculated through the Riemann solver right after
 		// main flow was updated
-		
-		// These weights are coming from the Riemann solver
-		weightL=grid.face[f].weightL; weightR=grid.face[f].weightR;
-
-// 		if (Rank==1 && f==1254) {
-// 			cout << grid.face[f].centroid << "\t" << faceGradZ << endl;
-// 			
-// 		}
-// 		if (Rank==1) {
-// 			if (parent==304) {
-// 				cout.precision(4);
-// 				1254
-// 								//cout << grid.cell[parent].centroid << endl;
-// 				cout << f << "\t" << sum << "\t" << grid.face[f].normal << "\t" << grid.face[f].area << endl;
-// 				//cout << cell[parent].grad[0] << endl;
-// 				sum+=grid.face[f].area*grid.face[f].normal;
-// 				
-// 				//if (grid.face[f].normal[1]<-0.5) cout << f << "\t" << grid.face[f].centroid << "\t" << grid.face[f].area << endl;
-// 			}
-// 		}
-		
-//  		double weightMax=max(weightL,weightR);
-// 		if (grid.face[f].mdot>=0.) {
-// 			weightL+=0.05*weightMax;
-// 		} else { weightL-=0.05*weightMax; }
-		
-// 		weightR=1.-weightL;
 		
 		convectiveFlux[0]=grid.face[f].uN*(weightL*leftZ+weightR*rightZ)*grid.face[f].area;
 		convectiveFlux[1]=grid.face[f].uN*(weightL*leftZvar+weightR*rightZvar)*grid.face[f].area;
@@ -104,16 +85,16 @@ void Flamelet::terms(void) {
 		
 		// dF_Z/dZ_left
 		jacL[0]=weightL*grid.face[f].uN*grid.face[f].area; // convective
-		jacL[0]+=(viscosity+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
+		if (!extrapolated) jacL[0]+=(viscosity+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
 		// dF_Z/dZ_right
 		jacR[0]=weightR*grid.face[f].uN*grid.face[f].area; // convective
-		jacR[0]-=(viscosity+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
+		if (!extrapolated) jacR[0]-=(viscosity+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
 		// dF_Zvar/dZvar_left
 		jacL[1]=weightL*grid.face[f].uN*grid.face[f].area; // convective
-		jacL[1]+=(viscosity+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
+		if (!extrapolated) jacL[1]+=(viscosity+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
 		// dF_Zvar/dZvar_right
 		jacR[1]=weightR*grid.face[f].uN*grid.face[f].area; // convective
-		jacR[1]-=(viscosity+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
+		if (!extrapolated) jacR[1]-=(viscosity+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
 		
 		// Insert flux jacobians for the parent cell
 		// left_Z/left_Z
@@ -202,7 +183,7 @@ void Flamelet::terms(void) {
 		// Try only including the destruction term
 		// dS_Zvar/dZvar
 		row=(grid.myOffset+c)*2+1; col=row;
-		value=constants.Cd*grid.cell[c].rho*rans.kepsilon.beta_star*rans.cell[c].omega;
+		value=(constants.Cd*grid.cell[c].rho*rans.kepsilon.beta_star*rans.cell[c].omega)*grid.cell[c].volume;
 		MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
 	
 		
@@ -214,7 +195,8 @@ void Flamelet::terms(void) {
 void Flamelet::get_Z_Zvar(unsigned int &parent,unsigned int &neighbor,unsigned int &f,
 			  double &faceRho,double &leftZ,double &leftZvar,
 			  double &rightZ,double &rightZvar,
-	  		  Vec3D &faceGradZ,Vec3D &faceGradZvar,Vec3D &left2right) {
+    			  Vec3D &faceGradZ,Vec3D &faceGradZvar,Vec3D &left2right,
+	 		  double &weightL,bool &extrapolated) {
 	
 	double faceZ,faceZvar;
 	double leftZ_center,rightZ_center,leftZvar_center,rightZvar_center;
@@ -229,12 +211,6 @@ void Flamelet::get_Z_Zvar(unsigned int &parent,unsigned int &neighbor,unsigned i
 	} else {
 		for (unsigned int i=0;i<2;++i) delta[i]=0.;
 	}
-	
-// 	if (Rank==1 && parent==767) {
-// 		if (grid.face[f].normal[0]<-0.5) {
-// 			cout << f << "\t" << cell[parent].Z << "\t" << delta[0] << "\t" << grid.face[f].normal << endl;
-// 		}
-// 	}
 	
 	leftZ_center=cell[parent].Z;
 	leftZ=leftZ_center+delta[0];
@@ -300,22 +276,28 @@ void Flamelet::get_Z_Zvar(unsigned int &parent,unsigned int &neighbor,unsigned i
 // 			rightZvar_center=2.*rightZvar-leftZvar_center;
 // 			rightZ_center=rightZ;
 // 			rightZvar_center=rightZvar;
+			extrapolated=true;
+			weightL=1.;
 		} else if (bc.region[grid.face[f].bc].type==SYMMETRY) {
 // 			rightZ_center=leftZ_center; 
 // 			rightZvar_center=leftZvar_center;
+			extrapolated=true;
+			weightL=1.;
 		} else if (bc.region[grid.face[f].bc].type==SLIP) {
 // 			rightZ_center=2.*rightZ-leftZ_center;
 // 			rightZvar_center=2.*rightZvar-leftZvar_center;
+			extrapolated=true;
+			weightL=1.;
 		} else if (bc.region[grid.face[f].bc].type==INLET) {
 			rightZ=bc.region[grid.face[f].bc].Z;
 			rightZvar=bc.region[grid.face[f].bc].Zvar;
 			rightZ_center=rightZ;
 			rightZvar_center=rightZvar;
-// 			leftZ=rightZ;
-// 			leftZ_center=rightZ;
 		} else if (bc.region[grid.face[f].bc].type==OUTLET) {
 // 			rightZ_center=2.*rightZ-leftZ_center;
 // 			rightZvar_center=2.*rightZvar-leftZvar_center;
+			extrapolated=true;
+			weightL=1.;
 		}
 		
 	} else { // partition boundary

@@ -45,7 +45,7 @@ void Flamelet_Table::read(string fileName) {
 } // end Flamelet_Table::read
 
 double Flamelet_Table::get_rho(double &Z, double &Zvar, double &Chi) {
-	return 2.5e2*pow(Z,4)-5.4e2*pow(Z,3)+3.9e2*pow(Z,2)-1.1e2*Z+13.0;	
+	return 2.5e2*pow(Z,4)-5.4e2*pow(Z,3)+3.9e2*pow(Z,2)-1.1e2*Z+13.0;
 }
 
 double Flamelet_Table::get_temperature(double &Z, double &Zvar, double &Chi) {

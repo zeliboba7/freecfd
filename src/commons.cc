@@ -30,7 +30,7 @@ int OUTPUT_FORMAT;
 bool FLAMELET;
 
 int Rank,np;
-double omegaLowLimit,kLowLimit,viscosityRatioLimit;
+double omegaLowLimit,kLowLimit,kHighLimit,viscosityRatioLimit;
 double dt,dtTarget,CFLmax,CFLmaxTarget,CFLlocal,CFLlocalTarget;
 int timeStep,restart;
 double Minf,Pref,Tref;
