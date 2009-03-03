@@ -253,31 +253,32 @@ void Flamelet::gradients(void) {
 			f=grid.cell[c].faces[cf];
 			if (grid.face[f].bc>=0) { // if a boundary face
 				areaVec=grid.face[f].normal*grid.face[f].area/grid.cell[c].volume;
-				faceZ=0.; faceZvar=0.;
-				for (fit=grid.face[f].average.begin();fit!=grid.face[f].average.end();fit++) {
-					if ((*fit).first>=0) { // if contribution is coming from a real cell
-						faceZ+=(*fit).second*cell[(*fit).first].Z;
-						faceZvar+=(*fit).second*cell[(*fit).first].Zvar;
-					} else { // if contribution is coming from a ghost cell
-						faceZ+=(*fit).second*ghost[-1*((*fit).first+1)].Z;
-						faceZvar+=(*fit).second*ghost[-1*((*fit).first+1)].Zvar;
-					}
-				}
-				// SO this only done on the boundary contribution to gradienst WHYY EZ
-				faceZ=max(0.,faceZ);
-				faceZ=min(1.,faceZ);
-				faceZvar=max(0.,faceZvar);
-// 				faceZ=cell[c].Z;
-// 				faceZvar=cell[c].Zvar;
+// 				faceZ=0.; faceZvar=0.;
+// 				for (fit=grid.face[f].average.begin();fit!=grid.face[f].average.end();fit++) {
+// 					if ((*fit).first>=0) { // if contribution is coming from a real cell
+// 						faceZ+=(*fit).second*cell[(*fit).first].Z;
+// 						faceZvar+=(*fit).second*cell[(*fit).first].Zvar;
+// 					} else { // if contribution is coming from a ghost cell
+// 						faceZ+=(*fit).second*ghost[-1*((*fit).first+1)].Z;
+// 						faceZvar+=(*fit).second*ghost[-1*((*fit).first+1)].Zvar;
+// 					}
+// 				}
+// 				// SO this only done on the boundary contribution to gradienst WHYY EZ
+// 				faceZ=max(0.,faceZ);
+// 				faceZ=min(1.,faceZ);
+// 				faceZvar=max(0.,faceZvar);
+				faceZ=cell[c].Z;
+				faceZvar=cell[c].Zvar;
 				if (bc.region[grid.face[f].bc].type==INLET) {
 					faceZ=bc.region[grid.face[f].bc].Z;
 					faceZvar=bc.region[grid.face[f].bc].Zvar;
 					//if (Rank==1 && c==748) cout << faceZ << endl;
-				} else if (bc.region[grid.face[f].bc].type==SYMMETRY) {
-					//Symmetry mirrors everything
-// 					faceZ=cell[c].Z;
-// 					faceZvar=cell[c].Zvar;
-				}
+				} 
+				//else if (bc.region[grid.face[f].bc].type==SYMMETRY) {
+// 					//Symmetry mirrors everything
+// // 					faceZ=cell[c].Z;
+// // 					faceZvar=cell[c].Zvar;
+// 				}
 				
 				cell[c].grad[0]+=faceZ*areaVec;
 				cell[c].grad[1]+=faceZvar*areaVec;

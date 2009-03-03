@@ -92,7 +92,8 @@ class Flamelet {
 	void get_Z_Zvar(unsigned int &parent,unsigned int &neighbor,unsigned int &f,
 				double &faceRho,double &leftZ,double &leftZvar,
       				double &rightZ,double &rightZvar,
-      				Vec3D &faceGradZ,Vec3D &faceGradZvar,Vec3D &left2right);
+      				Vec3D &faceGradZ,Vec3D &faceGradZvar,Vec3D &left2right,
+	  			double &weightL,bool &extrapolated);
 	void update(double &resZ, double &resZvar);
 	void update_rho();
 };

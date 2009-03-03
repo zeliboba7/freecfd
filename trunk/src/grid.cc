@@ -282,7 +282,6 @@ int Grid::areas_volumes() {
 		if (face[f].normal.dot(face[f].centroid-cell[face[f].parent].centroid)<=0.) {
 			// [TBM] Need to swap the face and reflect the area vector
 			cout << "[W Rank=" << Rank << "] Face " << f << " normal is pointing in to its parent ... fixing " << endl;
-			cout << face[f].parent << endl;
 			face[f].normal*=-1.;
 			vector<int>::reverse_iterator rit;
 			face[f].nodes.assign(face[f].nodes.rbegin(),face[f].nodes.rend());
@@ -374,16 +373,18 @@ void Grid::gradients(void) {
 			f=cell[c].faces[cf];
 			if (face[f].bc>=0) { // if a boundary face
 				areaVec=face[f].normal*face[f].area/cell[c].volume;
-				faceP=0.; faceVel=0.; faceT=0.;
+				faceP=0.; faceVel=0.; faceT=0.; faceRho=0.;
 				for (fit=face[f].average.begin();fit!=face[f].average.end();fit++) {
 					if ((*fit).first>=0) { // if contribution is coming from a real cell
 						faceP+=(*fit).second*cell[(*fit).first].p;
 						faceVel+=(*fit).second*cell[(*fit).first].v;
 						faceT+=(*fit).second*cell[(*fit).first].T;
+						faceRho+=(*fit).second*cell[(*fit).first].rho;
 					} else { // if contribution is coming from a ghost cell
 						faceP+=(*fit).second*ghost[-1*((*fit).first+1)].p;
 						faceVel+=(*fit).second*ghost[-1*((*fit).first+1)].v;
-						faceT+=(*fit).second*ghost[-1*((*fit).first+1)].T;;
+						faceT+=(*fit).second*ghost[-1*((*fit).first+1)].T;
+						faceRho+=(*fit).second*ghost[-1*((*fit).first+1)].rho;
 					}
 				}
 
@@ -394,13 +395,18 @@ void Grid::gradients(void) {
 					faceRho=eos.rho(faceP,faceT);
 				}
 				
+				if (FLAMELET) {
+					faceRho=cell[c].rho;
+					faceT=cell[c].T;
+				}
+				
 				if (bc.region[face[f].bc].specified==BC_STATE) {
 					faceP=bc.region[face[f].bc].p;
 					faceT=bc.region[face[f].bc].T;
 					faceRho=bc.region[face[f].bc].rho;
 				} else if (bc.region[face[f].bc].specified==BC_P) {
 					faceP=bc.region[face[f].bc].p;
-					faceRho=eos.rho(faceP,faceT); // temperature is extrapolated
+					if (!FLAMELET) faceRho=eos.rho(faceP,faceT); // temperature is extrapolated
 				} else if (bc.region[face[f].bc].specified==BC_T) {
 					faceT=bc.region[face[f].bc].T;
 					faceRho=eos.rho(faceP,faceT); // pressure is extrapolated
@@ -411,6 +417,8 @@ void Grid::gradients(void) {
 					faceT=bc.region[face[f].bc].T;
 					faceRho=bc.region[face[f].bc].rho;
 				}// If nothing is specified, everything is extrapolated
+				
+
 				
 				if (bc.region[face[f].bc].type==INLET) {
 					faceVel=bc.region[face[f].bc].v;

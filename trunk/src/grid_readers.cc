@@ -237,25 +237,32 @@ int Grid::readCGNS() {
 	raw.x.reserve(globalNodeCount);
 	raw.y.reserve(globalNodeCount);
 	raw.z.reserve(globalNodeCount);
-	int counter=0;
 	// for zone 0
 	for (int n=0;n<coordX[0].size();++n) {
 		raw.x.push_back(coordX[0][n]);
 		raw.y.push_back(coordY[0][n]);
 		raw.z.push_back(coordZ[0][n]);
-		counter++;
 	}
 	for (int zone=1;zone<nZones;++zone) {
 		for (int n=0;n<coordX[zone].size();++n) {
-			if (zoneCoordMap[zone][n]>zoneCoordMap[zone-1][zoneCoordMap[zone-1].size()-1]) {
+			bool unique=true;
+			for (int i=0;i<zoneCoordMap[zone-1].size();++i) {
+				if (zoneCoordMap[zone][n]<=zoneCoordMap[zone-1][i]) {
+					unique=false;
+					break;
+				}
+			}
+			if (unique) {
 				raw.x.push_back(coordX[zone][n]);
 				raw.y.push_back(coordY[zone][n]);
 				raw.z.push_back(coordZ[zone][n]);
-				counter++;
 			}
 		}
 	}
-	if (counter!=globalNodeCount) cerr << "[E] counter (=" << counter << ") is different from globalNodeCount (=" << globalNodeCount << ")" << endl;
+	if (raw.x.size()!=globalNodeCount) {
+		cerr << "[E] raw.x.size() (=" << raw.x.size() << ") is different from globalNodeCount (=" << globalNodeCount << ")" << endl;
+		exit(1);
+	}
 	if (Rank==0) cout << "[I] Total Cell Count= " << globalCellCount << endl;
 
 } // end Grid::ReadCGNS

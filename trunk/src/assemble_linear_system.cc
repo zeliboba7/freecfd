@@ -306,6 +306,10 @@ void left_state_update(Cell_State &left,Face_State &face) {
 			leftZvar+=(grid.face[face.index].centroid-grid.cell[parent].centroid).dot(flamelet.cell[parent].grad[1]);
 			leftOmega+=(grid.face[face.index].centroid-grid.cell[parent].centroid).dot(rans.cell[parent].grad[1]);
 		}
+		leftZ=max(leftZ,0.);
+		leftZ=min(leftZ,1.);
+		leftZvar=max(leftZvar,0.);
+		leftOmega=max(leftOmega,omegaLowLimit);
 		Chi=2.*leftOmega*leftZvar*rans.kepsilon.beta_star;
 		left.rho=flamelet.table.get_rho(leftZ,leftZvar,Chi);
 	}
@@ -358,6 +362,10 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 				rightZvar+=(grid.face[face.index].centroid-grid.cell[neighbor].centroid).dot(flamelet.cell[neighbor].grad[1]);
 				rightOmega+=(grid.face[face.index].centroid-grid.cell[neighbor].centroid).dot(rans.cell[neighbor].grad[1]);
 			}
+			rightZ=max(rightZ,0.);
+			rightZ=min(rightZ,1.);
+			rightZvar=max(rightZvar,0.);
+			rightOmega=max(rightOmega,omegaLowLimit);
 			Chi=2.*rightOmega*rightZvar*rans.kepsilon.beta_star;
 			right.rho=flamelet.table.get_rho(rightZ,rightZvar,Chi);
 		}
@@ -376,7 +384,8 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 			right.p=bc.region[face.bc].p;
 			right.T=left.T; // temperature is extrapolated
 			right.T_center=left.T_center+2.*(right.T-left.T_center);
-			right.rho=eos.rho(right.p,right.T); 
+			right.rho=left.rho;
+			if (!FLAMELET) right.rho=eos.rho(right.p,right.T);
 		} else if (bc.region[face.bc].specified==BC_T) {
 			right.T=bc.region[face.bc].T;
 			right.T_center=right.T;
@@ -402,10 +411,7 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 		
 		if (bc.region[face.bc].thermalType==ADIABATIC) right.T_center=left.T_center;
 		
-		if (bc.region[face.bc].type==OUTLET) {
-			right.v=left.v;
-			right.v_center=left.v_center+2.*(right.v-left.v_center); 
-		} else if (bc.region[face.bc].type==SLIP) {
+		if (bc.region[face.bc].type==SLIP) {
 			right.v=left.v-2.*left.v.dot(face.normal)*face.normal;
 			right.v_center=left.v_center-2.*left.v_center.dot(face.normal)*face.normal;
 		} else if (bc.region[face.bc].type==SYMMETRY) {
@@ -419,6 +425,10 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 			right.v=bc.region[face.bc].v;
 			right.v_center=right.v;
 		} else if (bc.region[face.bc].type==OUTLET) {
+			right.v=left.v;
+			right.v_center=2.*right.v-left.v_center; 
+// 			right.v=left.v_center;
+// 			right.v_center=left.v_center; 
 			if (right.v.dot(face.normal)<0.) {
 				if (bc.region[face.bc].kind==DAMP_REVERSE) {
 					right.p-=0.5*right.rho*right.v.dot(right.v);
@@ -426,6 +436,7 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 					right.T_center=left.T_center+2.*(right.T-left.T_center);
 				} else if (bc.region[face.bc].kind==NO_REVERSE) {
 					right.v=0.;
+					right.v_center=-1.*left.v_center; 
 				}
 			}
 		}
@@ -463,6 +474,10 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 				rightZvar+=(grid.face[face.index].centroid-grid.ghost[g].centroid).dot(flamelet.ghost[g].grad[1]);
 				rightOmega+=(grid.face[face.index].centroid-grid.ghost[g].centroid).dot(rans.ghost[g].grad[1]);
 			}
+			rightZ=max(rightZ,0.);
+			rightZ=min(rightZ,1.);
+			rightZvar=max(rightZvar,0.);
+			rightOmega=max(rightOmega,omegaLowLimit);
 			Chi=2.*rightOmega*rightZvar*rans.kepsilon.beta_star;
 			right.rho=flamelet.table.get_rho(rightZ,rightZvar,Chi);
 		}

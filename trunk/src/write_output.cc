@@ -122,6 +122,12 @@ void write_tec(double time) {
 			}
 		}
 		rho_node=eos.rho(p_node,T_node);
+		if (FLAMELET) {
+			double Chi=1.; // TODO calculate chi
+			rho_node=flamelet.table.get_rho(Z_node,Zvar_node,Chi);
+			T_node=flamelet.table.get_temperature(Z_node,Zvar_node,Chi);
+		}
+		
 		k_node=max(k_node,kLowLimit);
 		omega_node=max(omega_node,omegaLowLimit);
 		Z_node=max(Z_node,0.);

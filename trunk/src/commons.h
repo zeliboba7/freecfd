@@ -98,7 +98,7 @@ extern int OUTPUT_FORMAT;
 extern bool FLAMELET;
 
 extern int Rank,np;
-extern double omegaLowLimit,kLowLimit,viscosityRatioLimit;
+extern double omegaLowLimit,kLowLimit,kHighLimit,viscosityRatioLimit;
 extern double dt,dtTarget,CFLmax,CFLmaxTarget,CFLlocal,CFLlocalTarget;
 extern int timeStep,restart;
 extern double Minf,Pref,Tref;

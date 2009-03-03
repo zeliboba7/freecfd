@@ -104,6 +104,7 @@ void RANS::petsc_init(double rtol,double abstol,int maxits) {
 	KSPSetOperators(ksp,impOP,impOP,SAME_NONZERO_PATTERN);
 	KSPSetTolerances(ksp,rtol,abstol,1.e10,maxits);
 	KSPSetInitialGuessKnoll(ksp,PETSC_TRUE);
+	//KSPSetInitialGuessNonzero(ksp,PETSC_TRUE);
 	KSPSetType(ksp,KSPFGMRES);
 	KSPGMRESSetRestart(ksp,100);
 	KSPSetFromOptions(ksp);
@@ -132,7 +133,7 @@ void RANS::petsc_solve(int &nIter, double &rNorm) {
 	}
 
 	VecSet(rhs,0.);
-	KSPSetOperators(ksp,impOP,impOP,SAME_NONZERO_PATTERN);	
+	KSPSetOperators(ksp,impOP,impOP,SAME_NONZERO_PATTERN);
 
 	return;
 	
@@ -279,6 +280,7 @@ void RANS::gradients(void) {
 				}
 				
 				faceK=max(faceK,kLowLimit);
+				faceK=min(faceK,kHighLimit);
 				faceOmega=max(faceOmega,omegaLowLimit);
 				
 				if (bc.region[grid.face[f].bc].type==INLET) {
@@ -286,6 +288,10 @@ void RANS::gradients(void) {
 					faceOmega=bc.region[grid.face[f].bc].omega;
 				} else if (bc.region[grid.face[f].bc].type==SYMMETRY) {
 					// Symmetry mirrors everything
+					faceK=cell[c].k;
+					faceOmega=cell[c].omega;
+				} else if (bc.region[grid.face[f].bc].type==SLIP) {
+					// Slip mirrors everything
 					faceK=cell[c].k;
 					faceOmega=cell[c].omega;
 				} else if (bc.region[grid.face[f].bc].type==NOSLIP) {
@@ -363,9 +369,10 @@ void RANS::update(double &resK, double &resOmega) {
 	int counter=0.;
 	for (unsigned int c = 0;c < grid.cellCount;++c) {
 
-		// Limit the update so k doesn't end up negative
+		// Limit the update so that k and omega doesn't end up out of limits
 		cell[c].update[0]=max(-1.*(cell[c].k-kLowLimit),cell[c].update[0]);
-		// Limit the update so omega doesn't end up smaller than 100
+		cell[c].update[0]=min((kHighLimit-cell[c].k),cell[c].update[0]);
+
 		cell[c].update[1]=max(-1.*(cell[c].omega-omegaLowLimit),cell[c].update[1]);
 		
 		double new_mu_t=grid.cell[c].rho*(cell[c].k+cell[c].update[0])/(cell[c].omega+cell[c].update[1]);
@@ -375,7 +382,7 @@ void RANS::update(double &resK, double &resOmega) {
 			double under_relax;
 			double limit_nu=viscosityRatioLimit*viscosity/grid.cell[c].rho;
 			under_relax=(limit_nu*cell[c].omega-cell[c].k)/(cell[c].update[0]-limit_nu*cell[c].update[1]);
-			under_relax=max(1.,under_relax);
+			under_relax=0.9*max(1.,under_relax);
 			cell[c].update[0]*=under_relax;
 			cell[c].update[1]*=under_relax;
 		}

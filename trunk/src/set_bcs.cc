@@ -110,6 +110,8 @@ void setBCs(InputFile &input, BC &bc) {
 				bcRegion.rho=flamelet.table.get_rho(bcRegion.Z,bcRegion.Zvar,Chi);	
 				bcRegion.T=flamelet.table.get_temperature(bcRegion.Z,bcRegion.Zvar,Chi);
 				bcRegion.thermalType=FIXED_T;
+			} else if (bcRegion.type==OUTLET && region.get_double("p").is_found) {
+				bcRegion.specified=BC_P;
 			}
 		}
 		
