@@ -384,9 +384,7 @@ void Flamelet::update_rho(){
 		grid.cell[c].rho= table.get_rho(cell[c].Z, cell[c].Zvar,Chi );
 		grid.cell[c].T= table.get_temperature(cell[c].Z, cell[c].Zvar,Chi );
 	
-
 	} // cell loop
-
 
 }
 

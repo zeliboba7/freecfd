@@ -35,6 +35,8 @@ extern BC bc;
 class Flamelet_Table {
 	public:
 	int nZ,nZvar,nChi;
+	int i1,i2,i3;  // indeicies for Z,Zvar and Chi
+	vector<double> weights;
 	std::vector<double> Z;
 	std::vector<double> Zvar;
 	std::vector<double> Chi;
@@ -44,8 +46,9 @@ class Flamelet_Table {
 	std::vector<vector<vector<double> > > diffusivity;
 	std::vector<vector<vector<double> > > conductivity;
 	void read(string fileName);
-	double get_rho(double &Z, double &Zvar, double &Chi);
-	double get_temperature(double &Z, double &Zvar, double &Chi);
+	void get_weights(double &Z, double &Zvar, double &Chi);
+	double get_rho(double &Z, double &Zvar, double &Chi,bool refreshWeights=true);
+	double get_temperature(double &Z, double &Zvar, double &Chi,bool refreshWeights=true);
 	
 };
 

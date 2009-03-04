@@ -133,6 +133,7 @@ int main(int argc, char *argv[]) {
 		flamelet.mpi_init();
 		if (Rank==0) cout << "[I] Initialized flamelet model" << endl;
 		flamelet.table.read(input.section("flamelet").get_string("tableFile"));
+		exit(1);
 		if (Rank==0) cout << "[I] Read flamelet pdf table" << endl;
 	}
 	
