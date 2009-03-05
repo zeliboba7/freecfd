@@ -23,6 +23,7 @@
 #include "commons.h"
 #include "flamelet.h"
 #include "fstream"
+#include <iomanip>
 
 void Flamelet_Table::read(string fileName) {
 	string tag;
@@ -70,49 +71,69 @@ void Flamelet_Table::read(string fileName) {
 	for (int i=0;i<nVar;++i){
 		chemTable >> tag;
 		if (Rank==0) cout << "[I] ...Found variable: " << tag << endl;
-		if (tag=="RHO") for (int j=0;j<nZ;++j) for (int k=0;k<nZvar;++k) for (int m=0;m<nChi;++m) chemTable >> rho[j][k][m]; 
-		else if (tag=="T")for (int j=0;j<nZ;++j) for (int k=0;k<nZvar;++k) for (int m=0;m<nChi;++m) chemTable >> T[j][k][m]; 
-		else if (tag=="VISC")for (int j=0;j<nZ;++j) for (int k=0;k<nZvar;++k) for (int m=0;m<nChi;++m) chemTable >> viscosity[j][k][m]; 
-		else for (int j=0;j<nZ;++j) for (int k=0;k<nZvar;++k) for (int m=0;m<nChi;++m) chemTable >> dummy;	
+		if (tag=="RHO") {
+			for (int j=0;j<nZ;++j) for (int k=0;k<nZvar;++k) for (int m=0;m<nChi;++m) chemTable >> rho[j][k][m];
+		} else if (tag=="T") {
+			for (int j=0;j<nZ;++j) for (int k=0;k<nZvar;++k) for (int m=0;m<nChi;++m) chemTable >> T[j][k][m]; 
+		} else if (tag=="VISC") {
+			for (int j=0;j<nZ;++j) for (int k=0;k<nZvar;++k) for (int m=0;m<nChi;++m) chemTable >> viscosity[j][k][m]; 
+		} else {
+			for (int j=0;j<nZ;++j) for (int k=0;k<nZvar;++k) for (int m=0;m<nChi;++m) chemTable >> dummy;
+		}	
       	}
 	
 	return; 
 } // end Flamelet_Table::read
 
 void Flamelet_Table::get_weights(double &Z_in, double &Zvar_in, double &Chi_in) {
-	int i1,i2,i3;
+
 	i1=-1;
-	if (Z_in< Z[0]) {
+	if (Z_in<=Z[0]) {
 		i1=0;
 		weights[0]=1.0;
-	} else if(Z_in>=Z[1]) {
-		i1=nZ-1;
+	} else if (Z_in>=Z[nZ-1]) {
+		i1=nZ-2;
 		weights[0]=0.0;
-	}else {for (int i=0;i<nZ-1;++i) if (Z_in <=Z[i+1]) { i1=i; break;}
-	weights[0]=1.0-(Z_in-Z[i1])/(Z[i1+1]-Z[i1]);	
+	} else {
+		for (int i=0;i<nZ-1;++i) {
+			if (Z_in<=Z[i+1]) { 
+				i1=i; break;
+			}
+		}
+		weights[0]=1.0-(Z_in-Z[i1])/(Z[i1+1]-Z[i1]);	
 	}
 	weights[1]=1.0-weights[0];
 	//allow for non-equdistant grid spacing for x2=Zvar
 	i2=-1;
-	if (Zvar_in< Zvar[0]) {
+	if (Zvar_in<=Zvar[0]) {
 		i2=0;
 		weights[2]=1.0;
-	} else if(Zvar_in>=Zvar[1]) {
-		i2=nZvar-1;
+	} else if (Zvar_in>=Zvar[nZvar-1]) {
+		i2=nZvar-2;
 		weights[2]=0.0;
-	}else {for (int i=0;i<nZvar-1;++i) if (Zvar_in <=Zvar[i2+1]) { i2=i; break;}
+	} else {
+		for (int i=0;i<nZvar-1;++i) {
+			if (Zvar_in<=Zvar[i+1]) { 
+				i2=i; break;
+			}
+		}
 		weights[2]=1.0-(Zvar_in-Zvar[i2])/(Zvar[i2+1]-Zvar[i2]);	
 	}
 	weights[3]=1.0-weights[2];
 	//allow for non-equdistant grid spacing for x3=chiMean
 	i3=-1;
-	if (Chi_in< Chi[0]) {
+	if (Chi_in<=Chi[0]) {
 		i3=0;
 		weights[4]=1.0;
-	} else if(Chi_in>Chi[0]) {
-		i3=nChi-1;
+	} else if (Chi_in>=Chi[nChi-1]) {
+		i3=nChi-2;
 		weights[4]=0.0;
-	}else {for (int i=0;i<nChi-1;++i) if (Chi_in <=Chi[i+1]) { i3=i; break;}
+	} else {
+		for (int i=0;i<nChi-1;++i) {
+			if (Chi_in<=Chi[i+1]) {
+				i3=i; break;
+			}
+		}
 		weights[4]=1.0-(Chi_in-Chi[i3])/(Chi[i3+1]-Chi[i3]);	
 	}
 	weights[5]=1.0-weights[4];
@@ -122,13 +143,15 @@ void Flamelet_Table::get_weights(double &Z_in, double &Zvar_in, double &Chi_in) 
 		exit(1);
 	}
 	
-	
+	return;
 }
 
 
-double Flamelet_Table::get_rho(double &Z, double &Zvar, double &Chi,bool refreshWeights) {
-	if (refreshWeights) get_weights(Z,Zvar,Chi);
-	return  weights[4]*( weights[2]*( weights[0]*rho[i1][i2][i3]
+double Flamelet_Table::get_rho(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights) {
+	
+	if (refreshWeights) get_weights(Z_in,Zvar_in,Chi_in);
+	
+	return weights[4]*( weights[2]*( weights[0]*rho[i1][i2][i3]
 			+weights[1]*rho[i1+1][i2][i3] )
 			+weights[3]*( weights[0]*rho[i1][i2+1][i3]
 			+weights[1]*rho[i1+1][i2+1][i3] ) ) 
@@ -136,12 +159,13 @@ double Flamelet_Table::get_rho(double &Z, double &Zvar, double &Chi,bool refresh
 			+weights[1]*rho[i1+1][i2][i3+1] ) 
 			+weights[3]*( weights[0]*rho[i1][i2+1][i3+1] 
 			+weights[1]*rho[i1+1][i2+1][i3+1] ) );
-	
-	//return 2.5e2*pow(Z,4)-5.4e2*pow(Z,3)+3.9e2*pow(Z,2)-1.1e2*Z+13.0;
+
 }
 
-double Flamelet_Table::get_temperature(double &Z, double &Zvar, double &Chi,bool refreshWeights) {
-	if (refreshWeights) get_weights(Z,Zvar,Chi);
+double Flamelet_Table::get_temperature(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights) {
+	
+	if (refreshWeights) get_weights(Z_in,Zvar_in,Chi_in);
+	
 	return  weights[4]*( weights[2]*( weights[0]*T[i1][i2][i3]
 			+weights[1]*T[i1+1][i2][i3] )
 			+weights[3]*( weights[0]*T[i1][i2+1][i3]

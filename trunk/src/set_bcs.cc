@@ -134,7 +134,6 @@ void setBCs(InputFile &input, BC &bc) {
 		if (region.get_double("mdot").is_found) {
 			double mdot=region.get_double("mdot");
 			bcRegion.v=-mdot/(bcRegion.rho*bcRegion.area)*bcRegion.areaVec.norm();
-			cout << bcRegion.v << endl;
 		}
 		
 		if (kind=="none") {

@@ -74,7 +74,7 @@ void petsc_init(int argc, char *argv[],double rtol,double abstol,int maxits) {
 	
 	KSPSetOperators(ksp,impOP,impOP,SAME_NONZERO_PATTERN);
 	KSPSetTolerances(ksp,rtol,abstol,1.e10,maxits);
-	//KSPSetInitialGuessNonzero(ksp,PETSC_TRUE);
+	KSPSetInitialGuessNonzero(ksp,PETSC_TRUE);
 	KSPSetInitialGuessKnoll(ksp,PETSC_TRUE);
 	KSPSetType(ksp,KSPFGMRES);
 	KSPGMRESSetRestart(ksp,100);
