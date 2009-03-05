@@ -43,20 +43,22 @@ void initialize(InputFile &input) {
 		double regionRho,regionP,regionT,regionK,regionOmega,regionZ,regionZvar;
 		// Assign specified values
 		regionP=region.get_double("p");
-		if (region.get_double("rho").is_found) { // Rho is specified in the input file
-			//  Check if Temperature is also specifid
-			if (region.get_double("T").is_found) {
-				cerr << "Both rho and T can't be specified in initial condition IC_" << ic+1 << endl;
+		if (!FLAMELET) {
+			if (region.get_double("rho").is_found) { // Rho is specified in the input file
+				//  Check if Temperature is also specifid
+				if (region.get_double("T").is_found) {
+					cerr << "Both rho and T can't be specified in initial condition IC_" << ic+1 << endl;
+					exit(1);
+				}
+				regionRho=region.get_double("rho");
+				regionT=eos.T(regionP,regionRho);
+			} else if (region.get_double("T").is_found) {
+				regionT=region.get_double("T");
+				regionRho=eos.rho(regionP,regionT);	
+			} else {
+				cerr << "Need to specify either rho or T in initial condition IC_" << ic+1 << endl;
 				exit(1);
 			}
-			regionRho=region.get_double("rho");
-			regionT=eos.T(regionP,regionRho);
-		} else if (region.get_double("T").is_found) {
-			regionT=region.get_double("T");
-			regionRho=eos.rho(regionP,regionT);	
-		} else {
-			cerr << "Need to specify either rho or T in initial condition IC_" << ic+1 << endl;
-			exit(1);
 		}
 		regionK=region.get_double("k");
 		regionOmega=region.get_double("omega");

@@ -119,6 +119,7 @@ void RANS::petsc_solve(int &nIter, double &rNorm) {
 	VecAssemblyBegin(rhs);
 	VecAssemblyEnd(rhs);
 
+	KSPSetOperators(ksp,impOP,impOP,SAME_NONZERO_PATTERN);
 	KSPSolve(ksp,rhs,deltaU);
 
 	KSPGetIterationNumber(ksp,&nIter);
@@ -133,7 +134,7 @@ void RANS::petsc_solve(int &nIter, double &rNorm) {
 	}
 
 	VecSet(rhs,0.);
-	KSPSetOperators(ksp,impOP,impOP,SAME_NONZERO_PATTERN);
+
 
 	return;
 	

@@ -107,6 +107,7 @@ void Flamelet::petsc_solve(int &nIter, double &rNorm) {
 	VecAssemblyBegin(rhs);
 	VecAssemblyEnd(rhs);
 
+	KSPSetOperators(ksp,impOP,impOP,SAME_NONZERO_PATTERN);	
 	KSPSolve(ksp,rhs,deltaU);
 
 	KSPGetIterationNumber(ksp,&nIter);
@@ -121,7 +122,6 @@ void Flamelet::petsc_solve(int &nIter, double &rNorm) {
 	}
 
 	VecSet(rhs,0.);
-	KSPSetOperators(ksp,impOP,impOP,SAME_NONZERO_PATTERN);	
 
 	return;
 	
@@ -352,9 +352,12 @@ void Flamelet::update(double &resZ, double &resZvar) {
 		
 		// Limit the update so Z doesn't end up negative
 		cell[c].update[0]=max(-cell[c].Z,cell[c].update[0]);
+		// Limit the update so Zvar doesn't end up negative
+		cell[c].update[1]=max(-cell[c].Zvar,cell[c].update[1]);
 		// Limit the update so Z doesn't end up larger than 1
 		cell[c].update[0]=min(1.-cell[c].Z,cell[c].update[0]);
-		cell[c].update[1]=max(-cell[c].Zvar,cell[c].update[1]);
+		// Limit the update so Z doesn't end up larger than 0.25
+		cell[c].update[1]=min(0.25-cell[c].Zvar,cell[c].update[1]);
 		
 		cell[c].Z += cell[c].update[0];
 		cell[c].Zvar+= cell[c].update[1];

@@ -220,6 +220,7 @@ void Flamelet::get_Z_Zvar(unsigned int &parent,unsigned int &neighbor,unsigned i
 	leftZ=max(0.,leftZ);
 	leftZ=min(1.,leftZ);
 	leftZvar=max(0.,leftZvar);
+	leftZvar=min(0.25,leftZvar);
 	
 	// Find face averaged quantities
 	faceGradZ=0.; faceGradZvar=0.; faceRho=0.;
@@ -265,6 +266,7 @@ void Flamelet::get_Z_Zvar(unsigned int &parent,unsigned int &neighbor,unsigned i
 		rightZ=max(0.,rightZ);
 		rightZ=min(1.,rightZ);
 		rightZvar=max(0.,rightZvar);
+		rightZvar=min(0.25,rightZvar);
 		
 	} else if (grid.face[f].bc>=0) { // boundary face
 		
@@ -318,6 +320,7 @@ void Flamelet::get_Z_Zvar(unsigned int &parent,unsigned int &neighbor,unsigned i
 		rightZ=max(0.,rightZ);
 		rightZ=min(1.,rightZ);
 		rightZvar=max(0.,rightZvar);
+		rightZvar=min(0.25,rightZvar);
 
 	}
 	

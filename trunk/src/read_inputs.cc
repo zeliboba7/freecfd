@@ -61,7 +61,7 @@ void read_inputs(InputFile &input) {
 	
 	input.registerSection("timeMarching",required);
 	input.section("timeMarching").register_string("integrator",optional,"backwardEuler");
-	input.section("timeMarching").register_double("stepSize",optional,1000);
+	input.section("timeMarching").register_double("stepSize",optional,1);
 	input.section("timeMarching").register_double("CFLmax",optional,1000);
 	input.section("timeMarching").register_double("CFLlocal",optional,1000);
 	input.section("timeMarching").registerSubsection("ramp",single,optional);
@@ -146,6 +146,7 @@ void read_inputs(InputFile &input) {
 	input.section("boundaryConditions").subsection("BC",0).register_Vec3D("corner_2",optional);
 	input.section("boundaryConditions").subsection("BC",0).register_string("pick",optional,"overRide");
 	input.section("boundaryConditions").subsection("BC",0).register_double("p",optional);
+	input.section("boundaryConditions").subsection("BC",0).register_double("mdot",optional);
 	input.section("boundaryConditions").subsection("BC",0).register_Vec3D("v",optional);
 	input.section("boundaryConditions").subsection("BC",0).register_double("T",optional);	
 	input.section("boundaryConditions").subsection("BC",0).register_double("rho",optional);	
