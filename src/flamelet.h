@@ -46,9 +46,9 @@ class Flamelet_Table {
 	std::vector<vector<vector<double> > > diffusivity;
 	std::vector<vector<vector<double> > > conductivity;
 	void read(string fileName);
-	void get_weights(double &Z, double &Zvar, double &Chi);
-	double get_rho(double &Z, double &Zvar, double &Chi,bool refreshWeights=true);
-	double get_temperature(double &Z, double &Zvar, double &Chi,bool refreshWeights=true);
+	void get_weights(double &Z_in, double &Zvar_in, double &Chi_in);
+	double get_rho(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights=true);
+	double get_temperature(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights=true);
 	
 };
 
