@@ -373,18 +373,16 @@ void Grid::gradients(void) {
 			f=cell[c].faces[cf];
 			if (face[f].bc>=0) { // if a boundary face
 				areaVec=face[f].normal*face[f].area/cell[c].volume;
-				faceP=0.; faceVel=0.; faceT=0.; faceRho=0.;
+				faceP=0.; faceVel=0.; faceT=0.;
 				for (fit=face[f].average.begin();fit!=face[f].average.end();fit++) {
 					if ((*fit).first>=0) { // if contribution is coming from a real cell
 						faceP+=(*fit).second*cell[(*fit).first].p;
 						faceVel+=(*fit).second*cell[(*fit).first].v;
 						faceT+=(*fit).second*cell[(*fit).first].T;
-						faceRho+=(*fit).second*cell[(*fit).first].rho;
 					} else { // if contribution is coming from a ghost cell
 						faceP+=(*fit).second*ghost[-1*((*fit).first+1)].p;
 						faceVel+=(*fit).second*ghost[-1*((*fit).first+1)].v;
 						faceT+=(*fit).second*ghost[-1*((*fit).first+1)].T;
-						faceRho+=(*fit).second*ghost[-1*((*fit).first+1)].rho;
 					}
 				}
 

@@ -420,15 +420,13 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 			right.T_center=left.T_center;
 		} else if (bc.region[face.bc].type==NOSLIP) {
 			right.v=-1.*left.v;
-			right.v_center=-1.*left.v_center;
+			right.v_center=2.*right.v-left.v_center;
 		} else if (bc.region[face.bc].type==INLET) {
 			right.v=bc.region[face.bc].v;
 			right.v_center=right.v;
 		} else if (bc.region[face.bc].type==OUTLET) {
 			right.v=left.v;
 			right.v_center=2.*right.v-left.v_center; 
-// 			right.v=left.v_center;
-// 			right.v_center=left.v_center; 
 			if (right.v.dot(face.normal)<0.) {
 				if (bc.region[face.bc].kind==DAMP_REVERSE) {
 					right.p-=0.5*right.rho*right.v.dot(right.v);

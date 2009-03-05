@@ -361,8 +361,8 @@ void get_kOmega() {
 		} else if (bc.region[grid.face[f].bc].type==INLET) {
 			rightK=bc.region[grid.face[f].bc].k;
 			rightOmega=bc.region[grid.face[f].bc].omega;
-			rightK_center=rightK;
-			rightOmega_center=rightOmega;
+			rightK_center=2.*rightK-leftK_center;
+			rightOmega_center=2.*rightOmega-leftOmega_center;
 			//weightL=0.; 
 		} else if (bc.region[grid.face[f].bc].type==OUTLET) {
 			rightK_center=leftK_center; 

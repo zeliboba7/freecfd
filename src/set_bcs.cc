@@ -42,6 +42,19 @@ void setBCs(InputFile &input, BC &bc) {
 		Subsection &region=input.section("boundaryConditions").subsection("BC",b);
 	
 		BCregion bcRegion;
+		
+		bcRegion.area=0.;
+		bcRegion.areaVec=0.;
+		bcRegion.momentum=0.;
+		
+		// Integrate boundary areas
+		for (unsigned int f=0;f<grid.faceCount;++f) {
+			if (grid.face[f].bc==b) {
+				bcRegion.area+=grid.face[f].area;
+				bcRegion.areaVec+=grid.face[f].area*grid.face[f].normal;
+			}
+		}
+		
 		string type=region.get_string("type");
 		string kind=region.get_string("kind");
 		if (type=="symmetry") bcRegion.type=SYMMETRY;
@@ -116,11 +129,13 @@ void setBCs(InputFile &input, BC &bc) {
 		}
 		
 
-
+		
 		bcRegion.v=region.get_Vec3D("v");
-		bcRegion.area=0.;
-		bcRegion.areaVec=0.;
-		bcRegion.momentum=0.;
+		if (region.get_double("mdot").is_found) {
+			double mdot=region.get_double("mdot");
+			bcRegion.v=-mdot/(bcRegion.rho*bcRegion.area)*bcRegion.areaVec.norm();
+			cout << bcRegion.v << endl;
+		}
 		
 		if (kind=="none") {
 			cout << "[I Rank=" << Rank << "] BC_" << b+1 << " assigned as " << type << endl;
@@ -170,15 +185,6 @@ void setBCs(InputFile &input, BC &bc) {
 				// TODO this one is for the closest wall distance for turbulence model
 				// what if the closest face lies on another partition?
 			}
-		}
-	}
-
-	// Integrate boundary areas
-	for (unsigned int f=0;f<grid.faceCount;++f) {
-		int bcIndex=grid.face[f].bc;
-		if (bcIndex>=0) {
-			bc.region[bcIndex].area+=grid.face[f].area;
-			bc.region[bcIndex].areaVec+=grid.face[f].area*grid.face[f].normal;
 		}
 	}
 	
