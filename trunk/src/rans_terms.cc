@@ -21,11 +21,14 @@
 
 *************************************************************************/
 #include "rans.h"
+#include "flamelet.h"
+
 extern RANS rans;
+extern Flamelet flamelet;
 double EPS=1.e-10;
 
 void get_kOmega(void);
-double get_blending(double &k,double &omega,double &rho,double &y,Vec3D &gradK,Vec3D &gradOmega);
+double get_blending(double &k,double &omega,double &rho,double &y,double &visc,Vec3D &gradK,Vec3D &gradOmega);
 
 unsigned int parent,neighbor,f;
 double leftK,leftOmega, rightK, rightOmega, faceK, faceOmega, faceRho;
@@ -34,6 +37,7 @@ Vec3D faceGradK, faceGradOmega, left2right;
 double mu_t=0.;
 double weightL,weightR;
 bool extrapolated;
+double mu=viscosity;
 
 void RANS::terms(void) {
 
@@ -47,7 +51,7 @@ void RANS::terms(void) {
 	double jacL[2],jacR[2];
 	double cross_diffusion;
 	double closest_wall_distance;
-	
+
 	MatZeroEntries(impOP); // Flush the implicit operator
 
 	// Loop through faces
@@ -70,10 +74,14 @@ void RANS::terms(void) {
 		convectiveFlux[0]=grid.face[f].mdot*(weightL*leftK+weightR*rightK)*grid.face[f].area;
 		convectiveFlux[1]=grid.face[f].mdot*(weightL*leftOmega+weightR*rightOmega)*grid.face[f].area;
 
+		if (FLAMELET) mu=flamelet.face[f].mu;
+		mu_t=fabs(faceRho*faceK/faceOmega);
+		mu_t=min(mu_t,viscosityRatioLimit*mu);
+		
 		// Diffusive k and omega fluxes	
 		if (TURBULENCE_MODEL==BSL) {
 			closest_wall_distance=grid.cell[parent].closest_wall_distance;
-			blending=get_blending(faceK,faceOmega,faceRho,closest_wall_distance,faceGradK,faceGradOmega);
+			blending=get_blending(faceK,faceOmega,faceRho,closest_wall_distance,mu,faceGradK,faceGradOmega);
 		}
 		
 		sigma_omega=blending*komega.sigma_omega+(1.-blending)*kepsilon.sigma_omega;
@@ -82,11 +90,10 @@ void RANS::terms(void) {
 		beta=blending*komega.beta+(1.-blending)*kepsilon.beta;
 		beta_star=blending*komega.beta_star+(1.-blending)*kepsilon.beta_star;
 		
-		mu_t=fabs(faceRho*faceK/faceOmega);
-		mu_t=min(mu_t,viscosityRatioLimit*viscosity);
+
 		
-		diffusiveFlux[0]=(viscosity+mu_t*sigma_k)*faceGradK.dot(grid.face[f].normal)*grid.face[f].area;
-		diffusiveFlux[1]=(viscosity+mu_t*sigma_omega)*faceGradOmega.dot(grid.face[f].normal)*grid.face[f].area;
+		diffusiveFlux[0]=(mu+mu_t*sigma_k)*faceGradK.dot(grid.face[f].normal)*grid.face[f].area;
+		diffusiveFlux[1]=(mu+mu_t*sigma_omega)*faceGradOmega.dot(grid.face[f].normal)*grid.face[f].area;
 		
 		// Fill in rhs vector for rans scalars
 		for (int i=0;i<2;++i) {
@@ -110,16 +117,16 @@ void RANS::terms(void) {
 		if (grid.face[f].bc==INTERNAL) rightRho=grid.cell[neighbor].rho;
 		// dF_k/dk_left
 		jacL[0]=weightL*grid.face[f].mdot*grid.face[f].area; // convective
-		if (!extrapolated) jacL[0]+=(viscosity+mu_t*sigma_k)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
+		if (!extrapolated) jacL[0]+=(mu+mu_t*sigma_k)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
 		// dF_k/dk_right
 		jacR[0]=weightR*grid.face[f].mdot*grid.face[f].area; // convective
-		if (!extrapolated) jacR[0]-=(viscosity+mu_t*sigma_k)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
+		if (!extrapolated) jacR[0]-=(mu+mu_t*sigma_k)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
 		// dF_omega/dOmega_left
 		jacL[1]=weightL*grid.face[f].mdot*grid.face[f].area; // convective
-		if (!extrapolated) jacL[1]+=(viscosity+mu_t*sigma_omega)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
+		if (!extrapolated) jacL[1]+=(mu+mu_t*sigma_omega)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
 		// dF_omega/dOmega_right
 		jacR[1]=weightR*grid.face[f].mdot*grid.face[f].area; // convective
-		if (!extrapolated) jacR[1]-=(viscosity+mu_t*sigma_omega)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
+		if (!extrapolated) jacR[1]-=(mu+mu_t*sigma_omega)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
 		
 		// Insert flux jacobians for the parent cell
 		// left_k/left_k
@@ -186,8 +193,9 @@ void RANS::terms(void) {
 		row++;
 		MatSetValues(impOP,1,&row,1,&row,&value,ADD_VALUES);
 
+		mu=flamelet.cell[c].mu;
 		if (TURBULENCE_MODEL==BSL) {
-			blending=get_blending(cell[c].k,cell[c].omega,grid.cell[c].rho,grid.cell[c].closest_wall_distance,cell[c].grad[0],cell[c].grad[1]);
+			blending=get_blending(cell[c].k,cell[c].omega,grid.cell[c].rho,grid.cell[c].closest_wall_distance,mu,cell[c].grad[0],cell[c].grad[1]);
 		}
 		
 		sigma_omega=blending*komega.sigma_omega+(1.-blending)*kepsilon.sigma_omega;
@@ -343,9 +351,10 @@ void get_kOmega() {
 		
 		rightK=leftK; rightOmega=leftOmega;
 
+		if (FLAMELET) mu=flamelet.face[f].mu;
 		if (bc.region[grid.face[f].bc].type==NOSLIP) {
 			rightK=0.;
-			rightOmega=60.*viscosity/(faceRho*0.075*pow(0.5*left2right.dot(grid.face[f].normal),2.));
+			rightOmega=60.*mu/(faceRho*0.075*pow(0.5*left2right.dot(grid.face[f].normal),2.));
 			rightK_center=2.*rightK-leftK_center;
 			rightOmega_center=2.*rightOmega-leftOmega_center;
 		} else if (bc.region[grid.face[f].bc].type==SYMMETRY) {
@@ -406,13 +415,13 @@ void get_kOmega() {
 	return;	
 }
 
-double get_blending(double &k,double &omega,double &rho,double &y,Vec3D &gradK,Vec3D &gradOmega) {
+double get_blending(double &k,double &omega,double &rho,double &y,double &visc,Vec3D &gradK,Vec3D &gradOmega) {
 	double F,arg,arg1,arg2,arg3,CD,cross_diff;
 	
 	cross_diff=gradK[0]*gradOmega[0]+gradK[1]*gradOmega[1]+gradK[2]*gradOmega[2];
 	CD=max(2.*rho*rans.komega.sigma_omega*cross_diff/omega,1.e-20);
 	arg1=sqrt(k)/(0.09*omega*y);
-	arg2=500.*viscosity/(rho*y*y*omega);
+	arg2=500.*visc/(rho*y*y*omega);
 	arg3=4.*rho*rans.komega.sigma_omega*k/(CD*y*y);
 	arg=min(max(arg1,arg2),arg3);
 	F=tanh(pow(arg,4.));

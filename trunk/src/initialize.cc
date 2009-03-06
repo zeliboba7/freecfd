@@ -67,7 +67,7 @@ void initialize(InputFile &input) {
 			regionZvar=region.get_double("Zvar");
 			double Chi=2.*regionOmega*regionZvar*rans.kepsilon.beta_star;
 			regionRho=flamelet.table.get_rho(regionZ,regionZvar,Chi);
-			regionT=flamelet.table.get_temperature(regionZ,regionZvar,Chi);
+			regionT=flamelet.table.get_T(regionZ,regionZvar,Chi,false);
 		}
 		// If region is specified with a box method
 		if (region.get_string("region")=="box") {
@@ -145,14 +145,17 @@ void initialize(InputFile &input) {
 
 	for (unsigned int c=0;c<grid.cellCount;++c) {
 		for (unsigned int i=0;i<5;++i) grid.cell[c].update[i]=0.;
-	}
-	
-	if (TURBULENCE_MODEL!=NONE) for (unsigned int f=0;f<grid.faceCount;++f) rans.face[f].mu_t=0.;
-	
+		if (FLAMELET) {
+			double Chi=2.*rans.cell[c].omega*flamelet.cell[c].Zvar*rans.kepsilon.beta_star;
+			flamelet.cell[c].mu=flamelet.table.get_mu(flamelet.cell[c].Z,flamelet.cell[c].Zvar,Chi);
+		}
+	}	
 	
 	for (unsigned int g=0;g<grid.ghostCount;++g) {
 		for (unsigned int i=0;i<5;++i) grid.ghost[g].update[i]=0.;
 	}
+	
+	if (TURBULENCE_MODEL!=NONE) for (unsigned int f=0;f<grid.faceCount;++f) rans.face[f].mu_t=0.;
 	
 	return;
 }

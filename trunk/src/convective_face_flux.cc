@@ -33,8 +33,8 @@ extern BC bc;
 double beta=0.125;
 double alpha;
 
-void roe_flux(Cell_State &left,Cell_State &right,double fluxNormal[],double &weightL);
-void AUSMplusUP_flux(Cell_State &left,Cell_State &right,double fluxNormal[],double &weightL,double &uN);
+void roe_flux(Cell_State &left,Cell_State &right,double fluxNormal[],double &weightL,int &upstream);
+void AUSMplusUP_flux(Cell_State &left,Cell_State &right,double fluxNormal[],double &weightL,int &upstream);
 double Mach_split_2_plus (double Mach);
 double Mach_split_2_minus (double Mach);
 double Mach_split_4_plus (double Mach);
@@ -46,8 +46,8 @@ void convective_face_flux(Cell_State &left,Cell_State &right,Face_State &face,do
 
 	double fluxNormal[7];
 
-	if (CONVECTIVE_FLUX_FUNCTION==ROE) roe_flux(left,right,fluxNormal,grid.face[face.index].weightL);
-	if (CONVECTIVE_FLUX_FUNCTION==AUSM_PLUS_UP) AUSMplusUP_flux(left,right,fluxNormal,grid.face[face.index].weightL,grid.face[face.index].uN);
+	if (CONVECTIVE_FLUX_FUNCTION==ROE) roe_flux(left,right,fluxNormal,grid.face[face.index].weightL,grid.face[face.index].upstream);
+	if (CONVECTIVE_FLUX_FUNCTION==AUSM_PLUS_UP) AUSMplusUP_flux(left,right,fluxNormal,grid.face[face.index].weightL,grid.face[face.index].upstream);
 	flux[0] = fluxNormal[0]*face.area;
 	flux[1] = (fluxNormal[1]*face.normal[0]+fluxNormal[2]*face.tangent1[0]+fluxNormal[3]*face.tangent2[0])*face.area;
 	flux[2] = (fluxNormal[1]*face.normal[1]+fluxNormal[2]*face.tangent1[1]+fluxNormal[3]*face.tangent2[1])*face.area;
@@ -57,7 +57,7 @@ void convective_face_flux(Cell_State &left,Cell_State &right,Face_State &face,do
 	return;
 } // end face flux
 
-void roe_flux(Cell_State &left,Cell_State &right,double fluxNormal[],double &weightL) {
+void roe_flux(Cell_State &left,Cell_State &right,double fluxNormal[],double &weightL,int &upstream) {
 
 	// Local variables
 	double rho,u,v,w,H,a;
@@ -138,7 +138,7 @@ void roe_flux(Cell_State &left,Cell_State &right,double fluxNormal[],double &wei
 	return;
 } // end roe_flux
 
-void AUSMplusUP_flux(Cell_State &left,Cell_State &right,double fluxNormal[],double &weightL,double &uN) {
+void AUSMplusUP_flux(Cell_State &left,Cell_State &right,double fluxNormal[],double &weightL,int &upstream) {
 
 	double Kp=0.25;
 	double Ku=0.75;
@@ -180,11 +180,11 @@ void AUSMplusUP_flux(Cell_State &left,Cell_State &right,double fluxNormal[],doub
 
 	if (M>0) {
 		mdot=a*M*left.rho;
+		upstream=1;
 	} else {
 		mdot=a*M*right.rho;
+		upstream=0;
 	}
-	
-	uN=a*M;
 
 	alpha=3./16.*(-4.+5.*fa*fa);
 			

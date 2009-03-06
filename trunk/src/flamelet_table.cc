@@ -51,15 +51,15 @@ void Flamelet_Table::read(string fileName) {
 
 	rho.resize(nZ);
 	T.resize(nZ);
-	viscosity.resize(nZ);
+	mu.resize(nZ);
 	for (int i=0;i<nZ;++i) {
 		rho[i].resize(nZvar);
 		T[i].resize(nZvar);
-		viscosity[i].resize(nZvar);
+		mu[i].resize(nZvar);
 		for (int j=0;j<nZvar;++j) {
 			rho[i][j].resize(nChi);
 			T[i][j].resize(nChi);
-			viscosity[i][j].resize(nChi);
+			mu[i][j].resize(nChi);
 		}
 	}	
 	for (int i=0;i<nZ;++i) chemTable >> Z[i];
@@ -76,7 +76,7 @@ void Flamelet_Table::read(string fileName) {
 		} else if (tag=="T") {
 			for (int j=0;j<nZ;++j) for (int k=0;k<nZvar;++k) for (int m=0;m<nChi;++m) chemTable >> T[j][k][m]; 
 		} else if (tag=="VISC") {
-			for (int j=0;j<nZ;++j) for (int k=0;k<nZvar;++k) for (int m=0;m<nChi;++m) chemTable >> viscosity[j][k][m]; 
+			for (int j=0;j<nZ;++j) for (int k=0;k<nZvar;++k) for (int m=0;m<nChi;++m) chemTable >> mu[j][k][m]; 
 		} else {
 			for (int j=0;j<nZ;++j) for (int k=0;k<nZvar;++k) for (int m=0;m<nChi;++m) chemTable >> dummy;
 		}	
@@ -162,7 +162,7 @@ double Flamelet_Table::get_rho(double &Z_in, double &Zvar_in, double &Chi_in,boo
 
 }
 
-double Flamelet_Table::get_temperature(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights) {
+double Flamelet_Table::get_T(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights) {
 	
 	if (refreshWeights) get_weights(Z_in,Zvar_in,Chi_in);
 	
@@ -174,6 +174,22 @@ double Flamelet_Table::get_temperature(double &Z_in, double &Zvar_in, double &Ch
 			+weights[1]*T[i1+1][i2][i3+1] ) 
 			+weights[3]*( weights[0]*T[i1][i2+1][i3+1] 
 			+weights[1]*T[i1+1][i2+1][i3+1] ) );
+	
+	//return -4.65e4*pow(Z,4)+1.12e5*pow(Z,3)-9.26e4*pow(Z,2)+2.67e4*Z+1.03e3;
+}
+
+double Flamelet_Table::get_mu(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights) {
+	
+	if (refreshWeights) get_weights(Z_in,Zvar_in,Chi_in);
+	
+	return  weights[4]*( weights[2]*( weights[0]*mu[i1][i2][i3]
+			+weights[1]*mu[i1+1][i2][i3] )
+			+weights[3]*( weights[0]*mu[i1][i2+1][i3]
+			+weights[1]*mu[i1+1][i2+1][i3] ) ) 
+			+weights[5]*( weights[2]*( weights[0]*mu[i1][i2][i3+1]   
+			+weights[1]*mu[i1+1][i2][i3+1] ) 
+			+weights[3]*( weights[0]*mu[i1][i2+1][i3+1] 
+			+weights[1]*mu[i1+1][i2+1][i3+1] ) );
 	
 	//return -4.65e4*pow(Z,4)+1.12e5*pow(Z,3)-9.26e4*pow(Z,2)+2.67e4*Z+1.03e3;
 }

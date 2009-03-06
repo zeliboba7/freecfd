@@ -433,7 +433,7 @@ void Grid::gradients(void) {
 					if (faceVel.dot(face[f].normal)<0.) {
 						if (bc.region[face[f].bc].kind==DAMP_REVERSE) {
 							faceP-=0.5*faceRho*faceVel.dot(faceVel);
-							faceT=eos.T(faceP,faceRho);
+							if (!FLAMELET) faceT=eos.T(faceP,faceRho);
 						} else if (bc.region[face[f].bc].kind==NO_REVERSE) {
 							faceVel=0.;
 						}

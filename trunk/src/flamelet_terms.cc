@@ -32,11 +32,13 @@ void Flamelet::terms(void) {
 	Vec3D faceGradZ, faceGradZvar, left2right;
 	double mu_t=0.;
 	double weightL,weightR;
+	double weightL1,weightR1;
 	double value;
 	int row,col;
 	double convectiveFlux[2],diffusiveFlux[2],source[2];
 	double jacL[2],jacR[2];
 	bool extrapolated;
+	double mu;
 	
 	MatZeroEntries(impOP); // Flush the implicit operator
 
@@ -58,18 +60,25 @@ void Flamelet::terms(void) {
 		
 		weightR=1.-weightL;
 		
-		// Convective flux is based on the normal velocity calculated through the Riemann solver right after
-		// main flow was updated
+		// The following weights are consistent with rho splitting of the AUSM scheme.
+		// The idea is that Z behaves a lot like rho
+		// This is the only stable configuration out of many others tried.
+		weightL1=double(grid.face[f].upstream);
+		weightR1=1.-weightL1;
 		
-		convectiveFlux[0]=grid.face[f].uN*(weightL*leftZ+weightR*rightZ)*grid.face[f].area;
-		convectiveFlux[1]=grid.face[f].uN*(weightL*leftZvar+weightR*rightZvar)*grid.face[f].area;
+		// Convective flux is based on the mdot calculated through the Riemann solver right after
+		// main flow was updated
 
+		convectiveFlux[0]=grid.face[f].mdot*(weightL1*leftZ+weightR1*rightZ)*grid.face[f].area;
+		convectiveFlux[1]=grid.face[f].mdot*(weightL*leftZvar+weightR*rightZvar)*grid.face[f].area;
+
+		mu=flamelet.face[f].mu;
 		mu_t=rans.face[f].mu_t;
 		
-		diffusiveFlux[0]=(viscosity+mu_t/constants.sigma_t)*faceGradZ.dot(grid.face[f].normal)*grid.face[f].area;
-		diffusiveFlux[1]=(viscosity+mu_t/constants.sigma_t)*faceGradZvar.dot(grid.face[f].normal)*grid.face[f].area;
+		diffusiveFlux[0]=(mu+mu_t/constants.sigma_t)*faceGradZ.dot(grid.face[f].normal)*grid.face[f].area;
+		diffusiveFlux[1]=(mu+mu_t/constants.sigma_t)*faceGradZvar.dot(grid.face[f].normal)*grid.face[f].area;
 		
-		// Fill in rhs vector for rans scalars
+		// Fill in rhs vector
 		for (int i=0;i<2;++i) {
 			row=(grid.myOffset+parent)*2+i;
 			value=diffusiveFlux[i]-convectiveFlux[i];
@@ -82,19 +91,18 @@ void Flamelet::terms(void) {
 		}
 		
 		// Calculate flux jacobians
-		
 		// dF_Z/dZ_left
-		jacL[0]=weightL*grid.face[f].uN*grid.face[f].area; // convective
-		if (!extrapolated) jacL[0]+=(viscosity+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
+		jacL[0]=weightL1*grid.face[f].mdot*grid.face[f].area; // convective
+		if (!extrapolated) jacL[0]+=(mu+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
 		// dF_Z/dZ_right
-		jacR[0]=weightR*grid.face[f].uN*grid.face[f].area; // convective
-		if (!extrapolated) jacR[0]-=(viscosity+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
+		jacR[0]=weightR1*grid.face[f].mdot*grid.face[f].area; // convective
+		if (!extrapolated) jacR[0]-=(mu+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
 		// dF_Zvar/dZvar_left
-		jacL[1]=weightL*grid.face[f].uN*grid.face[f].area; // convective
-		if (!extrapolated) jacL[1]+=(viscosity+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
+		jacL[1]=weightL*grid.face[f].mdot*grid.face[f].area; // convective
+		if (!extrapolated) jacL[1]+=(mu+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
 		// dF_Zvar/dZvar_right
-		jacR[1]=weightR*grid.face[f].uN*grid.face[f].area; // convective
-		if (!extrapolated) jacR[1]-=(viscosity+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
+		jacR[1]=weightR*grid.face[f].mdot*grid.face[f].area; // convective
+		if (!extrapolated) jacR[1]-=(mu+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
 		
 		// Insert flux jacobians for the parent cell
 		// left_Z/left_Z
@@ -155,7 +163,7 @@ void Flamelet::terms(void) {
 
 		// Insert unsteady term
 		row=(grid.myOffset+c)*2;
-		value=d;
+		value=d*grid.cell[c].rho;
 		MatSetValues(impOP,1,&row,1,&row,&value,ADD_VALUES);
 		row++;
 		MatSetValues(impOP,1,&row,1,&row,&value,ADD_VALUES);
@@ -269,38 +277,19 @@ void Flamelet::get_Z_Zvar(unsigned int &parent,unsigned int &neighbor,unsigned i
 		rightZvar=min(0.25,rightZvar);
 		
 	} else if (grid.face[f].bc>=0) { // boundary face
-		
+		// Default is zero normal
 		rightZ=leftZ; rightZvar=leftZvar;
 		rightZ_center=leftZ_center;
 		rightZvar_center=leftZvar_center;
-		if (bc.region[grid.face[f].bc].type==NOSLIP) {
-// 			rightZ_center=2.*rightZ-leftZ_center;
-// 			rightZvar_center=2.*rightZvar-leftZvar_center;
-// 			rightZ_center=rightZ;
-// 			rightZvar_center=rightZvar;
-			extrapolated=true;
-			weightL=1.;
-		} else if (bc.region[grid.face[f].bc].type==SYMMETRY) {
-// 			rightZ_center=leftZ_center; 
-// 			rightZvar_center=leftZvar_center;
-			extrapolated=true;
-			weightL=1.;
-		} else if (bc.region[grid.face[f].bc].type==SLIP) {
-// 			rightZ_center=2.*rightZ-leftZ_center;
-// 			rightZvar_center=2.*rightZvar-leftZvar_center;
-			extrapolated=true;
-			weightL=1.;
-		} else if (bc.region[grid.face[f].bc].type==INLET) {
+		extrapolated=true;
+		weightL=1.;
+
+		if (bc.region[grid.face[f].bc].type==INLET) {
 			rightZ=bc.region[grid.face[f].bc].Z;
 			rightZvar=bc.region[grid.face[f].bc].Zvar;
-			rightZ_center=rightZ;
-			rightZvar_center=rightZvar;
-		} else if (bc.region[grid.face[f].bc].type==OUTLET) {
-// 			rightZ_center=2.*rightZ-leftZ_center;
-// 			rightZvar_center=2.*rightZvar-leftZvar_center;
-			extrapolated=true;
-			weightL=1.;
-		}
+			rightZ_center=2.*rightZ-leftZ_center;
+			rightZvar_center=2.*rightZvar-leftZvar_center;
+		} 
 		
 	} else { // partition boundary
 

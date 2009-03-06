@@ -23,14 +23,17 @@
 #include "commons.h"
 #include "state_cache.h"
 #include "rans.h"
+#include "flamelet.h"
 
 extern RANS rans;
+extern Flamelet flamelet;
 
 void diffusive_face_flux(Cell_State &left,Cell_State &right,Face_State &face,double flux[]) {
 
 	Vec3D tau_x,tau_y,tau_z,areaVec;
 
 	double Tvisc=viscosity;
+	if (FLAMELET) Tvisc=flamelet.face[face.index].mu;
 	if (TURBULENCE_MODEL!=NONE) Tvisc+=rans.face[face.index].mu_t;
 	
 	areaVec=face.normal*face.area;

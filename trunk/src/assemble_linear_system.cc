@@ -430,8 +430,10 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 			if (right.v.dot(face.normal)<0.) {
 				if (bc.region[face.bc].kind==DAMP_REVERSE) {
 					right.p-=0.5*right.rho*right.v.dot(right.v);
-					right.T=eos.T(right.p,right.rho);
-					right.T_center=left.T_center+2.*(right.T-left.T_center);
+					if (!FLAMELET) {
+						right.T=eos.T(right.p,right.rho);
+						right.T_center=left.T_center+2.*(right.T-left.T_center);
+					}
 				} else if (bc.region[face.bc].kind==NO_REVERSE) {
 					right.v=0.;
 					right.v_center=-1.*left.v_center; 
