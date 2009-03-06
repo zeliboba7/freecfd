@@ -246,15 +246,16 @@ int main(int argc, char *argv[]) {
 				flamelet.mpi_update_ghost_gradients();
 				flamelet.limit_gradients();
 				flamelet.mpi_update_ghost_gradients(); // Called again to update the ghost gradients
+				flamelet.update_face_mu();
 				update_face_mdot();
-			} else {
+			} else {			
 				update_face_mdot();
 				flamelet.terms();
 				flamelet.petsc_solve(nIterFlame,rNormFlame);
-				flamelet.update(resZ,resZvar);
-				flamelet.update_rho(); // TODO Update the ghost rho's in flamelet mpi structure
+				flamelet.update(resZ,resZvar,false);
 				mpi_update_ghost_primitives();
 				flamelet.mpi_update_ghost();
+				flamelet.update_face_mu();
 				flamelet.gradients();
 				flamelet.mpi_update_ghost_gradients();
 				flamelet.limit_gradients();
@@ -283,6 +284,7 @@ int main(int argc, char *argv[]) {
 				
 		initialize_linear_system();
 		assemble_linear_system();
+		//update_face_mdot();
 		petsc_solve(nIter,rNorm);
 		update();
 		mpi_update_ghost_primitives();

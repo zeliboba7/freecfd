@@ -75,7 +75,7 @@ void write_tec(double time) {
 		file.open((fileName).c_str(),ios::out); 
 		file << "VARIABLES = \"x\", \"y\", \"z\",\"p\",\"u\",\"v\",\"w\",\"T\",\"rho\",\"Ma\"";
 		if (turb) file << ",\"k\",\"omega\" ";
-		if (FLAMELET) file << ",\"Mixture Fraction\",\"Mixture Fraction Variance\" ";
+		if (FLAMELET) file << ",\"viscosity\", \"Mixture Fraction\",\"Mixture Fraction Variance\" ";
 		file << endl;
 	} else {
 		file.open((fileName).c_str(),ios::app);
@@ -96,7 +96,7 @@ void write_tec(double time) {
 	// Write variables
 	map<int,double>::iterator it;
 	set<int>::iterator sit;
-	double p_node,T_node,rho_node,k_node,omega_node,Z_node,Zvar_node;
+	double p_node,T_node,rho_node,k_node,omega_node,Z_node,Zvar_node,visc_node;
     	Vec3D v_node;
 	int count_p,count_v,count_T,count_k,count_omega,count_rho,count_Z,count_Zvar;
 	double Ma;
@@ -109,23 +109,28 @@ void write_tec(double time) {
 				T_node+=(*it).second*grid.cell[(*it).first].T;
 				if (turb) k_node+=(*it).second*rans.cell[(*it).first].k;
 				if (turb) omega_node+=(*it).second*rans.cell[(*it).first].omega;
-				if (FLAMELET) Z_node+=(*it).second*flamelet.cell[(*it).first].Z;
-				if (FLAMELET) Zvar_node+=(*it).second*flamelet.cell[(*it).first].Zvar;
+				if (FLAMELET) {
+					Z_node+=(*it).second*flamelet.cell[(*it).first].Z;
+					Zvar_node+=(*it).second*flamelet.cell[(*it).first].Zvar;
+				}
 			} else { // if contribution is coming from a ghost cell
 				p_node+=(*it).second*grid.ghost[-1*((*it).first+1)].p;
 				v_node+=(*it).second*grid.ghost[-1*((*it).first+1)].v;
 				T_node+=(*it).second*grid.ghost[-1*((*it).first+1)].T;
 				if (turb) k_node+=(*it).second*rans.ghost[-1*((*it).first+1)].k;
 				if (turb) omega_node+=(*it).second*rans.ghost[-1*((*it).first+1)].omega;
-				if (FLAMELET) Z_node+=(*it).second*flamelet.ghost[-1*((*it).first+1)].Z;
-				if (FLAMELET) Zvar_node+=(*it).second*flamelet.ghost[-1*((*it).first+1)].Zvar;
+				if (FLAMELET) {
+					Z_node+=(*it).second*flamelet.ghost[-1*((*it).first+1)].Z;
+					Zvar_node+=(*it).second*flamelet.ghost[-1*((*it).first+1)].Zvar;
+				}
 			}
 		}
 		rho_node=eos.rho(p_node,T_node);
 		if (FLAMELET) {
 			double Chi=1.; // TODO calculate chi
 			rho_node=flamelet.table.get_rho(Z_node,Zvar_node,Chi);
-			T_node=flamelet.table.get_temperature(Z_node,Zvar_node,Chi);
+			T_node=flamelet.table.get_T(Z_node,Zvar_node,Chi,false);
+			visc_node=flamelet.table.get_mu(Z_node,Zvar_node,Chi,false);
 		}
 		
 		k_node=max(k_node,kLowLimit);
@@ -175,10 +180,15 @@ void write_tec(double time) {
 		file << T_node << "\t";
 		file << rho_node << "\t";
 		file << Ma << "\t";
-		if (turb) file << k_node << "\t";
-		if (turb) file << omega_node << "\t";
-		if (FLAMELET) file << Z_node << "\t";
-		if (FLAMELET) file << Zvar_node << "\t";
+		if (turb) {
+			file << k_node << "\t";
+			file << omega_node << "\t";
+		}
+		if (FLAMELET) {
+			file << visc_node << "\t";
+			file << Z_node << "\t";
+			file << Zvar_node << "\t";
+		}
 		file << endl;
 	}
 

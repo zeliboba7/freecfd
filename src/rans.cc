@@ -23,6 +23,9 @@
 #include "commons.h"
 #include "petscksp.h"
 #include "rans.h"
+#include "flamelet.h"
+
+extern Flamelet flamelet;
 
 extern double minmod(double a, double b);
 extern double doubleMinmod(double a, double b);
@@ -377,11 +380,12 @@ void RANS::update(double &resK, double &resOmega) {
 		cell[c].update[1]=max(-1.*(cell[c].omega-omegaLowLimit),cell[c].update[1]);
 		
 		double new_mu_t=grid.cell[c].rho*(cell[c].k+cell[c].update[0])/(cell[c].omega+cell[c].update[1]);
-		
-		if (new_mu_t/viscosity>viscosityRatioLimit) {
+		double mu=viscosity;
+		if (FLAMELET) mu=flamelet.cell[c].mu;
+		if (new_mu_t/mu>viscosityRatioLimit) {
 			counter++; 
 			double under_relax;
-			double limit_nu=viscosityRatioLimit*viscosity/grid.cell[c].rho;
+			double limit_nu=viscosityRatioLimit*mu/grid.cell[c].rho;
 			under_relax=(limit_nu*cell[c].omega-cell[c].k)/(cell[c].update[0]-limit_nu*cell[c].update[1]);
 			under_relax=0.9*max(1.,under_relax);
 			cell[c].update[0]*=under_relax;

@@ -170,6 +170,8 @@ void read_restart(double &time) {
 					file >> flamelet.cell[id].Zvar; 
 				
 				} else { file >> dummy; }
+				double Chi=2.0*rans.kepsilon.beta_star*rans.cell[id].omega*flamelet.cell[id].Zvar;
+				flamelet.cell[id].mu=flamelet.table.get_mu(flamelet.cell[id].Z,flamelet.cell[id].Zvar,Chi);
 			}
 		}
 		

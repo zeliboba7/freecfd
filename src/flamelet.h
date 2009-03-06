@@ -42,13 +42,13 @@ class Flamelet_Table {
 	std::vector<double> Chi;
 	std::vector<vector<vector<double> > > rho;
 	std::vector<vector<vector<double> > > T;
-	std::vector<vector<vector<double> > > viscosity;
+	std::vector<vector<vector<double> > > mu;
 	std::vector<vector<vector<double> > > diffusivity;
-	std::vector<vector<vector<double> > > conductivity;
 	void read(string fileName);
 	void get_weights(double &Z_in, double &Zvar_in, double &Chi_in);
 	double get_rho(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights=true);
-	double get_temperature(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights=true);
+	double get_T(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights=true);
+	double get_mu(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights=true);
 	
 };
 
@@ -57,22 +57,28 @@ class Flamelet_Constants {
 	double sigma_t,Cg,Cd;
 };
 
+class Flamelet_Face {
+	public:
+		double mu;
+};
+
 class Flamelet_Cell {
 	public:
-	double Z,Zvar;
+	double Z,Zvar,mu;
 	double update[2];
 	Vec3D grad[2]; // Z and Zvar gradients
 };
 
 class Flamelet_Ghost {
 	public:
-	double Z,Zvar;
+	double Z,Zvar,mu;
 	Vec3D grad[2]; // Z and Zvar gradients
 };
 
 class Flamelet {
 	public:
 	std::vector<Flamelet_Cell> cell;
+	std::vector<Flamelet_Face> face;
 	std::vector<Flamelet_Ghost> ghost;
 	Flamelet_Constants constants;
 	Flamelet_Table table;
@@ -97,8 +103,8 @@ class Flamelet {
       				double &rightZ,double &rightZvar,
       				Vec3D &faceGradZ,Vec3D &faceGradZvar,Vec3D &left2right,
 	  			double &weightL,bool &extrapolated);
-	void update(double &resZ, double &resZvar);
-	void update_rho();
+	void update(double &resZ, double &resZvar, bool march=true);
+	void update_face_mu(void);
 };
 
 #endif
