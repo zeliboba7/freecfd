@@ -191,13 +191,19 @@ void setBCs(InputFile &input, BC &bc) {
 		}
 	}
 	
+	double thisDistance;
+	unsigned int closest_face;
 	for (unsigned int c=0;c<grid.cellCount;++c) {
 		grid.cell[c].closest_wall_distance=1.e20;
 		for (unsigned int nsf=0;nsf<grid.noSlipFaces.size();++nsf) {
-			grid.cell[c].closest_wall_distance=min(grid.cell[c].closest_wall_distance
-					,fabs(grid.cell[c].centroid-grid.face[grid.noSlipFaces[nsf]].centroid));
+			thisDistance=fabs(grid.cell[c].centroid-grid.face[grid.noSlipFaces[nsf]].centroid);
+			if (grid.cell[c].closest_wall_distance>thisDistance) {
+				grid.cell[c].closest_wall_distance=thisDistance;
+				closest_face=grid.noSlipFaces[nsf];
+			}
 		}
+		grid.cell[c].closest_wall_distance=fabs((grid.cell[c].centroid-grid.face[closest_face].centroid).dot(grid.face[closest_face].normal));
 	}
-	
+
 	return;
 }
