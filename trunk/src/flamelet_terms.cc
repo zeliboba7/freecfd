@@ -68,7 +68,6 @@ void Flamelet::terms(void) {
 		
 		// Convective flux is based on the mdot calculated through the Riemann solver right after
 		// main flow was updated
-
 		convectiveFlux[0]=grid.face[f].mdot*(weightL1*leftZ+weightR1*rightZ)*grid.face[f].area;
 		convectiveFlux[1]=grid.face[f].mdot*(weightL*leftZvar+weightR*rightZvar)*grid.face[f].area;
 
@@ -98,10 +97,10 @@ void Flamelet::terms(void) {
 		jacR[0]=weightR1*grid.face[f].mdot*grid.face[f].area; // convective
 		if (!extrapolated) jacR[0]-=(mu+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
 		// dF_Zvar/dZvar_left
-		jacL[1]=weightL*grid.face[f].mdot*grid.face[f].area; // convective
+		jacL[1]=weightL1*grid.face[f].mdot*grid.face[f].area; // convective
 		if (!extrapolated) jacL[1]+=(mu+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
 		// dF_Zvar/dZvar_right
-		jacR[1]=weightR*grid.face[f].mdot*grid.face[f].area; // convective
+		jacR[1]=weightR1*grid.face[f].mdot*grid.face[f].area; // convective
 		if (!extrapolated) jacR[1]-=(mu+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
 		
 		// Insert flux jacobians for the parent cell
@@ -169,7 +168,7 @@ void Flamelet::terms(void) {
 		MatSetValues(impOP,1,&row,1,&row,&value,ADD_VALUES);
 		
 		// Calculate the source terms
-		mu_t=grid.cell[c].rho*rans.cell[c].k/rans.cell[c].omega;
+		mu_t=rans.cell[c].mu_t;
 		
 		Prod_Zvar=constants.Cg*mu_t*cell[c].grad[0].dot(cell[c].grad[0]);
 		Dest_Zvar=constants.Cd*grid.cell[c].rho*rans.kepsilon.beta_star*rans.cell[c].omega*cell[c].Zvar;

@@ -21,53 +21,70 @@
 
 *************************************************************************/
 #include "rans.h"
+#include "flamelet.h"
+
+extern Flamelet flamelet;
+
+// Updates the eddy viscosity stores at the cell centers
+void RANS::update_cell_eddy_viscosity(void) {
+	
+	double arg1,arg2,arg3,F2;
+	double mu=viscosity;
+	double a1=0.31; // SST a1 value
+	for (unsigned int c=0;c<grid.cellCount;++c) {
+		if (TURBULENCE_MODEL==SST) {
+			arg1=2.*sqrt(cell[c].k)/(kepsilon.beta_star*cell[c].omega*grid.cell[c].closest_wall_distance);
+			if (FLAMELET) mu=flamelet.cell[c].mu;
+			arg2=500.*mu/(grid.cell[c].rho*cell[c].omega
+					*grid.cell[c].closest_wall_distance*grid.cell[c].closest_wall_distance);
+			arg3=max(arg1,arg2);
+			F2=tanh(arg3*arg3);
+			cell[c].mu_t=a1*grid.cell[c].rho*cell[c].k/max(a1*cell[c].omega,cell[c].strainRate*F2);
+		} else {
+			cell[c].mu_t=grid.cell[c].rho*cell[c].k/cell[c].omega;
+		}
+	}
+	
+	return;
+	
+} // end RANS::update_cell_eddy_viscosity
 
 // Updates the eddy viscosity stores at the faces
-void RANS::update_eddy_viscosity(void) {
+void RANS::update_face_eddy_viscosity(void) {
 	
+	// Update face center values
 	map<int,double>::iterator fit;
 	double faceK,faceOmega,faceRho,mu_t;
 	unsigned int parent;
 	
 	for (unsigned int f=0;f<grid.faceCount;++f) {
 		parent=grid.face[f].parent;
-		// Find face averaged variables
-		faceRho=0.; faceK=0.; faceOmega=0.;
+		// Find face averaged value
+		face[f].mu_t=0.;
 		for (fit=grid.face[f].average.begin();fit!=grid.face[f].average.end();fit++) {
 			if ((*fit).first>=0) { // if contribution is coming from a real cell
-				faceK+=(*fit).second*cell[(*fit).first].k;
-				faceOmega+=(*fit).second*cell[(*fit).first].omega;
-				faceRho+=(*fit).second*grid.cell[(*fit).first].rho;
+				face[f].mu_t+=(*fit).second*cell[(*fit).first].mu_t;
 			} else { // if contribution is coming from a ghost cell
-				faceK+=(*fit).second*ghost[-1*((*fit).first+1)].k;
-				faceOmega+=(*fit).second*ghost[-1*((*fit).first+1)].omega;
-				faceRho+=(*fit).second*grid.ghost[-1*((*fit).first+1)].rho;
+				face[f].mu_t+=(*fit).second*ghost[-1*((*fit).first+1)].mu_t;
 			}
 		}
 		
-		faceK=max(faceK,kLowLimit);
-		faceOmega=max(faceOmega,omegaLowLimit);
+		face[f].mu_t=max(0.,face[f].mu_t);
 		
+		// Correct for boundaries
 		if (grid.face[f].bc>=0) { // boundary face
 			if (bc.region[grid.face[f].bc].type==NOSLIP) {
-				mu_t=0.;
+				face[f].mu_t=0.;
 			} else if (bc.region[grid.face[f].bc].type==SYMMETRY) {
-				mu_t=grid.cell[parent].rho*cell[parent].k/cell[parent].omega;
-			} else if (bc.region[grid.face[f].bc].type==SLIP) {
-				mu_t=faceRho*faceK/faceOmega;
-			} else if (bc.region[grid.face[f].bc].type==INLET) {
-				mu_t=faceRho*bc.region[grid.face[f].bc].k/bc.region[grid.face[f].bc].omega;
-			} else if (bc.region[grid.face[f].bc].type==OUTLET) {
-				mu_t=faceRho*faceK/faceOmega;
+				face[f].mu_t=cell[parent].mu_t;
 			}
 		}
-		
-		face[f].mu_t=min(fabs(mu_t),viscosityRatioLimit*viscosity);
 		
 	}
 	
-} // end RANS::update_eddy_viscosity
-
+	return;
+	
+} // end RANS::update_face_eddy_viscosity
 
 
 

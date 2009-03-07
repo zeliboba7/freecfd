@@ -75,11 +75,9 @@ void RANS::terms(void) {
 		convectiveFlux[1]=grid.face[f].mdot*(weightL*leftOmega+weightR*rightOmega)*grid.face[f].area;
 
 		if (FLAMELET) mu=flamelet.face[f].mu;
-		mu_t=fabs(faceRho*faceK/faceOmega);
-		mu_t=min(mu_t,viscosityRatioLimit*mu);
-		
+		mu_t=face[f].mu_t;
 		// Diffusive k and omega fluxes	
-		if (TURBULENCE_MODEL==BSL) {
+		if (TURBULENCE_MODEL==BSL || TURBULENCE_MODEL==SST) {
 			closest_wall_distance=grid.cell[parent].closest_wall_distance;
 			blending=get_blending(faceK,faceOmega,faceRho,closest_wall_distance,mu,faceGradK,faceGradOmega);
 		}
@@ -89,8 +87,6 @@ void RANS::terms(void) {
 		alpha=blending*komega.alpha+(1.-blending)*kepsilon.alpha;
 		beta=blending*komega.beta+(1.-blending)*kepsilon.beta;
 		beta_star=blending*komega.beta_star+(1.-blending)*kepsilon.beta_star;
-		
-
 		
 		diffusiveFlux[0]=(mu+mu_t*sigma_k)*faceGradK.dot(grid.face[f].normal)*grid.face[f].area;
 		diffusiveFlux[1]=(mu+mu_t*sigma_omega)*faceGradOmega.dot(grid.face[f].normal)*grid.face[f].area;
@@ -168,8 +164,7 @@ void RANS::terms(void) {
 	} // for faces
 	
 	// Now to a cell loop to add the unsteady and source terms
-	double divU,Prod_k;
-	int count_prod_k_clip=0;
+	double divU,Prod_k,Dest_k;
 	for (unsigned int c=0;c<grid.cellCount;++c) {
 		double d=0.;
 		
@@ -192,12 +187,12 @@ void RANS::terms(void) {
 		MatSetValues(impOP,1,&row,1,&row,&value,ADD_VALUES);
 		row++;
 		MatSetValues(impOP,1,&row,1,&row,&value,ADD_VALUES);
-
-		mu=flamelet.cell[c].mu;
-		if (TURBULENCE_MODEL==BSL) {
+		
+		if (FLAMELET) mu=flamelet.cell[c].mu;
+		if (TURBULENCE_MODEL==BSL || TURBULENCE_MODEL==SST) {
 			blending=get_blending(cell[c].k,cell[c].omega,grid.cell[c].rho,grid.cell[c].closest_wall_distance,mu,cell[c].grad[0],cell[c].grad[1]);
 		}
-		
+
 		sigma_omega=blending*komega.sigma_omega+(1.-blending)*kepsilon.sigma_omega;
 		sigma_k=blending*komega.sigma_k+(1.-blending)*kepsilon.sigma_k;
 		alpha=blending*komega.alpha+(1.-blending)*kepsilon.alpha;
@@ -205,7 +200,7 @@ void RANS::terms(void) {
 		beta_star=blending*komega.beta_star+(1.-blending)*kepsilon.beta_star;
 		
 		// Calculate the source terms
-		mu_t=grid.cell[c].rho*cell[c].k/cell[c].omega;
+		mu_t=cell[c].mu_t;
 		
 		dudx=grid.cell[c].grad[1][0];
 		dudy=grid.cell[c].grad[1][1];
@@ -220,23 +215,27 @@ void RANS::terms(void) {
 		dwdz=grid.cell[c].grad[3][2];
 		
 		divU=dudx+dvdy+dwdz;
+		// strainRate variable here is actually the term: sqrt(2*S_ij*S_ij)
+		// Where S_ij=1/2*(du_i/dx_j+du_j/dx_i) is the proper strain rate tensor
 		strainRate=sqrt(2.*(dudx*dudx + dvdy*dvdy + dwdz*dwdz)
 				+ (dudy+dvdx)*(dudy+dvdx) + (dudz+dwdx)*(dudz+dwdx)
 				+ (dvdz+dwdy)*(dvdz+dwdy)
 			       );
 		
+		// Store this for sst model
+		cell[c].strainRate=strainRate;
+		
 		Prod_k=mu_t*(strainRate*strainRate-2./3.*divU*divU)-2./3.*grid.cell[c].rho*cell[c].k*divU;
-
-		if (Prod_k>10./grid.cell[c].volume) {
-			count_prod_k_clip++;
-			Prod_k=10./grid.cell[c].volume;
-		}
+		Dest_k=beta_star*grid.cell[c].rho*cell[c].omega*cell[c].k;
+		
+		// Limit production of k
+		Prod_k=min(Prod_k,10.*Dest_k);
 		
 		cross_diffusion=0.;
 		if (TURBULENCE_MODEL!=KOMEGA) cross_diffusion=cell[c].grad[0].dot(cell[c].grad[1]);
 			
 		source[0]=Prod_k; // k production
-		source[0]-=beta_star*grid.cell[c].rho*cell[c].omega*cell[c].k; // k destruction
+		source[0]-=Dest_k; // k destruction
 		
 		source[1]=alpha/(mu_t/grid.cell[c].rho+EPS)*Prod_k; // omega production
 		source[1]-=beta*grid.cell[c].rho*cell[c].omega*cell[c].omega; // omega destruction
@@ -272,10 +271,6 @@ void RANS::terms(void) {
 	
 		
 	} // end cell loop
-	
-	if (count_prod_k_clip>0) {
-		cout << "[I Rank=" << Rank << "] k-production term is clipped for " <<  count_prod_k_clip << " cells" << endl;
-	}
 	
 	return;
 } // end RANS::terms
@@ -416,16 +411,15 @@ void get_kOmega() {
 }
 
 double get_blending(double &k,double &omega,double &rho,double &y,double &visc,Vec3D &gradK,Vec3D &gradOmega) {
-	double F,arg,arg1,arg2,arg3,CD,cross_diff;
+	double arg,arg1,arg2,arg3,CD,cross_diff,F1;
 	
 	cross_diff=gradK[0]*gradOmega[0]+gradK[1]*gradOmega[1]+gradK[2]*gradOmega[2];
-	CD=max(2.*rho*rans.komega.sigma_omega*cross_diff/omega,1.e-20);
-	arg1=sqrt(k)/(0.09*omega*y);
+	CD=max(2.*rho*rans.komega.sigma_omega*cross_diff/omega,1.e-10);
+	arg1=sqrt(k)/(rans.kepsilon.beta_star*omega*y);
 	arg2=500.*visc/(rho*y*y*omega);
 	arg3=4.*rho*rans.komega.sigma_omega*k/(CD*y*y);
 	arg=min(max(arg1,arg2),arg3);
-	F=tanh(pow(arg,4.));
-
-	return F;
+	F1=tanh(pow(arg,4.));
+	return F1;
 }
 
