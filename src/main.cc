@@ -231,6 +231,10 @@ int main(int argc, char *argv[]) {
 			// Update limited gradients of the ghost cells
 				mpi_update_ghost_gradients();
 			}
+			if (TURBULENCE_MODEL!=NONE) {
+				rans.mpi_update_ghost();
+				rans.update_face_eddy_viscosity();
+			}
 		}
 
 
@@ -263,12 +267,8 @@ int main(int argc, char *argv[]) {
 			}
 		}
 		
-		
 		if (TURBULENCE_MODEL!=NONE) {
-			if (firstTimeStep) {
-				rans.mpi_update_ghost();
-				rans.update_eddy_viscosity();
-			} else {
+			if (!firstTimeStep) {
 				rans.gradients();
 				rans.mpi_update_ghost_gradients();
 				rans.limit_gradients();
@@ -277,8 +277,9 @@ int main(int argc, char *argv[]) {
 				rans.terms();
 				rans.petsc_solve(nIterTurb,rNormTurb);
 				rans.update(resK,resOmega);
+				rans.update_cell_eddy_viscosity();
 				rans.mpi_update_ghost();
-				rans.update_eddy_viscosity();
+				rans.update_face_eddy_viscosity();
 			}
 		}
 				
@@ -478,6 +479,8 @@ void update(void) {
 
 	resP=0.; resV=0.; resT=0.;
 	for (unsigned int c = 0;c < grid.cellCount;++c) {
+		if (FLAMELET) grid.cell[c].update[0]=max(-1.*(grid.cell[c].p+0.6*Pref),grid.cell[c].update[0]);
+		
 		grid.cell[c].p +=grid.cell[c].update[0];
 		grid.cell[c].v[0] +=grid.cell[c].update[1];
 		grid.cell[c].v[1] +=grid.cell[c].update[2];

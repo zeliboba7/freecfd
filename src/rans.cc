@@ -34,7 +34,7 @@ extern double superbee(double a, double b);
 
 struct mpiGhost {
 	unsigned int globalId;
-	double vars[2];
+	double vars[3];
 };
 
 struct mpiGrad {
@@ -48,16 +48,18 @@ RANS::RANS(void) {
 	kepsilon.beta=0.0828;
 	kepsilon.beta_star=0.09;
 	kepsilon.kappa=0.41;
-	kepsilon.alpha=kepsilon.beta/kepsilon.beta_star
-			-kepsilon.sigma_omega*kepsilon.kappa*kepsilon.kappa/sqrt(kepsilon.beta_star);
+	kepsilon.alpha=0.44;
+	//kepsilon.alpha=kepsilon.beta/kepsilon.beta_star
+	//		-kepsilon.sigma_omega*kepsilon.kappa*kepsilon.kappa/sqrt(kepsilon.beta_star);
 	
-	komega.sigma_k=0.5;
+	komega.sigma_k=0.85;
 	komega.sigma_omega=0.5;
 	komega.beta=0.075;
 	komega.beta_star=0.09;
 	komega.kappa=0.41;
-	komega.alpha=komega.beta/komega.beta_star
-			-komega.sigma_omega*komega.kappa*komega.kappa/sqrt(komega.beta_star);
+	komega.alpha=5./9.;
+	//komega.alpha=komega.beta/komega.beta_star
+	//		-komega.sigma_omega*komega.kappa*komega.kappa/sqrt(komega.beta_star);
 	return; 
 } // end RANS::RANS
 
@@ -163,7 +165,7 @@ void RANS::mpi_init(void) {
 	displacements[0]=(long) &dummy1.globalId - (long) &dummy1;
 	displacements[1]=(long) &dummy1.vars[0] - (long) &dummy1;
 	block_lengths[0]=1;
-	block_lengths[1]=2;
+	block_lengths[1]=3;
 	MPI_Type_create_struct(2,block_lengths,displacements,types,&MPI_GHOST);
 	MPI_Type_commit(&MPI_GHOST);
 
@@ -191,6 +193,7 @@ void RANS::mpi_update_ghost(void) {
 				sendBuffer[g].globalId=grid.cell[id].globalId;
 				sendBuffer[g].vars[0]=cell[id].k;
 				sendBuffer[g].vars[1]=cell[id].omega;
+				sendBuffer[g].vars[2]=cell[id].mu_t;
 			}
 
 			MPI_Sendrecv(sendBuffer,sendCells[p].size(),MPI_GHOST,p,0,recvBuffer,recvCount[p],MPI_GHOST,p,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
@@ -199,6 +202,7 @@ void RANS::mpi_update_ghost(void) {
 				id=maps.ghostGlobal2Local[recvBuffer[g].globalId];
 				ghost[id].k=recvBuffer[g].vars[0];
 				ghost[id].omega=recvBuffer[g].vars[1];
+				ghost[id].mu_t=recvBuffer[g].vars[2];
 			}
 		}
 	}
@@ -370,7 +374,7 @@ void RANS::limit_gradients(void) {
 void RANS::update(double &resK, double &resOmega) {
 
 	resK=0.; resOmega=0.;
-	int counter=0.;
+	int counter=0;
 	for (unsigned int c = 0;c < grid.cellCount;++c) {
 
 		// Limit the update so that k and omega doesn't end up out of limits

@@ -40,7 +40,7 @@ void initialize(InputFile &input) {
 		// Store the reference to current IC region
 		Subsection &region=input.section("initialConditions").subsection("IC",ic);
 		Vec3D regionV=region.get_Vec3D("v");
-		double regionRho,regionP,regionT,regionK,regionOmega,regionZ,regionZvar;
+		double regionRho,regionP,regionT,regionK,regionOmega,regionMu_t,regionZ,regionZvar;
 		// Assign specified values
 		regionP=region.get_double("p");
 		if (!FLAMELET) {
@@ -69,6 +69,7 @@ void initialize(InputFile &input) {
 			regionRho=flamelet.table.get_rho(regionZ,regionZvar,Chi);
 			regionT=flamelet.table.get_T(regionZ,regionZvar,Chi,false);
 		}
+		regionMu_t=regionRho*regionK/regionOmega;
 		// If region is specified with a box method
 		if (region.get_string("region")=="box") {
 			// Loop the cells
@@ -83,6 +84,7 @@ void initialize(InputFile &input) {
 					if (TURBULENCE_MODEL!=NONE) {
 						rans.cell[c].k=regionK;
 						rans.cell[c].omega=regionOmega;
+						rans.cell[c].mu_t=regionMu_t;
 					}
 					if (FLAMELET) {
 						flamelet.cell[c].Z=regionZ;
@@ -103,6 +105,7 @@ void initialize(InputFile &input) {
 					if (TURBULENCE_MODEL!=NONE) {
 						rans.cell[c].k=regionK;
 						rans.cell[c].omega=regionOmega;
+						rans.cell[c].mu_t=regionMu_t;
 					}
 					if (FLAMELET) {
 						flamelet.cell[c].Z=regionZ;
@@ -130,6 +133,7 @@ void initialize(InputFile &input) {
 					if (TURBULENCE_MODEL!=NONE) {
 						rans.cell[c].k=regionK;
 						rans.cell[c].omega=regionOmega;
+						rans.cell[c].mu_t=regionMu_t;
 					}
 					if (FLAMELET) {
 						flamelet.cell[c].Z=regionZ;

@@ -401,6 +401,11 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 			right.T=bc.region[face.bc].T;
 			right.T_center=right.T;
 			right.rho=bc.region[face.bc].rho;
+		} else if (bc.region[face.bc].specified==BC_FLAMELET_INLET_P) {
+			right.p=bc.region[face.bc].p;
+			right.T=bc.region[face.bc].T;
+			right.T_center=right.T;
+			right.rho=bc.region[face.bc].rho;
 		} else {
 			// If nothing is specified, everything is extrapolated
 			right.p=left.p;
@@ -423,7 +428,8 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 			right.v_center=2.*right.v-left.v_center;
 		} else if (bc.region[face.bc].type==INLET) {
 			right.v=bc.region[face.bc].v;
-			right.v_center=right.v;
+			//right.v_center=right.v;
+			right.v_center=2.*right.v-left.v_center; 
 		} else if (bc.region[face.bc].type==OUTLET) {
 			right.v=left.v;
 			right.v_center=2.*right.v-left.v_center; 
@@ -584,11 +590,13 @@ void state_perturb(Cell_State &state,Face_State &face,int var,double epsilon) {
 			state.vN[2]=state.v.dot(face.tangent2);
 			break;
 		case 4 : // T
-			state.T+=epsilon;
-			state.T_center+=epsilon;
-			if (!FLAMELET) state.rho=eos.rho(state.p,state.T);
-			state.a=sqrt(Gamma*(state.p+Pref)/state.rho);
-			state.H=state.a*state.a/(Gamma-1.)+0.5*state.v.dot(state.v);
+			if (!FLAMELET) {
+				state.T+=epsilon;
+				state.T_center+=epsilon;
+				state.rho=eos.rho(state.p,state.T);
+				state.a=sqrt(Gamma*(state.p+Pref)/state.rho);
+				state.H=state.a*state.a/(Gamma-1.)+0.5*state.v.dot(state.v);
+			}
 			break;
 	}
 	

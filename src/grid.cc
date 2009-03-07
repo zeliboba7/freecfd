@@ -414,6 +414,10 @@ void Grid::gradients(void) {
 				} else if (bc.region[face[f].bc].specified==BC_FLAMELET_INLET) {
 					faceT=bc.region[face[f].bc].T;
 					faceRho=bc.region[face[f].bc].rho;
+				} else if (bc.region[face[f].bc].specified==BC_FLAMELET_INLET_P) {
+					faceT=bc.region[face[f].bc].T;
+					faceRho=bc.region[face[f].bc].rho;
+					faceP=bc.region[face[f].bc].p;
 				}// If nothing is specified, everything is extrapolated
 				
 

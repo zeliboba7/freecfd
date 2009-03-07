@@ -59,7 +59,7 @@ class Flamelet_Constants {
 
 class Flamelet_Face {
 	public:
-		double mu;
+	double mu;
 };
 
 class Flamelet_Cell {

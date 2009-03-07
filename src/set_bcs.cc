@@ -122,6 +122,10 @@ void setBCs(InputFile &input, BC &bc) {
 				double Chi=2.*bcRegion.omega*bcRegion.Zvar*rans.kepsilon.beta_star;
 				bcRegion.rho=flamelet.table.get_rho(bcRegion.Z,bcRegion.Zvar,Chi);	
 				bcRegion.T=flamelet.table.get_T(bcRegion.Z,bcRegion.Zvar,Chi,false);
+				if (region.get_double("p").is_found) {
+					bcRegion.p=region.get_double("p");
+					bcRegion.specified=BC_FLAMELET_INLET_P;
+				}
 				bcRegion.thermalType=FIXED_T;
 			} else if (bcRegion.type==OUTLET && region.get_double("p").is_found) {
 				bcRegion.specified=BC_P;

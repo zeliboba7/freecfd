@@ -44,14 +44,14 @@ class RANS_Face {
 
 class RANS_Cell {
 	public:
-	double k,omega;
+	double k,omega,mu_t,strainRate;
 	double update[2];
 	Vec3D grad[2]; // k and omega gradients
 };
 
 class RANS_Ghost {
 	public:
-	double k,omega;
+	double k,omega,mu_t;
 	Vec3D grad[2]; // k and omega gradients
 };
 
@@ -74,7 +74,8 @@ class RANS {
 	void mpi_init(void);
 	void mpi_update_ghost(void);
 	void mpi_update_ghost_gradients(void);
-	void update_eddy_viscosity(void); // Updates eddy viscosity stored at the faces
+	void update_cell_eddy_viscosity(void); // Updates eddy viscosity stored at the cell centers
+	void update_face_eddy_viscosity(void); // Updates eddy viscosity stored at the faces
 	void gradients(void);
 	void limit_gradients(void);
 	void terms(void);
