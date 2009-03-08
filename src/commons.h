@@ -39,6 +39,9 @@
 #define KEPSILON 2
 #define BSL 3
 #define SST 4
+// Options for TURBULENCE_FILTER
+#define UNIFORM 1
+#define LOCAL 2
 // Options for TIME_INTEGRATOR
 #define FORWARD_EULER 1
 #define BACKWARD_EULER 2
@@ -92,14 +95,14 @@
 #define BC_FLAMELET_INLET 8
 #define BC_FLAMELET_INLET_P 9
 
-extern int DIMENSION,EQUATIONS,TURBULENCE_MODEL;
+extern int DIMENSION,EQUATIONS,TURBULENCE_MODEL,TURBULENCE_FILTER;
 extern int TIME_INTEGRATOR,TIME_STEP_TYPE;
 extern int CONVECTIVE_FLUX_FUNCTION,CONVECTIVE_FLUX_FUNCTION_JAC,LIMITER,PRECONDITIONER;
 extern int OUTPUT_FORMAT;
 extern bool FLAMELET;
 
 extern int Rank,np;
-extern double omegaLowLimit,kLowLimit,kHighLimit,viscosityRatioLimit;
+extern double omegaLowLimit,kLowLimit,kHighLimit,viscosityRatioLimit,turbulenceFilterSize;
 extern double dt,dtTarget,CFLmax,CFLmaxTarget,CFLlocal,CFLlocalTarget;
 extern int timeStep,restart;
 extern double Minf,Pref,Tref;

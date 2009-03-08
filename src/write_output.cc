@@ -74,7 +74,10 @@ void write_tec(double time) {
 	if (Rank==0) {
 		file.open((fileName).c_str(),ios::out); 
 		file << "VARIABLES = \"x\", \"y\", \"z\",\"p\",\"u\",\"v\",\"w\",\"T\",\"rho\",\"Ma\"";
-		if (turb) file << ",\"k\",\"omega\" ";
+		if (turb) {
+			file << ",\"k\",\"omega\",\"mu_t\"";
+			if (TURBULENCE_FILTER!=NONE) file << ",\"filterFunction\"";
+		}
 		if (FLAMELET) file << ",\"viscosity\", \"Mixture Fraction\",\"Mixture Fraction Variance\" ";
 		file << endl;
 	} else {
@@ -97,28 +100,39 @@ void write_tec(double time) {
 	map<int,double>::iterator it;
 	set<int>::iterator sit;
 	double p_node,T_node,rho_node,k_node,omega_node,Z_node,Zvar_node,visc_node;
+	double mu_t_node, filter_node;
     	Vec3D v_node;
-	int count_p,count_v,count_T,count_k,count_omega,count_rho,count_Z,count_Zvar;
+	int count_p,count_v,count_T,count_k,count_omega,count_mu_t,count_rho,count_Z,count_Zvar;
 	double Ma;
 	for (unsigned int n=0;n<grid.nodeCount;++n) {
 		p_node=0.;v_node=0.;T_node=0.;k_node=0.;omega_node=0.;Z_node=0.;Zvar_node=0.;
+		mu_t_node=0.; filter_node=0.;
+		double real_weight_sum=0.;
 		for ( it=grid.node[n].average.begin() ; it != grid.node[n].average.end(); it++ ) {
 			if ((*it).first>=0) { // if contribution is coming from a real cell
 				p_node+=(*it).second*grid.cell[(*it).first].p;
 				v_node+=(*it).second*grid.cell[(*it).first].v;
 				T_node+=(*it).second*grid.cell[(*it).first].T;
-				if (turb) k_node+=(*it).second*rans.cell[(*it).first].k;
-				if (turb) omega_node+=(*it).second*rans.cell[(*it).first].omega;
+				if (turb) {
+					k_node+=(*it).second*rans.cell[(*it).first].k;
+					omega_node+=(*it).second*rans.cell[(*it).first].omega;
+					mu_t_node+=(*it).second*rans.cell[(*it).first].mu_t;
+					filter_node+=(*it).second*rans.cell[(*it).first].filterFunction;
+				}
 				if (FLAMELET) {
 					Z_node+=(*it).second*flamelet.cell[(*it).first].Z;
 					Zvar_node+=(*it).second*flamelet.cell[(*it).first].Zvar;
 				}
+				real_weight_sum+=(*it).second;
 			} else { // if contribution is coming from a ghost cell
 				p_node+=(*it).second*grid.ghost[-1*((*it).first+1)].p;
 				v_node+=(*it).second*grid.ghost[-1*((*it).first+1)].v;
 				T_node+=(*it).second*grid.ghost[-1*((*it).first+1)].T;
-				if (turb) k_node+=(*it).second*rans.ghost[-1*((*it).first+1)].k;
-				if (turb) omega_node+=(*it).second*rans.ghost[-1*((*it).first+1)].omega;
+				if (turb) {
+					k_node+=(*it).second*rans.ghost[-1*((*it).first+1)].k;
+					omega_node+=(*it).second*rans.ghost[-1*((*it).first+1)].omega;
+					mu_t_node+=(*it).second*rans.ghost[-1*((*it).first+1)].mu_t;
+				}
 				if (FLAMELET) {
 					Z_node+=(*it).second*flamelet.ghost[-1*((*it).first+1)].Z;
 					Zvar_node+=(*it).second*flamelet.ghost[-1*((*it).first+1)].Zvar;
@@ -126,6 +140,13 @@ void write_tec(double time) {
 			}
 		}
 		rho_node=eos.rho(p_node,T_node);
+		if (real_weight_sum>=1.e-10) {
+			filter_node/=real_weight_sum;
+		} else { filter_node=1.; }
+		
+		filter_node=min(1.,filter_node);
+		filter_node=max(0.,filter_node);
+		
 		if (FLAMELET) {
 			double Chi=1.; // TODO calculate chi
 			rho_node=flamelet.table.get_rho(Z_node,Zvar_node,Chi);
@@ -140,6 +161,7 @@ void write_tec(double time) {
 		Zvar_node=max(Zvar_node,0.);
 		
 		count_p=0; count_v=0; count_T=0; count_rho=0.; count_k=0; count_omega=0; count_Z=0; count_Zvar=0;
+		count_mu_t=0;
 		for (sit=grid.node[n].bcs.begin();sit!=grid.node[n].bcs.end();sit++) {
 			if (bc.region[(*sit)].specified==BC_RHO) {
 				rho_node=bc.region[(*sit)].rho; count_rho++;
@@ -156,6 +178,7 @@ void write_tec(double time) {
 			if (bc.region[(*sit)].type==NOSLIP) {
 				if (count_v==0) v_node=0.; count_v++;
 				if (count_k==0) k_node=0.; count_k++;
+				if (count_mu_t==0) mu_t_node=0.; count_mu_t++;
 			}
 
 			if (count_rho>0) rho_node/=double(count_rho);
@@ -163,6 +186,7 @@ void write_tec(double time) {
 			if (count_v>0) v_node/=double(count_v);
 			if (count_k>0) k_node/=double(count_k);
 			if (count_omega>0) omega_node/=double(count_omega);
+			if (count_mu_t>0) mu_t_node/=double(count_mu_t);
 			if (count_Z>0) Z_node/=double(count_Z);
 			if (count_Zvar>0) Zvar_node/=double(count_Zvar);
 		}
@@ -183,6 +207,8 @@ void write_tec(double time) {
 		if (turb) {
 			file << k_node << "\t";
 			file << omega_node << "\t";
+			file << mu_t_node << "\t";
+			if (TURBULENCE_FILTER!=NONE) file << filter_node << "\t";
 		}
 		if (FLAMELET) {
 			file << visc_node << "\t";

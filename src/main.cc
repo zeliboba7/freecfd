@@ -233,6 +233,9 @@ int main(int argc, char *argv[]) {
 			}
 			if (TURBULENCE_MODEL!=NONE) {
 				rans.mpi_update_ghost();
+				rans.terms();
+				rans.update_cell_eddy_viscosity();
+				rans.mpi_update_ghost();
 				rans.update_face_eddy_viscosity();
 			}
 		}
