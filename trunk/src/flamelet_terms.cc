@@ -41,6 +41,7 @@ void Flamelet::terms(void) {
 	double mu;
 	
 	MatZeroEntries(impOP); // Flush the implicit operator
+	VecSet(rhs,0.); // Flush the right hand side
 
 	// Loop through faces
 	Vec3D sum=0.;
@@ -69,7 +70,7 @@ void Flamelet::terms(void) {
 		// Convective flux is based on the mdot calculated through the Riemann solver right after
 		// main flow was updated
 		convectiveFlux[0]=grid.face[f].mdot*(weightL1*leftZ+weightR1*rightZ)*grid.face[f].area;
-		convectiveFlux[1]=grid.face[f].mdot*(weightL*leftZvar+weightR*rightZvar)*grid.face[f].area;
+		convectiveFlux[1]=grid.face[f].mdot*(weightL1*leftZvar+weightR1*rightZvar)*grid.face[f].area;
 
 		mu=flamelet.face[f].mu;
 		mu_t=rans.face[f].mu_t;

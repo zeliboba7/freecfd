@@ -44,6 +44,9 @@ void read_inputs(InputFile &input) {
 	input.section("turbulence").register_double("kLowLimit",optional,1.e-8);
 	input.section("turbulence").register_double("kHighLimit",optional,1.e4);
 	input.section("turbulence").register_double("viscosityRatioLimit",optional,1.e5);
+	input.section("turbulence").registerSubsection("filter",single,optional);
+	input.section("turbulence").subsection("filter").register_string("type",optional,"uniform");
+	input.section("turbulence").subsection("filter").register_double("size",optional,1.e20);
 	input.readSection("turbulence");
 	
 	input.registerSection("grid",optional);

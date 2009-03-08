@@ -44,7 +44,7 @@ class RANS_Face {
 
 class RANS_Cell {
 	public:
-	double k,omega,mu_t,strainRate;
+	double k,omega,mu_t,strainRate,filterFunction;
 	double update[2];
 	Vec3D grad[2]; // k and omega gradients
 };

@@ -53,6 +53,7 @@ void RANS::terms(void) {
 	double closest_wall_distance;
 
 	MatZeroEntries(impOP); // Flush the implicit operator
+	VecSet(rhs,0.); // Flush the right hand side
 
 	// Loop through faces
 	for (f=0;f<grid.faceCount;++f) {
@@ -271,6 +272,12 @@ void RANS::terms(void) {
 	
 		
 	} // end cell loop
+	
+	MatAssemblyBegin(impOP,MAT_FINAL_ASSEMBLY);
+	MatAssemblyEnd(impOP,MAT_FINAL_ASSEMBLY);
+
+	VecAssemblyBegin(rhs);
+	VecAssemblyEnd(rhs);
 	
 	return;
 } // end RANS::terms

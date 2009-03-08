@@ -52,6 +52,7 @@ void check_inputs(InputFile &input) {
 	}
 	
 	option=input.section("turbulence").get_string("model");
+	
 	if (option=="none") {
 		TURBULENCE_MODEL=NONE;
 	} else if (option=="k-omega") {
@@ -66,6 +67,21 @@ void check_inputs(InputFile &input) {
 		if (Rank==0) {
 			cerr << "[E] Input entry turbulence -> model=" << option << " is not recognized!!" << endl;
 			cerr << "[E] Acceptable options are none, k-omega, k-epsilon, bsl and sst" << endl;
+			exit(1);
+		}
+	}
+	TURBULENCE_FILTER=NONE;
+	if (input.section("turbulence").subsection("filter").is_found) {
+		option=input.section("turbulence").subsection("filter").get_string("type");
+		if (option=="uniform") {
+			TURBULENCE_FILTER=UNIFORM;
+			turbulenceFilterSize=input.section("turbulence").subsection("filter").get_double("size");
+		} else if(option=="local") {
+			TURBULENCE_FILTER=LOCAL;
+			turbulenceFilterSize=input.section("turbulence").subsection("filter").get_double("size");	
+		} else {
+			cerr << "[E] Input entry turbulence -> filter -> kind=" << option << " is not recognized!!" << endl;
+			cerr << "[E] Acceptable options are uniform and local" << endl;
 			exit(1);
 		}
 	}

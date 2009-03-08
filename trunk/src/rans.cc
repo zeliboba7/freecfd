@@ -118,12 +118,6 @@ void RANS::petsc_init(double rtol,double abstol,int maxits) {
 
 void RANS::petsc_solve(int &nIter, double &rNorm) {
 
-	MatAssemblyBegin(impOP,MAT_FINAL_ASSEMBLY);
-	MatAssemblyEnd(impOP,MAT_FINAL_ASSEMBLY);
-
-	VecAssemblyBegin(rhs);
-	VecAssemblyEnd(rhs);
-
 	KSPSetOperators(ksp,impOP,impOP,SAME_NONZERO_PATTERN);
 	KSPSolve(ksp,rhs,deltaU);
 
@@ -137,10 +131,7 @@ void RANS::petsc_solve(int &nIter, double &rNorm) {
 			VecGetValues(deltaU,1,&index,&cell[c].update[i]);
 		}
 	}
-
-	VecSet(rhs,0.);
-
-
+	
 	return;
 	
 } // end RANS::petsc_solve

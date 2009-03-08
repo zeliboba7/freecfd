@@ -202,7 +202,7 @@ void setBCs(InputFile &input, BC &bc) {
 				closest_face=grid.noSlipFaces[nsf];
 			}
 		}
-		grid.cell[c].closest_wall_distance=fabs((grid.cell[c].centroid-grid.face[closest_face].centroid).dot(grid.face[closest_face].normal));
+		//sgrid.cell[c].closest_wall_distance=fabs((grid.cell[c].centroid-grid.face[closest_face].centroid).dot(grid.face[closest_face].normal));
 	}
 
 	return;
