@@ -159,7 +159,7 @@ void assemble_linear_system(void) {
 					col=(grid.myOffset+parent)*5+i; // Effect of parent ith var perturbation
 					row=(grid.myOffset+parent)*5+j; // on parent jth flux
 					value=-1.*jacobianLeft[j];
-					if (doLeftSourceJac) value-=sourceJacLeft[j];
+					//if (doLeftSourceJac) value-=sourceJacLeft[j];
 					MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
 					if (face.bc==INTERNAL) { 
 						row=(grid.myOffset+neighbor)*5+j; // on neighbor jth flux
@@ -176,7 +176,7 @@ void assemble_linear_system(void) {
 							col=(grid.myOffset+neighbor)*5+i; // Effect of neighbor ith var perturbation
 							row=(grid.myOffset+neighbor)*5+j; // on neighbor jth flux
 							value=jacobianRight[j];
-							if (doRightSourceJac) value-=sourceJacRight[j];
+							//if (doRightSourceJac) value-=sourceJacRight[j];
 							MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
 							row=(grid.myOffset+parent)*5+j; // on parent jth flux
 							value=-1.*jacobianRight[j];
@@ -384,7 +384,7 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 			right.p=bc.region[face.bc].p;
 			right.T=left.T; // temperature is extrapolated
 			right.T_center=left.T_center+2.*(right.T-left.T_center);
-			right.rho=left.rho;
+			right.rho=eos.rho(right.p,right.T); 
 			if (!FLAMELET) right.rho=eos.rho(right.p,right.T);
 		} else if (bc.region[face.bc].specified==BC_T) {
 			right.T=bc.region[face.bc].T;
@@ -395,7 +395,7 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 			right.rho=bc.region[face.bc].rho;
 			right.p=left.p; // pressure is extrapolated
 			right.T=eos.T(right.p,right.rho); 
-			right.T_center=left.T_center+2.*(right.T-left.T_center);
+			right.T_center=right.T; //left.T_center+2.*(right.T-left.T_center);
 		} else if (bc.region[face.bc].specified==BC_FLAMELET_INLET) {
 			right.p=left.p; // pressure is extrapolated
 			right.T=bc.region[face.bc].T;
@@ -425,11 +425,11 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 			right.T_center=left.T_center;
 		} else if (bc.region[face.bc].type==NOSLIP) {
 			right.v=-1.*left.v;
-			right.v_center=2.*right.v-left.v_center;
+			right.v_center=-1.*left.v_center;
 		} else if (bc.region[face.bc].type==INLET) {
 			right.v=bc.region[face.bc].v;
-			//right.v_center=right.v;
-			right.v_center=2.*right.v-left.v_center; 
+			right.v_center=right.v;
+			//right.v_center=2.*right.v-left.v_center; 
 		} else if (bc.region[face.bc].type==OUTLET) {
 			right.v=left.v;
 			right.v_center=2.*right.v-left.v_center; 

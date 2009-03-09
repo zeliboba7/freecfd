@@ -410,6 +410,7 @@ void Grid::gradients(void) {
 					faceRho=eos.rho(faceP,faceT); // pressure is extrapolated
 				} else if (bc.region[face[f].bc].specified==BC_RHO) {
 					faceRho=bc.region[face[f].bc].rho;
+					faceP=grid.cell[c].p;
 					faceT=eos.T(faceP,faceRho); // pressure is extrapolated
 				} else if (bc.region[face[f].bc].specified==BC_FLAMELET_INLET) {
 					faceT=bc.region[face[f].bc].T;
@@ -429,6 +430,7 @@ void Grid::gradients(void) {
 				} else if (bc.region[face[f].bc].type==SYMMETRY) {
 					// Symmetry mirrors everything
 					faceP=cell[c].p;
+					faceT=cell[c].T;
 					faceVel=cell[c].v;
 					faceVel-=faceVel.dot(face[f].normal)*face[f].normal;
 				} else if (bc.region[face[f].bc].type==NOSLIP) {

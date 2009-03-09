@@ -86,12 +86,6 @@ void Grid::nodeAverages() {
 	int point_node_count=0;	
 	int stencil_expand_threshold=4;
 	if (DIMENSION==3) stencil_expand_threshold=5;
-	
-	///////////////////////////////////////////////////////////
-	// TODO with the following, square cavity problem on a uniform grid fails for parallel runs only. Why??
-        //int stencil_expand_threshold=4;
-	//if (DIMENSION==3) stencil_expand_threshold=5;
-        ////////////////////////////////////////////////////////////
 
 	// Loop all the nodes
 	for (nit=node.begin();nit!=node.end();nit++) {
@@ -412,7 +406,7 @@ void Grid::interpolate_tri(Node& n) {
 				// How close the triangle center to the node for which we are interpolating
 				// Normalized by average edge length
 				closeness=fabs(n-ave_centroid)/ave_edge;
-				closeness=max(closeness,1.e-2*ave_edge);
+				closeness=max(closeness,1.e-1*ave_edge);
 				closeness=1./closeness;
 				// If it was an equilateral tri,skewness should be 1, thus the multiplier here.
 				skewness=tri_area/(0.433*ave_edge*ave_edge);

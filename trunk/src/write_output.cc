@@ -160,7 +160,7 @@ void write_tec(double time) {
 		Z_node=min(Z_node,1.);
 		Zvar_node=max(Zvar_node,0.);
 		
-		count_p=0; count_v=0; count_T=0; count_rho=0.; count_k=0; count_omega=0; count_Z=0; count_Zvar=0;
+		count_p=0; count_v=0; count_T=0; count_rho=0; count_k=0; count_omega=0; count_Z=0; count_Zvar=0;
 		count_mu_t=0;
 		for (sit=grid.node[n].bcs.begin();sit!=grid.node[n].bcs.end();sit++) {
 			if (bc.region[(*sit)].specified==BC_RHO) {
