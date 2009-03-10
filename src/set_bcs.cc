@@ -173,8 +173,8 @@ void setBCs(InputFile &input, BC &bc) {
 		} 
 	}
 		
-	int number_of_nsf[np]; // number of noslip faces in each partition
-	number_of_nsf[Rank]=0;
+	vector<int> number_of_nsf (np,0); // number of noslip faces in each partition
+	
 	// Mark nodes that touch boundaries
 	for (unsigned int f=0;f<grid.faceCount;++f) {
 		if (grid.face[f].bc==UNASSIGNED) {
@@ -190,9 +190,8 @@ void setBCs(InputFile &input, BC &bc) {
 	}
 	
 	if (TURBULENCE_MODEL!=NONE) {
-
-		cout << "[I Rank=" << Rank << "] Finding closest noslip wall distances " << endl;
-		MPI_Allgather(&number_of_nsf[Rank],np,MPI_INT,number_of_nsf,np,MPI_INT,MPI_COMM_WORLD);
+		
+		MPI_Allgather(&number_of_nsf[Rank],1,MPI_INT,&number_of_nsf[0],1,MPI_INT,MPI_COMM_WORLD);
 		
 		int nsf_sum=0;
 		int displacements[np];
@@ -201,9 +200,9 @@ void setBCs(InputFile &input, BC &bc) {
 			nsf_sum+=number_of_nsf[p];
 		}
 		
-		vector<double> noSlipFaces_x;  noSlipFaces_x.resize(nsf_sum);
-		vector<double> noSlipFaces_y;  noSlipFaces_y.resize(nsf_sum);
-		vector<double> noSlipFaces_z;  noSlipFaces_z.resize(nsf_sum);
+		vector<double> noSlipFaces_x(nsf_sum);
+		vector<double> noSlipFaces_y(nsf_sum);
+		vector<double> noSlipFaces_z(nsf_sum);
 	
 		count=0;
 		for (unsigned int f=0;f<grid.faceCount;++f) {
@@ -214,10 +213,10 @@ void setBCs(InputFile &input, BC &bc) {
 				count++;
 			}
 		}
-			
-		MPI_Allgatherv(&noSlipFaces_x[displacements[Rank]],number_of_nsf[Rank],MPI_DOUBLE,&noSlipFaces_x[0],number_of_nsf,displacements,MPI_DOUBLE,MPI_COMM_WORLD);
-		MPI_Allgatherv(&noSlipFaces_y[displacements[Rank]],number_of_nsf[Rank],MPI_DOUBLE,&noSlipFaces_y[0],number_of_nsf,displacements,MPI_DOUBLE,MPI_COMM_WORLD);
-		MPI_Allgatherv(&noSlipFaces_z[displacements[Rank]],number_of_nsf[Rank],MPI_DOUBLE,&noSlipFaces_z[0],number_of_nsf,displacements,MPI_DOUBLE,MPI_COMM_WORLD);
+		
+		MPI_Allgatherv(&noSlipFaces_x[displacements[Rank]],number_of_nsf[Rank],MPI_DOUBLE,&noSlipFaces_x[0],&number_of_nsf[0],displacements,MPI_DOUBLE,MPI_COMM_WORLD);
+		MPI_Allgatherv(&noSlipFaces_y[displacements[Rank]],number_of_nsf[Rank],MPI_DOUBLE,&noSlipFaces_y[0],&number_of_nsf[0],displacements,MPI_DOUBLE,MPI_COMM_WORLD);
+		MPI_Allgatherv(&noSlipFaces_z[displacements[Rank]],number_of_nsf[Rank],MPI_DOUBLE,&noSlipFaces_z[0],&number_of_nsf[0],displacements,MPI_DOUBLE,MPI_COMM_WORLD);
 		
 		Vec3D thisCentroid;
 		double thisDistance;
