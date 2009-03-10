@@ -101,6 +101,7 @@ void check_inputs(InputFile &input) {
 	
 	TIME_STEP_TYPE=NONE;
 	dt_current=input.section("timeMarching").get_double("stepSize");
+	dt_target=dt_current;
 	if (input.section("timeMarching").get_double("stepSize").is_found) {
 		TIME_STEP_TYPE=FIXED; 
 	}

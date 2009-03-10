@@ -126,7 +126,7 @@ void read_restart(double &time) {
 			if (maps.cellGlobal2Local.find(partitionMap[p][c])!=maps.cellGlobal2Local.end()) {
 				id=maps.cellGlobal2Local[partitionMap[p][c]];
 			}
-			if (id>=0) { 
+			if (id>=0 && TIME_STEP_TYPE!=FIXED) { 
 				file >> grid.cell[id].dt; 
 			} else { file >> dummy; 
 			}

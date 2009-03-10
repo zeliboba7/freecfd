@@ -130,11 +130,6 @@ void assemble_linear_system(void) {
 				bc.region[face.bc].energy+=(flux.convective[4]-flux.diffusive[4]);
 			}
 		}
-
-// 		if (FLAMELET) {
-// 			flux.convective[4]=0.;
-// 			flux.diffusive[4]=0.;
-// 		}
 			
 		// Fill in rhs vector
 		for (int i=0;i<5;++i) {
@@ -158,11 +153,6 @@ void assemble_linear_system(void) {
 				}
 				
 				get_jacobians(i);
-				
-// 				if (FLAMELET) {
-// 					jacobianLeft[4]=0.;
-// 					jacobianRight[4]=0.;
-// 				}
 				
 				// Add change of flux (flux Jacobian) to implicit operator
 				for (int j=0;j<5;++j) {
@@ -440,8 +430,7 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 			right.v_center=-1.*left.v_center;
 		} else if (bc.region[face.bc].type==INLET) {
 			right.v=bc.region[face.bc].v;
-			right.v_center=right.v;
-			//right.v_center=2.*right.v-left.v_center; 
+			right.v_center=2.*right.v-left.v_center; 
 		} else if (bc.region[face.bc].type==OUTLET) {
 			right.v=left.v;
 			right.v_center=2.*right.v-left.v_center; 
@@ -453,7 +442,7 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 						right.T_center=left.T_center+2.*(right.T-left.T_center);
 					}
 				} else if (bc.region[face.bc].kind==NO_REVERSE) {
-					right.v=0.;
+					right.v=-1.*left.v;
 					right.v_center=-1.*left.v_center; 
 				}
 			}

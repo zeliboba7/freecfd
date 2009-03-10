@@ -173,9 +173,7 @@ double Flamelet_Table::get_T(double &Z_in, double &Zvar_in, double &Chi_in,bool 
 			+weights[5]*( weights[2]*( weights[0]*T[i1][i2][i3+1]   
 			+weights[1]*T[i1+1][i2][i3+1] ) 
 			+weights[3]*( weights[0]*T[i1][i2+1][i3+1] 
-			+weights[1]*T[i1+1][i2+1][i3+1] ) );
-	
-	//return -4.65e4*pow(Z,4)+1.12e5*pow(Z,3)-9.26e4*pow(Z,2)+2.67e4*Z+1.03e3;
+			+weights[1]*T[i1+1][i2+1][i3+1] ) )-Tref;
 }
 
 double Flamelet_Table::get_mu(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights) {
