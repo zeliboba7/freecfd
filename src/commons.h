@@ -49,6 +49,7 @@
 #define FIXED 1
 #define CFL_MAX 2
 #define CFL_LOCAL 3
+#define ADAPTIVE 4
 // Options for CONVECTIVE_FLUX_FUNCTION
 #define ROE 1
 #define AUSM_PLUS_UP 2
@@ -103,7 +104,7 @@ extern bool FLAMELET;
 
 extern int Rank,np;
 extern double omegaLowLimit,kLowLimit,kHighLimit,viscosityRatioLimit,turbulenceFilterSize;
-extern double dt,dtTarget,CFLmax,CFLmaxTarget,CFLlocal,CFLlocalTarget;
+extern double dt_relax,dt_current,dt_target,dt_min,dt_max,CFLmax,CFLmaxTarget,CFLlocal,CFLlocalTarget;
 extern int timeStep,restart;
 extern double Minf,Pref,Tref;
 extern int order;

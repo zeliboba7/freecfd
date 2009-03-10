@@ -121,7 +121,7 @@ void Grid::trim_memory() {
 	vector<Ghost> (ghost).swap(ghost);
 	
 	vector<int> (partitionOffset).swap(partitionOffset);
-	vector<int> (noSlipFaces).swap(noSlipFaces);
+	//vector<unsigned int> (noSlipFaces).swap(noSlipFaces);
 	
 	// Destroy grid raw data
 	raw.x.clear();

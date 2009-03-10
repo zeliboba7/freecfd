@@ -172,7 +172,9 @@ void setBCs(InputFile &input, BC &bc) {
 			}
 		} 
 	}
-
+		
+	int number_of_nsf[np]; // number of noslip faces in each partition
+	number_of_nsf[Rank]=0;
 	// Mark nodes that touch boundaries
 	for (unsigned int f=0;f<grid.faceCount;++f) {
 		if (grid.face[f].bc==UNASSIGNED) {
@@ -183,27 +185,59 @@ void setBCs(InputFile &input, BC &bc) {
 			for (unsigned int fn=0;fn<grid.face[f].nodeCount;++fn) {
 				grid.face[f].node(fn).bcs.insert(grid.face[f].bc);
 			}
-			if (bc.region[grid.face[f].bc].type==NOSLIP) {
-				grid.noSlipFaces.push_back(f);
-				// TODO this one is for the closest wall distance for turbulence model
-				// what if the closest face lies on another partition?
-			}
+			if (bc.region[grid.face[f].bc].type==NOSLIP) number_of_nsf[Rank]++;
 		}
 	}
 	
-	double thisDistance;
-	unsigned int closest_face;
-	for (unsigned int c=0;c<grid.cellCount;++c) {
-		grid.cell[c].closest_wall_distance=1.e20;
-		for (unsigned int nsf=0;nsf<grid.noSlipFaces.size();++nsf) {
-			thisDistance=fabs(grid.cell[c].centroid-grid.face[grid.noSlipFaces[nsf]].centroid);
-			if (grid.cell[c].closest_wall_distance>thisDistance) {
-				grid.cell[c].closest_wall_distance=thisDistance;
-				closest_face=grid.noSlipFaces[nsf];
+	if (TURBULENCE_MODEL!=NONE) {
+
+		cout << "[I Rank=" << Rank << "] Finding closest noslip wall distances " << endl;
+		MPI_Allgather(&number_of_nsf[Rank],np,MPI_INT,number_of_nsf,np,MPI_INT,MPI_COMM_WORLD);
+		
+		int nsf_sum=0;
+		int displacements[np];
+		for (int p=0;p<np;++p) {
+			displacements[p]=nsf_sum;
+			nsf_sum+=number_of_nsf[p];
+		}
+		
+		vector<double> noSlipFaces_x;  noSlipFaces_x.resize(nsf_sum);
+		vector<double> noSlipFaces_y;  noSlipFaces_y.resize(nsf_sum);
+		vector<double> noSlipFaces_z;  noSlipFaces_z.resize(nsf_sum);
+	
+		count=0;
+		for (unsigned int f=0;f<grid.faceCount;++f) {
+			if (grid.face[f].bc>=0 && bc.region[grid.face[f].bc].type==NOSLIP) { 
+				noSlipFaces_x[displacements[Rank]+count]=grid.face[f].centroid[0];
+				noSlipFaces_y[displacements[Rank]+count]=grid.face[f].centroid[1];
+				noSlipFaces_z[displacements[Rank]+count]=grid.face[f].centroid[2];
+				count++;
 			}
 		}
-		//sgrid.cell[c].closest_wall_distance=fabs((grid.cell[c].centroid-grid.face[closest_face].centroid).dot(grid.face[closest_face].normal));
+			
+		MPI_Allgatherv(&noSlipFaces_x[displacements[Rank]],number_of_nsf[Rank],MPI_DOUBLE,&noSlipFaces_x[0],number_of_nsf,displacements,MPI_DOUBLE,MPI_COMM_WORLD);
+		MPI_Allgatherv(&noSlipFaces_y[displacements[Rank]],number_of_nsf[Rank],MPI_DOUBLE,&noSlipFaces_y[0],number_of_nsf,displacements,MPI_DOUBLE,MPI_COMM_WORLD);
+		MPI_Allgatherv(&noSlipFaces_z[displacements[Rank]],number_of_nsf[Rank],MPI_DOUBLE,&noSlipFaces_z[0],number_of_nsf,displacements,MPI_DOUBLE,MPI_COMM_WORLD);
+		
+		Vec3D thisCentroid;
+		double thisDistance;
+		for (unsigned int c=0;c<grid.cellCount;++c) {
+			grid.cell[c].closest_wall_distance=1.e20;
+			for (unsigned int nsf=0;nsf<nsf_sum;++nsf) {
+				thisCentroid[0]=noSlipFaces_x[nsf];
+				thisCentroid[1]=noSlipFaces_y[nsf];
+				thisCentroid[2]=noSlipFaces_z[nsf];
+				thisDistance=fabs(grid.cell[c].centroid-thisCentroid);
+				if (grid.cell[c].closest_wall_distance>thisDistance) {
+					grid.cell[c].closest_wall_distance=thisDistance;
+				}
+			}
+		}
+	
+		noSlipFaces_x.clear();
+		noSlipFaces_y.clear();
+		noSlipFaces_z.clear();
 	}
-
+	
 	return;
 }

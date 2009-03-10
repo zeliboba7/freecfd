@@ -153,6 +153,7 @@ void initialize(InputFile &input) {
 			double Chi=2.*rans.cell[c].omega*flamelet.cell[c].Zvar*rans.kepsilon.beta_star;
 			flamelet.cell[c].mu=flamelet.table.get_mu(flamelet.cell[c].Z,flamelet.cell[c].Zvar,Chi);
 		}
+		grid.cell[c].dt=dt_current;
 	}	
 	
 	for (unsigned int g=0;g<grid.ghostCount;++g) {

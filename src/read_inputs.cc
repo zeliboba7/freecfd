@@ -64,9 +64,12 @@ void read_inputs(InputFile &input) {
 	
 	input.registerSection("timeMarching",required);
 	input.section("timeMarching").register_string("integrator",optional,"backwardEuler");
-	input.section("timeMarching").register_double("stepSize",optional,1);
-	input.section("timeMarching").register_double("CFLmax",optional,1000);
-	input.section("timeMarching").register_double("CFLlocal",optional,1000);
+	input.section("timeMarching").register_double("stepSize",optional,1.);
+	input.section("timeMarching").register_double("CFLmax",optional,1000.);
+	input.section("timeMarching").register_double("CFLlocal",optional,1000.);
+	input.section("timeMarching").register_double("adaptive",optional,0.05);
+	input.section("timeMarching").register_double("stepSizeMax",optional,0.01);
+	input.section("timeMarching").register_double("stepSizeMin",optional,1.e-9);
 	input.section("timeMarching").registerSubsection("ramp",single,optional);
 	input.section("timeMarching").subsection("ramp").register_double("initial",optional,1.);
 	input.section("timeMarching").subsection("ramp").register_double("growth",optional,1.2);

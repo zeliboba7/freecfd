@@ -120,6 +120,19 @@ void read_restart(double &time) {
 			
 			} else { file >> dummy; }
 		}
+		// Read time step size
+ 		for (unsigned int c=0;c<ncells[p];++c) {
+			id=-1;
+			if (maps.cellGlobal2Local.find(partitionMap[p][c])!=maps.cellGlobal2Local.end()) {
+				id=maps.cellGlobal2Local[partitionMap[p][c]];
+			}
+			if (id>=0) { 
+				file >> grid.cell[id].dt; 
+			} else { file >> dummy; 
+			}
+			
+ 		}
+ 		dt_current=grid.cell[0].dt;
 		
 		if (TURBULENCE_MODEL!=NONE) {
 			// Read k

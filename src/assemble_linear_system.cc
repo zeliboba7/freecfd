@@ -131,6 +131,11 @@ void assemble_linear_system(void) {
 			}
 		}
 
+// 		if (FLAMELET) {
+// 			flux.convective[4]=0.;
+// 			flux.diffusive[4]=0.;
+// 		}
+			
 		// Fill in rhs vector
 		for (int i=0;i<5;++i) {
 			row=(grid.myOffset+parent)*5+i;
@@ -153,6 +158,11 @@ void assemble_linear_system(void) {
 				}
 				
 				get_jacobians(i);
+				
+// 				if (FLAMELET) {
+// 					jacobianLeft[4]=0.;
+// 					jacobianRight[4]=0.;
+// 				}
 				
 				// Add change of flux (flux Jacobian) to implicit operator
 				for (int j=0;j<5;++j) {
@@ -312,6 +322,7 @@ void left_state_update(Cell_State &left,Face_State &face) {
 		leftOmega=max(leftOmega,omegaLowLimit);
 		Chi=2.*leftOmega*leftZvar*rans.kepsilon.beta_star;
 		left.rho=flamelet.table.get_rho(leftZ,leftZvar,Chi);
+		left.T=flamelet.table.get_T(leftZ,leftZvar,Chi,false);
 	}
 	left.a=sqrt(Gamma*(left.p+Pref)/left.rho);
 	left.H=left.a*left.a/(Gamma-1.)+0.5*left.v.dot(left.v);	
@@ -368,6 +379,7 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 			rightOmega=max(rightOmega,omegaLowLimit);
 			Chi=2.*rightOmega*rightZvar*rans.kepsilon.beta_star;
 			right.rho=flamelet.table.get_rho(rightZ,rightZvar,Chi);
+			right.T=flamelet.table.get_T(rightZ,rightZvar,Chi,false);
 		}
 		right.volume=grid.cell[neighbor].volume;
 		
@@ -384,7 +396,6 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 			right.p=bc.region[face.bc].p;
 			right.T=left.T; // temperature is extrapolated
 			right.T_center=2.*right.T-left.T_center;
-			right.rho=eos.rho(right.p,right.T); 
 			if (!FLAMELET) right.rho=eos.rho(right.p,right.T);
 		} else if (bc.region[face.bc].specified==BC_T) {
 			right.T=bc.region[face.bc].T;
@@ -395,6 +406,7 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 			right.rho=bc.region[face.bc].rho;
 			right.p=left.p; // pressure is extrapolated
 			right.T=eos.T(right.p,right.rho); 
+			if (FLAMELET) right.T=left.T;
 			right.T_center=right.T; //left.T_center+2.*(right.T-left.T_center);
 		} else if (bc.region[face.bc].specified==BC_FLAMELET_INLET) {
 			right.p=left.p; // pressure is extrapolated
@@ -486,6 +498,7 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 			rightOmega=max(rightOmega,omegaLowLimit);
 			Chi=2.*rightOmega*rightZvar*rans.kepsilon.beta_star;
 			right.rho=flamelet.table.get_rho(rightZ,rightZvar,Chi);
+			right.T=flamelet.table.get_T(rightZ,rightZvar,Chi,false);
 		}
 	
 	}
@@ -561,7 +574,12 @@ void state_perturb(Cell_State &state,Face_State &face,int var,double epsilon) {
 	{
 		case 0 : // p
 			state.p+=epsilon;
-			if (!FLAMELET) state.rho=eos.rho(state.p,state.T);
+			if (FLAMELET) {
+				//state.rho+=(state.p+Pref)/state.rho*epsilon; // Need dp/drho for flamelet here
+				// TODO figure this out
+			} else {
+				state.rho=eos.rho(state.p,state.T);	
+			}
 			state.a=sqrt(Gamma*(state.p+Pref)/state.rho);
 			state.H=state.a*state.a/(Gamma-1.)+0.5*state.v.dot(state.v);
 			break;
@@ -597,6 +615,7 @@ void state_perturb(Cell_State &state,Face_State &face,int var,double epsilon) {
 				state.a=sqrt(Gamma*(state.p+Pref)/state.rho);
 				state.H=state.a*state.a/(Gamma-1.)+0.5*state.v.dot(state.v);
 			}
+			// need dt/drho for flamelet here
 			break;
 	}
 	

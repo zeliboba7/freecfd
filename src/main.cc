@@ -181,7 +181,10 @@ int main(int argc, char *argv[]) {
 	
 	// Initialize time step or CFL size if ramping
 	if (ramp) {
-		if (TIME_STEP_TYPE==FIXED) dt=ramp_initial;
+		if (TIME_STEP_TYPE==FIXED) {
+			for (unsigned int c=0;c<grid.cellCount;++c) grid.cell[c].dt=ramp_initial;
+			dt_current=ramp_initial;
+		}
 		if (TIME_STEP_TYPE==CFL_MAX) CFLmax=ramp_initial;
 		if (TIME_STEP_TYPE==CFL_LOCAL) CFLlocal=ramp_initial;
 	}
@@ -206,6 +209,10 @@ int main(int argc, char *argv[]) {
 		int nIter,nIterTurb,nIterFlame; // Number of linear solver iterations
 		double rNorm,rNormTurb,rNormFlame; // Residual norm of the linear solver
 
+		// Get time step (will handle fixed, CFL and CFLramp)
+		get_dt();
+		get_CFLmax();
+		
 		// Flush boundary forces
 		if ((timeStep) % integrateBoundaryFreq == 0) {
 			for (int i=0;i<bcCount;++i) {
@@ -240,12 +247,6 @@ int main(int argc, char *argv[]) {
 			}
 		}
 
-
-		// Get time step (will handle fixed, CFL and CFLramp)
-		get_dt();
-		if (TIME_STEP_TYPE==FIXED) { get_CFLmax(); } 
-		else if (TIME_STEP_TYPE==CFL_LOCAL) { CFLmax=CFLlocal;}
-		
 		if (FLAMELET) {
 			if (firstTimeStep) {
 				flamelet.mpi_update_ghost();
@@ -308,7 +309,7 @@ int main(int argc, char *argv[]) {
 		}
 
 		// Advance physical time
-		time += dt;
+		time += dt_current;
 		if (Rank==0) {
 			// Output residual stream labels
 			cout.precision(3);
@@ -317,8 +318,10 @@ int main(int argc, char *argv[]) {
  			if (timeStep==(restart+1))  {
 				// Write screen labels
 				cout << setw(8) << "step";
-				cout << setw(12) << "time";
-				cout << setw(12) << "dt";
+				if (TIME_STEP_TYPE==FIXED || TIME_STEP_TYPE==CFL_MAX) {
+					cout << setw(12) << "time";
+					cout << setw(12) << "dt";
+				}
 				cout << setw(12) << "CFLmax";
 				cout << setw(12) << "resP";
 				cout << setw(12) << "resV";
@@ -329,8 +332,10 @@ int main(int argc, char *argv[]) {
  			}
 
 			cout << setw(8) << timeStep;
-			cout << setw(12) << time;
-			cout << setw(12) << dt;
+			if (TIME_STEP_TYPE==FIXED || TIME_STEP_TYPE==CFL_MAX) {
+				cout << setw(12) << time;
+				cout << setw(12) << dt_current;
+			}
 			cout << setw(12) << CFLmax;
 			cout << setw(12) << resP;
 			cout << setw(12) << resV;
@@ -353,7 +358,7 @@ int main(int argc, char *argv[]) {
 		
 		// Ramp-up if needed
 		if (ramp) {
-			if (TIME_STEP_TYPE==FIXED) dt=min(dt*ramp_growth,dtTarget);
+			if (TIME_STEP_TYPE==FIXED) dt_current=min(dt_current*ramp_growth,dt_target);
 			if (TIME_STEP_TYPE==CFL_MAX) CFLmax=min(CFLmax*ramp_growth,CFLmaxTarget);
 			if (TIME_STEP_TYPE==CFL_LOCAL) CFLlocal=min(CFLlocal*ramp_growth,CFLlocalTarget);
 		}
@@ -491,11 +496,12 @@ void update(void) {
 		if (!FLAMELET) {
 			grid.cell[c].T += grid.cell[c].update[4];
 			grid.cell[c].rho=eos.rho(grid.cell[c].p,grid.cell[c].T);
-		}
+		} 
 		
 		resP+=grid.cell[c].update[0]*grid.cell[c].update[0];
 		resV+=grid.cell[c].update[1]*grid.cell[c].update[1]+grid.cell[c].update[2]*grid.cell[c].update[2]+grid.cell[c].update[3]*grid.cell[c].update[3];
 		resT+=grid.cell[c].update[4]*grid.cell[c].update[4];
+		
 	} // cell loop
 	double residuals[3],totalResiduals[3];
 	residuals[0]=resP; residuals[1]=resV; residuals[2]=resT;
@@ -517,14 +523,35 @@ string int2str(int number) {
 void get_dt(void) {
 	
 	if (TIME_STEP_TYPE==CFL_MAX) {
+		dt_current=1.e20;
 		// Determine time step with CFL condition
-		dt=1.E20;
 		for (cit=grid.cell.begin();cit<grid.cell.end();cit++) {
 			double a=sqrt(Gamma*((*cit).p+Pref)/(*cit).rho);
-			for (int i=0;i<3;++i) dt=min(dt,CFLmax*(*cit).lengthScale/(fabs((*cit).v[i])+a));
+			dt_current=min(dt_current,CFLmax*(*cit).lengthScale/(fabs((*cit).v)+a));
 		}
-		MPI_Allreduce(&dt,&dt,1, MPI_DOUBLE,MPI_MIN,MPI_COMM_WORLD);
-	} 
+		MPI_Allreduce(&dt_current,&dt_current,1, MPI_DOUBLE,MPI_MIN,MPI_COMM_WORLD);
+		for (cit=grid.cell.begin();cit<grid.cell.end();cit++) (*cit).dt=dt_current;
+	} else if (TIME_STEP_TYPE==CFL_LOCAL) {
+		// Determine time step with CFL condition
+		for (cit=grid.cell.begin();cit<grid.cell.end();cit++) {
+			double a=sqrt(Gamma*((*cit).p+Pref)/(*cit).rho);
+			for (cit=grid.cell.begin();cit<grid.cell.end();cit++) (*cit).dt=CFLlocal*(*cit).lengthScale/(fabs((*cit).v)+a);
+		}
+	}  else if (TIME_STEP_TYPE==ADAPTIVE) {
+		for (cit=grid.cell.begin();cit<grid.cell.end();cit++) {
+			if (fabs((*cit).update[0]) > fabs(((*cit).p+Pref)*dt_relax) ||
+			    fabs((*cit).update[4]) > fabs(((*cit).T+Tref)*dt_relax) ) {
+				//(*cit).dt*=(1.-dt_relax);
+				(*cit).dt*=0.5;
+			    } else {
+				(*cit).dt*=(1.+dt_relax);
+				
+			    }
+			    (*cit).dt=min((*cit).dt,dt_max);
+			    (*cit).dt=max((*cit).dt,dt_min);
+		}
+		
+	}  
 
 	return;
 } // end get_dt
@@ -534,8 +561,7 @@ void get_CFLmax(void) {
 	CFLmax=0.;
 	for (cit=grid.cell.begin();cit<grid.cell.end();cit++) {
 		double a=sqrt(Gamma*((*cit).p+Pref)/(*cit).rho);
-		//cout << Gamma <<  "\t" << (*cit).p << "\t" << Pref << "\t" << (*cit).rho << endl;
-		for (int i=0;i<3;++i) CFLmax=max(CFLmax,(fabs((*cit).v[0])+a)*dt/(*cit).lengthScale);
+		CFLmax=max(CFLmax,(fabs((*cit).v)+a)*(*cit).dt/(*cit).lengthScale);
 	}
 	MPI_Allreduce(&CFLmax,&CFLmax,1, MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
 
