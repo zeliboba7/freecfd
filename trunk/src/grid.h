@@ -72,7 +72,7 @@ public:
 	std::vector<int> faces;
 	std::vector<int> neighborCells;
 	std::vector<int> ghosts;
-	double p,T,rho;
+	double p,T,rho,dt;
 	Vec3D v,grad[5];
 	// Gradients are stored as p,u,v,w,T in order
 	std::map<int,Vec3D> gradMap;
@@ -106,7 +106,6 @@ public:
 	std::vector<Face> face;
 	std::vector<Cell> cell;
 	std::vector<Ghost> ghost;
-	std::vector<int> noSlipFaces;
 	Grid();
 	int read(string);
 	int readCGNS();

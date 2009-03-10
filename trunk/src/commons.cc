@@ -31,7 +31,7 @@ bool FLAMELET;
 
 int Rank,np;
 double omegaLowLimit,kLowLimit,kHighLimit,viscosityRatioLimit,turbulenceFilterSize;
-double dt,dtTarget,CFLmax,CFLmaxTarget,CFLlocal,CFLlocalTarget;
+double dt_relax,dt_current,dt_target,dt_min,dt_max,CFLmax,CFLmaxTarget,CFLlocal,CFLlocalTarget;
 int timeStep,restart;
 double Minf,Pref,Tref;
 int order;

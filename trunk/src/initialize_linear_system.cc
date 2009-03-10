@@ -23,8 +23,10 @@
 #include "commons.h"
 #include "petsc_functions.h"
 #include "bc.h"
+#include "flamelet.h"
 
 extern BC bc;
+extern Flamelet flamelet;
 
 inline void preconditioner_none(Cell &c, double P[][5]) {
 	
@@ -36,6 +38,7 @@ inline void preconditioner_none(Cell &c, double P[][5]) {
 	// For ideal gas
 	drho_dT=-1.*c.rho/T;
 	drho_dp=c.rho/p;
+
 	double c_p=Gamma/(Gamma-1.)*p/(c.rho*T); 
 	
 	double H=c_p*T+0.5*c.v.dot(c.v);
@@ -56,7 +59,7 @@ inline void preconditioner_none(Cell &c, double P[][5]) {
 	return;
 }
 		
-inline void preconditioner_ws95(Cell &c, double P[][5]) {
+inline void preconditioner_ws95(Cell &c,double &mu, double P[][5]) {
 	
 	double p=c.p+Pref;
 	double T=c.T+Tref;
@@ -68,7 +71,7 @@ inline void preconditioner_ws95(Cell &c, double P[][5]) {
 	
 	Ur=max(fabs(c.v),1.e-5*a);
 	Ur=min(Ur,a);
-	if (EQUATIONS==NS) Ur=max(Ur,viscosity/(c.rho*c.lengthScale));
+	if (EQUATIONS==NS) Ur=max(Ur,mu/(c.rho*c.lengthScale));
 	
 	double deltaPmax=0.;
 	// Now loop through neighbor cells to check pressure differences
@@ -122,29 +125,18 @@ void initialize_linear_system() {
 	for (unsigned int c=0;c<grid.cellCount;++c) {
 
 		if (PRECONDITIONER==WS95) {
-			preconditioner_ws95(grid.cell[c],P);
+			double mu=viscosity;
+			if (FLAMELET) mu=flamelet.cell[c].mu;
+			preconditioner_ws95(grid.cell[c],mu,P);
 		} else {
 			preconditioner_none(grid.cell[c],P);
 		}
 
-		if (TIME_STEP_TYPE==CFL_LOCAL) {
-			// Determine time step with CFL condition
-			dtLocal=1.E20;
-			a=sqrt(Gamma*(grid.cell[c].p+Pref)/grid.cell[c].rho);
-			lengthScale=grid.cell[c].lengthScale;
-			dtLocal=min(dtLocal,CFLlocal*lengthScale/(fabs(grid.cell[c].v[0])+a));
-			dtLocal=min(dtLocal,CFLlocal*lengthScale/(fabs(grid.cell[c].v[1])+a));
-			dtLocal=min(dtLocal,CFLlocal*lengthScale/(fabs(grid.cell[c].v[2])+a));
-			d=grid.cell[c].volume/dtLocal;
-		} else {
-			d=grid.cell[c].volume/dt;
-		}
-		
 		for (int i=0;i<5;++i) {
 			row=(grid.myOffset+c)*5+i;
 			for (int j=0;j<5;++j) {
 				col=(grid.myOffset+c)*5+j;
-				value=P[i][j]*d;
+				value=P[i][j]*grid.cell[c].volume/grid.cell[c].dt;
 				MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
 			}
 		}

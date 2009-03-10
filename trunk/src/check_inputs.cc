@@ -100,8 +100,9 @@ void check_inputs(InputFile &input) {
 	}
 	
 	TIME_STEP_TYPE=NONE;
+	dt_current=input.section("timeMarching").get_double("stepSize");
 	if (input.section("timeMarching").get_double("stepSize").is_found) {
-		TIME_STEP_TYPE=FIXED; dt=input.section("timeMarching").get_double("stepSize");
+		TIME_STEP_TYPE=FIXED; 
 	}
 	if (input.section("timeMarching").get_double("CFLmax").is_found) {
 		if (TIME_STEP_TYPE==FIXED) {
@@ -109,6 +110,7 @@ void check_inputs(InputFile &input) {
 			exit(1);
 		}
 		TIME_STEP_TYPE=CFL_MAX; CFLmax=input.section("timeMarching").get_double("CFLmax");
+		CFLmaxTarget=CFLmax;
 	}
 	else if (input.section("timeMarching").get_double("CFLlocal").is_found) {
 		if (TIME_STEP_TYPE==FIXED) {
@@ -119,7 +121,23 @@ void check_inputs(InputFile &input) {
 			cerr << "[E] Input entry timeMarching -> CFLlocal can't be specified together with CFLmax!!" << endl;
 			exit(1);
 		}
-		TIME_STEP_TYPE=CFL_LOCAL; CFLmax=input.section("timeMarching").get_double("CFLlocal");
+		TIME_STEP_TYPE=CFL_LOCAL; CFLlocal=input.section("timeMarching").get_double("CFLlocal");
+		CFLlocalTarget=CFLlocal;
+	}
+	else if (input.section("timeMarching").get_double("adaptive").is_found) {
+
+		if (TIME_STEP_TYPE==CFL_MAX) {
+			cerr << "[E] Input entry timeMarching -> adaptive can't be specified together with CFLmax!!" << endl;
+			exit(1);
+		}
+		if (TIME_STEP_TYPE==CFL_LOCAL) {
+			cerr << "[E] Input entry timeMarching -> adaptive can't be specified together with CFLlocal!!" << endl;
+			exit(1);
+		}
+		TIME_STEP_TYPE=ADAPTIVE; 
+		dt_relax=input.section("timeMarching").get_double("adaptive");
+		dt_min=input.section("timeMarching").get_double("stepSizeMin");
+		dt_max=input.section("timeMarching").get_double("stepSizeMax");
 	}
 	
 	option=input.section("numericalOptions").get_string("convectiveFlux");
@@ -231,12 +249,6 @@ void check_inputs(InputFile &input) {
 	jacobianUpdateFreq=input.section("jacobian").get_int("updateFrequency");
 	outFreq=input.section("writeOutput").get_int("plotFrequency");
 	restartFreq=input.section("writeOutput").get_int("restartFrequency");
-	dt=input.section("timeMarching").get_double("stepSize");
-	dtTarget=dt;
-	CFLmax=input.section("timeMarching").get_double("CFLmax");
-	CFLmaxTarget=CFLmax;
-	CFLlocal=input.section("timeMarching").get_double("CFLlocal");
-	CFLlocalTarget=CFLlocal;
 	ramp=input.section("timeMarching").subsection("ramp").is_found;
 	ramp_initial=input.section("timeMarching").subsection("ramp").get_double("initial");
 	ramp_growth=input.section("timeMarching").subsection("ramp").get_double("growth");

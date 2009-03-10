@@ -73,7 +73,7 @@ void write_tec(double time) {
 	
 	if (Rank==0) {
 		file.open((fileName).c_str(),ios::out); 
-		file << "VARIABLES = \"x\", \"y\", \"z\",\"p\",\"u\",\"v\",\"w\",\"T\",\"rho\",\"Ma\"";
+		file << "VARIABLES = \"x\", \"y\", \"z\",\"p\",\"u\",\"v\",\"w\",\"T\",\"rho\",\"Ma\",\"dt\"";
 		if (turb) {
 			file << ",\"k\",\"omega\",\"mu_t\"";
 			if (TURBULENCE_FILTER!=NONE) file << ",\"filterFunction\"";
@@ -87,7 +87,8 @@ void write_tec(double time) {
 	// Write header (each proc has its own zone)
 	file << "ZONE, T=\"Partition " << Rank << "\"" ;
 	file << ", N=" << grid.nodeCount << ", E=" << grid.cellCount << endl;
-	file << "DATAPACKING=POINT, ZONETYPE=FEBRICK, SOLUTIONTIME=" << time << endl;
+	file << "DATAPACKING=POINT, ZONETYPE=FEBRICK" << endl;
+			//, SOLUTIONTIME=" << time << endl;
 
 	int zoneNeighborCount=0;
 	 for (unsigned int f=0;f<grid.faceCount; ++f) {                    
@@ -99,20 +100,21 @@ void write_tec(double time) {
 	// Write variables
 	map<int,double>::iterator it;
 	set<int>::iterator sit;
-	double p_node,T_node,rho_node,k_node,omega_node,Z_node,Zvar_node,visc_node;
+	double p_node,T_node,rho_node,k_node,omega_node,Z_node,Zvar_node,visc_node,dt_node;
 	double mu_t_node, filter_node;
     	Vec3D v_node;
 	int count_p,count_v,count_T,count_k,count_omega,count_mu_t,count_rho,count_Z,count_Zvar;
 	double Ma;
 	for (unsigned int n=0;n<grid.nodeCount;++n) {
 		p_node=0.;v_node=0.;T_node=0.;k_node=0.;omega_node=0.;Z_node=0.;Zvar_node=0.;
-		mu_t_node=0.; filter_node=0.;
+		mu_t_node=0.; filter_node=0.; dt_node=0.;
 		double real_weight_sum=0.;
 		for ( it=grid.node[n].average.begin() ; it != grid.node[n].average.end(); it++ ) {
 			if ((*it).first>=0) { // if contribution is coming from a real cell
 				p_node+=(*it).second*grid.cell[(*it).first].p;
 				v_node+=(*it).second*grid.cell[(*it).first].v;
 				T_node+=(*it).second*grid.cell[(*it).first].T;
+				dt_node+=(*it).second*grid.cell[(*it).first].dt;
 				if (turb) {
 					k_node+=(*it).second*rans.cell[(*it).first].k;
 					omega_node+=(*it).second*rans.cell[(*it).first].omega;
@@ -142,7 +144,8 @@ void write_tec(double time) {
 		rho_node=eos.rho(p_node,T_node);
 		if (real_weight_sum>=1.e-10) {
 			filter_node/=real_weight_sum;
-		} else { filter_node=1.; }
+			dt_node/=real_weight_sum;
+		} else { filter_node=1.; dt_node=dt_current; }
 		
 		filter_node=min(1.,filter_node);
 		filter_node=max(0.,filter_node);
@@ -204,6 +207,7 @@ void write_tec(double time) {
 		file << T_node << "\t";
 		file << rho_node << "\t";
 		file << Ma << "\t";
+		file << dt_node << "\t";
 		if (turb) {
 			file << k_node << "\t";
 			file << omega_node << "\t";

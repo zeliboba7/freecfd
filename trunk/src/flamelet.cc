@@ -351,7 +351,9 @@ void Flamelet::update(double &resZ, double &resZvar, bool march) {
 		
 		double Chi=2.0*rans.kepsilon.beta_star*rans.cell[c].omega*cell[c].Zvar;
 		grid.cell[c].rho=table.get_rho(cell[c].Z,cell[c].Zvar,Chi);
-		grid.cell[c].T=table.get_T(cell[c].Z,cell[c].Zvar,Chi);
+		double new_T=table.get_T(cell[c].Z,cell[c].Zvar,Chi);
+		grid.cell[c].update[4]=new_T-grid.cell[c].T;
+		grid.cell[c].T+=grid.cell[c].update[4];
 		cell[c].mu=table.get_mu(cell[c].Z,cell[c].Zvar,Chi);
 		
 // 		if (!march) {

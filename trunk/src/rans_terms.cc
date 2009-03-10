@@ -167,24 +167,10 @@ void RANS::terms(void) {
 	// Now to a cell loop to add the unsteady and source terms
 	double divU,Prod_k,Dest_k;
 	for (unsigned int c=0;c<grid.cellCount;++c) {
-		double d=0.;
 		
-		if (TIME_STEP_TYPE==CFL_LOCAL) {
-			// Determine time step with CFL condition
-			double dtLocal=1.E20;
-			double a=sqrt(Gamma*(grid.cell[c].p+Pref)/grid.cell[c].rho);
-			double lengthScale=grid.cell[c].lengthScale;
-			dtLocal=min(dtLocal,CFLlocal*lengthScale/(fabs(grid.cell[c].v[0])+a));
-			dtLocal=min(dtLocal,CFLlocal*lengthScale/(fabs(grid.cell[c].v[1])+a));
-			dtLocal=min(dtLocal,CFLlocal*lengthScale/(fabs(grid.cell[c].v[2])+a));
-			d=grid.cell[c].volume/dtLocal;
-		} else {
-			d=grid.cell[c].volume/dt;
-		}
-
 		// Insert unsteady term
 		row=(grid.myOffset+c)*2;
-		value=grid.cell[c].rho*d;
+		value=grid.cell[c].rho*grid.cell[c].volume/grid.cell[c].dt;
 		MatSetValues(impOP,1,&row,1,&row,&value,ADD_VALUES);
 		row++;
 		MatSetValues(impOP,1,&row,1,&row,&value,ADD_VALUES);
