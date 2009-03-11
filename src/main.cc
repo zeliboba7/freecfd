@@ -358,7 +358,10 @@ int main(int argc, char *argv[]) {
 		
 		// Ramp-up if needed
 		if (ramp) {
-			if (TIME_STEP_TYPE==FIXED) dt_current=min(dt_current*ramp_growth,dt_target);
+			if (TIME_STEP_TYPE==FIXED && dt_current<dt_target) {
+				dt_current=min(dt_current*ramp_growth,dt_target);
+				for (unsigned int c=0;c<grid.cellCount;++c) grid.cell[c].dt=dt_current;
+			}
 			if (TIME_STEP_TYPE==CFL_MAX) CFLmax=min(CFLmax*ramp_growth,CFLmaxTarget);
 			if (TIME_STEP_TYPE==CFL_LOCAL) CFLlocal=min(CFLlocal*ramp_growth,CFLlocalTarget);
 		}
@@ -543,12 +546,12 @@ void get_dt(void) {
 			    fabs((*cit).update[4]) > fabs(((*cit).T+Tref)*dt_relax) ) {
 				//(*cit).dt*=(1.-dt_relax);
 				(*cit).dt*=0.5;
-			    } else {
+			} else {
 				(*cit).dt*=(1.+dt_relax);
-				
-			    }
-			    (*cit).dt=min((*cit).dt,dt_max);
-			    (*cit).dt=max((*cit).dt,dt_min);
+			
+			}
+			(*cit).dt=min((*cit).dt,dt_max);
+			(*cit).dt=max((*cit).dt,dt_min);
 		}
 		
 	}  

@@ -31,7 +31,6 @@ void RANS::update_cell_eddy_viscosity(void) {
 	double arg1,arg2,arg3,F2;
 	double mu=viscosity;
 	double a1=0.31; // SST a1 value
-	double c3=1.; // Filter constant
 	double turbulent_length_scale;
 	for (unsigned int c=0;c<grid.cellCount;++c) {
 		if (TURBULENCE_MODEL==SST) {
@@ -42,7 +41,7 @@ void RANS::update_cell_eddy_viscosity(void) {
 			arg3=max(arg1,arg2);
 			F2=tanh(arg3*arg3);
 			cell[c].mu_t=a1*grid.cell[c].rho*cell[c].k/max(a1*cell[c].omega,cell[c].strainRate*F2);
-			turbulent_length_scale=sqrt(cell[c].k+1.e-15)/max(a1*cell[c].omega,cell[c].strainRate*F2);
+			turbulent_length_scale=sqrt((cell[c].k+1.e-15))/max(cell[c].omega,cell[c].strainRate*F2/a1);
 			turbulent_length_scale/=0.083;
 		} else {
 			cell[c].mu_t=grid.cell[c].rho*cell[c].k/cell[c].omega;
@@ -52,7 +51,7 @@ void RANS::update_cell_eddy_viscosity(void) {
 		if (TURBULENCE_FILTER!=NONE) {
 			double delta=turbulenceFilterSize;
 			if (TURBULENCE_FILTER==LOCAL) delta*=grid.cell[c].lengthScale;
-			cell[c].filterFunction=min(1.,c3*delta/turbulent_length_scale);
+			cell[c].filterFunction=min(1.,delta/turbulent_length_scale);
 			cell[c].mu_t*=cell[c].filterFunction;
 		}
 	}

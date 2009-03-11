@@ -222,8 +222,10 @@ void get_jacobians(const int var) {
 	// Perturb left state
 	state_perturb(leftPlus,face,var,epsilon);
 	// If right state is a boundary, correct the condition according to changes in left state
-	if (face.bc>=0 && bc.region[face.bc].type!=INLET) right_state_update(leftPlus,rightPlus,face);
+	if (face.bc>=0) right_state_update(leftPlus,rightPlus,face);
 	convective_face_flux(leftPlus,rightPlus,face,&fluxPlus.convective[0]);
+	
+	//&& bc.region[face.bc].type!=INLET
 	
 	if (EQUATIONS==NS) {
 		face_state_adjust(leftPlus,rightPlus,face,var);
