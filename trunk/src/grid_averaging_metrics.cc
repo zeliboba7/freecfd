@@ -31,7 +31,7 @@
 
 // Names are a bit counter-intutivite here
 // Larger tolerance means more strict quality measures
-double area_tolerance=1.e-3;
+double area_tolerance=1.e-2;
 double volume_tolerance=1.e-2;
 
 int gelimd(double **a,double *b,double *x, int n);
@@ -93,7 +93,7 @@ void Grid::nodeAverages() {
 		for (it=(*nit).cells.begin();it!=(*nit).cells.end();it++) stencil.insert(*it);
 		// Include nearest ghost cells in the stencil
 		for (it=(*nit).ghosts.begin();it!=(*nit).ghosts.end();it++) stencil.insert(-1*(*it)-1);
-		// if the stencil doesn't have at least stencil_expand_threshold number of points, expand it to include 2nd nearest neighbor cells
+		// if the stencil doesn't have at least stencil_expand_threshold number of points, expand it to include 2nd nearest (node) neighbor cells
 		// NOTE ideally, second nearest ghosts would also need to be included but it is too much complication
 		if (stencil.size()<stencil_expand_threshold) {
 			//Loop the cells neighboring the current node
@@ -263,7 +263,7 @@ void Grid::sortStencil(Node& n) {
 	int counter=0;
 	int size_cutoff;
 	if (DIMENSION==1) {size_cutoff=max(non_empty_quadrant_count,2);}
-	else if (DIMENSION==2) {size_cutoff=max(non_empty_quadrant_count,4);} // These are experimental
+	else if (DIMENSION==2) {size_cutoff=max(non_empty_quadrant_count,6);} // These are experimental
 	else {size_cutoff=max(non_empty_quadrant_count,8);}
 	size_cutoff=min(size_cutoff,stencilSize);
 

@@ -31,7 +31,7 @@ extern Flamelet flamelet;
 inline void preconditioner_none(Cell &c, double P[][5]) {
 	
 	double p=c.p+Pref;
-	if (FLAMELET) p=Pref;
+	//if (FLAMELET) p=Pref;
 	double T=c.T+Tref;
 	double drho_dT; // Derivative of density w.r.t temp. @ const. press
 	double drho_dp; // Derivative of density w.r.t press. @ const temp.
