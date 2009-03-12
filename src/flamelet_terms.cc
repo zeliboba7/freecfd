@@ -28,7 +28,7 @@ extern RANS rans;
 void Flamelet::terms(void) {
 
 	unsigned int parent,neighbor,f;
-	double leftZ,leftZvar,rightZ,rightZvar,faceRho;
+	double leftZ,leftZvar,rightZ,rightZvar;
 	Vec3D faceGradZ, faceGradZvar, left2right;
 	double mu_t=0.;
 	double weightL,weightR;
@@ -38,7 +38,8 @@ void Flamelet::terms(void) {
 	double convectiveFlux[2],diffusiveFlux[2],source[2];
 	double jacL[2],jacR[2];
 	bool extrapolated;
-	double mu;
+	double mu,diff;
+	map<int,double>::iterator fit;
 	
 	MatZeroEntries(impOP); // Flush the implicit operator
 	VecSet(rhs,0.); // Flush the right hand side
@@ -49,17 +50,12 @@ void Flamelet::terms(void) {
 		
 		extrapolated=false;
 		
-		// This weight coming from the Riemann solver
-		weightL=grid.face[f].weightL;
-		
 		parent=grid.face[f].parent; neighbor=grid.face[f].neighbor;
 		
 		// Get left, right and face values of Z and Zvar as well as the face normal gradients
-		get_Z_Zvar(parent,neighbor,f,faceRho,
+		get_Z_Zvar(parent,neighbor,f,
 			   leftZ,leftZvar,rightZ,rightZvar,
       			   faceGradZ,faceGradZvar,left2right,weightL,extrapolated);
-		
-		weightR=1.-weightL;
 		
 		// The following weights are consistent with rho splitting of the AUSM scheme.
 		// The idea is that Z behaves a lot like rho
@@ -75,8 +71,17 @@ void Flamelet::terms(void) {
 		mu=flamelet.face[f].mu;
 		mu_t=rans.face[f].mu_t;
 		
-		diffusiveFlux[0]=(mu+mu_t/constants.sigma_t)*faceGradZ.dot(grid.face[f].normal)*grid.face[f].area;
-		diffusiveFlux[1]=(mu+mu_t/constants.sigma_t)*faceGradZvar.dot(grid.face[f].normal)*grid.face[f].area;
+		diff=0.;
+		for (fit=grid.face[f].average.begin();fit!=grid.face[f].average.end();fit++) {
+			if ((*fit).first>=0) { // if contribution is coming from a real cell
+				diff+=(*fit).second*cell[(*fit).first].diffusivity;
+			} else { // if contribution is coming from a ghost cell
+				diff+=(*fit).second*ghost[-1*((*fit).first+1)].diffusivity;
+			}
+		}
+		
+		diffusiveFlux[0]=(diff+mu_t/constants.sigma_t)*faceGradZ.dot(grid.face[f].normal)*grid.face[f].area;
+		diffusiveFlux[1]=(diff+mu_t/constants.sigma_t)*faceGradZvar.dot(grid.face[f].normal)*grid.face[f].area;
 		
 		// Fill in rhs vector
 		for (int i=0;i<2;++i) {
@@ -93,16 +98,16 @@ void Flamelet::terms(void) {
 		// Calculate flux jacobians
 		// dF_Z/dZ_left
 		jacL[0]=weightL1*grid.face[f].mdot*grid.face[f].area; // convective
-		if (!extrapolated) jacL[0]+=(mu+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
+		if (!extrapolated) jacL[0]+=(diff+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
 		// dF_Z/dZ_right
 		jacR[0]=weightR1*grid.face[f].mdot*grid.face[f].area; // convective
-		if (!extrapolated) jacR[0]-=(mu+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
+		if (!extrapolated) jacR[0]-=(diff+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
 		// dF_Zvar/dZvar_left
 		jacL[1]=weightL1*grid.face[f].mdot*grid.face[f].area; // convective
-		if (!extrapolated) jacL[1]+=(mu+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
+		if (!extrapolated) jacL[1]+=(diff+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
 		// dF_Zvar/dZvar_right
 		jacR[1]=weightR1*grid.face[f].mdot*grid.face[f].area; // convective
-		if (!extrapolated) jacR[1]-=(mu+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
+		if (!extrapolated) jacR[1]-=(diff+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
 		
 		// Insert flux jacobians for the parent cell
 		// left_Z/left_Z
@@ -143,14 +148,46 @@ void Flamelet::terms(void) {
 
 	} // for faces
 	
-	// Now to a cell loop to add the unsteady and source terms
+	// Now do a cell loop to add the unsteady and source terms
 	double Prod_Zvar,Dest_Zvar;
+	double drho_dZ,drho_dZvar;
+	double Zplus,ZvarPlus,Chi,ChiPlus;
 	for (unsigned int c=0;c<grid.cellCount;++c) {
 
+		// Unsteady Z term should be:
+		// (rho+Z*drho/dZ)dZ/dt
+		
+		Chi=2.*rans.cell[c].omega*cell[c].Zvar*rans.kepsilon.beta_star;
+		if (cell[c].Z<(1.-sqrt_machine_error)){
+			// forward differencing
+			Zplus=cell[c].Z+sqrt_machine_error;
+			drho_dZ=(table.get_rho(Zplus,cell[c].Zvar,Chi)-grid.cell[c].rho)/sqrt_machine_error;
+				 
+		} else {
+			// backward differencing
+			Zplus=cell[c].Z-sqrt_machine_error;
+			drho_dZ=(grid.cell[c].rho-table.get_rho(Zplus,cell[c].Zvar,Chi))/sqrt_machine_error;
+		}
+		
+		
+		if (cell[c].Zvar<(0.25-sqrt_machine_error)){
+			// forward differencing
+			ZvarPlus=cell[c].Zvar+sqrt_machine_error;
+			ChiPlus=2.*rans.cell[c].omega*ZvarPlus*rans.kepsilon.beta_star;
+			drho_dZvar=(table.get_rho(cell[c].Z,ZvarPlus,ChiPlus)-grid.cell[c].rho)/sqrt_machine_error;
+				 
+		} else {
+			// backward differencing
+			ZvarPlus=cell[c].Zvar-sqrt_machine_error;
+			ChiPlus=2.*rans.cell[c].omega*ZvarPlus*rans.kepsilon.beta_star;
+			drho_dZvar=(grid.cell[c].rho-table.get_rho(cell[c].Z,ZvarPlus,ChiPlus))/sqrt_machine_error;
+		}
+		
 		// Insert unsteady term
 		row=(grid.myOffset+c)*2;
-		value=grid.cell[c].rho*grid.cell[c].volume/grid.cell[c].dt;
+		value=grid.cell[c].volume*(grid.cell[c].rho+cell[c].Z*drho_dZ)/(grid.cell[c].dt*relaxation);
 		MatSetValues(impOP,1,&row,1,&row,&value,ADD_VALUES);
+		value=grid.cell[c].volume*(grid.cell[c].rho+cell[c].Zvar*drho_dZvar)/(grid.cell[c].dt*relaxation);
 		row++;
 		MatSetValues(impOP,1,&row,1,&row,&value,ADD_VALUES);
 		
@@ -174,7 +211,7 @@ void Flamelet::terms(void) {
 		
 		// Add source jacobians
 		
-		// Try only including the destruction term
+		// Only includr the destruction term
 		// dS_Zvar/dZvar
 		row=(grid.myOffset+c)*2+1; col=row;
 		value=(constants.Cd*grid.cell[c].rho*rans.kepsilon.beta_star*rans.cell[c].omega)*grid.cell[c].volume;
@@ -187,7 +224,7 @@ void Flamelet::terms(void) {
 } // end Flamelet::terms
 
 void Flamelet::get_Z_Zvar(unsigned int &parent,unsigned int &neighbor,unsigned int &f,
-			  double &faceRho,double &leftZ,double &leftZvar,
+			  double &leftZ,double &leftZvar,
 			  double &rightZ,double &rightZvar,
     			  Vec3D &faceGradZ,Vec3D &faceGradZvar,Vec3D &left2right,
 	 		  double &weightL,bool &extrapolated) {
@@ -217,17 +254,15 @@ void Flamelet::get_Z_Zvar(unsigned int &parent,unsigned int &neighbor,unsigned i
 	leftZvar=min(0.25,leftZvar);
 	
 	// Find face averaged quantities
-	faceGradZ=0.; faceGradZvar=0.; faceRho=0.;
+	faceGradZ=0.; faceGradZvar=0.;
  	map<int,double>::iterator fit;
 	for (fit=grid.face[f].average.begin();fit!=grid.face[f].average.end();fit++) {
 		if ((*fit).first>=0) { // if contribution is coming from a real cell
 			faceGradZ+=(*fit).second*cell[(*fit).first].grad[0];
 			faceGradZvar+=(*fit).second*cell[(*fit).first].grad[1];
-			faceRho+=(*fit).second*grid.cell[(*fit).first].rho;
 		} else { // if contribution is coming from a ghost cell
 			faceGradZ+=(*fit).second*ghost[-1*((*fit).first+1)].grad[0];
 			faceGradZvar+=(*fit).second*ghost[-1*((*fit).first+1)].grad[1];
-			faceRho+=(*fit).second*grid.ghost[-1*((*fit).first+1)].rho;
 		}
 	}
 	
@@ -268,7 +303,6 @@ void Flamelet::get_Z_Zvar(unsigned int &parent,unsigned int &neighbor,unsigned i
 		rightZ_center=leftZ_center;
 		rightZvar_center=leftZvar_center;
 		extrapolated=true;
-		weightL=1.;
 
 		if (bc.region[grid.face[f].bc].type==INLET) {
 			rightZ=bc.region[grid.face[f].bc].Z;

@@ -36,6 +36,7 @@ void read_inputs(InputFile &input) {
 	
 	input.registerSection("flamelet",optional);
 	input.section("flamelet").register_string("tableFile",optional,"none");
+	input.section("flamelet").register_double("relaxation",optional,1.);
 	input.readSection("flamelet");
 	
 	input.registerSection("turbulence",optional);

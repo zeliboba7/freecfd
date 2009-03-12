@@ -40,7 +40,6 @@ GridRawData raw;
 double block_stitch_tolerance=1.e-7;
 
 int Grid::readCGNS() {
-// parallel:OK
 
 	int fileIndex,baseIndex,zoneIndex,sectionIndex,nBases,nZones,nSections,nBocos;
 	char zoneName[20],sectionName[20]; //baseName[20]
@@ -115,7 +114,7 @@ int Grid::readCGNS() {
 				globalNodeCount++;
 			}
 		} else {
-			// Scan the coordinates of all the other zones before this one for duplicates	
+			// Scan the coordinates of all the other zones before this one for duplicates
 			for (int c=0;c<coordX[zoneIndex-1].size();++c) {
 				bool foundFlag=false;
 				for (int z=0;z<zoneIndex-1;++z) {

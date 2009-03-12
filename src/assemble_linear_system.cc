@@ -311,6 +311,7 @@ void left_state_update(Cell_State &left,Face_State &face) {
 		leftZ=max(leftZ,0.);
 		leftZ=min(leftZ,1.);
 		leftZvar=max(leftZvar,0.);
+		leftZvar=min(leftZvar,0.25);
 		leftOmega=max(leftOmega,omegaLowLimit);
 		Chi=2.*leftOmega*leftZvar*rans.kepsilon.beta_star;
 		left.rho=flamelet.table.get_rho(leftZ,leftZvar,Chi);
@@ -368,6 +369,7 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 			rightZ=max(rightZ,0.);
 			rightZ=min(rightZ,1.);
 			rightZvar=max(rightZvar,0.);
+			rightZvar=min(rightZvar,0.25);
 			rightOmega=max(rightOmega,omegaLowLimit);
 			Chi=2.*rightOmega*rightZvar*rans.kepsilon.beta_star;
 			right.rho=flamelet.table.get_rho(rightZ,rightZvar,Chi);
@@ -486,6 +488,7 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 			rightZ=max(rightZ,0.);
 			rightZ=min(rightZ,1.);
 			rightZvar=max(rightZvar,0.);
+			rightZvar=min(rightZvar,0.25);
 			rightOmega=max(rightOmega,omegaLowLimit);
 			Chi=2.*rightOmega*rightZvar*rans.kepsilon.beta_star;
 			right.rho=flamelet.table.get_rho(rightZ,rightZvar,Chi);
@@ -549,6 +552,9 @@ void face_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 
 	face.gradW-=face.gradW.dot(face.normal)*face.normal;
 	face.gradW+=((right.v_center[2]-left.v_center[2])/(face.left2right.dot(face.normal)))*face.normal;
+	
+	face.gradT-=face.gradT.dot(face.normal)*face.normal;
+	face.gradT+=((right.T_center-left.T_center)/(face.left2right.dot(face.normal)))*face.normal;
 
 	// Boundary conditions are already taken care of in right state update
 	face.p=0.5*(left.p+right.p);
@@ -599,9 +605,9 @@ void state_perturb(Cell_State &state,Face_State &face,int var,double epsilon) {
 			state.vN[2]=state.v.dot(face.tangent2);
 			break;
 		case 4 : // T
+			state.T+=epsilon;
+			state.T_center+=epsilon;
 			if (!FLAMELET) {
-				state.T+=epsilon;
-				state.T_center+=epsilon;
 				state.rho=eos.rho(state.p,state.T);
 				state.a=sqrt(Gamma*(state.p+Pref)/state.rho);
 				state.H=state.a*state.a/(Gamma-1.)+0.5*state.v.dot(state.v);
