@@ -33,7 +33,7 @@ extern RANS rans;
 
 struct mpiGhost {
 	unsigned int globalId;
-	double vars[3]; // Z, Zvar and mu
+	double vars[4]; // Z, Zvar,mu and diffusivity
 };
 
 struct mpiGrad {
@@ -148,7 +148,7 @@ void Flamelet::mpi_init(void) {
 	displacements[0]=(long) &dummy1.globalId - (long) &dummy1;
 	displacements[1]=(long) &dummy1.vars[0] - (long) &dummy1;
 	block_lengths[0]=1;
-	block_lengths[1]=3;
+	block_lengths[1]=4;
 	MPI_Type_create_struct(2,block_lengths,displacements,types,&MPI_GHOST);
 	MPI_Type_commit(&MPI_GHOST);
 
@@ -177,6 +177,7 @@ void Flamelet::mpi_update_ghost(void) {
 				sendBuffer[g].vars[0]=cell[id].Z;
 				sendBuffer[g].vars[1]=cell[id].Zvar;
 				sendBuffer[g].vars[2]=cell[id].mu;
+				sendBuffer[g].vars[3]=cell[id].diffusivity;
 			}
 
 			MPI_Sendrecv(sendBuffer,sendCells[p].size(),MPI_GHOST,p,0,recvBuffer,recvCount[p],MPI_GHOST,p,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
@@ -186,6 +187,7 @@ void Flamelet::mpi_update_ghost(void) {
 				ghost[id].Z=recvBuffer[g].vars[0];
 				ghost[id].Zvar=recvBuffer[g].vars[1];
 				ghost[id].mu=recvBuffer[g].vars[2];
+				ghost[id].diffusivity=recvBuffer[g].vars[3];
 			}
 		}
 	}
@@ -327,7 +329,7 @@ void Flamelet::limit_gradients(void) {
 
 } // end Flamelet::limit_gradients()
 
-void Flamelet::update(double &resZ, double &resZvar, bool march) {
+void Flamelet::update(double &resZ, double &resZvar) {
 	
 
 	resZ=0.; resZvar=0.;
@@ -351,15 +353,11 @@ void Flamelet::update(double &resZ, double &resZvar, bool march) {
 		
 		double Chi=2.0*rans.kepsilon.beta_star*rans.cell[c].omega*cell[c].Zvar;
 		grid.cell[c].rho=table.get_rho(cell[c].Z,cell[c].Zvar,Chi);
-		double new_T=table.get_T(cell[c].Z,cell[c].Zvar,Chi);
+		double new_T=table.get_T(cell[c].Z,cell[c].Zvar,Chi,false);
 		grid.cell[c].update[4]=new_T-grid.cell[c].T;
 		grid.cell[c].T+=grid.cell[c].update[4];
-		cell[c].mu=table.get_mu(cell[c].Z,cell[c].Zvar,Chi);
-		
-// 		if (!march) {
-// 			cell[c].Z-=0.5*cell[c].update[0];
-// 			cell[c].Zvar-=0.5*cell[c].update[1];
-// 		}
+		cell[c].mu=table.get_mu(cell[c].Z,cell[c].Zvar,Chi,false);
+		cell[c].diffusivity=table.get_mu(cell[c].Z,cell[c].Zvar,Chi,false);
 		
 	} // cell loop
 

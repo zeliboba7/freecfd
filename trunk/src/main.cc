@@ -134,6 +134,14 @@ int main(int argc, char *argv[]) {
 		if (Rank==0) cout << "[I] Initialized flamelet model" << endl;
 		flamelet.table.read(input.section("flamelet").get_string("tableFile"));
 		if (Rank==0) cout << "[I] Read flamelet pdf table" << endl;
+		flamelet.relaxation=input.section("flamelet").get_double("relaxation");
+		double Z=0.;
+		double Zvar=0.05;
+		double Chi=0.;
+// 		for (int i=0;i<101;++i) {
+// 			cout << Z << "\t" << flamelet.table.get_rho(Z,Zvar,Chi) << endl;
+// 			Z+=0.01;
+// 		}
 	}
 	
 	initialize(input);
@@ -256,11 +264,11 @@ int main(int argc, char *argv[]) {
 				flamelet.mpi_update_ghost_gradients(); // Called again to update the ghost gradients
 				flamelet.update_face_mu();
 				update_face_mdot();
-			} else {			
+			} else {
 				update_face_mdot();
 				flamelet.terms();
 				flamelet.petsc_solve(nIterFlame,rNormFlame);
-				flamelet.update(resZ,resZvar,false);
+				flamelet.update(resZ,resZvar);
 				mpi_update_ghost_primitives();
 				flamelet.mpi_update_ghost();
 				flamelet.update_face_mu();
@@ -289,7 +297,6 @@ int main(int argc, char *argv[]) {
 				
 		initialize_linear_system();
 		assemble_linear_system();
-		//update_face_mdot();
 		petsc_solve(nIter,rNorm);
 		update();
 		mpi_update_ghost_primitives();
@@ -490,7 +497,7 @@ void update(void) {
 
 	resP=0.; resV=0.; resT=0.;
 	for (unsigned int c = 0;c < grid.cellCount;++c) {
-		if (FLAMELET) grid.cell[c].update[0]=max(-1.*(grid.cell[c].p+0.6*Pref),grid.cell[c].update[0]);
+		//if (FLAMELET) grid.cell[c].update[0]=max(-1.*(grid.cell[c].p+0.6*Pref),grid.cell[c].update[0]);
 		
 		grid.cell[c].p +=grid.cell[c].update[0];
 		grid.cell[c].v[0] +=grid.cell[c].update[1];

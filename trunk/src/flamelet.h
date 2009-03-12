@@ -49,7 +49,7 @@ class Flamelet_Table {
 	double get_rho(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights=true);
 	double get_T(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights=true);
 	double get_mu(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights=true);
-	
+	double get_diffusivity(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights=true);
 };
 
 class Flamelet_Constants {
@@ -64,14 +64,14 @@ class Flamelet_Face {
 
 class Flamelet_Cell {
 	public:
-	double Z,Zvar,mu;
+	double Z,Zvar,mu,diffusivity;
 	double update[2];
 	Vec3D grad[2]; // Z and Zvar gradients
 };
 
 class Flamelet_Ghost {
 	public:
-	double Z,Zvar,mu;
+	double Z,Zvar,mu,diffusivity;
 	Vec3D grad[2]; // Z and Zvar gradients
 };
 
@@ -82,6 +82,7 @@ class Flamelet {
 	std::vector<Flamelet_Ghost> ghost;
 	Flamelet_Constants constants;
 	Flamelet_Table table;
+	double relaxation;
 	KSP ksp; // linear solver context
 	Vec deltaU,rhs; // solution, residual vectors
 	Mat impOP; // implicit operator matrix
@@ -99,11 +100,11 @@ class Flamelet {
 	void limit_gradients(void);
 	void terms(void);
 	void get_Z_Zvar(unsigned int &parent,unsigned int &neighbor,unsigned int &f,
-				double &faceRho,double &leftZ,double &leftZvar,
+				double &leftZ,double &leftZvar,
       				double &rightZ,double &rightZvar,
       				Vec3D &faceGradZ,Vec3D &faceGradZvar,Vec3D &left2right,
 	  			double &weightL,bool &extrapolated);
-	void update(double &resZ, double &resZvar, bool march=true);
+	void update(double &resZ, double &resZvar);
 	void update_face_mu(void);
 };
 
