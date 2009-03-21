@@ -32,6 +32,13 @@
 extern IndexMaps maps;
 extern BC bc;
 
+class Species {
+	public:
+	string name;
+	double Mw;
+	Species(string name_in);
+};
+
 class Flamelet_Table {
 	public:
 	int nZ,nZvar,nChi;
@@ -44,12 +51,18 @@ class Flamelet_Table {
 	std::vector<vector<vector<double> > > T;
 	std::vector<vector<vector<double> > > mu;
 	std::vector<vector<vector<double> > > diffusivity;
+	std::vector<vector<vector<vector<double> > > > Y; // mass fractions
+	std::vector<Species> species;
 	void read(string fileName);
 	void get_weights(double &Z_in, double &Zvar_in, double &Chi_in);
 	double get_rho(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights=true);
 	double get_T(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights=true);
+	void get_rho_T_comp(double &p_in, double &Z_in, double &Zvar_in, double &Chi_in,double &rho_out, double &T_out);
 	double get_mu(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights=true);
 	double get_diffusivity(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights=true);
+	double get_Mw(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights=true);
+	double get_drho_dZ(double &Z_in, double &Zvar_in, double &Chi_in);
+	double get_drho_dZvar(double &Z_in, double &Zvar_in, double &Chi_in);
 };
 
 class Flamelet_Constants {
@@ -59,19 +72,19 @@ class Flamelet_Constants {
 
 class Flamelet_Face {
 	public:
-	double mu;
+	double mu,RL,RR; // R is the gas constant
 };
 
 class Flamelet_Cell {
 	public:
-	double Z,Zvar,mu,diffusivity;
+	double Z,Zvar,Chi,mu,diffusivity,R; // R is the gas constant
 	double update[2];
 	Vec3D grad[2]; // Z and Zvar gradients
 };
 
 class Flamelet_Ghost {
 	public:
-	double Z,Zvar,mu,diffusivity;
+	double Z,Zvar,Chi,mu,diffusivity,R; // R is the gas constant
 	Vec3D grad[2]; // Z and Zvar gradients
 };
 
@@ -103,9 +116,10 @@ class Flamelet {
 				double &leftZ,double &leftZvar,
       				double &rightZ,double &rightZvar,
       				Vec3D &faceGradZ,Vec3D &faceGradZvar,Vec3D &left2right,
-	  			double &weightL,bool &extrapolated);
+	  			bool &extrapolated);
 	void update(double &resZ, double &resZvar);
-	void update_face_mu(void);
+	void lookup(void);
+	void update_face_properties(void);
 };
 
 #endif

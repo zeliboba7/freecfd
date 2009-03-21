@@ -46,6 +46,7 @@ void read_inputs(InputFile &input);
 void initialize(InputFile &input);
 void write_output(double time, InputFile input);
 void write_restart(double time);
+void write_grad(void);
 void read_restart(double &time);
 void setBCs(InputFile &input, BC &bc);
 bool withinBox(Vec3D point,Vec3D corner_1,Vec3D corner_2);
@@ -139,7 +140,8 @@ int main(int argc, char *argv[]) {
 		double Zvar=0.05;
 		double Chi=0.;
 // 		for (int i=0;i<101;++i) {
-// 			cout << Z << "\t" << flamelet.table.get_rho(Z,Zvar,Chi) << endl;
+// 			double Mw=flamelet.table.get_Mw(Z,Zvar,Chi);
+// 			cout << Z << "\t" << flamelet.table.get_rho(Z,Zvar,Chi)*UNIV_GAS_CONST/Mw*flamelet.table.get_T(Z,Zvar,Chi) << endl;
 // 			Z+=0.01;
 // 		}
 	}
@@ -217,10 +219,6 @@ int main(int argc, char *argv[]) {
 		int nIter,nIterTurb,nIterFlame; // Number of linear solver iterations
 		double rNorm,rNormTurb,rNormFlame; // Residual norm of the linear solver
 
-		// Get time step (will handle fixed, CFL and CFLramp)
-		get_dt();
-		get_CFLmax();
-		
 		// Flush boundary forces
 		if ((timeStep) % integrateBoundaryFreq == 0) {
 			for (int i=0;i<bcCount;++i) {
@@ -231,21 +229,19 @@ int main(int argc, char *argv[]) {
 		}
 		
 		if (firstTimeStep) {
+			
+			if (FLAMELET) {
+				flamelet.lookup();
+				flamelet.mpi_update_ghost();
+				flamelet.gradients();
+				flamelet.mpi_update_ghost_gradients();
+				flamelet.limit_gradients();
+				flamelet.mpi_update_ghost_gradients(); // Called again to update the ghost gradients
+				flamelet.update_face_properties();
+			}
+			
 			mpi_update_ghost_primitives();
-			// Gradient are calculated for NS and/or second order schemes
-			if (EQUATIONS==NS | order==SECOND ) {
-			// Calculate all the cell gradients for each variable
-				grid.gradients();
-			// Update gradients of the ghost cells
-				mpi_update_ghost_gradients();
-			}
-		
-			if (LIMITER!=NONE) {
-			// Limit gradients
-				grid.limit_gradients(); 
-			// Update limited gradients of the ghost cells
-				mpi_update_ghost_gradients();
-			}
+			
 			if (TURBULENCE_MODEL!=NONE) {
 				rans.mpi_update_ghost();
 				rans.terms();
@@ -255,57 +251,21 @@ int main(int argc, char *argv[]) {
 			}
 		}
 
-		if (FLAMELET) {
-			if (firstTimeStep) {
-				flamelet.mpi_update_ghost();
-				flamelet.gradients();
-				flamelet.mpi_update_ghost_gradients();
-				flamelet.limit_gradients();
-				flamelet.mpi_update_ghost_gradients(); // Called again to update the ghost gradients
-				flamelet.update_face_mu();
-				update_face_mdot();
-			} else {
-				update_face_mdot();
-				flamelet.terms();
-				flamelet.petsc_solve(nIterFlame,rNormFlame);
-				flamelet.update(resZ,resZvar);
-				mpi_update_ghost_primitives();
-				flamelet.mpi_update_ghost();
-				flamelet.update_face_mu();
-				flamelet.gradients();
-				flamelet.mpi_update_ghost_gradients();
-				flamelet.limit_gradients();
-				flamelet.mpi_update_ghost_gradients(); // Called again to update the ghost gradients
-			}
-		}
+		// Get time step (will handle fixed, CFL and CFLramp)
+		get_dt();
+		get_CFLmax();
 		
-		if (TURBULENCE_MODEL!=NONE) {
-			if (!firstTimeStep) {
-				rans.gradients();
-				rans.mpi_update_ghost_gradients();
-				rans.limit_gradients();
-				rans.mpi_update_ghost_gradients(); // Called again to update the ghost gradients
-				if (!FLAMELET) update_face_mdot(); // Already done if flamelet model is being used
-				rans.terms();
-				rans.petsc_solve(nIterTurb,rNormTurb);
-				rans.update(resK,resOmega);
-				rans.update_cell_eddy_viscosity();
-				rans.mpi_update_ghost();
-				rans.update_face_eddy_viscosity();
-			}
-		}
-				
-		initialize_linear_system();
-		assemble_linear_system();
-		petsc_solve(nIter,rNorm);
-		update();
-		mpi_update_ghost_primitives();
+		// Solve Navier-Stokes Equations
 		// Gradient are calculated for NS and/or second order schemes
 		if (EQUATIONS==NS | order==SECOND ) {
 			// Calculate all the cell gradients for each variable
 			grid.gradients();
 			// Update gradients of the ghost cells
 			mpi_update_ghost_gradients();
+			if (GRAD_TEST){
+				write_grad();
+				exit(1);
+			}
 		}
 		
 		if (LIMITER!=NONE) {
@@ -314,7 +274,44 @@ int main(int argc, char *argv[]) {
 			// Update limited gradients of the ghost cells
 			mpi_update_ghost_gradients();
 		}
-
+		initialize_linear_system();
+		assemble_linear_system();
+		petsc_solve(nIter,rNorm);
+		
+		// Update Navier-Stokes
+		update();
+		mpi_update_ghost_primitives();
+		
+		if (TURBULENCE_MODEL!=NONE) update_face_mdot();
+		
+		// Solve Flamelet Equations
+		if (FLAMELET) {
+			flamelet.terms();
+			flamelet.petsc_solve(nIterFlame,rNormFlame);
+			flamelet.update(resZ,resZvar);
+			flamelet.lookup();
+			mpi_update_ghost_primitives();
+			flamelet.mpi_update_ghost();
+			flamelet.gradients();
+			flamelet.mpi_update_ghost_gradients();
+			flamelet.limit_gradients();
+			flamelet.mpi_update_ghost_gradients(); // Called again to update the ghost gradients
+			flamelet.update_face_properties();
+		}
+		
+		if (TURBULENCE_MODEL!=NONE) {
+			rans.gradients();
+			rans.mpi_update_ghost_gradients();
+			rans.limit_gradients();
+			rans.mpi_update_ghost_gradients(); // Called again to update the ghost gradients
+			rans.terms();
+			rans.petsc_solve(nIterTurb,rNormTurb);
+			rans.update(resK,resOmega);
+			rans.update_cell_eddy_viscosity();
+			rans.mpi_update_ghost();
+			rans.update_face_eddy_viscosity();
+		}
+		
 		// Advance physical time
 		time += dt_current;
 		if (Rank==0) {
@@ -349,11 +346,11 @@ int main(int argc, char *argv[]) {
 			cout << setw(12) << resT;
 			iterFile << timeStep << "\t" << nIter << "\t" << rNorm;
 			
-			if (!firstTimeStep && TURBULENCE_MODEL!=NONE) {
+			if (TURBULENCE_MODEL!=NONE) {
 				cout << setw(12) << resK << setw(12) << resOmega;
 				iterFile << "\t" << nIterTurb << "\t" << rNormTurb;
 			}
-			if (!firstTimeStep && FLAMELET) {
+			if (FLAMELET) {
 				cout << setw(12) << resZ << setw(12) << resZvar;
 				iterFile << "\t" << nIterFlame << "\t" << rNormFlame;
 			}
@@ -498,7 +495,7 @@ void update(void) {
 	resP=0.; resV=0.; resT=0.;
 	for (unsigned int c = 0;c < grid.cellCount;++c) {
 		//if (FLAMELET) grid.cell[c].update[0]=max(-1.*(grid.cell[c].p+0.6*Pref),grid.cell[c].update[0]);
-		
+				
 		grid.cell[c].p +=grid.cell[c].update[0];
 		grid.cell[c].v[0] +=grid.cell[c].update[1];
 		grid.cell[c].v[1] +=grid.cell[c].update[2];

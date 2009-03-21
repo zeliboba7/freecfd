@@ -107,7 +107,7 @@ void write_tec(double time) {
 	double Ma;
 	for (unsigned int n=0;n<grid.nodeCount;++n) {
 		p_node=0.;v_node=0.;T_node=0.;k_node=0.;omega_node=0.;Z_node=0.;Zvar_node=0.;
-		mu_t_node=0.; filter_node=0.; dt_node=0.;
+		mu_t_node=0.; filter_node=0.; dt_node=0.; rho_node=0.;
 		double real_weight_sum=0.;
 		for ( it=grid.node[n].average.begin() ; it != grid.node[n].average.end(); it++ ) {
 			if ((*it).first>=0) { // if contribution is coming from a real cell
@@ -124,6 +124,7 @@ void write_tec(double time) {
 				if (FLAMELET) {
 					Z_node+=(*it).second*flamelet.cell[(*it).first].Z;
 					Zvar_node+=(*it).second*flamelet.cell[(*it).first].Zvar;
+					rho_node+=(*it).second*grid.cell[(*it).first].rho;
 				}
 				real_weight_sum+=(*it).second;
 			} else { // if contribution is coming from a ghost cell
@@ -138,10 +139,11 @@ void write_tec(double time) {
 				if (FLAMELET) {
 					Z_node+=(*it).second*flamelet.ghost[-1*((*it).first+1)].Z;
 					Zvar_node+=(*it).second*flamelet.ghost[-1*((*it).first+1)].Zvar;
+					rho_node+=(*it).second*grid.ghost[-1*((*it).first+1)].rho;
 				}
 			}
 		}
-		rho_node=eos.rho(p_node,T_node);
+		if (!FLAMELET) rho_node=eos.rho(p_node,T_node);
 		if (real_weight_sum>=1.e-10) {
 			filter_node/=real_weight_sum;
 			dt_node/=real_weight_sum;
@@ -150,18 +152,18 @@ void write_tec(double time) {
 		filter_node=min(1.,filter_node);
 		filter_node=max(0.,filter_node);
 		
-		if (FLAMELET) {
-			double Chi=1.; // TODO calculate chi
-			rho_node=flamelet.table.get_rho(Z_node,Zvar_node,Chi);
-			T_node=flamelet.table.get_T(Z_node,Zvar_node,Chi,false);
-			visc_node=flamelet.table.get_mu(Z_node,Zvar_node,Chi,false);
-		}
-		
 		k_node=max(k_node,kLowLimit);
 		omega_node=max(omega_node,omegaLowLimit);
 		Z_node=max(Z_node,0.);
 		Z_node=min(Z_node,1.);
 		Zvar_node=max(Zvar_node,0.);
+		
+		if (FLAMELET) {
+			double Chi=2.0*rans.kepsilon.beta_star*omega_node*Zvar_node;
+			//rho_node=flamelet.table.get_rho(Z_node,Zvar_node,Chi);
+			T_node=flamelet.table.get_T(Z_node,Zvar_node,Chi);
+			visc_node=flamelet.table.get_mu(Z_node,Zvar_node,Chi,false);
+		}
 		
 		count_p=0; count_v=0; count_T=0; count_rho=0; count_k=0; count_omega=0; count_Z=0; count_Zvar=0;
 		count_mu_t=0;

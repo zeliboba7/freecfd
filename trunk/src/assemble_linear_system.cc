@@ -91,7 +91,7 @@ void assemble_linear_system(void) {
 	if (TIME_INTEGRATOR==FORWARD_EULER) implicit=false;
 	// Loop through faces
 	for (f=0;f<grid.faceCount;++f) {
-
+		
 		doLeftSourceJac=false; doRightSourceJac=false;
 		for (int m=0;m<5;++m) { 
 			sourceLeft[m]=0.;
@@ -220,6 +220,7 @@ void get_jacobians(const int var) {
 
 	
 	// Perturb left state
+	if (FLAMELET) eos.R=flamelet.face[face.index].RL;
 	state_perturb(leftPlus,face,var,epsilon);
 	// If right state is a boundary, correct the condition according to changes in left state
 	if (face.bc>=0) right_state_update(leftPlus,rightPlus,face);
@@ -249,7 +250,8 @@ void get_jacobians(const int var) {
 		} else {
 			epsilon=min(-1.*sqrt_machine_error,factor*right.update[var]); 
 		}
-				
+		
+		if (FLAMELET) eos.R=flamelet.face[face.index].RR;
 		state_perturb(rightPlus,face,var,epsilon);	
 		convective_face_flux(left,rightPlus,face,&fluxPlus.convective[0]);
 		
@@ -273,10 +275,12 @@ void get_jacobians(const int var) {
 
 void left_state_update(Cell_State &left,Face_State &face) {
 
+	if (FLAMELET) eos.R=flamelet.face[face.index].RL;
+	
 	unsigned int parent;
 	Vec3D deltaV;
 	double delta[5];
-
+	
 	parent=grid.face[face.index].parent;
 
 	if (order==SECOND) {
@@ -298,25 +302,7 @@ void left_state_update(Cell_State &left,Face_State &face) {
 	left.T_center=grid.cell[parent].T;
 	left.T=left.T_center+delta[4];
 	left.rho=eos.rho(left.p,left.T);
-	if (FLAMELET){
-		double leftZ,leftZvar,leftOmega,Chi;
-		leftZ=flamelet.cell[parent].Z;
-		leftZvar=flamelet.cell[parent].Zvar;
-		leftOmega=rans.cell[parent].omega;
-		if (order==SECOND) {
-			leftZ+=(grid.face[face.index].centroid-grid.cell[parent].centroid).dot(flamelet.cell[parent].grad[0]);
-			leftZvar+=(grid.face[face.index].centroid-grid.cell[parent].centroid).dot(flamelet.cell[parent].grad[1]);
-			leftOmega+=(grid.face[face.index].centroid-grid.cell[parent].centroid).dot(rans.cell[parent].grad[1]);
-		}
-		leftZ=max(leftZ,0.);
-		leftZ=min(leftZ,1.);
-		leftZvar=max(leftZvar,0.);
-		leftZvar=min(leftZvar,0.25);
-		leftOmega=max(leftOmega,omegaLowLimit);
-		Chi=2.*leftOmega*leftZvar*rans.kepsilon.beta_star;
-		left.rho=flamelet.table.get_rho(leftZ,leftZvar,Chi);
-		left.T=flamelet.table.get_T(leftZ,leftZvar,Chi,false);
-	}
+
 	left.a=sqrt(Gamma*(left.p+Pref)/left.rho);
 	left.H=left.a*left.a/(Gamma-1.)+0.5*left.v.dot(left.v);	
 	left.vN[0]=left.v.dot(face.normal);
@@ -328,7 +314,9 @@ void left_state_update(Cell_State &left,Face_State &face) {
 } // end left_state_update
 
 void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
-
+	
+	if (FLAMELET) eos.R=flamelet.face[face.index].RR;
+	
 	if (face.bc==INTERNAL) {// internal face
 
 		Vec3D deltaV;
@@ -356,62 +344,45 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 		right.T_center=grid.cell[neighbor].T;
 		right.T=right.T_center+delta[4];
 		right.rho=eos.rho(right.p,right.T);
-		if (FLAMELET){
-			double rightZ,rightZvar,rightOmega,Chi;
-			rightZ=flamelet.cell[neighbor].Z;
-			rightZvar=flamelet.cell[neighbor].Zvar;
-			rightOmega=rans.cell[neighbor].omega;
-			if (order==SECOND) {
-				rightZ+=(grid.face[face.index].centroid-grid.cell[neighbor].centroid).dot(flamelet.cell[neighbor].grad[0]);
-				rightZvar+=(grid.face[face.index].centroid-grid.cell[neighbor].centroid).dot(flamelet.cell[neighbor].grad[1]);
-				rightOmega+=(grid.face[face.index].centroid-grid.cell[neighbor].centroid).dot(rans.cell[neighbor].grad[1]);
-			}
-			rightZ=max(rightZ,0.);
-			rightZ=min(rightZ,1.);
-			rightZvar=max(rightZvar,0.);
-			rightZvar=min(rightZvar,0.25);
-			rightOmega=max(rightOmega,omegaLowLimit);
-			Chi=2.*rightOmega*rightZvar*rans.kepsilon.beta_star;
-			right.rho=flamelet.table.get_rho(rightZ,rightZvar,Chi);
-			right.T=flamelet.table.get_T(rightZ,rightZvar,Chi,false);
-		}
 		right.volume=grid.cell[neighbor].volume;
 		
 	} else if (face.bc>=0) { // boundary face
+		
+		unsigned int parent=grid.face[face.index].parent;
 		
 		for (unsigned int i=0;i<5;++i) right.update[i]=0.; // TODO Is this needed?
 		
 		if (bc.region[face.bc].specified==BC_STATE) {
 			right.p=bc.region[face.bc].p;
 			right.T=bc.region[face.bc].T;
-			right.T_center=right.T;
+			right.T_center=2.*right.T-left.T_center;
 			right.rho=bc.region[face.bc].rho;
 		} else if (bc.region[face.bc].specified==BC_P) {
 			right.p=bc.region[face.bc].p;
-			right.T=left.T; // temperature is extrapolated
+			//right.rho=left.rho*pow((right.p+Pref)/(left.p+Pref),1./Gamma);
+			//right.T=eos.T(right.p,right.rho);
+			right.T=left.T;
 			right.T_center=2.*right.T-left.T_center;
-			if (!FLAMELET) right.rho=eos.rho(right.p,right.T);
+			right.rho=eos.rho(right.p,right.T);
 		} else if (bc.region[face.bc].specified==BC_T) {
 			right.T=bc.region[face.bc].T;
 			right.T_center=right.T;
 			right.p=left.p; // pressure is extrapolated
 			right.rho=eos.rho(right.p,right.T); 
 		} else if (bc.region[face.bc].specified==BC_RHO) {
+			// This can only be an inlet
+			// Set the specified density
 			right.rho=bc.region[face.bc].rho;
-			right.p=left.p; // pressure is extrapolated
-			right.T=eos.T(right.p,right.rho); 
-			if (FLAMELET) right.T=left.T;
-			right.T_center=right.T; //left.T_center+2.*(right.T-left.T_center);
-		} else if (bc.region[face.bc].specified==BC_FLAMELET_INLET) {
-			right.p=left.p; // pressure is extrapolated
-			right.T=bc.region[face.bc].T;
-			right.T_center=right.T;
-			right.rho=bc.region[face.bc].rho;
-		} else if (bc.region[face.bc].specified==BC_FLAMELET_INLET_P) {
-			right.p=bc.region[face.bc].p;
-			right.T=bc.region[face.bc].T;
-			right.T_center=right.T;
-			right.rho=bc.region[face.bc].rho;
+			// Extrapolate pressure from left, adjust temperature
+			// Will be fixed when given velocity is imposed in below
+			right.p=left.p;
+			right.T=eos.T(right.p,right.rho);
+			//right.T=left.T;
+			right.T_center=2.*right.T-left.T_center;
+			//right.p=eos.p(right.rho,right.T);
+			//right.p=left.p;
+			//right.p=(left.p+Pref)*pow(right.rho/left.rho,Gamma)-Pref;
+			//right.T=eos.T(right.p,right.rho);
 		} else {
 			// If nothing is specified, everything is extrapolated
 			right.p=left.p;
@@ -420,8 +391,19 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 			right.rho=left.rho;
 		}
 		
+// 		if (bc.region[face.bc].specified==BC_FLAMELET_INLET || bc.region[face.bc].specified==BC_FLAMELET_INLET_P) {
+// 			right.rho=bc.region[face.bc].rho;
+// 			right.p=left.p;
+// 			right.T=eos.T(right.p,right.rho);
+// 			//right.T=left.T;
+// 			right.T_center=2.*right.T-left.T_center;
+// 			//right.v=bc.region[face.bc].v;
+// 			//cout << bc.region[face.bc].area << "\t" << right.v << endl; exit(1);
+// 			//right.v=bc.region[face.bc].v*bc.region[face.bc].rho/right.rho;
+// 		}
+				
 		if (bc.region[face.bc].thermalType==ADIABATIC) right.T_center=left.T_center;
-		
+	
 		if (bc.region[face.bc].type==SLIP) {
 			right.v=left.v-2.*left.v.dot(face.normal)*face.normal;
 			right.v_center=left.v_center-2.*left.v_center.dot(face.normal)*face.normal;
@@ -433,18 +415,20 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 			right.v=-1.*left.v;
 			right.v_center=-1.*left.v_center;
 		} else if (bc.region[face.bc].type==INLET) {
+			// Get pressure from left state by matching the total pressures of the left and the right
 			right.v=bc.region[face.bc].v;
 			right.v_center=2.*right.v-left.v_center; 
+			right.p=left.p-0.5*(left.rho*left.v.dot(left.v)-right.rho*right.v.dot(right.v));
+			right.T=eos.T(right.p,right.rho);
+			right.T_center=2.*right.T-left.T_center;
 		} else if (bc.region[face.bc].type==OUTLET) {
 			right.v=left.v;
 			right.v_center=2.*right.v-left.v_center; 
 			if (right.v.dot(face.normal)<0.) {
 				if (bc.region[face.bc].kind==DAMP_REVERSE) {
 					right.p-=0.5*right.rho*right.v.dot(right.v);
-					if (!FLAMELET) {
-						right.T=eos.T(right.p,right.rho);
-						right.T_center=left.T_center+2.*(right.T-left.T_center);
-					}
+					right.T=eos.T(right.p,right.rho);
+					right.T_center=left.T_center+2.*(right.T-left.T_center);
 				} else if (bc.region[face.bc].kind==NO_REVERSE) {
 					right.v=-1.*left.v;
 					right.v_center=-1.*left.v_center; 
@@ -475,25 +459,6 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 		right.T_center=grid.ghost[g].T;
 		right.T=right.T_center+delta[4];
 		right.rho=eos.rho(right.p,right.T);
-		if (FLAMELET){
-			double rightZ,rightZvar,rightOmega,Chi;
-			rightZ=flamelet.ghost[g].Z;
-			rightZvar=flamelet.ghost[g].Zvar;
-			rightOmega=rans.ghost[g].omega;
-			if (order==SECOND) {
-				rightZ+=(grid.face[face.index].centroid-grid.ghost[g].centroid).dot(flamelet.ghost[g].grad[0]);
-				rightZvar+=(grid.face[face.index].centroid-grid.ghost[g].centroid).dot(flamelet.ghost[g].grad[1]);
-				rightOmega+=(grid.face[face.index].centroid-grid.ghost[g].centroid).dot(rans.ghost[g].grad[1]);
-			}
-			rightZ=max(rightZ,0.);
-			rightZ=min(rightZ,1.);
-			rightZvar=max(rightZvar,0.);
-			rightZvar=min(rightZvar,0.25);
-			rightOmega=max(rightOmega,omegaLowLimit);
-			Chi=2.*rightOmega*rightZvar*rans.kepsilon.beta_star;
-			right.rho=flamelet.table.get_rho(rightZ,rightZvar,Chi);
-			right.T=flamelet.table.get_T(rightZ,rightZvar,Chi,false);
-		}
 	
 	}
 
@@ -571,16 +536,14 @@ void state_perturb(Cell_State &state,Face_State &face,int var,double epsilon) {
 	{
 		case 0 : // p
 			state.p+=epsilon;
-			if (FLAMELET) {
-				//state.rho+=(state.p+Pref)/state.rho*epsilon; // Need dp/drho for flamelet here
-				// TODO figure this out
-			} else {
-				state.rho=eos.rho(state.p,state.T);	
-			}
+			// Assume isentropic compression and fix rho and T
+			//state.rho*=pow((state.p+Pref)/(state.p-epsilon+Pref),1./Gamma);
+			//state.T=eos.T(state.p,state.rho);
+			state.rho=eos.rho(state.p,state.T);
 			state.a=sqrt(Gamma*(state.p+Pref)/state.rho);
 			state.H=state.a*state.a/(Gamma-1.)+0.5*state.v.dot(state.v);
 			break;
-		case 1 : // uleft,face,
+		case 1 : // u
 			state.v[0]+=epsilon;
 			state.v_center[0]+=epsilon;
 			state.H=state.a*state.a/(Gamma-1.)+0.5*state.v.dot(state.v);
@@ -607,14 +570,13 @@ void state_perturb(Cell_State &state,Face_State &face,int var,double epsilon) {
 		case 4 : // T
 			state.T+=epsilon;
 			state.T_center+=epsilon;
-			if (!FLAMELET) {
-				state.rho=eos.rho(state.p,state.T);
-				state.a=sqrt(Gamma*(state.p+Pref)/state.rho);
-				state.H=state.a*state.a/(Gamma-1.)+0.5*state.v.dot(state.v);
-			}
-			// need dt/drho for flamelet here
+// 			state.p=(state.p+Pref)*pow((state.T+Tref)/(state.T-epsilon+Tref),Gamma/(Gamma-1.))-Pref;
+ 			state.rho=eos.rho(state.p,state.T);
+ 			state.a=sqrt(Gamma*(state.p+Pref)/state.rho);
+ 			state.H=state.a*state.a/(Gamma-1.)+0.5*state.v.dot(state.v);
 			break;
-	}
+ 	}
+	
 	
 	return;
 } // end state_perturb
@@ -625,7 +587,7 @@ void face_state_adjust(Cell_State &left,Cell_State &right,Face_State &face,int v
 	{
 		case 0 : // p
 			face.p=0.5*(left.p+right.p);
-			if (!FLAMELET) face.rho=eos.rho(face.p,face.T);
+			face.rho=eos.rho(face.p,face.T);
 			break;
 		case 1 : // u
 			face.v[0]=0.5*(left.v[0]+right.v[0]);
@@ -644,7 +606,7 @@ void face_state_adjust(Cell_State &left,Cell_State &right,Face_State &face,int v
 			break;
 		case 4 : // T
 			face.T=0.5*(left.T+right.T);
-			if (!FLAMELET) face.rho=eos.rho(face.p,face.T);
+			face.rho=eos.rho(face.p,face.T);
 			face.gradT-=face.gradT.dot(face.normal)*face.normal;
 			face.gradT+=((right.T_center-left.T_center)/(face.left2right.dot(face.normal)))*face.normal;
 			break;

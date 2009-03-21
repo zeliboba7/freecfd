@@ -137,6 +137,7 @@ void setBCs(InputFile &input, BC &bc) {
 		bcRegion.v=region.get_Vec3D("v");
 		if (region.get_double("mdot").is_found) {
 			double mdot=region.get_double("mdot");
+			bcRegion.mdot=region.get_double("mdot");
 			bcRegion.v=-mdot/(bcRegion.rho*bcRegion.area)*bcRegion.areaVec.norm();
 		}
 		

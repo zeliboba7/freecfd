@@ -66,8 +66,7 @@ void initialize(InputFile &input) {
 			regionZ=region.get_double("Z");
 			regionZvar=region.get_double("Zvar");
 			double Chi=2.*regionOmega*regionZvar*rans.kepsilon.beta_star;
-			regionRho=flamelet.table.get_rho(regionZ,regionZvar,Chi);
-			regionT=flamelet.table.get_T(regionZ,regionZvar,Chi,false);
+			flamelet.table.get_rho_T_comp(regionP,regionZ,regionZvar,Chi,regionRho,regionT);
 		}
 		regionMu_t=regionRho*regionK/regionOmega;
 		// If region is specified with a box method
@@ -148,6 +147,7 @@ void initialize(InputFile &input) {
 	}
 
 	for (unsigned int c=0;c<grid.cellCount;++c) {
+		if (GRAD_TEST) grid.cell[c].p=2.*grid.cell[c].centroid[1]+2.;
 		for (unsigned int i=0;i<5;++i) grid.cell[c].update[i]=0.;
 		if (FLAMELET) {
 			double Chi=2.*rans.cell[c].omega*flamelet.cell[c].Zvar*rans.kepsilon.beta_star;

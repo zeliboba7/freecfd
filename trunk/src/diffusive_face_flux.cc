@@ -51,7 +51,8 @@ void diffusive_face_flux(Cell_State &left,Cell_State &right,Face_State &face,dou
 	flux[2]=Tvisc*tau_y.dot(areaVec);
 	flux[3]=Tvisc*tau_z.dot(areaVec);
 	flux[4]=Tvisc*(tau_x.dot(face.v)*areaVec[0]+tau_y.dot(face.v)*areaVec[1]+tau_z.dot(face.v)*areaVec[2]);
-	if (!FLAMELET) flux[4]+=conductivity*face.T*face.area; // TODO Viscous dissipation needs to be added too
+	//if (!FLAMELET) 
+		flux[4]+=conductivity*face.gradT.dot(areaVec);// TODO Viscous dissipation needs to be added too
 
 
 	return;

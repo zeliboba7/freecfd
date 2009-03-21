@@ -54,6 +54,7 @@ void RANS::update_cell_eddy_viscosity(void) {
 			cell[c].filterFunction=min(1.,delta/turbulent_length_scale);
 			cell[c].mu_t*=cell[c].filterFunction;
 		}
+		
 	}
 	
 	return;

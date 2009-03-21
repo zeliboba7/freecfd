@@ -34,9 +34,11 @@ using namespace std;
 
 #include "inputs.h"
 #include "bc.h"
+#include "flamelet.h"
 
 extern InputFile input;
 extern BC bc;
+extern Flamelet flamelet;
 
 string int2str(int number) ;
 double minmod(double a, double b);
@@ -371,7 +373,11 @@ void Grid::gradients(void) {
  		// Add boundary face contributions
 		for (unsigned int cf=0;cf<cell[c].faceCount;++cf) {
 			f=cell[c].faces[cf];
+			
 			if (face[f].bc>=0) { // if a boundary face
+					
+				//if (FLAMELET) eos.R=flamelet.face[f].R;
+				
 				areaVec=face[f].normal*face[f].area/cell[c].volume;
 				faceP=0.; faceVel=0.; faceT=0.;
 				for (fit=face[f].average.begin();fit!=face[f].average.end();fit++) {
@@ -385,63 +391,81 @@ void Grid::gradients(void) {
 						faceT+=(*fit).second*ghost[-1*((*fit).first+1)].T;
 					}
 				}
-
- 				faceRho=eos.rho(faceP,faceT);
-				
-				if (bc.region[face[f].bc].thermalType==ADIABATIC) {
-					faceT=cell[c].T;
-					faceRho=eos.rho(faceP,faceT);
-				}
-				
-				if (FLAMELET) {
-					faceRho=cell[c].rho;
-					faceT=cell[c].T;
-				}
-				
-				if (bc.region[face[f].bc].specified==BC_STATE) {
-					faceP=bc.region[face[f].bc].p;
-					faceT=bc.region[face[f].bc].T;
-					faceRho=bc.region[face[f].bc].rho;
-				} else if (bc.region[face[f].bc].specified==BC_P) {
-					faceP=bc.region[face[f].bc].p;
-					if (!FLAMELET) faceRho=eos.rho(faceP,faceT); // temperature is extrapolated
-				} else if (bc.region[face[f].bc].specified==BC_T) {
-					faceT=bc.region[face[f].bc].T;
-					faceRho=eos.rho(faceP,faceT); // pressure is extrapolated
-				} else if (bc.region[face[f].bc].specified==BC_RHO) {
-					faceRho=bc.region[face[f].bc].rho;
-					faceT=eos.T(faceP,faceRho); // pressure is extrapolated
-				} else if (bc.region[face[f].bc].specified==BC_FLAMELET_INLET) {
-					faceT=bc.region[face[f].bc].T;
-					faceRho=bc.region[face[f].bc].rho;
-				} else if (bc.region[face[f].bc].specified==BC_FLAMELET_INLET_P) {
-					faceT=bc.region[face[f].bc].T;
-					faceRho=bc.region[face[f].bc].rho;
-					faceP=bc.region[face[f].bc].p;
-				}// If nothing is specified, everything is extrapolated
-				
-				
-				if (bc.region[face[f].bc].type==INLET) {
-					faceVel=bc.region[face[f].bc].v;
-				} else if (bc.region[face[f].bc].type==SLIP) { 
-					faceVel-=faceVel.dot(face[f].normal)*face[f].normal;
-				} else if (bc.region[face[f].bc].type==SYMMETRY) {
-					// Symmetry mirrors everything
-					faceP=cell[c].p;
-					faceT=cell[c].T;
-					faceVel=cell[c].v;
-					faceVel-=faceVel.dot(face[f].normal)*face[f].normal;
-				} else if (bc.region[face[f].bc].type==NOSLIP) {
-					faceVel=0.;
-				} else if (bc.region[face[f].bc].type==OUTLET) {
-					if (faceVel.dot(face[f].normal)<0.) {
-						if (bc.region[face[f].bc].kind==DAMP_REVERSE) {
-							faceP-=0.5*faceRho*faceVel.dot(faceVel);
-							if (!FLAMELET) faceT=eos.T(faceP,faceRho);
-						} else if (bc.region[face[f].bc].kind==NO_REVERSE) {
-							faceVel=0.;
-						}
-					}
+					
+				if (!GRAD_TEST) {
+					
+// 					faceRho=eos.rho(faceP,faceT);
+// 					
+// 					if (bc.region[face[f].bc].thermalType==ADIABATIC) {
+// 						faceT=cell[c].T;
+// 						//faceRho=cell[c].rho*pow((faceP+Pref)/(cell[c].p+Pref),1./Gamma);
+// 						faceRho=eos.rho(faceP,faceT); // Pressure is extrapolated
+// 					}
+// 					
+// 					if (bc.region[face[f].bc].specified==BC_STATE) {
+// 						faceP=bc.region[face[f].bc].p;
+// 						faceT=bc.region[face[f].bc].T;
+// 						faceRho=bc.region[face[f].bc].rho;
+// 					} else if (bc.region[face[f].bc].specified==BC_P) {
+// 						faceP=bc.region[face[f].bc].p;
+// 						//faceRho=cell[c].rho*pow((faceP+Pref)/(cell[c].p+Pref),1./Gamma);
+// 						//faceT=eos.T(faceP,faceRho);
+// 						faceRho=eos.rho(faceP,faceT); // temperature is extrapolated
+// 					} else if (bc.region[face[f].bc].specified==BC_T) {
+// 						faceT=bc.region[face[f].bc].T;
+// 						//faceRho=cell[c].rho*pow((faceT+Tref)/(cell[c].T+Tref),1./(Gamma-1.));
+// 						//faceP=eos.p(faceRho,faceT);
+// 						faceRho=eos.rho(faceP,faceT); // pressure is extrapolated
+// 					} else if (bc.region[face[f].bc].specified==BC_RHO) {
+// 						faceRho=bc.region[face[f].bc].rho;
+// 						//faceP=(cell[c].p+Pref)*pow(faceRho/cell[c].rho,Gamma)-Pref;
+// 						//faceT=eos.T(faceP,faceRho); // pressure is extrapolated
+// 						faceT=cell[c].T;
+// 						faceP=eos.p(faceRho,faceT);
+// 					} else if (bc.region[face[f].bc].specified==BC_FLAMELET_INLET) {
+// 						//faceT=bc.region[face[f].bc].T;
+// 						//faceRho=bc.region[face[f].bc].rho;
+// 						faceP=cell[c].p;
+// 						faceRho=cell[c].rho;
+// 						faceT=cell[c].T;
+// 					} else if (bc.region[face[f].bc].specified==BC_FLAMELET_INLET_P) {
+// 						//faceT=bc.region[face[f].bc].T;
+// 						//faceRho=bc.region[face[f].bc].rho;
+// 						faceP=bc.region[face[f].bc].p;
+// 						faceRho=eos.rho(faceP,faceT); // temperature is extrapolated
+// 					}  else { // If nothing is specified, everything is extrapolated
+// 						if (FLAMELET) {
+// 							faceP=cell[c].p;
+// 							faceRho=cell[c].rho;
+// 							faceT=cell[c].T;
+// 						}
+// 					}
+// 					
+// 					if (bc.region[face[f].bc].type==INLET) {
+// 						faceVel=bc.region[face[f].bc].v;
+// 						if (FLAMELET) faceVel=bc.region[face[f].bc].v*(bc.region[face[f].bc].rho/faceRho);
+// 					} else if (bc.region[face[f].bc].type==SLIP) { 
+// 						faceVel-=faceVel.dot(face[f].normal)*face[f].normal;
+// 					} else if (bc.region[face[f].bc].type==SYMMETRY) {
+// 						// Symmetry mirrors everything
+// 						faceP=cell[c].p;
+// 						faceT=cell[c].T;
+// 						faceVel=cell[c].v;
+// 						faceVel-=faceVel.dot(face[f].normal)*face[f].normal;
+// 					} else if (bc.region[face[f].bc].type==NOSLIP) {
+// 						faceVel=0.;
+// 					} else if (bc.region[face[f].bc].type==OUTLET) {
+// 						if (faceVel.dot(face[f].normal)<0.) {
+// 							if (bc.region[face[f].bc].kind==DAMP_REVERSE) {
+// 								faceP-=0.5*faceRho*faceVel.dot(faceVel);
+// 								//if (!FLAMELET) 
+// 								faceT=eos.T(faceP,faceRho);
+// 							} else if (bc.region[face[f].bc].kind==NO_REVERSE) {
+// 								faceVel=0.;
+// 							}
+// 						}
+// 					}
+// 				
 				}
 				
 				cell[c].grad[0]+=faceP*areaVec;
