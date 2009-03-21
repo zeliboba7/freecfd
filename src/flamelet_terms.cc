@@ -55,16 +55,29 @@ void Flamelet::terms(void) {
 		// Get left, right and face values of Z and Zvar as well as the face normal gradients
 		get_Z_Zvar(parent,neighbor,f,
 			   leftZ,leftZvar,rightZ,rightZvar,
-      			   faceGradZ,faceGradZvar,left2right,weightL,extrapolated);
+      			   faceGradZ,faceGradZvar,left2right,extrapolated);
 		
 		// The following weights are consistent with rho splitting of the AUSM scheme.
 		// The idea is that Z behaves a lot like rho
 		// This is the only stable configuration out of many others tried.
 		weightL1=double(grid.face[f].upstream);
+		//weightL1=grid.face[f].weightL;
+		
 		weightR1=1.-weightL1;
+		
+		double Chi=cell[parent].Chi;
+		if (grid.face[f].bc==INTERNAL) {
+			Chi=0.5*(Chi+cell[neighbor].Chi);
+		} else if (grid.face[f].bc==GHOST) {
+			Chi=0.5*(Chi+ghost[-1*neighbor-1].Chi);
+		}
+		
+// 		double mdot;
+// 		table.get.rho
 		
 		// Convective flux is based on the mdot calculated through the Riemann solver right after
 		// main flow was updated
+
 		convectiveFlux[0]=grid.face[f].mdot*(weightL1*leftZ+weightR1*rightZ)*grid.face[f].area;
 		convectiveFlux[1]=grid.face[f].mdot*(weightL1*leftZvar+weightR1*rightZvar)*grid.face[f].area;
 
@@ -95,18 +108,31 @@ void Flamelet::terms(void) {
 			}
 		}
 		
+		
+		
 		// Calculate flux jacobians
 		// dF_Z/dZ_left
+
+		double drho_dZ=table.get_drho_dZ(leftZ,leftZvar,Chi);
 		jacL[0]=weightL1*grid.face[f].mdot*grid.face[f].area; // convective
+		//jacL[0]+=weightL1*grid.face[f].uN*grid.face[f].area*drho_dZ*(weightL1*leftZ+weightR1*rightZ); // convective
 		if (!extrapolated) jacL[0]+=(diff+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
+
 		// dF_Z/dZ_right
+		drho_dZ=table.get_drho_dZ(rightZ,rightZvar,Chi);
 		jacR[0]=weightR1*grid.face[f].mdot*grid.face[f].area; // convective
+		//jacR[0]+=weightR1*grid.face[f].uN*grid.face[f].area*drho_dZ*(weightL1*leftZ+weightR1*rightZ); // convective
 		if (!extrapolated) jacR[0]-=(diff+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
+		
 		// dF_Zvar/dZvar_left
+		double drho_dZvar=table.get_drho_dZvar(leftZ,leftZvar,Chi);
 		jacL[1]=weightL1*grid.face[f].mdot*grid.face[f].area; // convective
+		//jacL[1]+=weightL1*grid.face[f].uN*grid.face[f].area*drho_dZvar*(weightL1*leftZvar+weightR1*rightZvar); // convective
 		if (!extrapolated) jacL[1]+=(diff+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
 		// dF_Zvar/dZvar_right
+		drho_dZvar=table.get_drho_dZvar(rightZ,rightZvar,Chi);
 		jacR[1]=weightR1*grid.face[f].mdot*grid.face[f].area; // convective
+		//jacR[1]+=weightR1*grid.face[f].uN*grid.face[f].area*drho_dZvar*(weightL1*leftZvar+weightR1*rightZvar); // convective
 		if (!extrapolated) jacR[1]-=(diff+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
 		
 		// Insert flux jacobians for the parent cell
@@ -150,38 +176,14 @@ void Flamelet::terms(void) {
 	
 	// Now do a cell loop to add the unsteady and source terms
 	double Prod_Zvar,Dest_Zvar;
-	double drho_dZ,drho_dZvar;
-	double Zplus,ZvarPlus,Chi,ChiPlus;
+	double drho_dZ,drho_dZvar,Chi;
 	for (unsigned int c=0;c<grid.cellCount;++c) {
 
 		// Unsteady Z term should be:
 		// (rho+Z*drho/dZ)dZ/dt
 		
-		Chi=2.*rans.cell[c].omega*cell[c].Zvar*rans.kepsilon.beta_star;
-		if (cell[c].Z<(1.-sqrt_machine_error)){
-			// forward differencing
-			Zplus=cell[c].Z+sqrt_machine_error;
-			drho_dZ=(table.get_rho(Zplus,cell[c].Zvar,Chi)-grid.cell[c].rho)/sqrt_machine_error;
-				 
-		} else {
-			// backward differencing
-			Zplus=cell[c].Z-sqrt_machine_error;
-			drho_dZ=(grid.cell[c].rho-table.get_rho(Zplus,cell[c].Zvar,Chi))/sqrt_machine_error;
-		}
-		
-		
-		if (cell[c].Zvar<(0.25-sqrt_machine_error)){
-			// forward differencing
-			ZvarPlus=cell[c].Zvar+sqrt_machine_error;
-			ChiPlus=2.*rans.cell[c].omega*ZvarPlus*rans.kepsilon.beta_star;
-			drho_dZvar=(table.get_rho(cell[c].Z,ZvarPlus,ChiPlus)-grid.cell[c].rho)/sqrt_machine_error;
-				 
-		} else {
-			// backward differencing
-			ZvarPlus=cell[c].Zvar-sqrt_machine_error;
-			ChiPlus=2.*rans.cell[c].omega*ZvarPlus*rans.kepsilon.beta_star;
-			drho_dZvar=(grid.cell[c].rho-table.get_rho(cell[c].Z,ZvarPlus,ChiPlus))/sqrt_machine_error;
-		}
+		drho_dZ=table.get_drho_dZ(cell[c].Z,cell[c].Zvar,cell[c].Chi);
+		drho_dZvar=table.get_drho_dZvar(cell[c].Z,cell[c].Zvar,cell[c].Chi);
 		
 		// Insert unsteady term
 		row=(grid.myOffset+c)*2;
@@ -227,9 +229,8 @@ void Flamelet::get_Z_Zvar(unsigned int &parent,unsigned int &neighbor,unsigned i
 			  double &leftZ,double &leftZvar,
 			  double &rightZ,double &rightZvar,
     			  Vec3D &faceGradZ,Vec3D &faceGradZvar,Vec3D &left2right,
-	 		  double &weightL,bool &extrapolated) {
-	
-	double faceZ,faceZvar;
+	 		  bool &extrapolated) {
+
 	double leftZ_center,rightZ_center,leftZvar_center,rightZvar_center;
 	
 	// Get left Z and Zvar
@@ -252,19 +253,6 @@ void Flamelet::get_Z_Zvar(unsigned int &parent,unsigned int &neighbor,unsigned i
 	leftZ=min(1.,leftZ);
 	leftZvar=max(0.,leftZvar);
 	leftZvar=min(0.25,leftZvar);
-	
-	// Find face averaged quantities
-	faceGradZ=0.; faceGradZvar=0.;
- 	map<int,double>::iterator fit;
-	for (fit=grid.face[f].average.begin();fit!=grid.face[f].average.end();fit++) {
-		if ((*fit).first>=0) { // if contribution is coming from a real cell
-			faceGradZ+=(*fit).second*cell[(*fit).first].grad[0];
-			faceGradZvar+=(*fit).second*cell[(*fit).first].grad[1];
-		} else { // if contribution is coming from a ghost cell
-			faceGradZ+=(*fit).second*ghost[-1*((*fit).first+1)].grad[0];
-			faceGradZvar+=(*fit).second*ghost[-1*((*fit).first+1)].grad[1];
-		}
-	}
 	
 	// Find distance between left and right centroids 
 	Vec3D leftCentroid,rightCentroid;
@@ -339,9 +327,6 @@ void Flamelet::get_Z_Zvar(unsigned int &parent,unsigned int &neighbor,unsigned i
 	
 	faceGradZvar-=faceGradZvar.dot(grid.face[f].normal)*grid.face[f].normal;
 	faceGradZvar+=(rightZvar_center-leftZvar_center)/(left2right.dot(grid.face[f].normal))*grid.face[f].normal;
-
-	faceZ=0.5*(leftZ+rightZ);
-	faceZvar=0.5*(leftZvar+rightZvar);
 	
 	return;	
 }

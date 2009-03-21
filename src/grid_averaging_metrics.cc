@@ -436,6 +436,7 @@ void Grid::interpolate_tri(Node& n) {
 			centroid1= ((*tri).cell[0]>=0) ? cell[(*tri).cell[0]].centroid : ghost[-1*(*tri).cell[0]-1].centroid;
 			centroid2= ((*tri).cell[1]>=0) ? cell[(*tri).cell[1]].centroid : ghost[-1*(*tri).cell[1]-1].centroid;
 			centroid3= ((*tri).cell[2]>=0) ? cell[(*tri).cell[2]].centroid : ghost[-1*(*tri).cell[2]-1].centroid;
+			
 			basis1=(centroid2-centroid1).norm();
 			planeNormal=(basis1.cross(centroid3-centroid1)).norm();
 			basis2=-1.*(basis1.cross(planeNormal)).norm();
@@ -459,8 +460,35 @@ void Grid::interpolate_tri(Node& n) {
 			b[0]=pp.dot(basis1);
 			b[1]=pp.dot(basis2);
 			b[2]=1.;
-			// Solve the 3x3 linear system by Gaussion Elimination
-			gelimd(a,b,weights,3);
+// 			ave_centroid=1./3.*(centroid1+centroid2+centroid3);
+// 			centroid1-=ave_centroid;
+// 			centroid2-=ave_centroid;
+// 			centroid3-=ave_centroid;
+// 			basis1=centroid1.norm();
+// 			planeNormal=(centroid1.cross(centroid2)).norm();
+// 			basis2=(basis1.cross(planeNormal)).norm();
+// 			// Project the node point to the plane
+// 			pp=n-ave_centroid;
+// 			pp-=pp.dot(planeNormal)*planeNormal;
+// 			// Form the linear system
+// 			a = new double* [3];
+// 			for (int i=0;i<3;++i) a[i]=new double[3];
+// 			b = new double[3];
+// 			weights= new double [3];
+// 			a[0][0]=centroid1.dot(basis1);
+// 			a[0][1]=centroid2.dot(basis1);
+// 			a[0][2]=centroid3.dot(basis1);
+// 			a[1][0]=centroid1.dot(basis2);
+// 			a[1][1]=centroid2.dot(basis2);
+// 			a[1][2]=centroid3.dot(basis2);
+// 			a[2][0]=1.;
+// 			a[2][1]=1.;
+// 			a[2][2]=1.;
+// 			b[0]=pp.dot(basis1);
+// 			b[1]=pp.dot(basis2);
+// 			b[2]=1.;
+// 			// Solve the 3x3 linear system by Gaussion Elimination
+ 			gelimd(a,b,weights,3);
 			// Let's see if the linear system solution is good
 			weightSum2=0.;
 			for (int i=0;i<3;++i) weightSum2+=weights[i];

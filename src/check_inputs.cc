@@ -37,12 +37,15 @@ void check_inputs(InputFile &input) {
 		DIMENSION=input.section("grid").get_int("dimension");
 	}
 
+	GRAD_TEST=false;
 	string option;
 	option=input.get_string("equations");
 	if (option=="NS") {
 		EQUATIONS=NS;
 	} else if (option=="Euler") {
 		EQUATIONS=EULER;
+	} else if (option=="gradTest") {
+		GRAD_TEST=true;
 	} else {
 		if (Rank==0) {
 			cerr << "[E] Input entry equations=" << option << " is not recognized!!" << endl;

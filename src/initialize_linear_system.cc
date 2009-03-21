@@ -24,14 +24,16 @@
 #include "petsc_functions.h"
 #include "bc.h"
 #include "flamelet.h"
+#include "rans.h"
 
 extern BC bc;
 extern Flamelet flamelet;
+extern RANS rans;
 
-inline void preconditioner_none(Cell &c, double P[][5]) {
+inline void preconditioner_none(Cell &c,int cid,double P[][5]) {
 	
 	double p=c.p+Pref;
-	//if (FLAMELET) p=Pref;
+	
 	double T=c.T+Tref;
 	double drho_dT; // Derivative of density w.r.t temp. @ const. press
 	double drho_dp; // Derivative of density w.r.t press. @ const temp.
@@ -46,7 +48,7 @@ inline void preconditioner_none(Cell &c, double P[][5]) {
 	
 	// Conservative to primite Jacobian
 	P[0][0]=drho_dp; P[0][4]=drho_dT;
-			
+	
 	P[1][0]=drho_dp*c.v[0]; P[1][1]=c.rho; P[1][4]=drho_dT*c.v[0];
 	P[2][0]=drho_dp*c.v[1]; P[2][2]=c.rho; P[2][4]=drho_dT*c.v[1];
 	P[3][0]=drho_dp*c.v[2]; P[3][3]=c.rho; P[3][4]=drho_dT*c.v[2];
@@ -60,7 +62,7 @@ inline void preconditioner_none(Cell &c, double P[][5]) {
 	return;
 }
 		
-inline void preconditioner_ws95(Cell &c,double &mu, double P[][5]) {
+inline void preconditioner_ws95(Cell &c,int cid,double &mu,double P[][5]) {
 	
 	double p=c.p+Pref;
 	double T=c.T+Tref;
@@ -128,9 +130,9 @@ void initialize_linear_system() {
 		if (PRECONDITIONER==WS95) {
 			double mu=viscosity;
 			if (FLAMELET) mu=flamelet.cell[c].mu;
-			preconditioner_ws95(grid.cell[c],mu,P);
+			preconditioner_ws95(grid.cell[c],c,mu,P);
 		} else {
-			preconditioner_none(grid.cell[c],P);
+			preconditioner_none(grid.cell[c],c,P);
 		}
 
 		for (int i=0;i<5;++i) {

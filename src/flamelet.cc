@@ -33,7 +33,7 @@ extern RANS rans;
 
 struct mpiGhost {
 	unsigned int globalId;
-	double vars[4]; // Z, Zvar,mu and diffusivity
+	double vars[6]; // Z, Zvar,Chi,mu,diffusivity and R
 };
 
 struct mpiGrad {
@@ -148,7 +148,7 @@ void Flamelet::mpi_init(void) {
 	displacements[0]=(long) &dummy1.globalId - (long) &dummy1;
 	displacements[1]=(long) &dummy1.vars[0] - (long) &dummy1;
 	block_lengths[0]=1;
-	block_lengths[1]=4;
+	block_lengths[1]=6;
 	MPI_Type_create_struct(2,block_lengths,displacements,types,&MPI_GHOST);
 	MPI_Type_commit(&MPI_GHOST);
 
@@ -176,8 +176,10 @@ void Flamelet::mpi_update_ghost(void) {
 				sendBuffer[g].globalId=grid.cell[id].globalId;
 				sendBuffer[g].vars[0]=cell[id].Z;
 				sendBuffer[g].vars[1]=cell[id].Zvar;
-				sendBuffer[g].vars[2]=cell[id].mu;
-				sendBuffer[g].vars[3]=cell[id].diffusivity;
+				sendBuffer[g].vars[2]=cell[id].Chi;
+				sendBuffer[g].vars[3]=cell[id].mu;
+				sendBuffer[g].vars[4]=cell[id].diffusivity;
+				sendBuffer[g].vars[5]=cell[id].R;
 			}
 
 			MPI_Sendrecv(sendBuffer,sendCells[p].size(),MPI_GHOST,p,0,recvBuffer,recvCount[p],MPI_GHOST,p,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
@@ -186,8 +188,10 @@ void Flamelet::mpi_update_ghost(void) {
 				id=maps.ghostGlobal2Local[recvBuffer[g].globalId];
 				ghost[id].Z=recvBuffer[g].vars[0];
 				ghost[id].Zvar=recvBuffer[g].vars[1];
-				ghost[id].mu=recvBuffer[g].vars[2];
-				ghost[id].diffusivity=recvBuffer[g].vars[3];
+				ghost[id].Chi=recvBuffer[g].vars[2];
+				ghost[id].mu=recvBuffer[g].vars[3];
+				ghost[id].diffusivity=recvBuffer[g].vars[4];
+				ghost[id].R=recvBuffer[g].vars[5];
 			}
 		}
 	}
@@ -220,7 +224,7 @@ void Flamelet::mpi_update_ghost_gradients(void) {
 			int count=0;
 			for (unsigned int var=0;var<2;++var) {
 				for (unsigned int comp=0;comp<3;++comp) {
-					ghost[id].grad[var].comp[comp]=recvBuffer[g].grads[count];
+					ghost[id].grad[var][comp]=recvBuffer[g].grads[count];
 					count++;
 				}
 			}
@@ -258,13 +262,23 @@ void Flamelet::gradients(void) {
 			f=grid.cell[c].faces[cf];
 			if (grid.face[f].bc>=0) { // if a boundary face
 				areaVec=grid.face[f].normal*grid.face[f].area/grid.cell[c].volume;
-
-				faceZ=cell[c].Z;
-				faceZvar=cell[c].Zvar;
-				if (bc.region[grid.face[f].bc].type==INLET) {
-					faceZ=bc.region[grid.face[f].bc].Z;
-					faceZvar=bc.region[grid.face[f].bc].Zvar;
+				faceZ=0.; faceZvar=0.;
+				for (fit=grid.face[f].average.begin();fit!=grid.face[f].average.end();fit++) {
+					if ((*fit).first>=0) { // if contribution is coming from a real cell
+						faceZ+=(*fit).second*cell[(*fit).first].Z;
+						faceZvar+=(*fit).second*cell[(*fit).first].Zvar;
+					} else { // if contribution is coming from a ghost cell
+						faceZ+=(*fit).second*ghost[-1*((*fit).first+1)].Z;
+						faceZvar+=(*fit).second*ghost[-1*((*fit).first+1)].Zvar;
+					}
 				}
+				
+// 				faceZ=cell[c].Z;
+// 				faceZvar=cell[c].Zvar;
+// 				if (bc.region[grid.face[f].bc].type==INLET) {
+// 					faceZ=bc.region[grid.face[f].bc].Z;
+// 					faceZvar=bc.region[grid.face[f].bc].Zvar;
+// 				}
 				
 				cell[c].grad[0]+=faceZ*areaVec;
 				cell[c].grad[1]+=faceZvar*areaVec;
@@ -351,13 +365,16 @@ void Flamelet::update(double &resZ, double &resZvar) {
 		resZ+=cell[c].update[0]*cell[c].update[0];
 		resZvar+=cell[c].update[1]*cell[c].update[1];
 		
-		double Chi=2.0*rans.kepsilon.beta_star*rans.cell[c].omega*cell[c].Zvar;
-		grid.cell[c].rho=table.get_rho(cell[c].Z,cell[c].Zvar,Chi);
-		double new_T=table.get_T(cell[c].Z,cell[c].Zvar,Chi,false);
-		grid.cell[c].update[4]=new_T-grid.cell[c].T;
-		grid.cell[c].T+=grid.cell[c].update[4];
-		cell[c].mu=table.get_mu(cell[c].Z,cell[c].Zvar,Chi,false);
-		cell[c].diffusivity=table.get_mu(cell[c].Z,cell[c].Zvar,Chi,false);
+// 		cell[c].Chi=log10(2.0*rans.kepsilon.beta_star*rans.cell[c].omega*cell[c].Zvar);
+// 		
+// 		double new_T;
+// 		table.get_rho_T_comp(grid.cell[c].p,cell[c].Z,cell[c].Zvar,cell[c].Chi,grid.cell[c].rho,new_T);
+//  		grid.cell[c].update[4]=new_T-grid.cell[c].T;
+//  		grid.cell[c].T+=grid.cell[c].update[4];
+// 		
+// 		cell[c].R=UNIV_GAS_CONST/table.get_Mw(cell[c].Z,cell[c].Zvar,cell[c].Chi,false);
+// 		cell[c].mu=table.get_mu(cell[c].Z,cell[c].Zvar,cell[c].Chi,false);
+// 		cell[c].diffusivity=table.get_mu(cell[c].Z,cell[c].Zvar,cell[c].Chi,false);
 		
 	} // cell loop
 
@@ -373,7 +390,28 @@ void Flamelet::update(double &resZ, double &resZvar) {
 
 } // end Flamelet::update
 
-void Flamelet::update_face_mu(void) {
+void Flamelet::lookup(void) {
+	
+	double new_T;
+	
+	for (unsigned int c=0;c<grid.cellCount;++c) {
+		
+		cell[c].Chi=log10(2.0*rans.kepsilon.beta_star*rans.cell[c].omega*cell[c].Zvar);	
+		table.get_rho_T_comp(grid.cell[c].p,cell[c].Z,cell[c].Zvar,cell[c].Chi,grid.cell[c].rho,new_T);
+		grid.cell[c].update[4]=new_T-grid.cell[c].T;
+		grid.cell[c].T+=grid.cell[c].update[4];
+		
+		cell[c].R=UNIV_GAS_CONST/table.get_Mw(cell[c].Z,cell[c].Zvar,cell[c].Chi);
+		cell[c].mu=table.get_mu(cell[c].Z,cell[c].Zvar,cell[c].Chi,false);
+		cell[c].diffusivity=table.get_mu(cell[c].Z,cell[c].Zvar,cell[c].Chi,false);
+		
+	} // cell loop
+	
+	return;
+
+} // end Flamelet::lookup
+
+void Flamelet::update_face_properties(void) {
 	// Find face averaged quantities
 	for (unsigned int f=0;f<grid.faceCount;++f) {
 		face[f].mu=0.;
@@ -385,6 +423,37 @@ void Flamelet::update_face_mu(void) {
 				face[f].mu+=(*fit).second*ghost[-1*((*fit).first+1)].mu;
 			}
 		}
+
+		unsigned int parent,neighbor;
+		double leftZ,leftZvar,rightZ,rightZvar;
+		Vec3D faceGradZ, faceGradZvar, left2right;
+		bool extrapolated;
+
+		parent=grid.face[f].parent; neighbor=grid.face[f].neighbor;
+		
+		// Get left, right and face values of Z and Zvar as well as the face normal gradients
+		get_Z_Zvar(parent,neighbor,f,
+			   leftZ,leftZvar,rightZ,rightZvar,
+      			   faceGradZ,faceGradZvar,left2right,extrapolated);
+		
+		double Chi=cell[parent].Chi;
+		if (grid.face[f].bc==INTERNAL) {
+			Chi=0.5*(Chi+cell[neighbor].Chi);
+		} else if (grid.face[f].bc==GHOST) {
+			Chi=0.5*(Chi+ghost[-1*neighbor-1].Chi);
+		}
+		
+		face[f].RL=UNIV_GAS_CONST/table.get_Mw(leftZ,leftZvar,Chi);
+		face[f].RR=UNIV_GAS_CONST/table.get_Mw(rightZ,rightZvar,Chi);
+		
+// 		if (grid.face[f].bc>=0) {
+// 			if (bc.region[grid.face[f].bc].type==INLET) {
+// 				face[f].R=UNIV_GAS_CONST/table.get_Mw(bc.region[grid.face[f].bc].Z,bc.region[grid.face[f].bc].Zvar,cell[grid.face[f].parent].Chi);
+// 			} else {
+// 				face[f].R=cell[grid.face[f].parent].R;
+// 			}
+// 		}
+		
 	}
 	return;
 }
