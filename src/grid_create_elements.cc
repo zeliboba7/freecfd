@@ -347,6 +347,7 @@ int Grid::create_ghosts() {
 		for (unsigned int c=0;c<cellCount;++c) {
 			cell[c].ghostCount=0;
 		} // end cell loop
+
 	} else {
 
 		int counter=0;
@@ -380,9 +381,6 @@ int Grid::create_ghosts() {
 		Vec3D nodeVec;
 		
 		// Loop faces
-		vector<int> bocoFaceCount;
-		bocoFaceCount.resize(raw.bocoNameMap.size());
-		for (int boco=0;boco<raw.bocoNameMap.size();++boco) bocoFaceCount[boco]=0;
 		for (unsigned int f=0; f<faceCount; ++f) {
 			if (face[f].bc==UNASSIGNED || face[f].bc>=0) { // if an unassigned boundary face
 				parent=face[f].parent;
@@ -432,13 +430,10 @@ int Grid::create_ghosts() {
 						}
 					}
 				}
-				if (face[f].bc>=0) bocoFaceCount[face[f].bc]++;
 			}
 		}
 		
-		for (int boco=0;boco<raw.bocoNameMap.size();++boco) {
-			cout << "[I Rank=" << Rank << "] Number of Faces on BC_" << boco+1 << "=" << bocoFaceCount[boco] << endl;
-		} 
+
 		
 
 		// Store the local id's of ghosts touch each node
@@ -476,6 +471,16 @@ int Grid::create_ghosts() {
 		} // end cell loop
 	} // if (np!=1)
 
+	vector<int> bocoFaceCount;
+	bocoFaceCount.resize(raw.bocoNameMap.size());
+	for (int boco=0;boco<raw.bocoNameMap.size();++boco) bocoFaceCount[boco]=0;
+	for (unsigned int f=0; f<faceCount; ++f) {
+		if (face[f].bc>=0) bocoFaceCount[face[f].bc]++;
+	}
+	for (int boco=0;boco<raw.bocoNameMap.size();++boco) {
+		cout << "[I Rank=" << Rank << "] Number of Faces on BC_" << boco+1 << "=" << bocoFaceCount[boco] << endl;
+	} 
+	
 	cout << "[I Rank=" << Rank << "] Number of Inter-Partition Ghost Cells= " << ghostCount << endl;
 	
 } // end int Grid::create_ghosts
