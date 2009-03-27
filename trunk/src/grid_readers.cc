@@ -45,6 +45,12 @@ int Grid::readCGNS() {
 	char zoneName[20],sectionName[20]; //baseName[20]
 	//  int nBases,cellDim,physDim;
 	int size[3];
+	
+	vector<int> bc_method;
+	int POINT_LIST=1;
+	int ELEMENT_LIST=2;
+	vector<set<int> > bc_element_list;
+	
 	globalNodeCount=0;
 	globalCellCount=0;
 	globalFaceCount=0;
@@ -72,6 +78,7 @@ int Grid::readCGNS() {
 
 	int bocoCount=0;
 	map<string,int>::iterator mit;
+	
 	for (int zoneIndex=1;zoneIndex<=nZones;++zoneIndex) { // For each zone
 		// Read the zone
 		cg_zone_read(fileIndex,baseIndex,zoneIndex,zoneName,size);
@@ -86,7 +93,7 @@ int Grid::readCGNS() {
 		if (Rank==0) cout << "[I] ...Number of Cells= " << size[1] << endl;
 		if (Rank==0) cout << "[I] ...Number of Sections= " << nSections << endl;
 		if (Rank==0) cout << "[I] ...Number of Boundary Conditions= " << nBocos << endl;
-
+	
 		// Read the node coordinates
 		int nodeStart[3],nodeEnd[3];
 		nodeStart[0]=nodeStart[1]=nodeStart[2]=1;
@@ -134,12 +141,62 @@ int Grid::readCGNS() {
 			}
 		}
 
-		// Read element ranges for all the boundary condition regions within the current zone
-		int bc_range[nBocos][2];
+		// Boundary condition regions may be given as element or point ranges, or element or point lists
+		// For each zone and each boundary condition region, store a point list, convert if another method is used
 		for (int bocoIndex=1;bocoIndex<=nBocos;++bocoIndex) {
 			int dummy;
-			cg_boco_read(fileIndex,baseIndex,zoneIndex,bocoIndex,bc_range[bocoIndex-1],&dummy);
+			// Find out the bc name and specification method 
+			char bocoName[20];
+			BCType_t bocotype;
+			PointSetType_t ptset_type;
+			int npnts;
+			DataType_t NormalDataType;
+ 			cg_boco_info(fileIndex,baseIndex,zoneIndex,bocoIndex,bocoName,
+ 				      &bocotype,&ptset_type,&npnts,&dummy,&dummy,&NormalDataType,&dummy);
+
+			// Check if this bc name matches to those found before
+			bool new_bc=true;
+			int bcIndex=-1;
+			string bcName(bocoName);
+			for (mit=raw.bocoNameMap.begin();mit!=raw.bocoNameMap.end();mit++) {
+				if( (*mit).first == bcName) {
+					new_bc=false;
+					bcIndex=(*mit).second;
+					break;
+				}
+			}
+			
+			// If no match, create new bc
+    		        if (new_bc) {
+				bcIndex=raw.bocoNameMap.size();
+				raw.bocoNameMap.insert(pair<string,int>(bcName,bcIndex));
+				bc_method.resize(bcIndex+1);
+				raw.bocoNodes.resize(bcIndex+1);
+				bc_element_list.resize(bcIndex+1);
+			}
+			
+			// Check the bc specification method
+			if (ptset_type==PointList) {
+				bc_method[bcIndex]=POINT_LIST;
+			} else if (ptset_type==ElementList) {
+				bc_method[bcIndex]=ELEMENT_LIST;
+			} else if (ptset_type==PointRange) {
+				bc_method[bcIndex]=POINT_LIST;
+			} else if (ptset_type==ElementRange) {
+				int bc_element_range[2];
+				cg_boco_read(fileIndex,baseIndex,zoneIndex,bocoIndex,bc_element_range,&dummy);
+				// Convert element range to element list
+				bc_method[bcIndex]=ELEMENT_LIST;
+				for (int i=bc_element_range[0];i<=bc_element_range[1];++i) {
+					bc_element_list[bcIndex].insert(i);
+				}
+			} else {
+				if (Rank==0) cerr << "[E] Boundary condition specification is not recognized" << endl;
+				exit(1);
+			}
+			
 		} // for boco
+		nBocos=raw.bocoNameMap.size();
 
 		// Loop sections within the zone
 		// These include connectivities of cells and bonudary faces
@@ -180,52 +237,67 @@ int Grid::readCGNS() {
 				
 				globalCellCount+=(elemEnd-elemStart+1);
 			} else { // If not a volume element
-				// Check if a boundary condition section
-				
-				bool bcFlag=false;
-				string bocoName(sectionName);
-				for (int nbc=0;nbc<nBocos;++nbc) { // for each bc in the current zone
-					// Check if bc element range matches the section element range
-					if (elemStart==bc_range[nbc][0] && elemEnd==bc_range[nbc][1]) {
-						bcFlag=true;
-						// Store the name and indices of boundary conditions in a map
-						// Loop the current content of the map
-						int bcIndex=-1;
-						for (mit=raw.bocoNameMap.begin();mit!=raw.bocoNameMap.end();mit++) {
-							// This will find the max index number inserted so far
-							bcIndex=max(bcIndex,(*mit).second);
-						}
-						// Increment for new bc
-						bcIndex++;
-						// Insert the current bc section
-						// (note: if the bc name is already in the map, this will not change anything, which is good)
-						raw.bocoNameMap.insert(pair<string,int>(bocoName,bcIndex));
-						break;
-					}
-				}
-				if (bcFlag) {
-					string bocoName(sectionName);
-					if (Rank==0) cout << "[I]    ...Found BC Section (BC_" << raw.bocoNameMap[bocoName]+1 << ") :" << sectionName << endl;
-					int bcIndex=raw.bocoNameMap[bocoName];
-					// If the current bc region was not found before on a different zone
-					if (bcIndex>=raw.bocoConnIndex.size()) {
-						vector<int> bocoConnIndex;
-						vector<int> bocoConnectivity;
+				// Scan all the boundary condition regions
+				for (int nbc=0;nbc<nBocos;++nbc) {
+					if (bc_method[nbc]==POINT_LIST) {	
+						
+					} else if (bc_method[nbc]==ELEMENT_LIST) {
 						for (int elem=0;elem<=(elemEnd-elemStart);++elem) {
-							bocoConnIndex.push_back(bocoConnectivity.size());
-							for (int n=0;n<elemNodeCount;++n) bocoConnectivity.push_back(zoneCoordMap[zoneIndex-1][elemNodes[elem][n]-1]);
-						}
-						raw.bocoConnIndex.push_back(bocoConnIndex);
-						raw.bocoConnectivity.push_back(bocoConnectivity);
-					} else { // If the current bc region was found before on a different zone
-						for (int elem=0;elem<=(elemEnd-elemStart);++elem) {
-							raw.bocoConnIndex[bcIndex].push_back(raw.bocoConnectivity[bcIndex].size());
-							for (int n=0;n<elemNodeCount;++n) {
-								raw.bocoConnectivity[bcIndex].push_back(zoneCoordMap[zoneIndex-1][elemNodes[elem][n]-1]);
+							if (bc_element_list[nbc].find(elemStart+elem)!=bc_element_list[nbc].end()) {
+								for (int n=0;n<elemNodeCount;++n) {
+									raw.bocoNodes[nbc].insert(zoneCoordMap[zoneIndex-1][elemNodes[elem][n]-1]);
+								}
 							}
 						}
 					}
-				} // end if bc
+				}
+
+				// Check if a boundary condition section
+				
+// 				bool bcFlag=false;
+// 				string bocoName(sectionName);
+// 				for (int nbc=0;nbc<nBocos;++nbc) { // for each bc in the current zone
+// 					// Check if bc element range matches the section element range
+// 					if (elemStart==bc_range[nbc][0] && elemEnd==bc_range[nbc][1]) {
+// 						bcFlag=true;
+// 						// Store the name and indices of boundary conditions in a map
+// 						// Loop the current content of the map
+// 						int bcIndex=-1;
+// 						for (mit=raw.bocoNameMap.begin();mit!=raw.bocoNameMap.end();mit++) {
+// 							// This will find the max index number inserted so far
+// 							bcIndex=max(bcIndex,(*mit).second);
+// 						}
+// 						// Increment for new bc
+// 						bcIndex++;
+// 						// Insert the current bc section
+// 						// (note: if the bc name is already in the map, this will not change anything, which is good)
+// 						raw.bocoNameMap.insert(pair<string,int>(bocoName,bcIndex));
+// 						break;
+// 					}
+// 				}
+// 				if (bcFlag) {
+// 					string bocoName(sectionName);
+// 					if (Rank==0) cout << "[I]    ...Found BC Section (BC_" << raw.bocoNameMap[bocoName]+1 << ") :" << sectionName << endl;
+// 					int bcIndex=raw.bocoNameMap[bocoName];
+// 					// If the current bc region was not found before on a different zone
+// 					if (bcIndex>=raw.bocoConnIndex.size()) {
+// 						vector<int> bocoConnIndex;
+// 						vector<int> bocoConnectivity;
+// 						for (int elem=0;elem<=(elemEnd-elemStart);++elem) {
+// 							bocoConnIndex.push_back(bocoConnectivity.size());
+// 							for (int n=0;n<elemNodeCount;++n) bocoConnectivity.push_back(zoneCoordMap[zoneIndex-1][elemNodes[elem][n]-1]);
+// 						}
+// 						raw.bocoConnIndex.push_back(bocoConnIndex);
+// 						raw.bocoConnectivity.push_back(bocoConnectivity);
+// 					} else { // If the current bc region was found before on a different zone
+// 						for (int elem=0;elem<=(elemEnd-elemStart);++elem) {
+// 							raw.bocoConnIndex[bcIndex].push_back(raw.bocoConnectivity[bcIndex].size());
+// 							for (int n=0;n<elemNodeCount;++n) {
+// 								raw.bocoConnectivity[bcIndex].push_back(zoneCoordMap[zoneIndex-1][elemNodes[elem][n]-1]);
+// 							}
+// 						}
+// 					}
+// 				} // end if bc
 			}// if
 		} // for section
 	} // for zone

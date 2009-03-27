@@ -244,7 +244,7 @@ void RANS::gradients(void) {
 	map<int,double>::iterator fit;
 	unsigned int f;
 	Vec3D areaVec;
-	double faceK,faceOmega,faceRho;
+	double faceK,faceOmega,faceRho,mu;
 	
 	for (unsigned int c=0;c<grid.cellCount;++c) {
 		// Initialize all gradients to zero
@@ -265,22 +265,24 @@ void RANS::gradients(void) {
 			f=grid.cell[c].faces[cf];
 			if (grid.face[f].bc>=0) { // if a boundary face
 				areaVec=grid.face[f].normal*grid.face[f].area/grid.cell[c].volume;
-				faceK=0.; faceOmega=0.; faceRho=0.;
+				faceK=0.; faceOmega=0.;
 				for (fit=grid.face[f].average.begin();fit!=grid.face[f].average.end();fit++) {
 					if ((*fit).first>=0) { // if contribution is coming from a real cell
 						faceK+=(*fit).second*cell[(*fit).first].k;
 						faceOmega+=(*fit).second*cell[(*fit).first].omega;
-						faceRho+=(*fit).second*grid.cell[(*fit).first].rho;
 					} else { // if contribution is coming from a ghost cell
 						faceK+=(*fit).second*ghost[-1*((*fit).first+1)].k;
 						faceOmega+=(*fit).second*ghost[-1*((*fit).first+1)].omega;
-						faceRho+=(*fit).second*grid.ghost[-1*((*fit).first+1)].rho;
 					}
 				}
 				
 				faceK=max(faceK,kLowLimit);
 				faceK=min(faceK,kHighLimit);
 				faceOmega=max(faceOmega,omegaLowLimit);
+				
+				faceRho=grid.cell[c].rho;
+				mu=viscosity;
+				if (FLAMELET) mu=flamelet.cell[c].mu;
 				
 				if (bc.region[grid.face[f].bc].type==INLET) {
 					faceK=bc.region[grid.face[f].bc].k;
@@ -295,7 +297,7 @@ void RANS::gradients(void) {
 					faceOmega=cell[c].omega;
 				} else if (bc.region[grid.face[f].bc].type==NOSLIP) {
 					faceK=0.;
-					faceOmega=60.*viscosity/(faceRho*0.075*
+					faceOmega=60.*mu/(faceRho*0.075*
 							pow(fabs((grid.cell[c].centroid-grid.face[f].centroid).dot(grid.face[f].normal)),2.));
 				}
 				
@@ -381,7 +383,7 @@ void RANS::update(double &resK, double &resOmega) {
 			counter++; 
 			double under_relax;
 			double limit_nu=viscosityRatioLimit*mu/grid.cell[c].rho;
-			under_relax=(limit_nu*cell[c].omega-cell[c].k)/(cell[c].update[0]-limit_nu*cell[c].update[1]);
+			under_relax=(limit_nu*cell[c].omega-cell[c].k)/(cell[c].update[0]-limit_nu*cell[c].update[1]+1.E-8);
 			under_relax=0.9*max(1.,under_relax);
 			cell[c].update[0]*=under_relax;
 			cell[c].update[1]*=under_relax;

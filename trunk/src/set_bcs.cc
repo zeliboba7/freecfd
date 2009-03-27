@@ -134,11 +134,15 @@ void setBCs(InputFile &input, BC &bc) {
 		
 
 		
-		bcRegion.v=region.get_Vec3D("v");
+		if (region.get_Vec3D("v").is_found) {
+			bcRegion.v=region.get_Vec3D("v");
+			bcRegion.kind=VELOCITY;
+		}
 		if (region.get_double("mdot").is_found) {
 			double mdot=region.get_double("mdot");
-			bcRegion.mdot=region.get_double("mdot");
-			bcRegion.v=-mdot/(bcRegion.rho*bcRegion.area)*bcRegion.areaVec.norm();
+			bcRegion.mdot=mdot;
+			bcRegion.kind=MDOT;
+ 			//bcRegion.v=-mdot/(bcRegion.rho*bcRegion.area)*bcRegion.areaVec.norm();
 		}
 		
 		if (kind=="none") {

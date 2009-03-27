@@ -220,7 +220,10 @@ void get_jacobians(const int var) {
 
 	
 	// Perturb left state
-	if (FLAMELET) eos.R=flamelet.face[face.index].RL;
+	if (FLAMELET) {
+		eos.R=flamelet.face[face.index].RL;
+		Gamma=flamelet.face[face.index].gammaL;
+	}
 	state_perturb(leftPlus,face,var,epsilon);
 	// If right state is a boundary, correct the condition according to changes in left state
 	if (face.bc>=0) right_state_update(leftPlus,rightPlus,face);
@@ -251,7 +254,10 @@ void get_jacobians(const int var) {
 			epsilon=min(-1.*sqrt_machine_error,factor*right.update[var]); 
 		}
 		
-		if (FLAMELET) eos.R=flamelet.face[face.index].RR;
+		if (FLAMELET) {
+			eos.R=flamelet.face[face.index].RR;
+			Gamma=flamelet.face[face.index].gammaR;
+		}
 		state_perturb(rightPlus,face,var,epsilon);	
 		convective_face_flux(left,rightPlus,face,&fluxPlus.convective[0]);
 		
@@ -275,7 +281,10 @@ void get_jacobians(const int var) {
 
 void left_state_update(Cell_State &left,Face_State &face) {
 
-	if (FLAMELET) eos.R=flamelet.face[face.index].RL;
+	if (FLAMELET) {
+		eos.R=flamelet.face[face.index].RL;
+		Gamma=flamelet.face[face.index].gammaL;
+	}
 	
 	unsigned int parent;
 	Vec3D deltaV;
@@ -315,7 +324,10 @@ void left_state_update(Cell_State &left,Face_State &face) {
 
 void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 	
-	if (FLAMELET) eos.R=flamelet.face[face.index].RR;
+	if (FLAMELET) {
+		eos.R=flamelet.face[face.index].RR;
+		Gamma=flamelet.face[face.index].gammaR;
+	}
 	
 	if (face.bc==INTERNAL) {// internal face
 
@@ -374,15 +386,11 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 			// Set the specified density
 			right.rho=bc.region[face.bc].rho;
 			// Extrapolate pressure from left, adjust temperature
-			// Will be fixed when given velocity is imposed in below
+			// Will be fixed when given velocity is imposed below
 			right.p=left.p;
 			right.T=eos.T(right.p,right.rho);
-			//right.T=left.T;
 			right.T_center=2.*right.T-left.T_center;
-			//right.p=eos.p(right.rho,right.T);
-			//right.p=left.p;
-			//right.p=(left.p+Pref)*pow(right.rho/left.rho,Gamma)-Pref;
-			//right.T=eos.T(right.p,right.rho);
+
 		} else {
 			// If nothing is specified, everything is extrapolated
 			right.p=left.p;
@@ -390,18 +398,7 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 			right.T_center=2.*right.T-left.T_center;
 			right.rho=left.rho;
 		}
-		
-// 		if (bc.region[face.bc].specified==BC_FLAMELET_INLET || bc.region[face.bc].specified==BC_FLAMELET_INLET_P) {
-// 			right.rho=bc.region[face.bc].rho;
-// 			right.p=left.p;
-// 			right.T=eos.T(right.p,right.rho);
-// 			//right.T=left.T;
-// 			right.T_center=2.*right.T-left.T_center;
-// 			//right.v=bc.region[face.bc].v;
-// 			//cout << bc.region[face.bc].area << "\t" << right.v << endl; exit(1);
-// 			//right.v=bc.region[face.bc].v*bc.region[face.bc].rho/right.rho;
-// 		}
-				
+	
 		if (bc.region[face.bc].thermalType==ADIABATIC) right.T_center=left.T_center;
 	
 		if (bc.region[face.bc].type==SLIP) {
@@ -415,12 +412,35 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 			right.v=-1.*left.v;
 			right.v_center=-1.*left.v_center;
 		} else if (bc.region[face.bc].type==INLET) {
-			// Get pressure from left state by matching the total pressures of the left and the right
-			right.v=bc.region[face.bc].v;
+			if (bc.region[face.bc].kind==MDOT) {
+				right.v=-bc.region[face.bc].mdot/(right.rho*bc.region[face.bc].area)*bc.region[face.bc].areaVec.norm();
+			} else if (bc.region[face.bc].kind==VELOCITY) {
+				right.v=bc.region[face.bc].v;
+			}
+			
+			double uNL=left.v.dot(face.normal);
+			double uNR=right.v.dot(face.normal);
+			double aL=sqrt(Gamma*(left.p+Pref)/left.rho);
+			double MachL=-uNL/aL;
+
+			if (MachL>=1.) { // supersonic inlet, can't extrapolate anything
+				if (!bc.region[face.bc].specified==BC_STATE) {
+					cerr << "[E] Inlet at BC_" << face.bc+1 << " became supersonic, need to specify the themodynamic state" << endl;
+					exit(1);
+				}
+				// State is already set, everything is fine
+			} else {
+				//if (MachL<0.) uNL=0.; // Flow reversal at inlet, not good. cut off the normal component
+				// Extrapolate outgoing Riemann invariant (isentropic) (uN+2a/(gamma-1)
+				// TODO The following is only for specified density, Need to handle specified press. or tempetature or mdot too
+				right.p=sqrt(right.rho/Gamma)*(0.5*(Gamma-1.)*(uNL-uNR)+aL);
+				right.p*=right.p;
+				right.p-=Pref;
+			}
+		
 			right.v_center=2.*right.v-left.v_center; 
-			right.p=left.p-0.5*(left.rho*left.v.dot(left.v)-right.rho*right.v.dot(right.v));
 			right.T=eos.T(right.p,right.rho);
-			right.T_center=2.*right.T-left.T_center;
+			right.T_center=right.T; //2.*right.T-left.T_center;
 		} else if (bc.region[face.bc].type==OUTLET) {
 			right.v=left.v;
 			right.v_center=2.*right.v-left.v_center; 
@@ -536,9 +556,6 @@ void state_perturb(Cell_State &state,Face_State &face,int var,double epsilon) {
 	{
 		case 0 : // p
 			state.p+=epsilon;
-			// Assume isentropic compression and fix rho and T
-			//state.rho*=pow((state.p+Pref)/(state.p-epsilon+Pref),1./Gamma);
-			//state.T=eos.T(state.p,state.rho);
 			state.rho=eos.rho(state.p,state.T);
 			state.a=sqrt(Gamma*(state.p+Pref)/state.rho);
 			state.H=state.a*state.a/(Gamma-1.)+0.5*state.v.dot(state.v);
@@ -570,7 +587,6 @@ void state_perturb(Cell_State &state,Face_State &face,int var,double epsilon) {
 		case 4 : // T
 			state.T+=epsilon;
 			state.T_center+=epsilon;
-// 			state.p=(state.p+Pref)*pow((state.T+Tref)/(state.T-epsilon+Tref),Gamma/(Gamma-1.))-Pref;
  			state.rho=eos.rho(state.p,state.T);
  			state.a=sqrt(Gamma*(state.p+Pref)/state.rho);
  			state.H=state.a*state.a/(Gamma-1.)+0.5*state.v.dot(state.v);

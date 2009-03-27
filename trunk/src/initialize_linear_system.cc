@@ -42,7 +42,13 @@ inline void preconditioner_none(Cell &c,int cid,double P[][5]) {
 	drho_dT=-1.*c.rho/T;
 	drho_dp=c.rho/p;
 
-	double c_p=Gamma/(Gamma-1.)*p/(c.rho*T); 
+	double c_p;
+	if (FLAMELET) {
+		Gamma=flamelet.cell[cid].gamma;
+		c_p=Gamma*flamelet.cell[cid].R/(Gamma-1.);
+	} else {
+		c_p=Gamma/(Gamma-1.)*p/(c.rho*T);
+	}
 	
 	double H=c_p*T+0.5*c.v.dot(c.v);
 	
@@ -69,6 +75,7 @@ inline void preconditioner_ws95(Cell &c,int cid,double &mu,double P[][5]) {
 	// Reference velocity
 	double Ur;
 	
+	if (FLAMELET) Gamma=flamelet.cell[cid].gamma;
 	// Speed of sound 
 	double a=sqrt(Gamma*p/c.rho); // For ideal gas
 	
@@ -90,7 +97,13 @@ inline void preconditioner_ws95(Cell &c,int cid,double &mu,double P[][5]) {
 	
 	// For ideal gas
 	drho_dT=-1.*c.rho/T;
-	double c_p=Gamma/(Gamma-1.)*p/(c.rho*T); 
+	double c_p;
+	if (FLAMELET) {
+		Gamma=flamelet.cell[cid].gamma;
+		c_p=Gamma*flamelet.cell[cid].R/(Gamma-1.);
+	} else {
+		c_p=Gamma/(Gamma-1.)*p/(c.rho*T);
+	}
 	drho_dp=1./(Ur*Ur)-drho_dT/(c.rho*c_p); // This is the only change over non-preconditioned
 	
 	double H=c_p*T+0.5*c.v.dot(c.v);

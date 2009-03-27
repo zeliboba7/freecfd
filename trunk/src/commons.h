@@ -72,6 +72,8 @@
 // Options for Boundary Condition Type variants (kind)
 #define NO_REVERSE 1
 #define DAMP_REVERSE 2
+#define VELOCITY 3
+#define MDOT 4
 // Face bc type numbering
 #define INTERNAL -1
 #define UNASSIGNED -2

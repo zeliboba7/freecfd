@@ -242,6 +242,27 @@ int main(int argc, char *argv[]) {
 			
 			mpi_update_ghost_primitives();
 			
+			// Solve Navier-Stokes Equations
+			// Gradient are calculated for NS and/or second order schemes
+			if (EQUATIONS==NS | order==SECOND ) {
+			// Calculate all the cell gradients for each variable
+				grid.gradients();
+			// Update gradients of the ghost cells
+				mpi_update_ghost_gradients();
+				if (GRAD_TEST){
+					write_grad();
+					exit(1);
+				}
+			}
+		
+			if (LIMITER!=NONE) {
+			// Limit gradients
+				grid.limit_gradients(); 
+			// Update limited gradients of the ghost cells
+				mpi_update_ghost_gradients();
+			}
+			
+			
 			if (TURBULENCE_MODEL!=NONE) {
 				rans.mpi_update_ghost();
 				rans.terms();
@@ -255,34 +276,11 @@ int main(int argc, char *argv[]) {
 		get_dt();
 		get_CFLmax();
 		
-		// Solve Navier-Stokes Equations
-		// Gradient are calculated for NS and/or second order schemes
-		if (EQUATIONS==NS | order==SECOND ) {
-			// Calculate all the cell gradients for each variable
-			grid.gradients();
-			// Update gradients of the ghost cells
-			mpi_update_ghost_gradients();
-			if (GRAD_TEST){
-				write_grad();
-				exit(1);
-			}
-		}
-		
-		if (LIMITER!=NONE) {
-			// Limit gradients
-			grid.limit_gradients(); 
-			// Update limited gradients of the ghost cells
-			mpi_update_ghost_gradients();
-		}
+
 		initialize_linear_system();
 		assemble_linear_system();
+		if (FLAMELET) update_face_mdot();
 		petsc_solve(nIter,rNorm);
-		
-		// Update Navier-Stokes
-		update();
-		mpi_update_ghost_primitives();
-		
-		if (TURBULENCE_MODEL!=NONE) update_face_mdot();
 		
 		// Solve Flamelet Equations
 		if (FLAMELET) {
@@ -298,8 +296,29 @@ int main(int argc, char *argv[]) {
 			flamelet.mpi_update_ghost_gradients(); // Called again to update the ghost gradients
 			flamelet.update_face_properties();
 		}
+
+		// Update Navier-Stokes
+		update();
+		mpi_update_ghost_primitives();
+		
+		// Solve Navier-Stokes Equations
+		// Gradient are calculated for NS and/or second order schemes
+		if (EQUATIONS==NS | order==SECOND ) {
+			// Calculate all the cell gradients for each variable
+			grid.gradients();
+			// Update gradients of the ghost cells
+			mpi_update_ghost_gradients();
+		}
+		
+		if (LIMITER!=NONE) {
+			// Limit gradients
+			grid.limit_gradients(); 
+			// Update limited gradients of the ghost cells
+			mpi_update_ghost_gradients();
+		}
 		
 		if (TURBULENCE_MODEL!=NONE) {
+			update_face_mdot();
 			rans.gradients();
 			rans.mpi_update_ghost_gradients();
 			rans.limit_gradients();
@@ -550,9 +569,9 @@ void get_dt(void) {
 			    fabs((*cit).update[4]) > fabs(((*cit).T+Tref)*dt_relax) ) {
 				//(*cit).dt*=(1.-dt_relax);
 				(*cit).dt*=0.5;
-			} else {
+			} else if (fabs((*cit).update[0]) < 0.5*fabs(((*cit).p+Pref)*dt_relax) ||
+			           fabs((*cit).update[4]) < 0.5*fabs(((*cit).T+Tref)*dt_relax) ) {
 				(*cit).dt*=(1.+dt_relax);
-			
 			}
 			(*cit).dt=min((*cit).dt,dt_max);
 			(*cit).dt=max((*cit).dt,dt_min);

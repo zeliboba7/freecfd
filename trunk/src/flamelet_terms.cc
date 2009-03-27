@@ -115,24 +115,24 @@ void Flamelet::terms(void) {
 
 		double drho_dZ=table.get_drho_dZ(leftZ,leftZvar,Chi);
 		jacL[0]=weightL1*grid.face[f].mdot*grid.face[f].area; // convective
-		//jacL[0]+=weightL1*grid.face[f].uN*grid.face[f].area*drho_dZ*(weightL1*leftZ+weightR1*rightZ); // convective
+		jacL[0]+=weightL1*grid.face[f].uN*grid.face[f].area*drho_dZ*(weightL1*leftZ+weightR1*rightZ); // convective
 		if (!extrapolated) jacL[0]+=(diff+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
 
 		// dF_Z/dZ_right
 		drho_dZ=table.get_drho_dZ(rightZ,rightZvar,Chi);
 		jacR[0]=weightR1*grid.face[f].mdot*grid.face[f].area; // convective
-		//jacR[0]+=weightR1*grid.face[f].uN*grid.face[f].area*drho_dZ*(weightL1*leftZ+weightR1*rightZ); // convective
+		jacR[0]+=weightR1*grid.face[f].uN*grid.face[f].area*drho_dZ*(weightL1*leftZ+weightR1*rightZ); // convective
 		if (!extrapolated) jacR[0]-=(diff+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
 		
 		// dF_Zvar/dZvar_left
 		double drho_dZvar=table.get_drho_dZvar(leftZ,leftZvar,Chi);
 		jacL[1]=weightL1*grid.face[f].mdot*grid.face[f].area; // convective
-		//jacL[1]+=weightL1*grid.face[f].uN*grid.face[f].area*drho_dZvar*(weightL1*leftZvar+weightR1*rightZvar); // convective
+		jacL[1]+=weightL1*grid.face[f].uN*grid.face[f].area*drho_dZvar*(weightL1*leftZvar+weightR1*rightZvar); // convective
 		if (!extrapolated) jacL[1]+=(diff+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
 		// dF_Zvar/dZvar_right
 		drho_dZvar=table.get_drho_dZvar(rightZ,rightZvar,Chi);
 		jacR[1]=weightR1*grid.face[f].mdot*grid.face[f].area; // convective
-		//jacR[1]+=weightR1*grid.face[f].uN*grid.face[f].area*drho_dZvar*(weightL1*leftZvar+weightR1*rightZvar); // convective
+		jacR[1]+=weightR1*grid.face[f].uN*grid.face[f].area*drho_dZvar*(weightL1*leftZvar+weightR1*rightZvar); // convective
 		if (!extrapolated) jacR[1]-=(diff+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
 		
 		// Insert flux jacobians for the parent cell

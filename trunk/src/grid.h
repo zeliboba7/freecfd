@@ -139,6 +139,7 @@ public:
 	std::vector<double> x,y,z;
 	std::vector<int> cellConnIndex,cellConnectivity;
 	std::vector< vector<int> > bocoConnIndex,bocoConnectivity;
+	std::vector< set<int> > bocoNodes; // Node list for each boundary condition region
 	std::map<string,int> bocoNameMap;
 };
 
@@ -148,11 +149,6 @@ public:
 	std::map<unsigned int,unsigned int> nodeGlobal2Local;
 	std::map<unsigned int,unsigned int> cellGlobal2Local;
 	std::map<unsigned int,unsigned int> ghostGlobal2Local;
-	// This stores the bc region numbers that 'some' nodes touch to
-	// Those 'some' nodes happen to be the first nodes in each bc face connectivity list
-	std::map<unsigned int, vector<int> > nodeBCregions;
-	// For those 'some' nodes, this stores the conn list of the corresponsing bc faces
-	std::map<unsigned int, vector<set<unsigned int> > > nodeBCregionFaceConn;
 
 	idxtype* adjIndex;
 	idxtype* adjacency;
