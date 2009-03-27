@@ -54,12 +54,12 @@ void Flamelet_Table::read(string fileName) {
 	}
 
 	chemTable >> nZ; if (Rank==0) cout << "[I] ...Number of Z points: " << nZ << endl;
-	chemTable >> nZvar; if (Rank==0) cout << "[I] ...Number of Zvar points: " << nZvar << endl;
+	chemTable >> nS; if (Rank==0) cout << "[I] ...Number of S points: " << nS << endl;
 	chemTable >> nChi; if (Rank==0) cout << "[I] ...Number of Chi points: " << nChi << endl;
-	chemTable >> nVar;
+	chemTable >> nVar; if (Rank==0) cout << "[I] ...Number of variables: " << nVar << endl;
 	
 	Z.resize(nZ);
-	Zvar.resize(nZvar);
+	S.resize(nS);
 	Chi.resize(nChi);
 	weights.resize(6);
 
@@ -67,23 +67,29 @@ void Flamelet_Table::read(string fileName) {
 	T.resize(nZ);
 	mu.resize(nZ);
 	diffusivity.resize(nZ);
-	Y.resize(nZ);
+	c_p.resize(nZ);
+	Mw.resize(nZ);
+	//Y.resize(nZ);
 	for (int i=0;i<nZ;++i) {
-		rho[i].resize(nZvar);
-		T[i].resize(nZvar);
-		mu[i].resize(nZvar);
-		diffusivity[i].resize(nZvar);
-		Y[i].resize(nZvar);
-		for (int j=0;j<nZvar;++j) {
+		rho[i].resize(nS);
+		T[i].resize(nS);
+		mu[i].resize(nS);
+		diffusivity[i].resize(nS);
+		c_p[i].resize(nS);
+		Mw[i].resize(nS);
+		//Y[i].resize(nS);
+		for (int j=0;j<nS;++j) {
 			rho[i][j].resize(nChi);
 			T[i][j].resize(nChi);
 			mu[i][j].resize(nChi);
 			diffusivity[i][j].resize(nChi);
-			Y[i][j].resize(nChi);
+			c_p[i][j].resize(nChi);
+			Mw[i][j].resize(nChi);
+			//Y[i][j].resize(nChi);
 		}
 	}	
 	for (int i=0;i<nZ;++i) chemTable >> Z[i];
-	for (int i=0;i<nZvar;++i) chemTable >> Zvar[i];
+	for (int i=0;i<nS;++i) chemTable >> S[i];
 	for (int i=0;i<nChi;++i) chemTable >> Chi[i];
 	
 	double dummy;
@@ -92,22 +98,29 @@ void Flamelet_Table::read(string fileName) {
 		chemTable >> tag;
 		if (Rank==0) cout << "[I] ...Found variable: " << tag << endl;
 		if (tag=="RHO") {
-			for (int j=0;j<nZ;++j) for (int k=0;k<nZvar;++k) for (int m=0;m<nChi;++m) chemTable >> rho[j][k][m];
+			for (int j=0;j<nZ;++j) for (int k=0;k<nS;++k) for (int m=0;m<nChi;++m) chemTable >> rho[j][k][m];
 		} else if (tag=="T") {
-			for (int j=0;j<nZ;++j) for (int k=0;k<nZvar;++k) for (int m=0;m<nChi;++m) chemTable >> T[j][k][m]; 
+			for (int j=0;j<nZ;++j) for (int k=0;k<nS;++k) for (int m=0;m<nChi;++m) chemTable >> T[j][k][m]; 
 		} else if (tag=="VISC") {
-			for (int j=0;j<nZ;++j) for (int k=0;k<nZvar;++k) for (int m=0;m<nChi;++m) chemTable >> mu[j][k][m]; 
+			for (int j=0;j<nZ;++j) for (int k=0;k<nS;++k) for (int m=0;m<nChi;++m) chemTable >> mu[j][k][m]; 
 		} else if (tag=="DIFF") {
-			for (int j=0;j<nZ;++j) for (int k=0;k<nZvar;++k) for (int m=0;m<nChi;++m) chemTable >> diffusivity[j][k][m]; 
-		} else if (tag.substr(0,2)=="Y_") {
-			Species temp(tag.substr(2));
-			species.push_back(temp);
-			for (int j=0;j<nZ;++j) for (int k=0;k<nZvar;++k) for (int m=0;m<nChi;++m) {
-				Y[j][k][m].resize(species.size());
-				chemTable >> Y[j][k][m][species.size()-1];
+			for (int j=0;j<nZ;++j) for (int k=0;k<nS;++k) for (int m=0;m<nChi;++m) chemTable >> diffusivity[j][k][m]; 
+// 		} else if (tag.substr(0,2)=="Y_") {
+// 			Species temp(tag.substr(2));
+// 			species.push_back(temp);
+// 			for (int j=0;j<nZ;++j) for (int k=0;k<nS;++k) for (int m=0;m<nChi;++m) {
+// 				Y[j][k][m].resize(species.size());
+// 				chemTable >> Y[j][k][m][species.size()-1];
+// 			}
+		} else if (tag=="C_P") {
+			for (int j=0;j<nZ;++j) for (int k=0;k<nS;++k) for (int m=0;m<nChi;++m) chemTable >> c_p[j][k][m];
+		} else if (tag=="MW") {
+			for (int j=0;j<nZ;++j) for (int k=0;k<nS;++k) for (int m=0;m<nChi;++m) {
+				chemTable >> Mw[j][k][m];
+				Mw[j][k][m]/=1000.;
 			}
 		} else {
-			for (int j=0;j<nZ;++j) for (int k=0;k<nZvar;++k) for (int m=0;m<nChi;++m) chemTable >> dummy;
+			for (int j=0;j<nZ;++j) for (int k=0;k<nS;++k) for (int m=0;m<nChi;++m) chemTable >> dummy;
 		}		
       	}
 	
@@ -115,6 +128,15 @@ void Flamelet_Table::read(string fileName) {
 } // end Flamelet_Table::read
 
 void Flamelet_Table::get_weights(double &Z_in, double &Zvar_in, double &Chi_in) {
+	
+	// Convert Zvar_in to S_in
+	double S_in;
+	
+	if ( fabs(Z_in)<1.e-8 || fabs(Z_in-1.)<1.e-8) {
+		S_in=0.;
+	} else {
+		S_in=Zvar_in/(Z_in*(1.-Z_in));
+	}
 	
 	i1=-1;
 	if (Z_in<=Z[0]) {
@@ -134,19 +156,19 @@ void Flamelet_Table::get_weights(double &Z_in, double &Zvar_in, double &Chi_in) 
 	weights[1]=1.0-weights[0];
 	//allow for non-equdistant grid spacing for x2=Zvar
 	i2=-1;
-	if (Zvar_in<=Zvar[0]) {
+	if (S_in<=S[0]) {
 		i2=0;
 		weights[2]=1.0;
-	} else if (Zvar_in>=Zvar[nZvar-1]) {
-		i2=nZvar-2;
+	} else if (S_in>=S[nS-1]) {
+		i2=nS-2;
 		weights[2]=0.0;
 	} else {
-		for (int i=0;i<nZvar-1;++i) {
-			if (Zvar_in<=Zvar[i+1]) { 
+		for (int i=0;i<nS-1;++i) {
+			if (S_in<=S[i+1]) { 
 				i2=i; break;
 			}
 		}
-		weights[2]=1.0-(Zvar_in-Zvar[i2])/(Zvar[i2+1]-Zvar[i2]);	
+		weights[2]=1.0-(S_in-S[i2])/(S[i2+1]-S[i2]);	
 	}
 	weights[3]=1.0-weights[2];
 	//allow for non-equdistant grid spacing for x3=chiMean
@@ -212,6 +234,7 @@ void Flamelet_Table::get_rho_T_comp(double &p_in, double &Z_in, double &Zvar_in,
 	T_table=get_T(Z_in,Zvar_in,Chi_in);
 	rho_table=get_rho(Z_in,Zvar_in,Chi_in,false);
 	Mw_table=get_Mw(Z_in,Zvar_in,Chi_in,false);
+	Gamma=get_gamma(Z_in,Zvar_in,Chi_in,false);
 	p_table=rho_table*UNIV_GAS_CONST/Mw_table*T_table;
 	
 	// Assume isentropic compression or expansion from p_table to p_in and correct temperature and density
@@ -255,35 +278,49 @@ double Flamelet_Table::get_diffusivity(double &Z_in, double &Zvar_in, double &Ch
 			+weights[1]*diffusivity[i1+1][i2+1][i3+1] ) );
 }
 
+double Flamelet_Table::get_c_p(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights) {
+	
+	if (refreshWeights) get_weights(Z_in,Zvar_in,Chi_in);
+	
+	return  weights[4]*( weights[2]*( weights[0]*c_p[i1][i2][i3]
+			+weights[1]*c_p[i1+1][i2][i3] )
+			+weights[3]*( weights[0]*c_p[i1][i2+1][i3]
+			+weights[1]*c_p[i1+1][i2+1][i3] ) ) 
+			+weights[5]*( weights[2]*( weights[0]*c_p[i1][i2][i3+1]
+			+weights[1]*c_p[i1+1][i2][i3+1] ) 
+			+weights[3]*( weights[0]*c_p[i1][i2+1][i3+1] 
+			+weights[1]*c_p[i1+1][i2+1][i3+1] ) );
+}
+
 double Flamelet_Table::get_Mw(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights) {
 	
 	if (refreshWeights) get_weights(Z_in,Zvar_in,Chi_in);
 	
-	double Mw=0.;
-	double Mw_s,Y_s;
-	double Y_sum=0.;
-	for (int s=0;s<species.size();++s) {
-		Y_s=weights[4]*( weights[2]*( weights[0]*Y[i1][i2][i3][s]
-				+weights[1]*Y[i1+1][i2][i3][s] )
-				+weights[3]*( weights[0]*Y[i1][i2+1][i3][s]
-				+weights[1]*Y[i1+1][i2+1][i3][s] ) ) 
-				+weights[5]*( weights[2]*( weights[0]*Y[i1][i2][i3+1][s] 
-				+weights[1]*Y[i1+1][i2][i3+1][s] ) 
-				+weights[3]*( weights[0]*Y[i1][i2+1][i3+1][s]
-				+weights[1]*Y[i1+1][i2+1][i3+1][s] ) );
-		Mw+=Y_s/species[s].Mw;
-		Y_sum+=Y_s;
-	}
-	Mw=1./Mw;
-	Mw/=Y_sum; // small fix just in case sum of all the species mass fractions are not exactly 1
+	return  weights[4]*( weights[2]*( weights[0]*Mw[i1][i2][i3]
+			+weights[1]*Mw[i1+1][i2][i3] )
+			+weights[3]*( weights[0]*Mw[i1][i2+1][i3]
+			+weights[1]*Mw[i1+1][i2+1][i3] ) ) 
+			+weights[5]*( weights[2]*( weights[0]*Mw[i1][i2][i3+1]   
+			+weights[1]*Mw[i1+1][i2][i3+1] ) 
+			+weights[3]*( weights[0]*Mw[i1][i2+1][i3+1] 
+			+weights[1]*Mw[i1+1][i2+1][i3+1] ) );
 	
-	return Mw;
+}
+
+double Flamelet_Table::get_gamma(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights) {
+	
+	if (refreshWeights) get_weights(Z_in,Zvar_in,Chi_in);
+	
+	double c_p_table=get_c_p(Z_in,Zvar_in,Chi_in,false);
+	double R=UNIV_GAS_CONST/get_Mw(Z_in,Zvar_in,Chi_in,false);
+		
+	return c_p_table/(c_p_table-R);
 }
 
 double Flamelet_Table::get_drho_dZ(double &Z_in, double &Zvar_in, double &Chi_in) {
 	
 	get_weights(Z_in,Zvar_in,Chi_in);
-	// Know we know i1
+	// Now we know i1
 	double Z_minus,Z_plus;
 	if (i1<Z.size()) {
 		Z_minus=Z[i1];
@@ -300,15 +337,17 @@ double Flamelet_Table::get_drho_dZ(double &Z_in, double &Zvar_in, double &Chi_in
 
 double Flamelet_Table::get_drho_dZvar(double &Z_in, double &Zvar_in, double &Chi_in) {
 	
-	get_weights(Z_in,Zvar_in,Chi_in);
-	// Know we know i2
-	double Zvar_minus,Zvar_plus;
-	if (i2<Zvar.size()) {
-		Zvar_minus=Z[i2];
-		Zvar_plus=Z[i2+1];
-	} else {
-		Zvar_minus=Z[i2-1];
-		Zvar_plus=Z[i2];
-	}
-	return (get_rho(Z_in,Zvar_plus,Chi_in)-get_rho(Z_in,Zvar_minus,Chi_in))/(Zvar_plus-Zvar_minus);
+// 	get_weights(Z_in,Zvar_in,Chi_in);
+// 	// Know we know i2
+// 	double Zvar_minus,Zvar_plus;
+// 	if (i2<Zvar.size()) {
+// 		Zvar_minus=Z[i2];
+// 		Zvar_plus=Z[i2+1];
+// 	} else {
+// 		Zvar_minus=Z[i2-1];
+// 		Zvar_plus=Z[i2];
+// 	}
+// 	return (get_rho(Z_in,Zvar_plus,Chi_in)-get_rho(Z_in,Zvar_minus,Chi_in))/(Zvar_plus-Zvar_minus);
+	
+	return 0.;
 }

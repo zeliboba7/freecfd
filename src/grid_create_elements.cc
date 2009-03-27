@@ -96,11 +96,7 @@ int Grid::create_nodes_cells() {
 			
 			cell.push_back(temp);
 		} // end if cell is in current proc
-// [DEBUG]
-// 		if (c==311) {
-// 			cout << cell[c].nodeCount << endl;
-// 			for (int i=0;i<cell[c].nodeCount;++i) cout << "\t" << cell[c].nodes[i] << "\t" << cell[c].node(i) << endl;
-// 		}
+
 	} // end loop global cell count
 	
 	cout << "[I Rank=" << Rank << "] Created cells and nodes" << endl;
@@ -149,42 +145,17 @@ int Grid::create_nodes_cells() {
 
 	cout << "[I Rank=" << Rank << "] Computed cell-cell connectivity" << endl;
 	
-	// Mark nodes that touch boundaries and store which boundary(s) in node.bc set
-	for (int breg=0;breg<raw.bocoNameMap.size();++breg) { // for each boundary condition region defined in grid file
-		int bfnodeCount; // Boundary face node count
-		for (int bf=0;bf<raw.bocoConnIndex[breg].size();++bf) { // for each boundary face in current region
-			if (raw.bocoConnectivity[breg][raw.bocoConnIndex[breg][bf]]!=-1) {
-				// Get number of nodes of the boundary face
-				if (bf==raw.bocoConnIndex[breg].size()-1) {
-					bfnodeCount=raw.bocoConnectivity[breg].size()-raw.bocoConnIndex[breg][bf];
-				} else {
-					bfnodeCount=raw.bocoConnIndex[breg][bf+1]-raw.bocoConnIndex[breg][bf];
-				}
-				unsigned int faceNode;
-				// See if the face is on the current partition
-				bool onCurrent=true;
-				for (unsigned int i=0;i<bfnodeCount;++i) {
-					if (maps.nodeGlobal2Local.find(raw.bocoConnectivity[breg][raw.bocoConnIndex[breg][bf]+i]) == maps.nodeGlobal2Local.end()) {
-						onCurrent=false;
-						break;
-					}
-				}
-				if (onCurrent) {
-					// Grab the first node of the the boundary face
-					faceNode=maps.nodeGlobal2Local[raw.bocoConnectivity[breg][raw.bocoConnIndex[breg][bf]] ];
-					maps.nodeBCregions[faceNode].push_back(breg);
-					std::set<unsigned int> nodeSet;
-					nodeSet.clear();
-					for (unsigned int i=0;i<bfnodeCount;++i) {
-						nodeSet.insert(maps.nodeGlobal2Local[raw.bocoConnectivity[breg][raw.bocoConnIndex[breg][bf]+i] ]);
-						
-					}
-					maps.nodeBCregionFaceConn[faceNode].push_back(nodeSet);
-				}
+	for (int nbc=0;nbc<raw.bocoNodes.size();++nbc) {
+		set<int> temp;
+		set<int>::iterator sit;
+		for (sit=raw.bocoNodes[nbc].begin();sit!=raw.bocoNodes[nbc].end();sit++) {
+			if (maps.nodeGlobal2Local.find(*sit)!=maps.nodeGlobal2Local.end()) {
+				temp.insert(maps.nodeGlobal2Local[*sit]);
 			}
 		}
+		raw.bocoNodes[nbc].swap(temp);
+		temp.clear();
 	}
-	
 	
 } //end Grid::create_nodes_cells
 
@@ -222,10 +193,6 @@ int Grid::create_faces() {
 
 	// Search and construct faces
 	faceCount=0;
-
-	// Keep track of how many faces are on each boundary
-	int boundaryFaceCount[raw.bocoNameMap.size()];
-	for (int boco=0;boco<raw.bocoNameMap.size();++boco) boundaryFaceCount[boco]=0;
 	
 	// Time the face search
 	double timeRef, timeEnd;
@@ -303,37 +270,50 @@ int Grid::create_faces() {
 				// Insert the node list
 				for (unsigned int fn=0;fn<tempFace.nodeCount;++fn) tempFace.nodes.push_back(tempNodes[fn]);
 				if (!internal) { // If the face is either at inter-partition or boundary
-					tempFace.bc=UNASSIGNED; 
-					// As the bc faces and inter-partition faces are found, this will be overwritten.
-					// At the end, there should be no face with this value.
-					// Loop the current face nodes
-					for (unsigned int i=0;i<tempFace.nodeCount;++i) {
-						unsigned int nn=tempNodes[i];
-						bool match;
-						// Find 
-						if(maps.nodeBCregions.find(nn)!=maps.nodeBCregions.end()) { // If this node touches a boundary
-							// Loop through the different boundary regions assigned for that node
-							for (int j=0;j<maps.nodeBCregions[nn].size();++j) {
-								// For each boundary region type, loop the current face nodes to see if it matches the boundary face 
-								// Loop the current face nodes
-								match=true;
-								for (int k=0;k<tempFace.nodeCount;++k) {
-									// if the current face node is not in the current boundary face's node list
-									if (maps.nodeBCregionFaceConn[nn][j].find(tempNodes[k])==maps.nodeBCregionFaceConn[nn][j].end()) {
-										match=false;
-										break;
-									}
-								}
-								if (match) {
-									tempFace.bc=maps.nodeBCregions[nn][j];
-									boundaryFaceCount[maps.nodeBCregions[nn][j]]++;
+					tempFace.bc=UNASSIGNED; // yet
+					vector<int> face_matched_bcs;
+					int cell_matched_bc=-1;
+					bool match;
+					for (int nbc=0;nbc<raw.bocoNameMap.size();++nbc) { // For each boundary condition region
+						match=true;
+						for (unsigned int i=0;i<tempFace.nodeCount;++i) { // For each node of the current face
+							if (raw.bocoNodes[nbc].find(tempNodes[i])==raw.bocoNodes[nbc].end()) {
+								match=false;
+								break;
+							}
+						}
+						if (match) { // This means that all the face nodes are on the current bc node list
+							face_matched_bcs.push_back(nbc);
+						}
+						// There can be situations like back and front symmetry BC's in which
+						// face nodes will match more than one boundary condition
+						// Check if the owner cell has all its nodes on one of those bc's
+						// and eliminate those
+						if (cell_matched_bc==-1) {
+							match=true;
+							for (unsigned int i=0;i<cell[c].nodeCount;++i) { 
+								if (raw.bocoNodes[nbc].find(cell[c].nodes[i])==raw.bocoNodes[nbc].end()) {
+									match=false;
 									break;
 								}
-							} // For each boundary region that the node belongs to
-							// If a match is found, exit the loop for other bc regions
-							if (match) break;
-						} // if node has the boundary region data
-					} // for tempFace nodes
+							}
+							if (match) { // This means that all the face nodes are on the current bc node list
+								cell_matched_bc=nbc;
+							}
+						}
+						
+					}
+					if (face_matched_bcs.size()>1) {
+						for (int fbc=0;fbc<face_matched_bcs.size();++fbc) {
+							if(face_matched_bcs[fbc]!=cell_matched_bc) {
+								tempFace.bc=face_matched_bcs[fbc];
+							}
+						}
+					} else if (face_matched_bcs.size()==1) {
+						tempFace.bc=face_matched_bcs[0];
+					}
+					// Some of these bc values will be overwritten later if the face is at a partition interface
+
 				} // if not internal
 				tempFace.parentIndex=cf;
 				face.push_back(tempFace);
@@ -348,9 +328,6 @@ int Grid::create_faces() {
 	for (unsigned int c=0; c<cellCount; ++c) {
 		if (cell[c].faceCount != cell[c].faces.size() ) cout << "no match" << "\t" << c << "\t" << cell[c].faceCount << "\t" << cell[c].faces.size() << "\t" << cell[c].nodeCount << endl;
 	}
-	
-	cout << "[I Rank=" << Rank << "] Number of Faces=" << faceCount << endl;
-	for (int boco=0;boco<raw.bocoNameMap.size();++boco) cout << "[I Rank=" << Rank << "] Number of Faces on BC_" << boco+1 << "=" << boundaryFaceCount[boco] << endl;
 	
 	if (Rank==0) {
 		timeEnd=MPI_Wtime();
@@ -403,8 +380,11 @@ int Grid::create_ghosts() {
 		Vec3D nodeVec;
 		
 		// Loop faces
+		vector<int> bocoFaceCount;
+		bocoFaceCount.resize(raw.bocoNameMap.size());
+		for (int boco=0;boco<raw.bocoNameMap.size();++boco) bocoFaceCount[boco]=0;
 		for (unsigned int f=0; f<faceCount; ++f) {
-			if (face[f].bc==UNASSIGNED) { // if an unassigned boundary face
+			if (face[f].bc==UNASSIGNED || face[f].bc>=0) { // if an unassigned boundary face
 				parent=face[f].parent;
 				// Loop through the cells that are adjacent to the current face's parent
 				for (unsigned int adjCount=0;adjCount<(maps.adjIndex[parent+1]-maps.adjIndex[parent]);++adjCount)  {
@@ -452,8 +432,14 @@ int Grid::create_ghosts() {
 						}
 					}
 				}
+				if (face[f].bc>=0) bocoFaceCount[face[f].bc]++;
 			}
 		}
+		
+		for (int boco=0;boco<raw.bocoNameMap.size();++boco) {
+			cout << "[I Rank=" << Rank << "] Number of Faces on BC_" << boco+1 << "=" << bocoFaceCount[boco] << endl;
+		} 
+		
 
 		// Store the local id's of ghosts touch each node
 		map<int,set<int> >::iterator mit;

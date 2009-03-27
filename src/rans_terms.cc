@@ -61,13 +61,18 @@ void RANS::terms(void) {
 		if (TURBULENCE_MODEL==KEPSILON) blending=0.;
 		
 		parent=grid.face[f].parent; neighbor=grid.face[f].neighbor;
-				
+		
+		if (FLAMELET) mu=flamelet.face[f].mu;
+		mu_t=face[f].mu_t;
+		
 		// Convective flux is based on mdot calculated through the Riemann solver right after
 		// main flow was updated
 		
 		// These weights are coming from the Riemann solver
-		weightL=grid.face[f].weightL;
+		//weightL=grid.face[f].weightL;
+		weightL=double(grid.face[f].upstream);
 		extrapolated=false;
+		
 		// Get left, right and face values of k and omega as well as the face normal gradients
 		get_kOmega();
 		weightR=1.-weightL;
@@ -75,8 +80,7 @@ void RANS::terms(void) {
 		convectiveFlux[0]=grid.face[f].mdot*(weightL*leftK+weightR*rightK)*grid.face[f].area;
 		convectiveFlux[1]=grid.face[f].mdot*(weightL*leftOmega+weightR*rightOmega)*grid.face[f].area;
 
-		if (FLAMELET) mu=flamelet.face[f].mu;
-		mu_t=face[f].mu_t;
+
 		// Diffusive k and omega fluxes	
 		if (TURBULENCE_MODEL==BSL || TURBULENCE_MODEL==SST) {
 			closest_wall_distance=grid.cell[parent].closest_wall_distance;
@@ -224,7 +228,7 @@ void RANS::terms(void) {
 		source[0]=Prod_k; // k production
 		source[0]-=Dest_k; // k destruction
 		
-		source[1]=alpha/(mu_t/grid.cell[c].rho+EPS)*Prod_k; // omega production
+		source[1]=alpha*grid.cell[c].rho/mu_t*Prod_k; // omega production
 		source[1]-=beta*grid.cell[c].rho*cell[c].omega*cell[c].omega; // omega destruction
 				
 		source[1]+=2.*(1.-blending)*grid.cell[c].rho*komega.sigma_omega*cross_diffusion/cell[c].omega;
@@ -338,8 +342,8 @@ void get_kOmega() {
 	} else if (grid.face[f].bc>=0) { // boundary face
 		
 		rightK=leftK; rightOmega=leftOmega;
+		faceRho=grid.cell[parent].rho;
 
-		if (FLAMELET) mu=flamelet.face[f].mu;
 		if (bc.region[grid.face[f].bc].type==NOSLIP) {
 			rightK=0.;
 			rightOmega=60.*mu/(faceRho*0.075*pow(0.5*left2right.dot(grid.face[f].normal),2.));

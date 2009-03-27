@@ -402,44 +402,44 @@ void Grid::gradients(void) {
 // 						faceRho=eos.rho(faceP,faceT); // Pressure is extrapolated
 // 					}
 // 					
-// 					if (bc.region[face[f].bc].specified==BC_STATE) {
+					if (bc.region[face[f].bc].specified==BC_STATE) {
 // 						faceP=bc.region[face[f].bc].p;
 // 						faceT=bc.region[face[f].bc].T;
 // 						faceRho=bc.region[face[f].bc].rho;
-// 					} else if (bc.region[face[f].bc].specified==BC_P) {
+					} else if (bc.region[face[f].bc].specified==BC_P) {
 // 						faceP=bc.region[face[f].bc].p;
 // 						//faceRho=cell[c].rho*pow((faceP+Pref)/(cell[c].p+Pref),1./Gamma);
 // 						//faceT=eos.T(faceP,faceRho);
 // 						faceRho=eos.rho(faceP,faceT); // temperature is extrapolated
-// 					} else if (bc.region[face[f].bc].specified==BC_T) {
+					} else if (bc.region[face[f].bc].specified==BC_T) {
 // 						faceT=bc.region[face[f].bc].T;
 // 						//faceRho=cell[c].rho*pow((faceT+Tref)/(cell[c].T+Tref),1./(Gamma-1.));
 // 						//faceP=eos.p(faceRho,faceT);
 // 						faceRho=eos.rho(faceP,faceT); // pressure is extrapolated
-// 					} else if (bc.region[face[f].bc].specified==BC_RHO) {
+					} else if (bc.region[face[f].bc].specified==BC_RHO) {
 // 						faceRho=bc.region[face[f].bc].rho;
 // 						//faceP=(cell[c].p+Pref)*pow(faceRho/cell[c].rho,Gamma)-Pref;
 // 						//faceT=eos.T(faceP,faceRho); // pressure is extrapolated
 // 						faceT=cell[c].T;
 // 						faceP=eos.p(faceRho,faceT);
-// 					} else if (bc.region[face[f].bc].specified==BC_FLAMELET_INLET) {
+					} else if (bc.region[face[f].bc].specified==BC_FLAMELET_INLET) {
 // 						//faceT=bc.region[face[f].bc].T;
 // 						//faceRho=bc.region[face[f].bc].rho;
 // 						faceP=cell[c].p;
 // 						faceRho=cell[c].rho;
 // 						faceT=cell[c].T;
-// 					} else if (bc.region[face[f].bc].specified==BC_FLAMELET_INLET_P) {
+					} else if (bc.region[face[f].bc].specified==BC_FLAMELET_INLET_P) {
 // 						//faceT=bc.region[face[f].bc].T;
 // 						//faceRho=bc.region[face[f].bc].rho;
 // 						faceP=bc.region[face[f].bc].p;
 // 						faceRho=eos.rho(faceP,faceT); // temperature is extrapolated
-// 					}  else { // If nothing is specified, everything is extrapolated
-// 						if (FLAMELET) {
-// 							faceP=cell[c].p;
-// 							faceRho=cell[c].rho;
-// 							faceT=cell[c].T;
-// 						}
-// 					}
+					}  else { // If nothing is specified, everything is extrapolated
+						if (FLAMELET) {
+							faceP=cell[c].p;
+							faceRho=cell[c].rho;
+							faceT=cell[c].T;
+						}
+					}
 // 					
 // 					if (bc.region[face[f].bc].type==INLET) {
 // 						faceVel=bc.region[face[f].bc].v;
@@ -466,6 +466,16 @@ void Grid::gradients(void) {
 // 						}
 // 					}
 // 				
+// 				if (bc.region[face[f].bc].type==SLIP) { 
+// 					faceVel-=faceVel.dot(face[f].normal)*face[f].normal;
+// 				} else if (bc.region[face[f].bc].type==SYMMETRY) {
+// 						// Symmetry mirrors everything
+// 					faceVel=cell[c].v;
+// 					faceVel-=faceVel.dot(face[f].normal)*face[f].normal;
+// 				} else if (bc.region[face[f].bc].type==NOSLIP) {
+// 					faceVel=0.;
+// 				}
+				
 				}
 				
 				cell[c].grad[0]+=faceP*areaVec;

@@ -157,6 +157,7 @@ void write_tec(double time) {
 		Z_node=max(Z_node,0.);
 		Z_node=min(Z_node,1.);
 		Zvar_node=max(Zvar_node,0.);
+		rho_node=max(1.e-5,rho_node);
 		
 		if (FLAMELET) {
 			double Chi=2.0*rans.kepsilon.beta_star*omega_node*Zvar_node;
@@ -176,7 +177,6 @@ void write_tec(double time) {
 				rho_node=eos.rho(p_node,T_node); count_rho++;
 			}
 			if (bc.region[(*sit)].type==INLET) {
-				v_node=bc.region[(*sit)].v; count_v++;
 				k_node=bc.region[(*sit)].k; count_k++;
 				omega_node=bc.region[(*sit)].omega; count_omega++;
 			}

@@ -41,18 +41,20 @@ class Species {
 
 class Flamelet_Table {
 	public:
-	int nZ,nZvar,nChi;
+	int nZ,nS,nChi;
 	int i1,i2,i3;  // indeicies for Z,Zvar and Chi
 	vector<double> weights;
 	std::vector<double> Z;
-	std::vector<double> Zvar;
+	std::vector<double> S;
 	std::vector<double> Chi;
 	std::vector<vector<vector<double> > > rho;
 	std::vector<vector<vector<double> > > T;
 	std::vector<vector<vector<double> > > mu;
 	std::vector<vector<vector<double> > > diffusivity;
-	std::vector<vector<vector<vector<double> > > > Y; // mass fractions
-	std::vector<Species> species;
+	std::vector<vector<vector<double> > > c_p;
+	std::vector<vector<vector<double> > > Mw;
+	//std::vector<vector<vector<vector<double> > > > Y; // mass fractions
+	//std::vector<Species> species;
 	void read(string fileName);
 	void get_weights(double &Z_in, double &Zvar_in, double &Chi_in);
 	double get_rho(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights=true);
@@ -61,6 +63,8 @@ class Flamelet_Table {
 	double get_mu(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights=true);
 	double get_diffusivity(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights=true);
 	double get_Mw(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights=true);
+	double get_c_p(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights=true);
+	double get_gamma(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights=true);
 	double get_drho_dZ(double &Z_in, double &Zvar_in, double &Chi_in);
 	double get_drho_dZvar(double &Z_in, double &Zvar_in, double &Chi_in);
 };
@@ -72,19 +76,19 @@ class Flamelet_Constants {
 
 class Flamelet_Face {
 	public:
-	double mu,RL,RR; // R is the gas constant
+	double mu,RL,RR,gammaL,gammaR; // R is the gas constant
 };
 
 class Flamelet_Cell {
 	public:
-	double Z,Zvar,Chi,mu,diffusivity,R; // R is the gas constant
+	double Z,Zvar,Chi,mu,diffusivity,R,gamma; // R is the gas constant
 	double update[2];
 	Vec3D grad[2]; // Z and Zvar gradients
 };
 
 class Flamelet_Ghost {
 	public:
-	double Z,Zvar,Chi,mu,diffusivity,R; // R is the gas constant
+	double Z,Zvar,Chi,mu,diffusivity,R,gamma; // R is the gas constant
 	Vec3D grad[2]; // Z and Zvar gradients
 };
 
