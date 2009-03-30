@@ -33,9 +33,9 @@ extern BC bc;
 double beta=0.125;
 double alpha;
 
-void roe_flux(Cell_State &left,Cell_State &right,double fluxNormal[],double &weightL,int &upstream);
-void AUSMplusUP_flux(Cell_State &left,Cell_State &right,double fluxNormal[],double &weightL,double &uN,int &upstream);
-void flux_from_right(Cell_State &right,double fluxNormal[],double &uN,int &upstream);
+void roe_flux(Cell_State &left,Cell_State &right,double fluxNormal[],double &weightL);
+void AUSMplusUP_flux(Cell_State &left,Cell_State &right,double fluxNormal[],double &weightL);
+void flux_from_right(Cell_State &right,double fluxNormal[]);
 double Mach_split_2_plus (double Mach);
 double Mach_split_2_minus (double Mach);
 double Mach_split_4_plus (double Mach);
@@ -48,30 +48,36 @@ void convective_face_flux(Cell_State &left,Cell_State &right,Face_State &face,do
 	double fluxNormal[7];
 
 	if (face.bc>=0 && bc.region[face.bc].type==INLET) {
-		flux_from_right(right,fluxNormal,grid.face[face.index].uN,grid.face[face.index].upstream);	
+		flux_from_right(right,fluxNormal);
+		grid.face[face.index].weightL=0.;
 	} else if (face.bc>=0 && bc.region[face.bc].type==SYMMETRY) {
 		for (int i=0;i<5;++i) fluxNormal[i]=0.;
 		fluxNormal[1]=left.p;
-		grid.face[face.index].uN=0.;
-		grid.face[face.index].upstream=1;
+		grid.face[face.index].weightL=1.;
 	} else if (CONVECTIVE_FLUX_FUNCTION==ROE) {
-		 roe_flux(left,right,fluxNormal,grid.face[face.index].weightL,grid.face[face.index].upstream);
+		 roe_flux(left,right,fluxNormal,grid.face[face.index].weightL);
 	} else if (CONVECTIVE_FLUX_FUNCTION==AUSM_PLUS_UP) {
-		 AUSMplusUP_flux(left,right,fluxNormal,grid.face[face.index].weightL,grid.face[face.index].uN,grid.face[face.index].upstream);
+		 AUSMplusUP_flux(left,right,fluxNormal,grid.face[face.index].weightL);
 	}
+	
+
+// 	if (CONVECTIVE_FLUX_FUNCTION==ROE || face.bc>=0) {
+// 		roe_flux(left,right,fluxNormal,grid.face[face.index].weightL);
+// 	} else if (CONVECTIVE_FLUX_FUNCTION==AUSM_PLUS_UP) {
+// 		AUSMplusUP_flux(left,right,fluxNormal,grid.face[face.index].weightL);
+// 	}
+	
 	flux[0] = fluxNormal[0]*face.area;
 	flux[1] = (fluxNormal[1]*face.normal[0]+fluxNormal[2]*face.tangent1[0]+fluxNormal[3]*face.tangent2[0])*face.area;
 	flux[2] = (fluxNormal[1]*face.normal[1]+fluxNormal[2]*face.tangent1[1]+fluxNormal[3]*face.tangent2[1])*face.area;
 	flux[3] = (fluxNormal[1]*face.normal[2]+fluxNormal[2]*face.tangent1[2]+fluxNormal[3]*face.tangent2[2])*face.area;
 	flux[4] = fluxNormal[4]*face.area;
 	grid.face[face.index].mdot=fluxNormal[0];
-// 	if (bc.region[face.bc].type==INLET) {
-// 		cout << face.bc << "\t" <<  grid.face[face.index].mdot << "\t" << grid.face[face.index].upstream << endl;
-// 	}
+
 	return;
 } // end face flux
 
-void roe_flux(Cell_State &left,Cell_State &right,double fluxNormal[],double &weightL,int &upstream) {
+void roe_flux(Cell_State &left,Cell_State &right,double fluxNormal[],double &weightL) {
 
 	// Local variables
 	double rho,u,v,w,H,a;
@@ -84,17 +90,27 @@ void roe_flux(Cell_State &left,Cell_State &right,double fluxNormal[],double &wei
 
 	// The Roe averaged values
 	rho=sqrt(right.rho/left.rho);
-	u=(left.vN.comp[0]+rho*right.vN.comp[0])/(1.+rho);
-	v=(left.vN.comp[1]+rho*right.vN.comp[1])/(1.+rho);
-	w=(left.vN.comp[2]+rho*right.vN.comp[2])/(1.+rho);
+	u=(left.vN[0]+rho*right.vN[0])/(1.+rho);
+	v=(left.vN[1]+rho*right.vN[1])/(1.+rho);
+	w=(left.vN[2]+rho*right.vN[2])/(1.+rho);
 	H=(left.H+rho*right.H)/(1.+rho);
-	a=sqrt((Gamma-1.)*(H-0.5*(u*u+v*v+w*w)));
+
+	double Denom,GmL,GmR,GH,Gu,Gv,Gw;
+	//GmL and GmR are already gamma-1
+	Denom=left.H-0.5*left.vN.dot(left.vN);
+	GmL=(left.a)/Denom;
+	GmR=(right.a)/Denom;
+	GH=(GmL*left.H+GmR*rho*right.H)/(1.+rho);
+	Gu= (sqrt(GmL)*left.vN[0]+sqrt(GmR)*rho*right.vN[0])/(1.+rho);
+	Gv= (sqrt(GmL)*left.vN[1]+sqrt(GmR)*rho*right.vN[1])/(1.+rho);
+	Gw= (sqrt(GmL)*left.vN[2]+sqrt(GmR)*rho*right.vN[2])/(1.+rho);
+	a=sqrt(GH-0.5*(Gu*Gu+Gv*Gv+Gw*Gw));
 
 	rho=rho*left.rho;
 
-	Du=right.vN.comp[0]-left.vN.comp[0];
-	Dv=right.vN.comp[1]-left.vN.comp[1];
-	Dw=right.vN.comp[2]-left.vN.comp[2];
+	Du=right.vN[0]-left.vN[0];
+	Dv=right.vN[1]-left.vN[1];
+	Dw=right.vN[2]-left.vN[2];
 	Dp=right.p-left.p;
 	Drho=right.rho-left.rho;
 
@@ -115,11 +131,11 @@ void roe_flux(Cell_State &left,Cell_State &right,double fluxNormal[],double &wei
 		right41=w;
 		right51=H-u*a;
 		alpha1=0.5*(Dp-rho*a*Du)/(a*a);
-		mdot=left.rho*left.vN.comp[0];
+		mdot=left.rho*left.vN[0];
 		fluxNormal[0]=mdot+lambda1*alpha1*right11;
-		fluxNormal[1]=mdot*left.vN.comp[0]+left.p+lambda1*alpha1*right21;
-		fluxNormal[2]=mdot*left.vN.comp[1]+lambda1*alpha1*right31;
-		fluxNormal[3]=mdot*left.vN.comp[2]+lambda1*alpha1*right41;
+		fluxNormal[1]=mdot*left.vN[0]+left.p+lambda1*alpha1*right21;
+		fluxNormal[2]=mdot*left.vN[1]+lambda1*alpha1*right31;
+		fluxNormal[3]=mdot*left.vN[2]+lambda1*alpha1*right41;
 		fluxNormal[4]=mdot*left.H+lambda1*alpha1*right51;
 
 	} else { // Calculate from the right side
@@ -140,19 +156,28 @@ void roe_flux(Cell_State &left,Cell_State &right,double fluxNormal[],double &wei
 		right55=H+u*a;
 		alpha5=0.5*(Dp+rho*a*Du)/(a*a);
 		
-		mdot=right.rho*right.vN.comp[0];
+		mdot=right.rho*right.vN[0];
 		fluxNormal[0]=mdot-lambda5*alpha5*right15;
-		fluxNormal[1]=mdot*right.vN.comp[0]+left.p-lambda5*alpha5*right25;
-		fluxNormal[2]=mdot*right.vN.comp[1]-lambda5*alpha5*right35;
-		fluxNormal[3]=mdot*right.vN.comp[2]-lambda5*alpha5*right45;
+		fluxNormal[1]=mdot*right.vN[0]+left.p-lambda5*alpha5*right25;
+		fluxNormal[2]=mdot*right.vN[1]-lambda5*alpha5*right35;
+		fluxNormal[3]=mdot*right.vN[2]-lambda5*alpha5*right45;
 		fluxNormal[4]=mdot*right.H-lambda5*alpha5*right55;
 	}
-
-	weightL=0.5; // TODO find the proper value
+// 	if (abs(left.rho-right.rho)<10e-15) weightL=0.5;
+// 	else weightL=((fluxNormal[0]*fluxNormal[0]/fluxNormal[1])-right.rho)/(left.rho-right.rho); // Based on density 
+	
+// 	if (abs(left.rho*left.vN[0]-right.rho*right.vN[0])<1.e-15) {
+// 		weightL=0.5;
+// 	} else {
+// 		//weightL=(fluxNormal[0]-right.rho*right.vN[0])/(left.rho*left.vN[0]-right.rho*right.vN[0]);
+// 		weightL=((fluxNormal[0]*fluxNormal[0]/fluxNormal[1])-right.rho)/(left.rho-right.rho);
+// 	}
+	weightL=0.;
+	
 	return;
 } // end roe_flux
 
-void AUSMplusUP_flux(Cell_State &left,Cell_State &right,double fluxNormal[],double &weightL,double &uN,int &upstream) {
+void AUSMplusUP_flux(Cell_State &left,Cell_State &right,double fluxNormal[],double &weightL) {
 
 	double Kp=0.25;
 	double Ku=0.75;
@@ -169,15 +194,15 @@ void AUSMplusUP_flux(Cell_State &left,Cell_State &right,double fluxNormal[],doub
 	aL_star=left.a;
 	aR_star=right.a;
 	
-	aL_hat=aL_star*aL_star/max(aL_star,left.vN.comp[0]);
-	aR_hat=aR_star*aR_star/max(aR_star,-1.*right.vN.comp[0]);
+	aL_hat=aL_star*aL_star/max(aL_star,left.vN[0]);
+	aR_hat=aR_star*aR_star/max(aR_star,-1.*right.vN[0]);
 	a=min(aL_hat,aR_hat);
 
 	rho=0.5*(left.rho+right.rho);
-	ML=left.vN.comp[0]/a;
-	MR=right.vN.comp[0]/a;
+	ML=left.vN[0]/a;
+	MR=right.vN[0]/a;
 
-	//Mbar2=0.5*(left.vN.comp[0]*left.vN.comp[0]+right.vN.comp[0]*right.vN.comp[0])/(a*a);
+	//Mbar2=0.5*(left.vN[0]*left.vN[0]+right.vN[0]*right.vN[0])/(a*a);
 	Mbar2=0.5*(ML*ML+MR*MR);
 
  	Mref=max(Minf,sqrt(Mbar2));
@@ -200,34 +225,27 @@ void AUSMplusUP_flux(Cell_State &left,Cell_State &right,double fluxNormal[],doub
 	} else {
 		mdot=a*M*right.rho;
 	}
-
-	uN=a*M;
 	
 	alpha=3./16.*(-4.+5.*fa*fa);
 			
 	p=p_split_5_plus(ML)*(left.p+Pref)+p_split_5_minus(MR)*(right.p+Pref)
-	  -Ku*p_split_5_plus(ML)*p_split_5_minus(MR)*(left.rho+right.rho)*fa*a*(right.vN.comp[0]-left.vN.comp[0]);
+	  -Ku*p_split_5_plus(ML)*p_split_5_minus(MR)*(left.rho+right.rho)*fa*a*(right.vN[0]-left.vN[0]);
 	
 	p-=Pref;
 	
-	// Run the left weight through pressure averaging too
-	weightL=p_split_5_plus(ML);
-	//weightL=Mach_split_4_plus(ML);
-
-	
 	fluxNormal[0]=mdot;
 	if (mdot>0.) { // Calculate from the left side
-		fluxNormal[1]=mdot*left.vN.comp[0]+p;
-		fluxNormal[2]=mdot*left.vN.comp[1];
-		fluxNormal[3]=mdot*left.vN.comp[2];
+		fluxNormal[1]=mdot*left.vN[0]+p;
+		fluxNormal[2]=mdot*left.vN[1];
+		fluxNormal[3]=mdot*left.vN[2];
 		fluxNormal[4]=mdot*left.H;
-		upstream=1;
+		weightL=1.;
 	} else { // Calculate from the right side
-		fluxNormal[1]=mdot*right.vN.comp[0]+p;
-		fluxNormal[2]=mdot*right.vN.comp[1];
-		fluxNormal[3]=mdot*right.vN.comp[2];
+		fluxNormal[1]=mdot*right.vN[0]+p;
+		fluxNormal[2]=mdot*right.vN[1];
+		fluxNormal[3]=mdot*right.vN[2];
 		fluxNormal[4]=mdot*right.H;
-		upstream=0;
+		weightL=0.;
 	}
 
 	return;
@@ -282,17 +300,15 @@ double p_split_5_minus (double M) {
 	
 }
 
-void flux_from_right(Cell_State &right,double fluxNormal[],double &uN,int &upstream) {
+void flux_from_right(Cell_State &right,double fluxNormal[]) {
 
-	uN=right.vN[0];
-	double mdot=right.rho*uN;
+	double mdot=right.rho*right.vN[0];
 
 	fluxNormal[0]=mdot;
-	fluxNormal[1]=mdot*uN+right.p;
+	fluxNormal[1]=mdot*right.vN[0]+right.p;
 	fluxNormal[2]=mdot*right.vN[1];
 	fluxNormal[3]=mdot*right.vN[2];
 	fluxNormal[4]=mdot*right.H;
-	upstream=0;
 
 	return;
 }

@@ -32,7 +32,6 @@ void Flamelet::terms(void) {
 	Vec3D faceGradZ, faceGradZvar, left2right;
 	double mu_t=0.;
 	double weightL,weightR;
-	double weightL1,weightR1;
 	double value;
 	int row,col;
 	double convectiveFlux[2],diffusiveFlux[2],source[2];
@@ -57,13 +56,9 @@ void Flamelet::terms(void) {
 			   leftZ,leftZvar,rightZ,rightZvar,
       			   faceGradZ,faceGradZvar,left2right,extrapolated);
 		
-		// The following weights are consistent with rho splitting of the AUSM scheme.
-		// The idea is that Z behaves a lot like rho
-		// This is the only stable configuration out of many others tried.
-		weightL1=double(grid.face[f].upstream);
-		//weightL1=grid.face[f].weightL;
-		
-		weightR1=1.-weightL1;
+		// The following weights are consistent with the splitting of the Riemann solver.
+		weightL=grid.face[f].weightL;
+		weightR=1.-weightL;
 		
 		double Chi=cell[parent].Chi;
 		if (grid.face[f].bc==INTERNAL) {
@@ -72,14 +67,11 @@ void Flamelet::terms(void) {
 			Chi=0.5*(Chi+ghost[-1*neighbor-1].Chi);
 		}
 		
-// 		double mdot;
-// 		table.get.rho
-		
 		// Convective flux is based on the mdot calculated through the Riemann solver right after
 		// main flow was updated
 
-		convectiveFlux[0]=grid.face[f].mdot*(weightL1*leftZ+weightR1*rightZ)*grid.face[f].area;
-		convectiveFlux[1]=grid.face[f].mdot*(weightL1*leftZvar+weightR1*rightZvar)*grid.face[f].area;
+		convectiveFlux[0]=grid.face[f].mdot*(weightL*leftZ+weightR*rightZ)*grid.face[f].area;
+		convectiveFlux[1]=grid.face[f].mdot*(weightL*leftZvar+weightR*rightZvar)*grid.face[f].area;
 
 		mu=flamelet.face[f].mu;
 		mu_t=rans.face[f].mu_t;
@@ -114,25 +106,25 @@ void Flamelet::terms(void) {
 		// dF_Z/dZ_left
 
 		double drho_dZ=table.get_drho_dZ(leftZ,leftZvar,Chi);
-		jacL[0]=weightL1*grid.face[f].mdot*grid.face[f].area; // convective
-		jacL[0]+=weightL1*grid.face[f].uN*grid.face[f].area*drho_dZ*(weightL1*leftZ+weightR1*rightZ); // convective
+		jacL[0]=weightL*grid.face[f].mdot*grid.face[f].area; // convective
+		//jacL[0]+=weightL*grid.face[f].uN*grid.face[f].area*drho_dZ*(weightL*leftZ+weightR*rightZ); // convective
 		if (!extrapolated) jacL[0]+=(diff+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
 
 		// dF_Z/dZ_right
 		drho_dZ=table.get_drho_dZ(rightZ,rightZvar,Chi);
-		jacR[0]=weightR1*grid.face[f].mdot*grid.face[f].area; // convective
-		jacR[0]+=weightR1*grid.face[f].uN*grid.face[f].area*drho_dZ*(weightL1*leftZ+weightR1*rightZ); // convective
+		jacR[0]=weightR*grid.face[f].mdot*grid.face[f].area; // convective
+		//jacR[0]+=weightR*grid.face[f].uN*grid.face[f].area*drho_dZ*(weightL*leftZ+weightR*rightZ); // convective
 		if (!extrapolated) jacR[0]-=(diff+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
 		
 		// dF_Zvar/dZvar_left
 		double drho_dZvar=table.get_drho_dZvar(leftZ,leftZvar,Chi);
-		jacL[1]=weightL1*grid.face[f].mdot*grid.face[f].area; // convective
-		jacL[1]+=weightL1*grid.face[f].uN*grid.face[f].area*drho_dZvar*(weightL1*leftZvar+weightR1*rightZvar); // convective
+		jacL[1]=weightL*grid.face[f].mdot*grid.face[f].area; // convective
+		//jacL[1]+=weightL*grid.face[f].uN*grid.face[f].area*drho_dZvar*(weightL*leftZvar+weightR*rightZvar); // convective
 		if (!extrapolated) jacL[1]+=(diff+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
 		// dF_Zvar/dZvar_right
 		drho_dZvar=table.get_drho_dZvar(rightZ,rightZvar,Chi);
-		jacR[1]=weightR1*grid.face[f].mdot*grid.face[f].area; // convective
-		jacR[1]+=weightR1*grid.face[f].uN*grid.face[f].area*drho_dZvar*(weightL1*leftZvar+weightR1*rightZvar); // convective
+		jacR[1]=weightR*grid.face[f].mdot*grid.face[f].area; // convective
+		//jacR[1]+=weightR*grid.face[f].uN*grid.face[f].area*drho_dZvar*(weightL*leftZvar+weightR*rightZvar); // convective
 		if (!extrapolated) jacR[1]-=(diff+mu_t/constants.sigma_t)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
 		
 		// Insert flux jacobians for the parent cell

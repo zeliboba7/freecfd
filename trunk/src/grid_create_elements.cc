@@ -210,14 +210,14 @@ int Grid::create_faces() {
 					tempNodes= new unsigned int[3];
 					break;
 				case 5: // Pyramid
-						if (cf<1) {
-							tempFace.nodeCount=4;
-							tempNodes= new unsigned int[4];
-						} else {
-							tempFace.nodeCount=3;
-							tempNodes= new unsigned int[3];
-						}
-						break;
+					if (cf<1) {
+						tempFace.nodeCount=4;
+						tempNodes= new unsigned int[4];
+					} else {
+						tempFace.nodeCount=3;
+						tempNodes= new unsigned int[3];
+					}
+					break;
 				case 6: // Prism
 					if (cf<2) {
 						tempFace.nodeCount=3;
@@ -297,16 +297,18 @@ int Grid::create_faces() {
 									break;
 								}
 							}
-							if (match) { // This means that all the face nodes are on the current bc node list
+							if (match) { // This means that all the cell nodes are on the current bc node list
 								cell_matched_bc=nbc;
 							}
 						}
+						
 						
 					}
 					if (face_matched_bcs.size()>1) {
 						for (int fbc=0;fbc<face_matched_bcs.size();++fbc) {
 							if(face_matched_bcs[fbc]!=cell_matched_bc) {
 								tempFace.bc=face_matched_bcs[fbc];
+								break;
 							}
 						}
 					} else if (face_matched_bcs.size()==1) {
@@ -433,10 +435,7 @@ int Grid::create_ghosts() {
 			}
 		}
 		
-
-		
-
-		// Store the local id's of ghosts touch each node
+		// Store the local id's of ghosts touching each node
 		map<int,set<int> >::iterator mit;
 		set<int>::iterator sit;
 		for ( mit=nodeGhostSet.begin() ; mit != nodeGhostSet.end(); mit++ ) {
@@ -470,18 +469,32 @@ int Grid::create_ghosts() {
 			cell[c].ghostCount=cell[c].ghosts.size();
 		} // end cell loop
 	} // if (np!=1)
-
-	vector<int> bocoFaceCount;
-	bocoFaceCount.resize(raw.bocoNameMap.size());
-	for (int boco=0;boco<raw.bocoNameMap.size();++boco) bocoFaceCount[boco]=0;
-	for (unsigned int f=0; f<faceCount; ++f) {
-		if (face[f].bc>=0) bocoFaceCount[face[f].bc]++;
-	}
-	for (int boco=0;boco<raw.bocoNameMap.size();++boco) {
-		cout << "[I Rank=" << Rank << "] Number of Faces on BC_" << boco+1 << "=" << bocoFaceCount[boco] << endl;
-	} 
 	
 	cout << "[I Rank=" << Rank << "] Number of Inter-Partition Ghost Cells= " << ghostCount << endl;
+	
+	maps.nodeGlobal2Output.resize(globalNodeCount);
+	for (unsigned int ng=0;ng<globalNodeCount;++ng) maps.nodeGlobal2Output[ng]=-1;
+	nodeCountOffset=0;
+	int nodeCountOffsetPlus=0;
+	// Receive my nodeCountOffset from processor Rank-1
+
+	// Set tag to destination
+	if (Rank!=0) MPI_Recv(&nodeCountOffset,1,MPI_INT,Rank-1,Rank,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+	if (Rank!=0) MPI_Recv(&maps.nodeGlobal2Output[0],globalNodeCount,MPI_INT,Rank-1,Rank,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+	for (unsigned int n=0;n<nodeCount;++n) {
+		if (maps.nodeGlobal2Output[node[n].globalId]==-1) {
+			maps.nodeGlobal2Output[node[n].globalId]=nodeCountOffset+nodeCountOffsetPlus;
+			nodeCountOffsetPlus++;
+		}
+	}
+	nodeCountOffsetPlus+=nodeCountOffset;
+
+ 	if (Rank!=np-1) MPI_Send(&nodeCountOffsetPlus,1,MPI_INT,Rank+1,Rank+1,MPI_COMM_WORLD);
+	if (Rank!=np-1) MPI_Send(&maps.nodeGlobal2Output[0],globalNodeCount,MPI_INT,Rank+1,Rank+1,MPI_COMM_WORLD);
+	
+// 	for (unsigned int n=0;n<nodeCount;++n) {
+// 		cout << Rank << "\t" << n << "\t" << maps.nodeGlobal2Output[node[n].globalId] << endl;
+// 	}
 	
 } // end int Grid::create_ghosts
 

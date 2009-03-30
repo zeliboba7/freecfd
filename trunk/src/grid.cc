@@ -70,6 +70,7 @@ int Grid::read(string fname) {
 		mesh2dual();
 		create_faces();
 		create_ghosts();
+		write_bocos();
 		trim_memory();
 		areas_volumes();
 		return 1;
@@ -77,6 +78,23 @@ int Grid::read(string fname) {
 		if (Rank==0) cerr << "[E] Grid file "<< fileName << " could not be found." << endl;
 		return 0;
 	}
+}
+
+void Grid::write_bocos() {
+// 	if (Rank==0) {
+// 		mkdir("./output",S_IRWXU);
+// 		ofstream file;
+// 		string fileName="./output/coordinates";
+// 		file.open((fileName).c_str(),ios::out | ios::binary);
+// 		// Write coordinates
+// 		for (unsigned int i=0;i<3;++i) {
+// 			for (unsigned int n=0;n<grid.nodeCount;++n) {
+// 				file << setw(16) << setprecision(8) << scientific << node[n][i] << endl;
+// 			}
+// 		}
+// 		file.close();
+// 	}
+	return;
 }
 
 // int Grid::reorderRCM() {

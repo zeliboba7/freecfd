@@ -68,7 +68,7 @@ void mpi_init(int argc, char *argv[]) {
 	mpiVec3D dummy4;
 	displacements[0]=(long) &dummy4.ids[0] - (long) &dummy4;
 	displacements[1]=(long) &dummy4.comp[0] - (long) &dummy4;
-	block_lengths[0]=2;
+	block_lengths[0]=3;
 	block_lengths[1]=3;
 	MPI_Type_create_struct(2,block_lengths,displacements,types,&MPI_VEC3D);
 	MPI_Type_commit(&MPI_VEC3D);
@@ -118,6 +118,7 @@ void mpi_get_ghost_centroids(void) {
 				id=maps.cellGlobal2Local[sendCells[p][g]];
 				sendBuffer[g].ids[0]=grid.cell[id].globalId;
 				sendBuffer[g].ids[1]=grid.myOffset+id;
+				sendBuffer[g].ids[2]=id;
 				for (int i=0;i<3;++i) sendBuffer[g].comp[i]=grid.cell[id].centroid[i];
 			}
 
@@ -127,6 +128,7 @@ void mpi_get_ghost_centroids(void) {
 			for (unsigned int g=0;g<recvCount[p];++g) {
 				id=maps.ghostGlobal2Local[recvBuffer[g].ids[0]];
 				grid.ghost[id].matrix_id=recvBuffer[g].ids[1];
+				grid.ghost[id].id_in_owner=recvBuffer[g].ids[2];
 				for (int i=0;i<3;++i) grid.ghost[id].centroid[i]=recvBuffer[g].comp[i];
 			}
 		}

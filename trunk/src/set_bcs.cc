@@ -194,6 +194,42 @@ void setBCs(InputFile &input, BC &bc) {
 		}
 	}
 	
+	grid.boundaryFaceCount.resize(count);
+	grid.globalBoundaryFaceCount.resize(count);
+	grid.boundaryNodeCount.resize(count);
+	grid.globalBoundaryNodeCount.resize(count);
+	
+	for (int boco=0;boco<count;++boco) {
+		grid.boundaryFaceCount[boco]=0;
+		grid.globalBoundaryFaceCount[boco]=0;
+		grid.boundaryNodeCount[boco]=0;
+		grid.globalBoundaryNodeCount[boco]=0;
+	}
+	
+	// Find out number of faces on each bc, locally and globally
+	for (unsigned int f=0;f<grid.faceCount; ++f) {
+		if (grid.face[f].bc>=0) grid.boundaryFaceCount[grid.face[f].bc]++;
+	}
+
+	for (int boco=0;boco<count;++boco) {
+		cout << "[I Rank=" << Rank << "] Number of Faces on BC_" << boco+1 << "=" << grid.boundaryFaceCount[boco] << endl;
+		MPI_Allreduce (&grid.boundaryFaceCount[boco],&grid.globalBoundaryFaceCount[boco],1,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
+	}
+	MPI_Barrier(MPI_COMM_WORLD);
+	
+	// Find out number of nodes on each bc, locally and globally
+	for (unsigned int n=0;n<grid.nodeCount;++n) {
+		for (int boco=0;boco<count;++boco) {
+			if (grid.node[n].bcs.find(boco)!=grid.node[n].bcs.end()) {
+				if (maps.nodeGlobal2Output[grid.node[n].globalId]>=grid.nodeCountOffset) grid.boundaryNodeCount[boco]++;
+			}
+		}
+	}
+
+	for (int boco=0;boco<count;++boco) {
+		MPI_Allreduce (&grid.boundaryNodeCount[boco],&grid.globalBoundaryNodeCount[boco],1,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
+	}
+	
 	if (TURBULENCE_MODEL!=NONE) {
 		
 		MPI_Allgather(&number_of_nsf[Rank],1,MPI_INT,&number_of_nsf[0],1,MPI_INT,MPI_COMM_WORLD);

@@ -50,7 +50,7 @@ struct mpiGrad {
 };
 
 struct mpiVec3D {
-	unsigned int ids[2]; // constains globalId and matrix_id;
+	unsigned int ids[3]; // contains globalId and matrix_id;
 	double comp[3];
 };
 
