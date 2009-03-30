@@ -46,10 +46,8 @@ int Grid::readCGNS() {
 	//  int nBases,cellDim,physDim;
 	int size[3];
 	
-	vector<int> bc_method;
 	int POINT_LIST=1;
 	int ELEMENT_LIST=2;
-	vector<set<int> > bc_element_list;
 	
 	globalNodeCount=0;
 	globalCellCount=0;
@@ -73,13 +71,16 @@ int Grid::readCGNS() {
 	if (Rank==0) cout << "[I] Number of Zones= " << nZones << endl;
 	
 	std::vector<double> coordX[nZones],coordY[nZones],coordZ[nZones];
-	// zoneCoordMap returns the global is of a given node in a given zone
+	// zoneCoordMap returns the global id of a given node in a given zone
 	std::vector<int> zoneCoordMap[nZones];
 
 	int bocoCount=0;
 	map<string,int>::iterator mit;
 	
 	for (int zoneIndex=1;zoneIndex<=nZones;++zoneIndex) { // For each zone
+		vector<int> bc_method;
+		vector<set<int> > bc_element_list;
+		
 		// Read the zone
 		cg_zone_read(fileIndex,baseIndex,zoneIndex,zoneName,size);
 		// These are the number of cells and nodes in that zone
@@ -170,10 +171,14 @@ int Grid::readCGNS() {
     		        if (new_bc) {
 				bcIndex=raw.bocoNameMap.size();
 				raw.bocoNameMap.insert(pair<string,int>(bcName,bcIndex));
-				bc_method.resize(bcIndex+1);
 				raw.bocoNodes.resize(bcIndex+1);
+			}
+			
+			if (Rank==0) cout << "[I] ...Found boundary condition BC_" << bcIndex+1 << " : " << bcName << endl;
+			
+			if (bc_method.size()<bcIndex+1) {
+				bc_method.resize(bcIndex+1);
 				bc_element_list.resize(bcIndex+1);
-				if (Rank==0) cout << "[I] ...Found boundary condition BC_" << bcIndex+1 << " : " << bcName << endl;
 			}
 			
 			vector<int> list; list.resize(npnts);

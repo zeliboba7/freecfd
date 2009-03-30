@@ -33,6 +33,9 @@
 #include <set>
 #include <list>
 #include <mpi.h>
+#include <iomanip>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include "vec3d.h"
 using namespace std;
 #include <parmetis.h>
@@ -57,8 +60,7 @@ public:
 	Vec3D normal;
 	std::map<int,double> average;
 	double area;
-	double mdot,uN,weightL;
-	int upstream; // 1:left, 0:right
+	double mdot,weightL;
 	std::vector<int> nodes;
 	Node& node(int n);
 };
@@ -88,6 +90,7 @@ public:
 	unsigned int partition;
 	unsigned int globalId;
 	unsigned int matrix_id;
+	unsigned int id_in_owner;
 	std::vector<unsigned int> cells;
 	double p,T,rho,closest_wall_distance;
 	// Gradients are stored as p,u,v,w,T in order
@@ -100,8 +103,13 @@ public:
 	string fileName;
 	int myOffset;
 	vector<int> partitionOffset;
+	int nodeCountOffset;
 	unsigned int nodeCount,cellCount,faceCount;
 	unsigned int globalNodeCount,globalCellCount,globalFaceCount,ghostCount;
+	std::vector<int> boundaryFaceCount;
+	std::vector<int> boundaryNodeCount;
+	std::vector<int> globalBoundaryFaceCount;
+	std::vector<int> globalBoundaryNodeCount;
 	std::vector<Node> node;
 	std::vector<Face> face;
 	std::vector<Cell> cell;
@@ -118,6 +126,7 @@ public:
 	int create_nodes_cells();
 	int create_faces();
 	int create_ghosts();
+	void write_bocos();
 	void trim_memory();
 	int areas_volumes();
 	void nodeAverages();
@@ -149,7 +158,7 @@ public:
 	std::map<unsigned int,unsigned int> nodeGlobal2Local;
 	std::map<unsigned int,unsigned int> cellGlobal2Local;
 	std::map<unsigned int,unsigned int> ghostGlobal2Local;
-
+	std::vector<int> nodeGlobal2Output;
 	idxtype* adjIndex;
 	idxtype* adjacency;
 };

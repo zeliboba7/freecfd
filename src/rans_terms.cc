@@ -68,14 +68,13 @@ void RANS::terms(void) {
 		// Convective flux is based on mdot calculated through the Riemann solver right after
 		// main flow was updated
 		
-		// These weights are coming from the Riemann solver
-		//weightL=grid.face[f].weightL;
-		weightL=double(grid.face[f].upstream);
+		// The following weights are consistent with the splitting of the Riemann solver.
+		weightL=grid.face[f].weightL;
+		weightR=1.-weightL;
 		extrapolated=false;
 		
 		// Get left, right and face values of k and omega as well as the face normal gradients
 		get_kOmega();
-		weightR=1.-weightL;
 
 		convectiveFlux[0]=grid.face[f].mdot*(weightL*leftK+weightR*rightK)*grid.face[f].area;
 		convectiveFlux[1]=grid.face[f].mdot*(weightL*leftOmega+weightR*rightOmega)*grid.face[f].area;
@@ -353,23 +352,19 @@ void get_kOmega() {
 			rightK_center=leftK_center; 
 			rightOmega_center=leftOmega_center;
 			extrapolated=true;
-			weightL=1.;// This is true when rightK=leftK and rightOmega=leftOmega
 		} else if (bc.region[grid.face[f].bc].type==SLIP) {
 			rightK_center=leftK_center; 
 			rightOmega_center=leftOmega_center;
 			extrapolated=true;
-			weightL=1.;
 		} else if (bc.region[grid.face[f].bc].type==INLET) {
 			rightK=bc.region[grid.face[f].bc].k;
 			rightOmega=bc.region[grid.face[f].bc].omega;
 			rightK_center=2.*rightK-leftK_center;
 			rightOmega_center=2.*rightOmega-leftOmega_center;
-			//weightL=0.; 
 		} else if (bc.region[grid.face[f].bc].type==OUTLET) {
 			rightK_center=leftK_center; 
 			rightOmega_center=leftOmega_center;
 			extrapolated=true;
-			weightL=1.;
 		}
 		
 		
