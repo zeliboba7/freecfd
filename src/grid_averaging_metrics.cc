@@ -262,9 +262,14 @@ void Grid::sortStencil(Node& n) {
 	
 	int counter=0;
 	int size_cutoff;
-	if (DIMENSION==1) {size_cutoff=max(non_empty_quadrant_count,2);}
-	else if (DIMENSION==2) {size_cutoff=max(non_empty_quadrant_count,6);} // These are experimental
-	else {size_cutoff=max(non_empty_quadrant_count,8);}
+	if (DIMENSION==1) {
+		size_cutoff=2;
+	} else if (DIMENSION==2) {
+		size_cutoff=4;
+		if (non_empty_quadrant_count<4) size_cutoff+=2;
+	} else {
+		size_cutoff=8;
+	}
 	size_cutoff=min(size_cutoff,stencilSize);
 
 	while (counter<size_cutoff) {

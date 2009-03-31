@@ -109,7 +109,7 @@ void write_tec_vars(int &nVar) {
 		map<int,double>::iterator it;
 		set<int>::iterator sit;
 		double p_node,T_node,rho_node,k_node,omega_node,Z_node,Zvar_node,visc_node,dt_node;
-		double mu_t_node, filter_node;
+		double mu_t_node, filter_node,R_node;
 		Vec3D v_node;
 		int count_p,count_v,count_T,count_k,count_omega,count_mu_t,count_rho,count_Z,count_Zvar;
 		double Ma;
@@ -118,7 +118,7 @@ void write_tec_vars(int &nVar) {
 			if (maps.nodeGlobal2Output[grid.node[n].globalId]>=grid.nodeCountOffset) {
 				
 				p_node=0.;v_node=0.;T_node=0.;k_node=0.;omega_node=0.;Z_node=0.;Zvar_node=0.;
-				mu_t_node=0.; filter_node=0.; dt_node=0.; rho_node=0.;
+				mu_t_node=0.; filter_node=0.; dt_node=0.; R_node=0.;
 				double real_weight_sum=0.;
 				for ( it=grid.node[n].average.begin() ; it != grid.node[n].average.end(); it++ ) {
 					if ((*it).first>=0) { // if contribution is coming from a real cell
@@ -135,7 +135,7 @@ void write_tec_vars(int &nVar) {
 						if (FLAMELET) {
 							Z_node+=(*it).second*flamelet.cell[(*it).first].Z;
 							Zvar_node+=(*it).second*flamelet.cell[(*it).first].Zvar;
-							rho_node+=(*it).second*grid.cell[(*it).first].rho;
+							R_node+=(*it).second*flamelet.cell[(*it).first].R;
 						}
 						real_weight_sum+=(*it).second;
 					} else { // if contribution is coming from a ghost cell
@@ -150,11 +150,13 @@ void write_tec_vars(int &nVar) {
 						if (FLAMELET) {
 							Z_node+=(*it).second*flamelet.ghost[-1*((*it).first+1)].Z;
 							Zvar_node+=(*it).second*flamelet.ghost[-1*((*it).first+1)].Zvar;
-							rho_node+=(*it).second*grid.ghost[-1*((*it).first+1)].rho;
+							R_node+=(*it).second*flamelet.ghost[-1*((*it).first+1)].R;
 						}
 					}
 				}
-				if (!FLAMELET) rho_node=eos.rho(p_node,T_node);
+				
+				rho_node=eos.rho(p_node,T_node);
+				
 				if (real_weight_sum>=1.e-10) {
 					filter_node/=real_weight_sum;
 					dt_node/=real_weight_sum;
@@ -168,24 +170,19 @@ void write_tec_vars(int &nVar) {
 				Z_node=max(Z_node,0.);
 				Z_node=min(Z_node,1.);
 				Zvar_node=max(Zvar_node,0.);
-				rho_node=max(1.e-5,rho_node);
 				
 				if (FLAMELET) {
 					double Chi=2.0*rans.kepsilon.beta_star*omega_node*Zvar_node;
-					//rho_node=flamelet.table.get_rho(Z_node,Zvar_node,Chi);
-					T_node=flamelet.table.get_T(Z_node,Zvar_node,Chi);
+					flamelet.table.get_rho_T_comp(p_node,Z_node,Zvar_node,Chi,rho_node,T_node);
 					visc_node=flamelet.table.get_mu(Z_node,Zvar_node,Chi,false);
 				}
 				
-				count_p=0; count_v=0; count_T=0; count_rho=0; count_k=0; count_omega=0; count_Z=0; count_Zvar=0;
-				count_mu_t=0;
+				count_p=0; count_v=0; count_T=0; count_rho=0; count_k=0; count_omega=0; count_Z=0; count_Zvar=0; count_mu_t=0;
 				for (sit=grid.node[n].bcs.begin();sit!=grid.node[n].bcs.end();sit++) {
 					if (bc.region[(*sit)].specified==BC_RHO) {
 						rho_node=bc.region[(*sit)].rho; count_rho++;
-						T_node=eos.T(p_node,rho_node); count_T++;
 					} else if (bc.region[(*sit)].specified==BC_T){
 						T_node=bc.region[(*sit)].T; count_T++;
-						rho_node=eos.rho(p_node,T_node); count_rho++;
 					}
 					if (bc.region[(*sit)].type==INLET) {
 						k_node=bc.region[(*sit)].k; count_k++;

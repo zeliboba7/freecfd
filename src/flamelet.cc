@@ -264,16 +264,6 @@ void Flamelet::gradients(void) {
 			f=grid.cell[c].faces[cf];
 			if (grid.face[f].bc>=0) { // if a boundary face
 				areaVec=grid.face[f].normal*grid.face[f].area/grid.cell[c].volume;
-				faceZ=0.; faceZvar=0.;
-				for (fit=grid.face[f].average.begin();fit!=grid.face[f].average.end();fit++) {
-					if ((*fit).first>=0) { // if contribution is coming from a real cell
-						faceZ+=(*fit).second*cell[(*fit).first].Z;
-						faceZvar+=(*fit).second*cell[(*fit).first].Zvar;
-					} else { // if contribution is coming from a ghost cell
-						faceZ+=(*fit).second*ghost[-1*((*fit).first+1)].Z;
-						faceZvar+=(*fit).second*ghost[-1*((*fit).first+1)].Zvar;
-					}
-				}
 				
 				faceZ=cell[c].Z;
 				faceZvar=cell[c].Zvar;
@@ -433,8 +423,8 @@ void Flamelet::update_face_properties(void) {
 		face[f].gammaR=table.get_gamma(rightZ,rightZvar,Chi,false);
 		face[f].mu+=table.get_mu(rightZ,rightZvar,Chi,false);
 		face[f].mu*=0.5;
-	
 	}
+	
 	return;
 }
 

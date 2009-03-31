@@ -136,14 +136,6 @@ int main(int argc, char *argv[]) {
 		flamelet.table.read(input.section("flamelet").get_string("tableFile"));
 		if (Rank==0) cout << "[I] Read flamelet pdf table" << endl;
 		flamelet.relaxation=input.section("flamelet").get_double("relaxation");
-		double Z=0.;
-		double Zvar=0.05;
-		double Chi=0.;
-// 		for (int i=0;i<101;++i) {
-// 			double Mw=flamelet.table.get_Mw(Z,Zvar,Chi);
-// 			cout << Z << "\t" << flamelet.table.get_rho(Z,Zvar,Chi)*UNIV_GAS_CONST/Mw*flamelet.table.get_T(Z,Zvar,Chi) << endl;
-// 			Z+=0.01;
-// 		}
 	}
 	
 	initialize(input);
@@ -276,7 +268,6 @@ int main(int argc, char *argv[]) {
 		get_dt();
 		get_CFLmax();
 		
-
 		initialize_linear_system();
 		assemble_linear_system();
 		if (FLAMELET) update_face_mdot();
@@ -551,17 +542,19 @@ void get_dt(void) {
 	if (TIME_STEP_TYPE==CFL_MAX) {
 		dt_current=1.e20;
 		// Determine time step with CFL condition
-		for (cit=grid.cell.begin();cit<grid.cell.end();cit++) {
-			double a=sqrt(Gamma*((*cit).p+Pref)/(*cit).rho);
-			dt_current=min(dt_current,CFLmax*(*cit).lengthScale/(fabs((*cit).v)+a));
+		for (unsigned int c=0;c<grid.cellCount;++c) {
+			if (FLAMELET) Gamma=flamelet.cell[c].gamma;
+			double a=sqrt(Gamma*(grid.cell[c].p+Pref)/grid.cell[c].rho);
+			dt_current=min(dt_current,CFLmax*grid.cell[c].lengthScale/(fabs(grid.cell[c].v)+a));
 		}
 		MPI_Allreduce(&dt_current,&dt_current,1, MPI_DOUBLE,MPI_MIN,MPI_COMM_WORLD);
 		for (cit=grid.cell.begin();cit<grid.cell.end();cit++) (*cit).dt=dt_current;
 	} else if (TIME_STEP_TYPE==CFL_LOCAL) {
 		// Determine time step with CFL condition
-		for (cit=grid.cell.begin();cit<grid.cell.end();cit++) {
-			double a=sqrt(Gamma*((*cit).p+Pref)/(*cit).rho);
-			for (cit=grid.cell.begin();cit<grid.cell.end();cit++) (*cit).dt=CFLlocal*(*cit).lengthScale/(fabs((*cit).v)+a);
+		for (unsigned int c=0;c<grid.cellCount;++c) {
+			if (FLAMELET) Gamma=flamelet.cell[c].gamma;
+			double a=sqrt(Gamma*(grid.cell[c].p+Pref)/grid.cell[c].rho);
+			grid.cell[c].dt=CFLlocal*grid.cell[c].lengthScale/(fabs(grid.cell[c].v)+a);
 		}
 	}  else if (TIME_STEP_TYPE==ADAPTIVE) {
 		for (cit=grid.cell.begin();cit<grid.cell.end();cit++) {
@@ -585,9 +578,10 @@ void get_dt(void) {
 void get_CFLmax(void) {
 
 	CFLmax=0.;
-	for (cit=grid.cell.begin();cit<grid.cell.end();cit++) {
-		double a=sqrt(Gamma*((*cit).p+Pref)/(*cit).rho);
-		CFLmax=max(CFLmax,(fabs((*cit).v)+a)*(*cit).dt/(*cit).lengthScale);
+	for (unsigned int c=0;c<grid.cellCount;++c) {
+		if (FLAMELET) Gamma=flamelet.cell[c].gamma;
+		double a=sqrt(Gamma*(grid.cell[c].p+Pref)/grid.cell[c].rho);
+		CFLmax=max(CFLmax,(fabs(grid.cell[c].v)+a)*grid.cell[c].dt/grid.cell[c].lengthScale);
 	}
 	MPI_Allreduce(&CFLmax,&CFLmax,1, MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
 
