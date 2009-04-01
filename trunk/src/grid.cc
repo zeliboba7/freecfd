@@ -268,16 +268,12 @@ int Grid::areas_volumes() {
 			// Every cell face is broken to triangles
 			for (unsigned int n=0;n<face[f].nodeCount;++n) {
 				next=n+1;
-//cout << face[f].nodeCount << "\t" << cf << "\t" << n << "\t" << face[f].node(n) << endl;
 				if (next==face[f].nodeCount) next=0;
 				// Triangle area
-//cout << cell[c].faceCount << "\t" << cell[c].faces.size() << endl;
-				//cerr << face[f].node(n) << "\t" << face[f].node(next) << "\t" << face[f].centroid << endl;
 				basePatchArea=0.5*(face[f].node(n)-face[f].centroid).cross(face[f].node(next)-face[f].centroid);
 				// Height of the tetrahedra
 				height=(face[f].centroid-centroid).dot(face[f].normal)*face[f].normal;
 				// Fix face orientation issue
-	//cout << basePatchArea << "\t" << height << endl;
 				sign=-1.;
 				if (face[f].parent==c) sign=1.;
 				patchVolume=sign*basePatchArea.dot(height)/3.;
@@ -370,7 +366,7 @@ void Grid::gradients(void) {
 	map<int,double>::iterator fit;
 	unsigned int f;
 	Vec3D faceVel,areaVec;
-	double faceP,faceT,faceRho;
+	double faceP,faceT;
 	
 	for (unsigned int c=0;c<cellCount;++c) {
 		// Initialize all gradients to zero
@@ -422,7 +418,6 @@ void Grid::gradients(void) {
 					
 					if (FLAMELET) {
 						faceP=cell[c].p;
-						faceRho=cell[c].rho;
 						faceT=cell[c].T;
 					}	
 					

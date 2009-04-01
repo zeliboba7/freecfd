@@ -371,8 +371,6 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 			right.rho=bc.region[face.bc].rho;
 		} else if (bc.region[face.bc].specified==BC_P) {
 			right.p=bc.region[face.bc].p;
-			//right.rho=left.rho*pow((right.p+Pref)/(left.p+Pref),1./Gamma);
-			//right.T=eos.T(right.p,right.rho);
 			right.T=left.T;
 			right.T_center=2.*right.T-left.T_center;
 			right.rho=eos.rho(right.p,right.T);
@@ -420,8 +418,8 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 			
 			double uNL=left.v.dot(face.normal);
 			double uNR=right.v.dot(face.normal);
-			double aL=sqrt(Gamma*(left.p+Pref)/left.rho);
-			double MachL=-uNL/aL;
+			left.a=sqrt(Gamma*(left.p+Pref)/left.rho);
+			double MachL=-uNL/left.a;
 
 			if (MachL>=1.) { // supersonic inlet, can't extrapolate anything
 				if (!bc.region[face.bc].specified==BC_STATE) {
@@ -433,22 +431,41 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 				//if (MachL<0.) uNL=0.; // Flow reversal at inlet, not good. cut off the normal component
 				// Extrapolate outgoing Riemann invariant (isentropic) (uN+2a/(gamma-1)
 				// TODO The following is only for specified density, Need to handle specified press. or tempetature or mdot too
-				right.p=sqrt(right.rho/Gamma)*(0.5*(Gamma-1.)*(uNL-uNR)+aL);
-				right.p*=right.p;
-				right.p-=Pref;
-			}
+				right.a=left.a+0.5*(uNL-uNR)*(Gamma-1.);
+				right.p=right.a*right.a*right.rho/Gamma-Pref;
+			} 
 		
 			right.v_center=2.*right.v-left.v_center; 
 			right.T=eos.T(right.p,right.rho);
-			right.T_center=right.T; //2.*right.T-left.T_center;
+			right.T_center=2.*right.T-left.T_center;
 		} else if (bc.region[face.bc].type==OUTLET) {
 			right.v=left.v;
 			right.v_center=2.*right.v-left.v_center; 
+			if (bc.region[face.bc].specified==BC_P) {
+
+				double uNL=left.v.dot(face.normal);
+				double uNR;
+				double aL=sqrt(Gamma*(left.p+Pref)/left.rho);
+				double MachL=uNL/aL;
+
+				if (MachL<1.) { 
+					// Extrapolate entropy
+					right.rho=left.rho*pow((right.p+Pref)/(left.p+Pref),1./Gamma);
+					double aR=sqrt(Gamma*(right.p+Pref)/right.rho);
+					// Extrapolate outgoing characteristic
+					uNR=uNL+2.*(aL/(Gamma-1.)-aR/(Gamma-1.));
+					right.v=left.v-left.v.dot(face.normal)*face.normal+uNR*face.normal;
+				}
+
+				right.T=eos.T(right.p,right.rho);
+				right.T_center=2.*right.T-left.T_center;
+			}
+
 			if (right.v.dot(face.normal)<0.) {
 				if (bc.region[face.bc].kind==DAMP_REVERSE) {
 					right.p-=0.5*right.rho*right.v.dot(right.v);
 					right.T=eos.T(right.p,right.rho);
-					right.T_center=left.T_center+2.*(right.T-left.T_center);
+					right.T_center=2.*right.T-left.T_center;
 				} else if (bc.region[face.bc].kind==NO_REVERSE) {
 					right.v=-1.*left.v;
 					right.v_center=-1.*left.v_center; 
@@ -545,7 +562,6 @@ void face_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 	face.p=0.5*(left.p+right.p);
 	face.v=0.5*(left.v+right.v);
 	face.T=0.5*(left.T+right.T);
-	face.rho=0.5*(left.rho+right.rho);
 	
 	return;
 } // end face_state_update
@@ -603,7 +619,6 @@ void face_state_adjust(Cell_State &left,Cell_State &right,Face_State &face,int v
 	{
 		case 0 : // p
 			face.p=0.5*(left.p+right.p);
-			face.rho=eos.rho(face.p,face.T);
 			break;
 		case 1 : // u
 			face.v[0]=0.5*(left.v[0]+right.v[0]);
@@ -622,7 +637,6 @@ void face_state_adjust(Cell_State &left,Cell_State &right,Face_State &face,int v
 			break;
 		case 4 : // T
 			face.T=0.5*(left.T+right.T);
-			face.rho=eos.rho(face.p,face.T);
 			face.gradT-=face.gradT.dot(face.normal)*face.normal;
 			face.gradT+=((right.T_center-left.T_center)/(face.left2right.dot(face.normal)))*face.normal;
 			break;

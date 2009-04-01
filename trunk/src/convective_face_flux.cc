@@ -45,7 +45,7 @@ double p_split_5_minus (double Mach);
 
 void convective_face_flux(Cell_State &left,Cell_State &right,Face_State &face,double flux[]) {
 
-	double fluxNormal[7];
+	double fluxNormal[5];
 
 	if (face.bc>=0 && bc.region[face.bc].type==INLET) {
 		flux_from_right(right,fluxNormal);
@@ -55,10 +55,12 @@ void convective_face_flux(Cell_State &left,Cell_State &right,Face_State &face,do
 		fluxNormal[1]=left.p;
 		grid.face[face.index].weightL=1.;
 	} else if (CONVECTIVE_FLUX_FUNCTION==ROE) {
-		 roe_flux(left,right,fluxNormal,grid.face[face.index].weightL);
+		roe_flux(left,right,fluxNormal,grid.face[face.index].weightL);
 	} else if (CONVECTIVE_FLUX_FUNCTION==AUSM_PLUS_UP) {
-		 AUSMplusUP_flux(left,right,fluxNormal,grid.face[face.index].weightL);
+		AUSMplusUP_flux(left,right,fluxNormal,grid.face[face.index].weightL);
 	}
+
+
 	
 
 // 	if (CONVECTIVE_FLUX_FUNCTION==ROE || face.bc>=0) {
