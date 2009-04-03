@@ -20,7 +20,7 @@ PETSC_LIBS = -L$(PETSC_DIR)/lib/$(PETSC_ARCH) -lpetscksp -lpetscdm -lpetscmat -l
 PETSC_INCLUDE = -I$(PETSC_DIR)/include -I$(PETSC_DIR)/bmake/$(PETSC_ARCH)
 
 SRC= \
-	assemble_linear_system.cc \
+	apply_bcs.cc assemble_linear_system.cc \
 	check_inputs.cc convective_face_flux.cc commons.cc \
 	diffusive_face_flux.cc \
 	eos.cc \

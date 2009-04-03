@@ -37,6 +37,7 @@ extern RANS rans;
 
 void get_jacobians(const int var);
 void convective_face_flux(Cell_State &left,Cell_State &right,Face_State &face,double flux[]);
+void apply_bcs(Cell_State &left,Cell_State &right,Face_State &face);
 void diffusive_face_flux(Cell_State &left,Cell_State &right,Face_State &face,double flux[]);
 void left_state_update(Cell_State &left,Face_State &face);
 void right_state_update(Cell_State &left,Cell_State &right,Face_State &face);
@@ -360,118 +361,8 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 		
 	} else if (face.bc>=0) { // boundary face
 		
-		unsigned int parent=grid.face[face.index].parent;
-		
-		for (unsigned int i=0;i<5;++i) right.update[i]=0.; // TODO Is this needed?
-		
-		if (bc.region[face.bc].specified==BC_STATE) {
-			right.p=bc.region[face.bc].p;
-			right.T=bc.region[face.bc].T;
-			right.T_center=2.*right.T-left.T_center;
-			right.rho=bc.region[face.bc].rho;
-		} else if (bc.region[face.bc].specified==BC_P) {
-			right.p=bc.region[face.bc].p;
-			right.T=left.T;
-			right.T_center=2.*right.T-left.T_center;
-			right.rho=eos.rho(right.p,right.T);
-		} else if (bc.region[face.bc].specified==BC_T) {
-			right.T=bc.region[face.bc].T;
-			right.T_center=right.T;
-			right.p=left.p; // pressure is extrapolated
-			right.rho=eos.rho(right.p,right.T); 
-		} else if (bc.region[face.bc].specified==BC_RHO) {
-			// This can only be an inlet
-			// Set the specified density
-			right.rho=bc.region[face.bc].rho;
-			// Extrapolate pressure from left, adjust temperature
-			// Will be fixed when given velocity is imposed below
-			right.p=left.p;
-			right.T=eos.T(right.p,right.rho);
-			right.T_center=2.*right.T-left.T_center;
-
-		} else {
-			// If nothing is specified, everything is extrapolated
-			right.p=left.p;
-			right.T=left.T; 
-			right.T_center=2.*right.T-left.T_center;
-			right.rho=left.rho;
-		}
-	
-		if (bc.region[face.bc].thermalType==ADIABATIC) right.T_center=left.T_center;
-	
-		if (bc.region[face.bc].type==SLIP) {
-			right.v=left.v-2.*left.v.dot(face.normal)*face.normal;
-			right.v_center=left.v_center-2.*left.v_center.dot(face.normal)*face.normal;
-		} else if (bc.region[face.bc].type==SYMMETRY) {
-			right.v=left.v-2.*left.v.dot(face.normal)*face.normal;
-			right.v_center=left.v_center-2.*left.v_center.dot(face.normal)*face.normal;
-			right.T_center=left.T_center;
-		} else if (bc.region[face.bc].type==NOSLIP) {
-			right.v=-1.*left.v;
-			right.v_center=-1.*left.v_center;
-		} else if (bc.region[face.bc].type==INLET) {
-			if (bc.region[face.bc].kind==MDOT) {
-				right.v=-bc.region[face.bc].mdot/(right.rho*bc.region[face.bc].area)*bc.region[face.bc].areaVec.norm();
-			} else if (bc.region[face.bc].kind==VELOCITY) {
-				right.v=bc.region[face.bc].v;
-			}
-			
-			double uNL=left.v.dot(face.normal);
-			double uNR=right.v.dot(face.normal);
-			left.a=sqrt(Gamma*(left.p+Pref)/left.rho);
-			double MachL=-uNL/left.a;
-
-			if (MachL>=1.) { // supersonic inlet, can't extrapolate anything
-				if (!bc.region[face.bc].specified==BC_STATE) {
-					cerr << "[E] Inlet at BC_" << face.bc+1 << " became supersonic, need to specify the themodynamic state" << endl;
-					exit(1);
-				}
-				// State is already set, everything is fine
-			} else {
-				//if (MachL<0.) uNL=0.; // Flow reversal at inlet, not good. cut off the normal component
-				// Extrapolate outgoing Riemann invariant (isentropic) (uN+2a/(gamma-1)
-				// TODO The following is only for specified density, Need to handle specified press. or tempetature or mdot too
-				right.a=left.a+0.5*(uNL-uNR)*(Gamma-1.);
-				right.p=right.a*right.a*right.rho/Gamma-Pref;
-			} 
-		
-			right.v_center=2.*right.v-left.v_center; 
-			right.T=eos.T(right.p,right.rho);
-			right.T_center=2.*right.T-left.T_center;
-		} else if (bc.region[face.bc].type==OUTLET) {
-			right.v=left.v;
-			right.v_center=2.*right.v-left.v_center; 
-			if (bc.region[face.bc].specified==BC_P) {
-
-				double uNL=left.v.dot(face.normal);
-				double uNR;
-				double aL=sqrt(Gamma*(left.p+Pref)/left.rho);
-				double MachL=uNL/aL;
-
-				if (MachL<1.) { 
-					// Extrapolate entropy
-					right.rho=left.rho*pow((right.p+Pref)/(left.p+Pref),1./Gamma);
-					double aR=sqrt(Gamma*(right.p+Pref)/right.rho);
-					// Extrapolate outgoing characteristic
-					uNR=uNL+2.*(aL/(Gamma-1.)-aR/(Gamma-1.));
-					right.v=left.v-left.v.dot(face.normal)*face.normal+uNR*face.normal;
-				}
-
-				right.T=eos.T(right.p,right.rho);
-				right.T_center=2.*right.T-left.T_center;
-			}
-
-			if (right.v.dot(face.normal)<0.) {
-				if (bc.region[face.bc].kind==DAMP_REVERSE) {
-					right.p-=0.5*right.rho*right.v.dot(right.v);
-					right.T=eos.T(right.p,right.rho);
-					right.T_center=2.*right.T-left.T_center;
-				} else if (bc.region[face.bc].kind==NO_REVERSE) {
-					right.v=-1.*left.v;
-					right.v_center=-1.*left.v_center; 
-				}
-			}
-		}
+		for (unsigned int i=0;i<5;++i) right.update[i]=0.;
+		apply_bcs(left,right,face);
 		
 	} else { // partition boundary
 
