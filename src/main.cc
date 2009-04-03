@@ -272,7 +272,7 @@ int main(int argc, char *argv[]) {
 		assemble_linear_system();
 		if (FLAMELET) update_face_mdot();
 		petsc_solve(nIter,rNorm);
-		
+
 		// Solve Flamelet Equations
 		if (FLAMELET) {
 			flamelet.terms();

@@ -33,8 +33,12 @@ void diffusive_face_flux(Cell_State &left,Cell_State &right,Face_State &face,dou
 	Vec3D tau_x,tau_y,tau_z,areaVec;
 
 	double Tvisc=viscosity;
+	double cond=conductivity;
 	if (FLAMELET) Tvisc=flamelet.face[face.index].mu;
-	if (TURBULENCE_MODEL!=NONE) Tvisc+=rans.face[face.index].mu_t;
+	if (TURBULENCE_MODEL!=NONE) {
+		Tvisc+=rans.face[face.index].mu_t;
+		cond+=rans.face[face.index].mu_t/0.7;
+	}
 	
 	areaVec=face.normal*face.area;
 	tau_x[0]=2./3.*(2.*face.gradU[0]-face.gradV[1]-face.gradW[2]);
@@ -51,7 +55,7 @@ void diffusive_face_flux(Cell_State &left,Cell_State &right,Face_State &face,dou
 	flux[2]=Tvisc*tau_y.dot(areaVec);
 	flux[3]=Tvisc*tau_z.dot(areaVec);
 	flux[4]=Tvisc*(tau_x.dot(face.v)*areaVec[0]+tau_y.dot(face.v)*areaVec[1]+tau_z.dot(face.v)*areaVec[2]);
-	//if (!FLAMELET) flux[4]+=conductivity*face.gradT.dot(areaVec);// TODO Viscous dissipation needs to be added too
+	flux[4]+=cond*face.gradT.dot(areaVec);// TODO Viscous dissipation needs to be added too
 
 
 	return;
