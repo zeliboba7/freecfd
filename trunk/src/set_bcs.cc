@@ -116,7 +116,7 @@ void setBCs(InputFile &input, BC &bc) {
 		} else {
 			bcRegion.thermalType=ADIABATIC;
 			if (region.get_double("Z").is_found) {
-				bcRegion.specified=BC_FLAMELET_INLET;
+				bcRegion.specified=BC_T;
 				bcRegion.Z=region.get_double("Z");
 				bcRegion.Zvar=region.get_double("Zvar");
 				double Chi=2.*bcRegion.omega*bcRegion.Zvar*rans.kepsilon.beta_star;
