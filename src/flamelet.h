@@ -65,8 +65,8 @@ class Flamelet_Table {
 	double get_Mw(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights=true);
 	double get_c_p(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights=true);
 	double get_gamma(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights=true);
-	double get_drho_dZ(double &Z_in, double &Zvar_in, double &Chi_in);
-	double get_drho_dZvar(double &Z_in, double &Zvar_in, double &Chi_in);
+	double get_drho_dZ(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights=true);
+	double get_drho_dZvar(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights=true);
 };
 
 class Flamelet_Constants {

@@ -268,18 +268,18 @@ int main(int argc, char *argv[]) {
 		get_dt();
 		get_CFLmax();
 		
+		// Solve Navier-Stokes equations
 		initialize_linear_system();
 		assemble_linear_system();
 		if (FLAMELET) update_face_mdot();
 		petsc_solve(nIter,rNorm);
 
-		// Solve Flamelet Equations
+		// Solve flamelet equations
 		if (FLAMELET) {
 			flamelet.terms();
 			flamelet.petsc_solve(nIterFlame,rNormFlame);
 			flamelet.update(resZ,resZvar);
 			flamelet.lookup();
-			mpi_update_ghost_primitives();
 			flamelet.mpi_update_ghost();
 			flamelet.gradients();
 			flamelet.mpi_update_ghost_gradients();

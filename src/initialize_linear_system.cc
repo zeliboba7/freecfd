@@ -46,6 +46,8 @@ inline void preconditioner_none(Cell &c,int cid,double P[][5]) {
 	if (FLAMELET) {
 		Gamma=flamelet.cell[cid].gamma;
 		c_p=Gamma*flamelet.cell[cid].R/(Gamma-1.);
+// 		//drho_dp/=Gamma;
+// 		drho_dT=0.;
 	} else {
 		c_p=Gamma/(Gamma-1.)*p/(c.rho*T);
 	}
@@ -58,8 +60,8 @@ inline void preconditioner_none(Cell &c,int cid,double P[][5]) {
 	P[1][0]=drho_dp*c.v[0]; P[1][1]=c.rho; P[1][4]=drho_dT*c.v[0];
 	P[2][0]=drho_dp*c.v[1]; P[2][2]=c.rho; P[2][4]=drho_dT*c.v[1];
 	P[3][0]=drho_dp*c.v[2]; P[3][3]=c.rho; P[3][4]=drho_dT*c.v[2];
-		
-	P[4][0]=drho_dp*H-1.; 
+	
+	P[4][0]=drho_dp*H-1.;
 	P[4][1]=c.rho*c.v[0];
 	P[4][2]=c.rho*c.v[1];
 	P[4][3]=c.rho*c.v[2];
