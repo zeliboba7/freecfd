@@ -37,7 +37,7 @@ void Flamelet::terms(void) {
 	double convectiveFlux[2],diffusiveFlux[2],source[2];
 	double jacL[2],jacR[2];
 	bool extrapolated;
-	double mu,diff;
+	double diff;
 	map<int,double>::iterator fit;
 	
 	MatZeroEntries(impOP); // Flush the implicit operator
@@ -73,7 +73,6 @@ void Flamelet::terms(void) {
 		convectiveFlux[0]=grid.face[f].mdot*(weightL*leftZ+weightR*rightZ)*grid.face[f].area;
 		convectiveFlux[1]=grid.face[f].mdot*(weightL*leftZvar+weightR*rightZvar)*grid.face[f].area;
 
-		mu=flamelet.face[f].mu;
 		mu_t=rans.face[f].mu_t;
 		
 		diff=0.;
@@ -100,11 +99,8 @@ void Flamelet::terms(void) {
 			}
 		}
 		
-		
-		
 		// Calculate flux jacobians
 		// dF_Z/dZ_left
-
 		double drho_dZ=table.get_drho_dZ(leftZ,leftZvar,Chi);
 		jacL[0]=weightL*grid.face[f].mdot*grid.face[f].area; // convective
 		//jacL[0]+=weightL*grid.face[f].uN*grid.face[f].area*drho_dZ*(weightL*leftZ+weightR*rightZ); // convective
@@ -175,7 +171,7 @@ void Flamelet::terms(void) {
 		// (rho+Z*drho/dZ)dZ/dt
 		
 		drho_dZ=table.get_drho_dZ(cell[c].Z,cell[c].Zvar,cell[c].Chi);
-		drho_dZvar=table.get_drho_dZvar(cell[c].Z,cell[c].Zvar,cell[c].Chi);
+		drho_dZvar=table.get_drho_dZvar(cell[c].Z,cell[c].Zvar,cell[c].Chi,false);
 		
 		// Insert unsteady term
 		row=(grid.myOffset+c)*2;
@@ -205,7 +201,7 @@ void Flamelet::terms(void) {
 		
 		// Add source jacobians
 		
-		// Only includr the destruction term
+		// Only include the destruction term
 		// dS_Zvar/dZvar
 		row=(grid.myOffset+c)*2+1; col=row;
 		value=(constants.Cd*grid.cell[c].rho*rans.kepsilon.beta_star*rans.cell[c].omega)*grid.cell[c].volume;
@@ -245,6 +241,19 @@ void Flamelet::get_Z_Zvar(unsigned int &parent,unsigned int &neighbor,unsigned i
 	leftZ=min(1.,leftZ);
 	leftZvar=max(0.,leftZvar);
 	leftZvar=min(0.25,leftZvar);
+	
+	// Find face averaged quantities
+	faceGradZ=0.; faceGradZvar=0.;
+	map<int,double>::iterator fit;
+	for (fit=grid.face[f].average.begin();fit!=grid.face[f].average.end();fit++) {
+		if ((*fit).first>=0) { // if contribution is coming from a real cell
+			faceGradZ+=(*fit).second*flamelet.cell[(*fit).first].grad[0];
+			faceGradZvar+=(*fit).second*flamelet.cell[(*fit).first].grad[1];
+		} else { // if contribution is coming from a ghost cell
+			faceGradZ+=(*fit).second*flamelet.ghost[-1*((*fit).first+1)].grad[0];
+			faceGradZvar+=(*fit).second*flamelet.ghost[-1*((*fit).first+1)].grad[1];
+		}
+	}
 	
 	// Find distance between left and right centroids 
 	Vec3D leftCentroid,rightCentroid;

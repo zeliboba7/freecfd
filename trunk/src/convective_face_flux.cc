@@ -78,6 +78,7 @@ void convective_face_flux(Cell_State &left,Cell_State &right,Face_State &face,do
 	flux[3] = (fluxNormal[1]*face.normal[2]+fluxNormal[2]*face.tangent1[2]+fluxNormal[3]*face.tangent2[2])*face.area;
 	flux[4] = fluxNormal[4]*face.area;
 	grid.face[face.index].mdot=fluxNormal[0];
+// 	if (FLAMELET) flux[4]=0.;
 
 	return;
 } // end face flux

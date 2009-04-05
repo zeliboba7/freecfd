@@ -154,7 +154,7 @@ void Flamelet_Table::get_weights(double &Z_in, double &Zvar_in, double &Chi_in) 
 		weights[0]=1.0-(Z_in-Z[i1])/(Z[i1+1]-Z[i1]);	
 	}
 	weights[1]=1.0-weights[0];
-	//allow for non-equdistant grid spacing for x2=Zvar
+	
 	i2=-1;
 	if (S_in<=S[0]) {
 		i2=0;
@@ -171,7 +171,7 @@ void Flamelet_Table::get_weights(double &Z_in, double &Zvar_in, double &Chi_in) 
 		weights[2]=1.0-(S_in-S[i2])/(S[i2+1]-S[i2]);	
 	}
 	weights[3]=1.0-weights[2];
-	//allow for non-equdistant grid spacing for x3=chiMean
+	
 	i3=-1;
 	if (Chi_in<=Chi[0]) {
 		i3=0;
@@ -202,11 +202,10 @@ double Flamelet_Table::get_rho(double &Z_in, double &Zvar_in, double &Chi_in,boo
 	
 	if (refreshWeights) get_weights(Z_in,Zvar_in,Chi_in);
 	
-	return weights[4]*( weights[2]*( weights[0]*rho[i1][i2][i3]
-			+weights[1]*rho[i1+1][i2][i3] )
+	return weights[4]*( weights[2]*( weights[0]*rho[i1][i2][i3]+weights[1]*rho[i1+1][i2][i3] )
 			+weights[3]*( weights[0]*rho[i1][i2+1][i3]
 			+weights[1]*rho[i1+1][i2+1][i3] ) ) 
-			+weights[5]*( weights[2]*( weights[0]*rho[i1][i2][i3+1]   
+			+weights[5]*( weights[2]*( weights[0]*rho[i1][i2][i3+1]
 			+weights[1]*rho[i1+1][i2][i3+1] ) 
 			+weights[3]*( weights[0]*rho[i1][i2+1][i3+1] 
 			+weights[1]*rho[i1+1][i2+1][i3+1] ) );
@@ -221,33 +220,10 @@ double Flamelet_Table::get_T(double &Z_in, double &Zvar_in, double &Chi_in,bool 
 			+weights[1]*T[i1+1][i2][i3] )
 			+weights[3]*( weights[0]*T[i1][i2+1][i3]
 			+weights[1]*T[i1+1][i2+1][i3] ) ) 
-			+weights[5]*( weights[2]*( weights[0]*T[i1][i2][i3+1]   
+			+weights[5]*( weights[2]*( weights[0]*T[i1][i2][i3+1]
 			+weights[1]*T[i1+1][i2][i3+1] ) 
 			+weights[3]*( weights[0]*T[i1][i2+1][i3+1] 
 			+weights[1]*T[i1+1][i2+1][i3+1] ) )-Tref;
-}
-
-void Flamelet_Table::get_rho_T_comp(double &p_in, double &Z_in, double &Zvar_in, double &Chi_in,double &rho_out, double &T_out) {
-	
-	double rho_table,T_table,p_table,Mw_table;
-	
-	T_table=get_T(Z_in,Zvar_in,Chi_in);
-	rho_table=get_rho(Z_in,Zvar_in,Chi_in,false);
-	Mw_table=get_Mw(Z_in,Zvar_in,Chi_in,false);
-	Gamma=get_gamma(Z_in,Zvar_in,Chi_in,false);
-	p_table=rho_table*UNIV_GAS_CONST/Mw_table*T_table;
-	
-	// Assume isentropic compression or expansion from p_table to p_in and correct temperature and density
-	rho_out=rho_table*pow((p_in+Pref)/p_table,1./Gamma);
-	T_out=(p_in+Pref)*Mw_table/(UNIV_GAS_CONST*rho_out)-Tref;
-	
-	//Deactivate
-// 	rho_out=rho_table;
-// 	T_out=T_table-Tref;
-	//T_out=pow( pow(p_table,Gamma-1.)*pow(T_table,-Gamma)/pow(p_in+Pref,Gamma-1.) , -1./Gamma);
-	//rho_out=(p_in+Pref)*Mw_table/(UNIV_GAS_CONST*T_out);
-	//T_out-=Tref;
-	return;
 }
 
 double Flamelet_Table::get_mu(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights) {
@@ -294,32 +270,54 @@ double Flamelet_Table::get_c_p(double &Z_in, double &Zvar_in, double &Chi_in,boo
 
 double Flamelet_Table::get_Mw(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights) {
 	
-	if (refreshWeights) get_weights(Z_in,Zvar_in,Chi_in);
+// 	if (refreshWeights) get_weights(Z_in,Zvar_in,Chi_in);
+// 	
+// 	return  weights[4]*( weights[2]*( weights[0]*Mw[i1][i2][i3]
+// 			+weights[1]*Mw[i1+1][i2][i3] )
+// 			+weights[3]*( weights[0]*Mw[i1][i2+1][i3]
+// 			+weights[1]*Mw[i1+1][i2+1][i3] ) ) 
+// 			+weights[5]*( weights[2]*( weights[0]*Mw[i1][i2][i3+1]   
+// 			+weights[1]*Mw[i1+1][i2][i3+1] ) 
+// 			+weights[3]*( weights[0]*Mw[i1][i2+1][i3+1] 
+// 			+weights[1]*Mw[i1+1][i2+1][i3+1] ) );
+// 	
+	 return UNIV_GAS_CONST/(Pref/(get_rho(Z_in,Zvar_in,Chi_in,refreshWeights)*get_T(Z_in,Zvar_in,Chi_in,refreshWeights)));
 	
-	return  weights[4]*( weights[2]*( weights[0]*Mw[i1][i2][i3]
-			+weights[1]*Mw[i1+1][i2][i3] )
-			+weights[3]*( weights[0]*Mw[i1][i2+1][i3]
-			+weights[1]*Mw[i1+1][i2+1][i3] ) ) 
-			+weights[5]*( weights[2]*( weights[0]*Mw[i1][i2][i3+1]   
-			+weights[1]*Mw[i1+1][i2][i3+1] ) 
-			+weights[3]*( weights[0]*Mw[i1][i2+1][i3+1] 
-			+weights[1]*Mw[i1+1][i2+1][i3+1] ) );
 	
 }
 
 double Flamelet_Table::get_gamma(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights) {
 	
-	if (refreshWeights) get_weights(Z_in,Zvar_in,Chi_in);
-	
-	double c_p_table=get_c_p(Z_in,Zvar_in,Chi_in,false);
+	double c_p_table=get_c_p(Z_in,Zvar_in,Chi_in,refreshWeights);
 	double R=UNIV_GAS_CONST/get_Mw(Z_in,Zvar_in,Chi_in,false);
 		
 	return c_p_table/(c_p_table-R);
 }
 
-double Flamelet_Table::get_drho_dZ(double &Z_in, double &Zvar_in, double &Chi_in) {
+void Flamelet_Table::get_rho_T_comp(double &p_in, double &Z_in, double &Zvar_in, double &Chi_in,double &rho_out, double &T_out) {
 	
-	get_weights(Z_in,Zvar_in,Chi_in);
+	double rho_table,T_table,p_table,Mw_table;
+	
+	T_table=get_T(Z_in,Zvar_in,Chi_in);
+	rho_table=get_rho(Z_in,Zvar_in,Chi_in,false);
+	Gamma=get_gamma(Z_in,Zvar_in,Chi_in,false);
+	Mw_table=get_Mw(Z_in,Zvar_in,Chi_in,false);
+	p_table=rho_table*UNIV_GAS_CONST/Mw_table*T_table;
+	
+	// Assume isentropic compression or expansion from p_table to p_in and correct temperature and density
+	rho_out=rho_table*pow((p_in+Pref)/p_table,1./Gamma);
+	T_out=(p_in+Pref)*Mw_table/(UNIV_GAS_CONST*rho_out)-Tref;
+
+	//Deactivate
+	rho_out=rho_table;
+	T_out=T_table-Tref;
+
+	return;
+}
+
+double Flamelet_Table::get_drho_dZ(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights) {
+	
+	if (refreshWeights) get_weights(Z_in,Zvar_in,Chi_in);
 	// Now we know i1
 	double Z_minus,Z_plus;
 	if (i1<Z.size()) {
@@ -333,21 +331,20 @@ double Flamelet_Table::get_drho_dZ(double &Z_in, double &Zvar_in, double &Chi_in
 	return (get_rho(Z_plus,Zvar_in,Chi_in)-get_rho(Z_minus,Zvar_in,Chi_in))/(Z_plus-Z_minus);
 }
 
-
-
-double Flamelet_Table::get_drho_dZvar(double &Z_in, double &Zvar_in, double &Chi_in) {
+double Flamelet_Table::get_drho_dZvar(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights) {
 	
-// 	get_weights(Z_in,Zvar_in,Chi_in);
-// 	// Know we know i2
-// 	double Zvar_minus,Zvar_plus;
-// 	if (i2<Zvar.size()) {
-// 		Zvar_minus=Z[i2];
-// 		Zvar_plus=Z[i2+1];
-// 	} else {
-// 		Zvar_minus=Z[i2-1];
-// 		Zvar_plus=Z[i2];
-// 	}
-// 	return (get_rho(Z_in,Zvar_plus,Chi_in)-get_rho(Z_in,Zvar_minus,Chi_in))/(Zvar_plus-Zvar_minus);
+	if (refreshWeights) get_weights(Z_in,Zvar_in,Chi_in);
+	// Know we know i2
+	double Zvar_minus,Zvar_plus;
+	double Zvar2S=Z_in*(1.-Z_in);
+	if (i2<S.size()) {
+		Zvar_minus=S[i2]*Zvar2S;
+		Zvar_plus=S[i2+1]*Zvar2S;
+	} else {
+		Zvar_minus=S[i2-1]*Zvar2S;
+		Zvar_plus=S[i2]*Zvar2S;
+	}
+	if (fabs(Zvar_plus-Zvar_minus)<1.e-8) return 0.;
+	return (get_rho(Z_in,Zvar_plus,Chi_in)-get_rho(Z_in,Zvar_minus,Chi_in))/(Zvar_plus-Zvar_minus);
 	
-	return 0.;
 }

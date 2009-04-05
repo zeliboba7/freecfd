@@ -122,8 +122,6 @@ void Flamelet::petsc_solve(int &nIter, double &rNorm) {
 		}
 	}
 
-	VecSet(rhs,0.);
-
 	return;
 	
 } // end Flamelet::petsc_solve
@@ -343,9 +341,9 @@ void Flamelet::update(double &resZ, double &resZvar) {
 	for (unsigned int c = 0;c < grid.cellCount;++c) {
 		
 		// Limit the update so Z doesn't end up negative
-		cell[c].update[0]=max(-cell[c].Z,cell[c].update[0]);
+		cell[c].update[0]=max(-1.*cell[c].Z,cell[c].update[0]);
 		// Limit the update so Zvar doesn't end up negative
-		cell[c].update[1]=max(-cell[c].Zvar,cell[c].update[1]);
+		cell[c].update[1]=max(-1.*cell[c].Zvar,cell[c].update[1]);
 		// Limit the update so Z doesn't end up larger than 1
 		cell[c].update[0]=min(1.-cell[c].Z,cell[c].update[0]);
 		// Limit the update so Z doesn't end up larger than 0.25
@@ -380,7 +378,7 @@ void Flamelet::lookup(void) {
 		cell[c].Chi=log10(2.0*rans.kepsilon.beta_star*rans.cell[c].omega*cell[c].Zvar);	
 		table.get_rho_T_comp(grid.cell[c].p,cell[c].Z,cell[c].Zvar,cell[c].Chi,grid.cell[c].rho,new_T);
 		grid.cell[c].update[4]=new_T-grid.cell[c].T;
-		grid.cell[c].T+=grid.cell[c].update[4];
+		grid.cell[c].T=new_T;
 		
 		cell[c].R=UNIV_GAS_CONST/table.get_Mw(cell[c].Z,cell[c].Zvar,cell[c].Chi);
 		cell[c].gamma=table.get_gamma(cell[c].Z,cell[c].Zvar,cell[c].Chi,false);
