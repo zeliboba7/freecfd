@@ -1,3 +1,4 @@
+
 /************************************************************************
 	
 	Copyright 2007-2009 Emre Sozer & Patrick Clark Trizila
@@ -57,6 +58,9 @@ void apply_bcs(Cell_State &left,Cell_State &right,Face_State &face) {
 
 void velocity_inlet(Cell_State &left,Cell_State &right,Face_State &face) {
 	
+	right.v=bc.region[face.bc].v;
+	right.v_center=2.*right.v-left.v_center; 
+	
 	// Note that face normal is pointing out (towards the right state)
 	// Extrapolate outgoing Riemann invariant (isentropic) (uN+2a/(gamma-1)
 	double uNL=left.v.dot(face.normal);
@@ -77,7 +81,7 @@ void velocity_inlet(Cell_State &left,Cell_State &right,Face_State &face) {
 		right.rho=bc.region[face.bc].rho;
 	} else if (bc.region[face.bc].specified==BC_P) {
 		right.p=bc.region[face.bc].p;
-		right.rho=Gamma*right.p/(right.a*right.a);
+		right.rho=Gamma*(right.p+Pref)/(right.a*right.a);
 		right.T=eos.T(right.p,right.rho);
 		right.T_center=2.*right.T-left.T_center;
 	} else if (bc.region[face.bc].specified==BC_T) {
@@ -99,8 +103,7 @@ void velocity_inlet(Cell_State &left,Cell_State &right,Face_State &face) {
 		right.T_center=2.*right.T-left.T_center;
 	}
 		
-	right.v=bc.region[face.bc].v;
-	right.v_center=2.*right.v-left.v_center; 
+
 
 	return;
 } // end velocity_inlet
