@@ -62,15 +62,6 @@ void convective_face_flux(Cell_State &left,Cell_State &right,Face_State &face,do
 	} else if (CONVECTIVE_FLUX_FUNCTION==AUSM_PLUS_UP) {
 		AUSMplusUP_flux(left,right,fluxNormal,grid.face[face.index].weightL);
 	}
-
-
-	
-
-// 	if (CONVECTIVE_FLUX_FUNCTION==ROE || face.bc>=0) {
-// 		roe_flux(left,right,fluxNormal,grid.face[face.index].weightL);
-// 	} else if (CONVECTIVE_FLUX_FUNCTION==AUSM_PLUS_UP) {
-// 		AUSMplusUP_flux(left,right,fluxNormal,grid.face[face.index].weightL);
-// 	}
 	
 	flux[0] = fluxNormal[0]*face.area;
 	flux[1] = (fluxNormal[1]*face.normal[0]+fluxNormal[2]*face.tangent1[0]+fluxNormal[3]*face.tangent2[0])*face.area;
@@ -78,7 +69,6 @@ void convective_face_flux(Cell_State &left,Cell_State &right,Face_State &face,do
 	flux[3] = (fluxNormal[1]*face.normal[2]+fluxNormal[2]*face.tangent1[2]+fluxNormal[3]*face.tangent2[2])*face.area;
 	flux[4] = fluxNormal[4]*face.area;
 	grid.face[face.index].mdot=fluxNormal[0];
-// 	if (FLAMELET) flux[4]=0.;
 
 	return;
 } // end face flux
@@ -169,15 +159,7 @@ void roe_flux(Cell_State &left,Cell_State &right,double fluxNormal[],double &wei
 		fluxNormal[3]=mdot*right.vN[2]-lambda5*alpha5*right45;
 		fluxNormal[4]=mdot*right.H-lambda5*alpha5*right55;
 	}
-// 	if (abs(left.rho-right.rho)<10e-15) weightL=0.5;
-// 	else weightL=((fluxNormal[0]*fluxNormal[0]/fluxNormal[1])-right.rho)/(left.rho-right.rho); // Based on density 
-	
-// 	if (abs(left.rho*left.vN[0]-right.rho*right.vN[0])<1.e-15) {
-// 		weightL=0.5;
-// 	} else {
-// 		//weightL=(fluxNormal[0]-right.rho*right.vN[0])/(left.rho*left.vN[0]-right.rho*right.vN[0]);
-// 		weightL=((fluxNormal[0]*fluxNormal[0]/fluxNormal[1])-right.rho)/(left.rho-right.rho);
-// 	}
+
 	weightL=0.;
 	
 	return;
