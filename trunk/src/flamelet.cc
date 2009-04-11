@@ -120,6 +120,7 @@ void Flamelet::petsc_solve(int &nIter, double &rNorm) {
 			index=(grid.myOffset+c)*2+i;
 			VecGetValues(deltaU,1,&index,&cell[c].update[i]);
 		}
+		//cell[c].update[0]=0.;
 	}
 
 	return;
@@ -349,10 +350,10 @@ void Flamelet::update(double &resZ, double &resZvar) {
 		// Limit the update so Z doesn't end up larger than 0.25
 		cell[c].update[1]=min(0.25-cell[c].Zvar,cell[c].update[1]);
 		
-		cell[c].Z+=cell[c].update[0];
+		//cell[c].Z+=cell[c].update[0];
 		cell[c].Zvar+=cell[c].update[1];
 		
-		resZ+=cell[c].update[0]*cell[c].update[0];
+		//resZ+=cell[c].update[0]*cell[c].update[0];
 		resZvar+=cell[c].update[1]*cell[c].update[1];
 		
 	} // cell loop
@@ -361,9 +362,11 @@ void Flamelet::update(double &resZ, double &resZvar) {
 	residuals[0]=resZ; residuals[1]=resZvar;
 	if (np!=1) {
 		MPI_Reduce(&residuals,&totalResiduals,2, MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
-		resZ=totalResiduals[0]; resZvar=totalResiduals[1];
+		//resZ=totalResiduals[0]; 
+		resZvar=totalResiduals[1];
 	}
-	resZ=sqrt(resZ); resZvar=sqrt(resZvar);
+	//resZ=sqrt(resZ); 
+	resZvar=sqrt(resZvar);
 	
 	return;
 

@@ -98,10 +98,8 @@ void petsc_solve(int &nIter,double &rNorm) {
 	KSPGetResidualNorm(ksp,&rNorm); 
 	
 	int index;
-	int nVar=5;
-	if (FLAMELET) nVar--;
 	for (unsigned int c=0;c<grid.cellCount;++c) {
-		for (int i=0;i<nVar;++i) {
+		for (int i=0;i<5;++i) {
 			index=(grid.myOffset+c)*5+i;
 			VecGetValues(deltaU,1,&index,&grid.cell[c].update[i]);
 		}

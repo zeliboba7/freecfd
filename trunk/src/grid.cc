@@ -405,15 +405,6 @@ void Grid::gradients(void) {
 				}
 					
 				if (!GRAD_TEST) {
-					
-					if (bc.region[face[f].bc].specified==BC_STATE) {
-						faceP=bc.region[face[f].bc].p;
-						faceT=bc.region[face[f].bc].T;
-					} else if (bc.region[face[f].bc].specified==BC_P) {
-						faceP=bc.region[face[f].bc].p;
-					} else if (bc.region[face[f].bc].specified==BC_T) {
-						faceT=bc.region[face[f].bc].T;
-					}
 				
 					if (bc.region[face[f].bc].type==SLIP) { 
 						faceVel-=faceVel.dot(face[f].normal)*face[f].normal;
@@ -423,8 +414,6 @@ void Grid::gradients(void) {
 						faceVel-=faceVel.dot(face[f].normal)*face[f].normal;
 					} else if (bc.region[face[f].bc].type==NOSLIP) {
 						faceVel=0.;
-					} else if (bc.region[face[f].bc].type==INLET) {
-						if (bc.region[face[f].bc].kind==VELOCITY) faceVel=bc.region[face[f].bc].v;
 					}
 					
 					if (FLAMELET) {

@@ -47,6 +47,11 @@ void convective_face_flux(Cell_State &left,Cell_State &right,Face_State &face,do
 
 	double fluxNormal[5];
 
+	if (FLAMELET) {
+		Gamma=0.5*(left.gamma+right.gamma);
+		eos.R=0.5*(left.R+right.R);
+	}
+	
 	if (face.bc>=0 && bc.region[face.bc].type==INLET) {
 		flux_from_right(right,fluxNormal);
 		grid.face[face.index].weightL=0.;
@@ -69,6 +74,7 @@ void convective_face_flux(Cell_State &left,Cell_State &right,Face_State &face,do
 	flux[3] = (fluxNormal[1]*face.normal[2]+fluxNormal[2]*face.tangent1[2]+fluxNormal[3]*face.tangent2[2])*face.area;
 	flux[4] = fluxNormal[4]*face.area;
 	grid.face[face.index].mdot=fluxNormal[0];
+	if (FLAMELET) flux[4]=flux[0]*(grid.face[face.index].weightL*left.Z+(1.-grid.face[face.index].weightL)*right.Z);
 
 	return;
 } // end face flux
@@ -160,7 +166,7 @@ void roe_flux(Cell_State &left,Cell_State &right,double fluxNormal[],double &wei
 		fluxNormal[4]=mdot*right.H-lambda5*alpha5*right55;
 	}
 
-	weightL=0.;
+	weightL=0.5;
 	
 	return;
 } // end roe_flux

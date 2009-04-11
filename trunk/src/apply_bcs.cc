@@ -1,4 +1,3 @@
-
 /************************************************************************
 	
 	Copyright 2007-2009 Emre Sozer & Patrick Clark Trizila
@@ -40,6 +39,11 @@ void symmetry(Cell_State &left,Cell_State &right,Face_State &face);
 
 void apply_bcs(Cell_State &left,Cell_State &right,Face_State &face) {
 
+	if (FLAMELET) {
+		Gamma=0.5*(left.gamma+right.gamma);
+		eos.R=0.5*(left.R+right.R);
+	}
+	
 	if (bc.region[face.bc].type==INLET) {
 		if (bc.region[face.bc].kind==VELOCITY) velocity_inlet(left,right,face);
 		else if (bc.region[face.bc].kind==MDOT) mdot_inlet(left,right,face);
@@ -98,12 +102,10 @@ void velocity_inlet(Cell_State &left,Cell_State &right,Face_State &face) {
 	} else {
 		// If nothing is specified extrapolate pressure, get the density
 		right.p=left.p;
-		right.rho=Gamma*right.p/(right.a*right.a);
+		right.rho=Gamma*(right.p+Pref)/(right.a*right.a);
 		right.T=eos.T(right.p,right.rho);
 		right.T_center=2.*right.T-left.T_center;
 	}
-		
-
 
 	return;
 } // end velocity_inlet
