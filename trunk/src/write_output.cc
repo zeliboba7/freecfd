@@ -173,30 +173,53 @@ void write_tec_vars(int &nVar) {
 				
 				count_p=0; count_v=0; count_T=0; count_rho=0; count_k=0; count_omega=0; count_Z=0; count_Zvar=0; count_mu_t=0;
 				for (sit=grid.node[n].bcs.begin();sit!=grid.node[n].bcs.end();sit++) {
-					if (bc.region[(*sit)].specified==BC_RHO) {
-						rho_node=bc.region[(*sit)].rho; count_rho++;
-					} else if (bc.region[(*sit)].specified==BC_T){
-						T_node=bc.region[(*sit)].T; count_T++;
+					if (bc.region[(*sit)].specified==BC_STATE) {
+						if (count_p>0) p_node+=bc.region[(*sit)].p; else p_node=bc.region[(*sit)].p;
+						if (count_rho>0) rho_node+=bc.region[(*sit)].rho; else rho_node=bc.region[(*sit)].rho;
+						if (count_T>0) T_node+=bc.region[(*sit)].T; else T_node=bc.region[(*sit)].T;
+						count_p++; count_rho++; count_T++;
+					} else if (bc.region[(*sit)].specified==BC_RHO) {
+						if (count_rho>0) rho_node+=bc.region[(*sit)].rho; else rho_node=bc.region[(*sit)].rho;
+						count_rho++;
+					} else if (bc.region[(*sit)].specified==BC_T) {
+						if (count_T>0) T_node+=bc.region[(*sit)].T; else T_node=bc.region[(*sit)].T;
+						count_T++;
+					} else if (bc.region[(*sit)].specified==BC_P) {
+						if (count_p>0) p_node+=bc.region[(*sit)].p; else p_node=bc.region[(*sit)].p;
+						count_p++;
 					}
+
 					if (bc.region[(*sit)].type==INLET) {
-						k_node=bc.region[(*sit)].k; count_k++;
-						omega_node=bc.region[(*sit)].omega; count_omega++;
+						if (bc.region[(*sit)].kind==VELOCITY) {
+							if (count_v>0) v_node+=bc.region[(*sit)].v; else v_node=bc.region[(*sit)].v;
+							count_v++;
+						}
+						if (turb) {
+							if (count_k>0) k_node+=bc.region[(*sit)].k; else k_node+=bc.region[(*sit)].k;
+							if (count_omega>0) omega_node+=bc.region[(*sit)].omega; else omega_node+=bc.region[(*sit)].omega;
+							count_k++; count_omega++;
+						}
 					}
+					
 					if (bc.region[(*sit)].type==NOSLIP) {
-						if (count_v==0) v_node=0.; count_v++;
-						if (count_k==0) k_node=0.; count_k++;
-						if (count_mu_t==0) mu_t_node=0.; count_mu_t++;
+						if (count_v>0) v_node+=0.; else v_node=0.;
+						count_v++;
+						if (count_k>0) k_node+=0.; else k_node=0.;
+						count_k++;
+						if (count_mu_t>0) mu_t_node+=0.; else mu_t_node=0.;
+						count_mu_t++;
 					}
-		
-					if (count_rho>0) rho_node/=double(count_rho);
-					if (count_T>0) T_node/=double(count_T);
-					if (count_v>0) v_node/=double(count_v);
-					if (count_k>0) k_node/=double(count_k);
-					if (count_omega>0) omega_node/=double(count_omega);
-					if (count_mu_t>0) mu_t_node/=double(count_mu_t);
-					if (count_Z>0) Z_node/=double(count_Z);
-					if (count_Zvar>0) Zvar_node/=double(count_Zvar);
 				}
+				
+				if (count_p>0) p_node/=double(count_p);
+				if (count_rho>0) rho_node/=double(count_rho);
+				if (count_T>0) T_node/=double(count_T);
+				if (count_v>0) v_node/=double(count_v);
+				if (count_k>0) k_node/=double(count_k);
+				if (count_omega>0) omega_node/=double(count_omega);
+				if (count_mu_t>0) mu_t_node/=double(count_mu_t);
+				if (count_Z>0) Z_node/=double(count_Z);
+				if (count_Zvar>0) Zvar_node/=double(count_Zvar);
 				
 				if (FLAMELET) {
 					double Chi=log10(2.0*rans.kepsilon.beta_star*omega_node*Zvar_node);
