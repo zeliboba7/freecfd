@@ -152,12 +152,14 @@ void initialize(InputFile &input) {
 		if (FLAMELET) {
 			double Chi=2.*rans.cell[c].omega*flamelet.cell[c].Zvar*rans.kepsilon.beta_star;
 			flamelet.cell[c].mu=flamelet.table.get_mu(flamelet.cell[c].Z,flamelet.cell[c].Zvar,Chi);
+			for (unsigned int i=0;i<2;++i) flamelet.cell[c].update[i]=0.;
 		}
 		grid.cell[c].dt=dt_current;
 	}	
 	
 	for (unsigned int g=0;g<grid.ghostCount;++g) {
 		for (unsigned int i=0;i<5;++i) grid.ghost[g].update[i]=0.;
+		//if (FLAMELET) for (unsigned int i=0;i<2;++i) flamelet.ghost[g].update[i]=0.;
 	}
 	
 	if (TURBULENCE_MODEL!=NONE) for (unsigned int f=0;f<grid.faceCount;++f) rans.face[f].mu_t=0.;

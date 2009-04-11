@@ -270,18 +270,18 @@ double Flamelet_Table::get_c_p(double &Z_in, double &Zvar_in, double &Chi_in,boo
 
 double Flamelet_Table::get_Mw(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights) {
 	
-// 	if (refreshWeights) get_weights(Z_in,Zvar_in,Chi_in);
-// 	
-// 	return  weights[4]*( weights[2]*( weights[0]*Mw[i1][i2][i3]
-// 			+weights[1]*Mw[i1+1][i2][i3] )
-// 			+weights[3]*( weights[0]*Mw[i1][i2+1][i3]
-// 			+weights[1]*Mw[i1+1][i2+1][i3] ) ) 
-// 			+weights[5]*( weights[2]*( weights[0]*Mw[i1][i2][i3+1]   
-// 			+weights[1]*Mw[i1+1][i2][i3+1] ) 
-// 			+weights[3]*( weights[0]*Mw[i1][i2+1][i3+1] 
-// 			+weights[1]*Mw[i1+1][i2+1][i3+1] ) );
-// 	
-	 return UNIV_GAS_CONST/(Pref/(get_rho(Z_in,Zvar_in,Chi_in,refreshWeights)*get_T(Z_in,Zvar_in,Chi_in,refreshWeights)));
+/*	if (refreshWeights) get_weights(Z_in,Zvar_in,Chi_in);
+	
+	return  weights[4]*( weights[2]*( weights[0]*Mw[i1][i2][i3]
+			+weights[1]*Mw[i1+1][i2][i3] )
+			+weights[3]*( weights[0]*Mw[i1][i2+1][i3]
+			+weights[1]*Mw[i1+1][i2+1][i3] ) ) 
+			+weights[5]*( weights[2]*( weights[0]*Mw[i1][i2][i3+1]   
+			+weights[1]*Mw[i1+1][i2][i3+1] ) 
+			+weights[3]*( weights[0]*Mw[i1][i2+1][i3+1] 
+			+weights[1]*Mw[i1+1][i2+1][i3+1] ) );*/
+	
+	return UNIV_GAS_CONST/(Pref/(get_rho(Z_in,Zvar_in,Chi_in,refreshWeights)*get_T(Z_in,Zvar_in,Chi_in,refreshWeights)));
 	
 	
 }
@@ -309,8 +309,8 @@ void Flamelet_Table::get_rho_T_comp(double &p_in, double &Z_in, double &Zvar_in,
 	T_out=(p_in+Pref)*Mw_table/(UNIV_GAS_CONST*rho_out)-Tref;
 
 	//Deactivate
-	rho_out=rho_table;
-	T_out=T_table-Tref;
+// 	rho_out=rho_table;
+// 	T_out=T_table-Tref;
 
 	return;
 }
@@ -329,6 +329,22 @@ double Flamelet_Table::get_drho_dZ(double &Z_in, double &Zvar_in, double &Chi_in
 	}
 	
 	return (get_rho(Z_plus,Zvar_in,Chi_in)-get_rho(Z_minus,Zvar_in,Chi_in))/(Z_plus-Z_minus);
+}
+
+double Flamelet_Table::get_dT_dZ(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights) {
+	
+	if (refreshWeights) get_weights(Z_in,Zvar_in,Chi_in);
+	// Now we know i1
+	double Z_minus,Z_plus;
+	if (i1<Z.size()) {
+		Z_minus=Z[i1];
+		Z_plus=Z[i1+1];
+	} else {
+		Z_minus=Z[i1-1];
+		Z_plus=Z[i1];
+	}
+	
+	return (get_T(Z_plus,Zvar_in,Chi_in)-get_T(Z_minus,Zvar_in,Chi_in))/(Z_plus-Z_minus);
 }
 
 double Flamelet_Table::get_drho_dZvar(double &Z_in, double &Zvar_in, double &Chi_in,bool refreshWeights) {

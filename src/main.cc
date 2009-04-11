@@ -201,7 +201,7 @@ int main(int argc, char *argv[]) {
 	MPI_Barrier(MPI_COMM_WORLD);
 	double timeRef, timeEnd;
 	timeRef=MPI_Wtime();
-
+	
 	/*****************************************************************************************/
 	// Begin time loop
 	/*****************************************************************************************/
@@ -237,9 +237,9 @@ int main(int argc, char *argv[]) {
 			// Solve Navier-Stokes Equations
 			// Gradient are calculated for NS and/or second order schemes
 			if (EQUATIONS==NS | order==SECOND ) {
-			// Calculate all the cell gradients for each variable
+				// Calculate all the cell gradients for each variable
 				grid.gradients();
-			// Update gradients of the ghost cells
+				// Update gradients of the ghost cells
 				mpi_update_ghost_gradients();
 				if (GRAD_TEST){
 					write_grad();
@@ -248,9 +248,9 @@ int main(int argc, char *argv[]) {
 			}
 		
 			if (LIMITER!=NONE) {
-			// Limit gradients
+				// Limit gradients
 				grid.limit_gradients(); 
-			// Update limited gradients of the ghost cells
+				// Update limited gradients of the ghost cells
 				mpi_update_ghost_gradients();
 			}
 			
@@ -279,6 +279,12 @@ int main(int argc, char *argv[]) {
 			flamelet.terms();
 			flamelet.petsc_solve(nIterFlame,rNormFlame);
 			flamelet.update(resZ,resZvar);
+		}
+
+		// Update Navier-Stokes
+		update();
+		
+		if (FLAMELET) {
 			flamelet.lookup();
 			flamelet.mpi_update_ghost();
 			flamelet.gradients();
@@ -287,12 +293,10 @@ int main(int argc, char *argv[]) {
 			flamelet.mpi_update_ghost_gradients(); // Called again to update the ghost gradients
 			flamelet.update_face_properties();
 		}
-
-		// Update Navier-Stokes
-		update();
+		
+		// Update ghost Navier-Stokes variables
 		mpi_update_ghost_primitives();
 		
-		// Solve Navier-Stokes Equations
 		// Gradient are calculated for NS and/or second order schemes
 		if (EQUATIONS==NS | order==SECOND ) {
 			// Calculate all the cell gradients for each variable
@@ -502,10 +506,8 @@ double superbee(double a, double b) {
 
 void update(void) {
 
-	resP=0.; resV=0.; resT=0.;
+	resP=0.; resV=0.; resT=0.; resZ=0.;
 	for (unsigned int c = 0;c < grid.cellCount;++c) {
-		//if (FLAMELET) grid.cell[c].update[0]=max(-1.*(grid.cell[c].p+0.6*Pref),grid.cell[c].update[0]);
-				
 		grid.cell[c].p +=grid.cell[c].update[0];
 		grid.cell[c].v[0] +=grid.cell[c].update[1];
 		grid.cell[c].v[1] +=grid.cell[c].update[2];
@@ -513,10 +515,17 @@ void update(void) {
 		if (!FLAMELET) {
 			grid.cell[c].T += grid.cell[c].update[4];
 			grid.cell[c].rho=eos.rho(grid.cell[c].p,grid.cell[c].T);
-		} 
+		} else {
+			// Limit the update so Z doesn't end up negative
+			grid.cell[c].update[4]=max(-1.*flamelet.cell[c].Z,grid.cell[c].update[4]);
+			// Limit the update so Z doesn't end up larger than 1
+			grid.cell[c].update[4]=min(1.-flamelet.cell[c].Z,grid.cell[c].update[4]);
+			flamelet.cell[c].Z += grid.cell[c].update[4];
+		}
 		
 		resP+=grid.cell[c].update[0]*grid.cell[c].update[0];
 		resV+=grid.cell[c].update[1]*grid.cell[c].update[1]+grid.cell[c].update[2]*grid.cell[c].update[2]+grid.cell[c].update[3]*grid.cell[c].update[3];
+		// If flamelet, this is actually Z residual
 		resT+=grid.cell[c].update[4]*grid.cell[c].update[4];
 		
 	} // cell loop
@@ -527,7 +536,8 @@ void update(void) {
         	MPI_Reduce(&residuals,&totalResiduals,3, MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
 		resP=totalResiduals[0]; resV=totalResiduals[1]; resT=totalResiduals[2];
         }
-	resP=sqrt(resP); resV=sqrt(resV); resT=sqrt(resT);
+	resP=sqrt(resP); resV=sqrt(resV); resT=sqrt(resT); 
+	if (FLAMELET) resZ=resT;
 	return;
 }
 
@@ -557,20 +567,21 @@ void get_dt(void) {
 			grid.cell[c].dt=CFLlocal*grid.cell[c].lengthScale/(fabs(grid.cell[c].v)+a);
 		}
 	}  else if (TIME_STEP_TYPE==ADAPTIVE) {
-		for (cit=grid.cell.begin();cit<grid.cell.end();cit++) {
-			if (fabs((*cit).update[0]) > fabs(((*cit).p+Pref)*dt_relax) ||
-			    fabs((*cit).update[4]) > fabs(((*cit).T+Tref)*dt_relax) ) {
-				//(*cit).dt*=(1.-dt_relax);
-				(*cit).dt*=0.5;
-			} else if (fabs((*cit).update[0]) < 0.5*fabs(((*cit).p+Pref)*dt_relax) ||
-			           fabs((*cit).update[4]) < 0.5*fabs(((*cit).T+Tref)*dt_relax) ) {
-				(*cit).dt*=(1.+dt_relax);
+		for (unsigned int c=0;c<grid.cellCount;++c) {
+			double compare2=fabs(grid.cell[c].T+Tref);
+			if (FLAMELET) compare2=flamelet.cell[c].Z;
+			if (fabs(grid.cell[c].update[0]) > fabs(grid.cell[c].p+Pref)*dt_relax ||
+			    fabs(grid.cell[c].update[4]) > compare2*dt_relax ) {
+				grid.cell[c].dt*=0.5;
+			} else if (fabs(grid.cell[c].update[0]) < 0.5*fabs(grid.cell[c].p+Pref)*dt_relax ||
+				   fabs(grid.cell[c].update[4]) < 0.5*compare2*dt_relax ) {
+				grid.cell[c].dt*=(1.+dt_relax);
 			}
-			(*cit).dt=min((*cit).dt,dt_max);
-			(*cit).dt=max((*cit).dt,dt_min);
+			grid.cell[c].dt=min(grid.cell[c].dt,dt_max);
+			grid.cell[c].dt=max(grid.cell[c].dt,dt_min);
 		}
 		
-	}  
+	}
 
 	return;
 } // end get_dt
