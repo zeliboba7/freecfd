@@ -29,7 +29,7 @@ initialConditions {
    
 boundaryConditions {
 	BC_1 (type=symmetry;);
-	BC_2 (type=inlet; v=[1.,0.,0.]; rho=1.; p=0.;); 
+	BC_2 (type=inlet; v=[1.,0.,0.]; rho=1.; p=0.; ); 
 	BC_3 (type=noslip; );
 }
 
