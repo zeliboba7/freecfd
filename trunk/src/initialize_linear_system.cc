@@ -124,7 +124,7 @@ inline void preconditioner_flamelet(Cell &c,int cid,double P[][5]) {
 	
 	double p=c.p+Pref;
 
-	double drho_dp=c.rho/p/flamelet.cell[cid].gamma;
+	double drho_dp=c.rho/p; //flamelet.cell[cid].gamma;
 	double drho_dZ=flamelet.table.get_drho_dZ(flamelet.cell[cid].Z,flamelet.cell[cid].Zvar,flamelet.cell[cid].Chi);
 
 	// Conservative to primite Jacobian

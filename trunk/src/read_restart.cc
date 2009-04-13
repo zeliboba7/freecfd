@@ -42,7 +42,11 @@ void read_restart(double &time) {
 	string fileName="./restart/"+int2str(restart)+"/partitionMap.dat";
 	int nprocs,cellGlobalId;
 	int ncells[np],nnodes[np];
-	file.open(fileName.c_str(),ios::in);
+	file.open(fileName.c_str(),ios::in);	
+	if (!file.is_open()) {
+		if (Rank==0) cerr << "[E] Restart file " << fileName  << " couldn't be opened" << endl;
+		exit(1);
+	}
 	file >> nprocs;
 	vector<int> partitionMap[nprocs];
 	for (int p=0;p<nprocs;++p) {

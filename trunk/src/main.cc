@@ -343,7 +343,7 @@ int main(int argc, char *argv[]) {
 				cout << setw(12) << "CFLmax";
 				cout << setw(12) << "resP";
 				cout << setw(12) << "resV";
-				cout << setw(12) << "resT";
+				if (!FLAMELET) cout << setw(12) << "resT";
 				if (TURBULENCE_MODEL!=NONE) cout << setw(12) << "resK" << setw(12) << "resOmega";
 				if (FLAMELET) cout << setw(12) << "resZ" << setw(12) << "resZvar";
 				cout << endl;	
@@ -357,7 +357,7 @@ int main(int argc, char *argv[]) {
 			cout << setw(12) << CFLmax;
 			cout << setw(12) << resP;
 			cout << setw(12) << resV;
-			cout << setw(12) << resT;
+			if (!FLAMELET) cout << setw(12) << resT;
 			iterFile << timeStep << "\t" << nIter << "\t" << rNorm;
 			
 			if (TURBULENCE_MODEL!=NONE) {

@@ -112,7 +112,7 @@ void RANS::petsc_init(double rtol,double abstol,int maxits) {
 	//KSPSetInitialGuessNonzero(ksp,PETSC_TRUE);
 	KSPSetType(ksp,KSPFGMRES);
 	KSPGMRESSetRestart(ksp,100);
-	KSPSetFromOptions(ksp);
+	//KSPSetFromOptions(ksp);
 	return;
 } // end RANS::petsc_init
 

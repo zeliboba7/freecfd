@@ -320,6 +320,7 @@ void left_state_update(Cell_State &left,Face_State &face) {
 	left.T_center=grid.cell[parent].T;
 	left.T=left.T_center+delta[4];
 	left.rho=eos.rho(left.p,left.T);
+	left.gamma=Gamma;
 	
 	if (FLAMELET) {
 		delta[1]=(grid.face[face.index].centroid-grid.cell[parent].centroid).dot(flamelet.cell[parent].grad[0]);
@@ -338,8 +339,8 @@ void left_state_update(Cell_State &left,Face_State &face) {
 		left.update[4]=flamelet.cell[parent].update[0];
 	}
 	
-	left.a=sqrt(Gamma*(left.p+Pref)/left.rho);
-	left.H=left.a*left.a/(Gamma-1.)+0.5*left.v.dot(left.v);	
+	left.a=sqrt(left.gamma*(left.p+Pref)/left.rho);
+	left.H=left.a*left.a/(left.gamma-1.)+0.5*left.v.dot(left.v);	
 	left.vN[0]=left.v.dot(face.normal);
 	left.vN[1]=left.v.dot(face.tangent1);
 	left.vN[2]=left.v.dot(face.tangent2);
@@ -378,6 +379,7 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 		right.T=right.T_center+delta[4];
 		right.rho=eos.rho(right.p,right.T);
 		right.volume=grid.cell[neighbor].volume;
+		right.gamma=Gamma;
 		
 		if (FLAMELET) {
 			delta[1]=(grid.face[face.index].centroid-grid.cell[neighbor].centroid).dot(flamelet.cell[neighbor].grad[0]);
@@ -398,6 +400,7 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 		
 	} else if (face.bc>=0) { // boundary face
 		
+		right.gamma=Gamma;
 		bool skip=false;
 		if (FLAMELET) {
 			// Default is zero normal
@@ -405,7 +408,6 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 			right.Z_center=left.Z_center;
 			right.R=UNIV_GAS_CONST/flamelet.table.get_Mw(right.Z,right.Zvar,right.Chi);
 			right.gamma=flamelet.table.get_gamma(right.Z,right.Zvar,right.Chi,false);
-			eos.R=right.R;
 			
 			if (bc.region[face.bc].type==INLET) {
 				right.Z=bc.region[face.bc].Z;
@@ -416,9 +418,8 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 				// extrapolate pressure
 				right.p=left.p;
 				flamelet.table.get_rho_T_comp(right.p,right.Z,right.Zvar,right.Chi,right.rho,right.T);
-				right.T_center=2.*right.T-left.T_center;
-				right.a=sqrt(Gamma*eos.R*(right.T+Tref));
-				right.p=right.a*right.a*right.rho/Gamma-Pref;
+				right.gamma=flamelet.table.get_gamma(right.Z,right.Zvar,right.Chi);
+				right.a=sqrt(right.gamma*right.R*(right.T+Tref));
 				right.v=mdotNR/right.rho*face.normal;
 				right.v_center=2.*right.v-left.v_center;
 				skip=true;
@@ -452,6 +453,7 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 		right.T_center=grid.ghost[g].T;
 		right.T=right.T_center+delta[4];
 		right.rho=eos.rho(right.p,right.T);
+		right.gamma=Gamma;
 		
 		if (FLAMELET) {
 			delta[1]=(grid.face[face.index].centroid-grid.ghost[g].centroid).dot(flamelet.ghost[g].grad[0]);
@@ -472,8 +474,8 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 	
 	}
 	
-	right.a=sqrt(Gamma*(right.p+Pref)/right.rho);
-	right.H=right.a*right.a/(Gamma-1.)+0.5*right.v.dot(right.v);
+	right.a=sqrt(right.gamma*(right.p+Pref)/right.rho);
+	right.H=right.a*right.a/(right.gamma-1.)+0.5*right.v.dot(right.v);
 	right.vN[0]=right.v.dot(face.normal);
 	right.vN[1]=right.v.dot(face.tangent1);
 	right.vN[2]=right.v.dot(face.tangent2);
@@ -554,30 +556,23 @@ void face_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 } // end face_state_update
 
 void state_perturb(Cell_State &state,Face_State &face,int var,double epsilon) {
-
-	if (FLAMELET) Gamma=state.gamma;
 	
 	switch (var)
 	{
 		case 0 : // p
 			if (FLAMELET) { // perturb p
 				state.p+=epsilon;
-				state.rho+=state.rho/(state.p+Pref)/Gamma*epsilon;
+				state.rho+=state.rho/(state.p+Pref)*epsilon;
 				//flamelet.table.get_rho_T_comp(state.p,state.Z,state.Zvar,state.Chi,state.rho,state.T);
-				state.a=sqrt(Gamma*(state.p+Pref)/state.rho);
-				state.H=state.a*state.a/(Gamma-1.)+0.5*state.v.dot(state.v);
 			} else {
 				state.p+=epsilon;
 				state.rho=eos.rho(state.p,state.T);
-				state.a=sqrt(Gamma*(state.p+Pref)/state.rho);
-				state.H=state.a*state.a/(Gamma-1.)+0.5*state.v.dot(state.v);
 			}
-
+			state.a=sqrt(state.gamma*(state.p+Pref)/state.rho);
 			break;
 		case 1 : // u
 			state.v[0]+=epsilon;
 			state.v_center[0]+=epsilon;
-			state.H=state.a*state.a/(Gamma-1.)+0.5*state.v.dot(state.v);
 			state.vN[0]=state.v.dot(face.normal);
 			state.vN[1]=state.v.dot(face.tangent1);
 			state.vN[2]=state.v.dot(face.tangent2);
@@ -585,7 +580,6 @@ void state_perturb(Cell_State &state,Face_State &face,int var,double epsilon) {
 		case 2 : // v
 			state.v[1]+=epsilon;
 			state.v_center[1]+=epsilon;
-			state.H=state.a*state.a/(Gamma-1.)+0.5*state.v.dot(state.v);
 			state.vN[0]=state.v.dot(face.normal);
 			state.vN[1]=state.v.dot(face.tangent1);
 			state.vN[2]=state.v.dot(face.tangent2);
@@ -593,7 +587,6 @@ void state_perturb(Cell_State &state,Face_State &face,int var,double epsilon) {
 		case 3 : // w
 			state.v[2]+=epsilon;
 			state.v_center[2]+=epsilon;
-			state.H=state.a*state.a/(Gamma-1.)+0.5*state.v.dot(state.v);
 			state.vN[0]=state.v.dot(face.normal);
 			state.vN[1]=state.v.dot(face.tangent1);
 			state.vN[2]=state.v.dot(face.tangent2);
@@ -605,18 +598,16 @@ void state_perturb(Cell_State &state,Face_State &face,int var,double epsilon) {
 				flamelet.table.get_rho_T_comp(state.p,state.Z,state.Zvar,state.Chi,state.rho,state.T);
 				state.R=UNIV_GAS_CONST/flamelet.table.get_Mw(state.Z,state.Zvar,state.Chi);
 				state.gamma=flamelet.table.get_gamma(state.Z,state.Zvar,state.Chi,false);
-				state.a=sqrt(state.gamma*(state.p+Pref)/state.rho);
-				state.H=state.a*state.a/(state.gamma-1.)+0.5*state.v.dot(state.v);
 			} else {
 				state.T+=epsilon;
 				state.T_center+=epsilon;
 				state.rho=eos.rho(state.p,state.T);
-				state.a=sqrt(Gamma*(state.p+Pref)/state.rho);
-				state.H=state.a*state.a/(Gamma-1.)+0.5*state.v.dot(state.v);
 			}
+			state.a=sqrt(state.gamma*(state.p+Pref)/state.rho);
 			break;
  	}
 	
+	state.H=state.a*state.a/(state.gamma-1.)+0.5*state.v.dot(state.v);
 	
 	return;
 } // end state_perturb
