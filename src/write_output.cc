@@ -95,8 +95,8 @@ void write_tec_vars(int &nVar) {
 			}
 		}
 		if (FLAMELET) {
-			file << ",\"viscosity\", \"Mixture Fraction\",\"Mixture Fraction Variance\" ";
-			nVar+=3;
+			file << ",\"viscosity\", \"Mixture Fraction\",\"Mixture Fraction Variance\",\"Laminar T\" ";
+			nVar+=4;
 		}
 		file << endl;
 		file << "ZONE, T=\"Volume " << Rank << "\" ZONETYPE=FEBRICK DATAPACKING=POINT" << endl;
@@ -110,6 +110,7 @@ void write_tec_vars(int &nVar) {
 		set<int>::iterator sit;
 		double p_node,T_node,rho_node,k_node,omega_node,Z_node,Zvar_node,visc_node,dt_node;
 		double mu_t_node, filter_node,R_node;
+		double laminar_T_node;
 		Vec3D v_node;
 		int count_p,count_v,count_T,count_k,count_omega,count_mu_t,count_rho,count_Z,count_Zvar;
 		double Ma;
@@ -223,6 +224,8 @@ void write_tec_vars(int &nVar) {
 				
 				if (FLAMELET) {
 					double Chi=log10(2.0*rans.kepsilon.beta_star*omega_node*Zvar_node);
+					double zero=0.;
+					flamelet.table.get_rho_T_comp(p_node,Z_node,zero,zero,rho_node,laminar_T_node);
 					flamelet.table.get_rho_T_comp(p_node,Z_node,Zvar_node,Chi,rho_node,T_node);
 					visc_node=flamelet.table.get_mu(Z_node,Zvar_node,Chi,false);
 					Gamma=flamelet.table.get_gamma(Z_node,Zvar_node,Chi,false);
@@ -252,6 +255,7 @@ void write_tec_vars(int &nVar) {
 					file << visc_node << "\t";
 					file << Z_node << "\t";
 					file << Zvar_node << "\t";
+					file << laminar_T_node << "\t";
 				}
 				file << endl;
 			}

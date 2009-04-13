@@ -96,7 +96,7 @@ void Flamelet::petsc_init(double rtol,double abstol,int maxits) {
 	KSPSetInitialGuessKnoll(ksp,PETSC_TRUE);
 	KSPSetType(ksp,KSPFGMRES);
 	KSPGMRESSetRestart(ksp,100);
-	KSPSetFromOptions(ksp);
+	//KSPSetFromOptions(ksp);
 	return;
 } // end Flamelet::petsc_init
 

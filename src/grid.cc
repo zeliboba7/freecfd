@@ -410,6 +410,8 @@ void Grid::gradients(void) {
 						faceVel-=faceVel.dot(face[f].normal)*face[f].normal;
 					} else if (bc.region[face[f].bc].type==SYMMETRY) {
 						// Symmetry mirrors everything
+						faceP=cell[c].p;
+						faceT=cell[c].T;
 						faceVel=cell[c].v;
 						faceVel-=faceVel.dot(face[f].normal)*face[f].normal;
 					} else if (bc.region[face[f].bc].type==NOSLIP) {

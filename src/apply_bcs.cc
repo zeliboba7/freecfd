@@ -184,8 +184,8 @@ void outlet(Cell_State &left,Cell_State &right,Face_State &face) {
 			if (bc.region[face.bc].kind==DAMP_REVERSE) right.p-=0.5*left.rho*uNL*uNL;
 		}
 		// Extrapolate entropy
-		right.rho=left.rho*pow((right.p+Pref)/(left.p+Pref),1./Gamma);
-		right.a=sqrt(Gamma*(right.p+Pref)/right.rho);
+		right.rho=left.rho*pow((right.p+Pref),1./right.gamma)/pow((left.p+Pref),1./left.gamma);
+		right.a=sqrt(right.gamma*(right.p+Pref)/right.rho);
 		// Extrapolate outgoing characteristic
 		uNR=uNL+2.*(left.a-right.a)/(Gamma-1.);
 		right.v=left.v-left.v.dot(face.normal)*face.normal+uNR*face.normal;
@@ -194,6 +194,7 @@ void outlet(Cell_State &left,Cell_State &right,Face_State &face) {
 	} else if (bc.region[face.bc].specified==BC_T) {
 		right.T=bc.region[face.bc].T;
 		right.T_center=right.T;
+		Gamma=left.gamma; // TODO check left-right gamma's and correct below
 		right.a=sqrt(Gamma*eos.R*(right.T+Tref));
 		// Extrapolate entropy
 		right.rho=pow(Gamma*(left.p+Pref)/(right.a*right.a*pow(left.rho,Gamma)),1.-Gamma);
@@ -204,6 +205,7 @@ void outlet(Cell_State &left,Cell_State &right,Face_State &face) {
 	} else if (bc.region[face.bc].specified==BC_RHO) {
 		right.rho=bc.region[face.bc].rho;
 		// Extrapolate entropy
+		Gamma=left.gamma; // TODO check left-right gamma's and correct below
 		right.p=(left.p+Pref)*pow(right.rho/left.rho,Gamma)-Pref;
 		right.T=eos.T(right.p,right.rho);
 		right.T_center=2.*right.T-left.T_center;
@@ -266,7 +268,7 @@ void slip(Cell_State &left,Cell_State &right,Face_State &face) {
 		right.rho=left.rho;
 		right.T=left.T;
 		// if temperature is not specified, it is assumed adiabatic
-		right.T_center=left.T_center;
+		right.T_center=2.*right.T-left.T_center;
 	}
 	
 	right.v=left.v-2.*left.v.dot(face.normal)*face.normal;

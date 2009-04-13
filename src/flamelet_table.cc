@@ -309,8 +309,8 @@ void Flamelet_Table::get_rho_T_comp(double &p_in, double &Z_in, double &Zvar_in,
 	T_out=(p_in+Pref)*Mw_table/(UNIV_GAS_CONST*rho_out)-Tref;
 
 	//Deactivate
-// 	rho_out=rho_table;
-// 	T_out=T_table-Tref;
+	rho_out=rho_table;
+	T_out=T_table-Tref;
 
 	return;
 }

@@ -59,7 +59,7 @@ void convective_face_flux(Cell_State &left,Cell_State &right,Face_State &face,do
 		for (int i=0;i<5;++i) fluxNormal[i]=0.;
 		fluxNormal[1]=left.p;
 		grid.face[face.index].weightL=1.;
-	} else if (face.bc>=0 && bc.region[face.bc].type==NOSLIP) {
+	} else if (face.bc>=0 && (bc.region[face.bc].type==NOSLIP || bc.region[face.bc].type==SLIP) ) {
 		roe_flux(left,right,fluxNormal,grid.face[face.index].weightL);
 		grid.face[face.index].weightL=1.;
 	} else if (CONVECTIVE_FLUX_FUNCTION==ROE) {
