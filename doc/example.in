@@ -4,10 +4,11 @@ equations=NS;
 // If not specified, default value is "NS". 
 
 turbulence {
-model=bsl;
+model=sst;
 // Choice of the model. Available options are
-// "none", "k-epsilon", "k-omega" and "bsl"
+// "none", "k-epsilon", "k-omega", "bsl" and "sst"
 // "bsl" corresponds to Menter's BSL model
+// "sst" corresponds to Menter's Shear Stress Transport model
 // *NOTE* Even if you are using k-epsilon, Free CFD
 // will still be using omega instead of epsilon
 omegaLowLimit=1.;
@@ -224,25 +225,4 @@ integrateBoundary { frequency=1;
 // integrated values of fluxes are written to flux_bc_#.dat on specified
 // frequency of time steps. The file contains:
 // timeStep time mass x-momentum y-momentum z-momentum energy
-}
-
-The input file above is detailed and crowded with comments and may look scary, let's look at another example using default values for clarity:
-
-reference { Mach=1.e-3; p=1.e5; }
-
-timeMarching { CFLmax=1.e4; numberOfSteps=1000; }
-
-linearSolver { relTolerance=1.e-4; absTolerance=1.e-8; maxIterations=50;}
-
-fluidProperties {gamma=1.4; viscosity=1.e-5; }
-
-writeOutput { plotFrequency=10; restartFrequency=100; }
-
-initialConditions { IC_1 (rho=1; p=1; v=[0,0,0];); }
-
-boundaryConditions {
-    BC_1 (type=symmetry;);
-    BC_2 (type=noslip;);
-    BC_3 (type=inlet; rho=1;  v=[1,0,0];);
-    BC_4 (type=outlet; p=0;);
 }

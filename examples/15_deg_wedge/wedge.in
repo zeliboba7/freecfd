@@ -11,7 +11,7 @@ numericalOptions {
 }
 
 timeMarching {
-	CFLmax=1.e2;
+	CFLmax=80.;
         numberOfSteps=200;
 }
 
