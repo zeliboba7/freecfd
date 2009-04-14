@@ -326,9 +326,7 @@ int Grid::create_faces() {
 							if (match) { // This means that all the cell nodes are on the current bc node list
 								cell_matched_bc=nbc;
 							}
-						}
-						
-						
+						}	
 					}
 					if (face_matched_bcs.size()>1) {
 						for (int fbc=0;fbc<face_matched_bcs.size();++fbc) {
@@ -355,16 +353,50 @@ int Grid::create_faces() {
 	} // for cells c
 
 	// Loop cells that has repeated nodes and fix the node list
-	set<unsigned int>::iterator sit,sit2;
-	set<unsigned int> unique_cell_nodes;
+	set<unsigned int>::iterator sit;
+	vector<int> repeated_nodes;
 	for (sit=repeated_node_cells.begin();sit!=repeated_node_cells.end();sit++) {
-		for (int cn=0;cn<cell[(*sit)].nodeCount;++cn) unique_cell_nodes.insert(cell[(*sit)].nodes[cn]);
-		cell[(*sit)].nodes.clear();
-		for (sit2=unique_cell_nodes.begin();sit2!=unique_cell_nodes.end();sit2++) cell[(*sit)].nodes.push_back((*sit2));
-		cell[(*sit)].nodeCount=unique_cell_nodes.size();
-		unique_cell_nodes.clear();
-	}
-	repeated_node_cells.clear();
+		// Find repeated nodes
+		repeated_nodes.clear();
+		for (int cn=0;cn<cell[(*sit)].nodeCount;++cn) {
+			for (int cn2=0;cn2<cn;++cn2) {
+				if (cell[(*sit)].nodes[cn]==cell[(*sit)].nodes[cn2]) repeated_nodes.push_back(cell[(*sit)].nodes[cn]);
+			}
+		}
+		if (cell[(*sit)].nodeCount==8 && repeated_nodes.size()==2) { // TODO Only Hexa to Penta mapping is handled for now
+			cell[(*sit)].nodes.clear();
+			// Loop triangular cell faces
+			int rindex=-1;
+			for (int cf=0;cf<cell[(*sit)].faceCount;++cf) {
+				if (cell[(*sit)].face(cf).nodeCount==3) {
+					// Loop the face nodes and see if the repeated node apears
+					int fn;
+					for (fn=0;fn<3;++fn) {
+						if (cell[(*sit)].face(cf).nodes[fn]==repeated_nodes[0]) { rindex=0; break; }
+						if (cell[(*sit)].face(cf).nodes[fn]==repeated_nodes[1]) { rindex=1; break; }
+					}
+					// Start from fn and fill the new cell node list
+					if (fn==0) {
+						cell[(*sit)].nodes.push_back(cell[(*sit)].face(cf).nodes[0]);
+						cell[(*sit)].nodes.push_back(cell[(*sit)].face(cf).nodes[1]);
+						cell[(*sit)].nodes.push_back(cell[(*sit)].face(cf).nodes[2]);
+					} else if (fn==1) {
+						cell[(*sit)].nodes.push_back(cell[(*sit)].face(cf).nodes[1]);
+						cell[(*sit)].nodes.push_back(cell[(*sit)].face(cf).nodes[2]);
+						cell[(*sit)].nodes.push_back(cell[(*sit)].face(cf).nodes[0]);
+					} else if (fn==2) {
+						cell[(*sit)].nodes.push_back(cell[(*sit)].face(cf).nodes[2]);
+						cell[(*sit)].nodes.push_back(cell[(*sit)].face(cf).nodes[0]);
+						cell[(*sit)].nodes.push_back(cell[(*sit)].face(cf).nodes[1]);
+					}
+					
+				}
+				
+			}
+			cell[(*sit)].nodeCount=6;
+		}
+	}		
+ 	repeated_node_cells.clear();
 	
 	for (unsigned int c=0; c<cellCount; ++c) {
 		if (Rank==0) if (cell[c].faceCount != cell[c].faces.size() ) cout << "no match" << "\t" << c << "\t" << cell[c].faceCount << "\t" << cell[c].faces.size() << "\t" << cell[c].nodeCount << endl;
