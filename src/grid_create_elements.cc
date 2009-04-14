@@ -197,11 +197,14 @@ int Grid::create_faces() {
 	// Time the face search
 	double timeRef, timeEnd;
 	if (Rank==0) timeRef=MPI_Wtime();
-
+	vector<unsigned int> unique_nodes;
+	set<unsigned int> repeated_node_cells;
 	// Loop through all the cells
 	for (unsigned int c=0;c<cellCount;++c) {
+		int degenerate_face_count=0;
 		// Loop through the faces of the current cell
 		for (unsigned int cf=0;cf<cell[c].faceCount;++cf) {
+			bool degenerate=false;
 			Face tempFace;
 			unsigned int *tempNodes;
 			switch (cell[c].nodeCount) {
@@ -247,6 +250,28 @@ int Grid::create_faces() {
 					case 8: tempNodes[fn]=cell[c].node(hexaFaces[cf][fn]).id; break;
 				}
 			}
+			// Check if there is a repeated node
+			unique_nodes.clear();
+			bool skip;
+			for (unsigned int fn=0;fn<tempFace.nodeCount;++fn) {
+				skip=false;
+				for (unsigned int i=0;i<fn;++i) {
+					if (tempNodes[fn]==tempNodes[i]) {
+						skip=true;
+						break;
+					}
+				}
+				if (!skip) unique_nodes.push_back(tempNodes[fn]);
+			}
+			if (unique_nodes.size()!=tempFace.nodeCount) {
+				repeated_node_cells.insert(c); // mark the owner cell (it has repeated nodes)
+				if (unique_nodes.size()==2) { // If a face only has two unique nodes, mark as degenerate
+					degenerate=true;
+					degenerate_face_count++;
+				}
+				tempFace.nodeCount=unique_nodes.size();
+				for (unsigned int fn=0;fn<tempFace.nodeCount;++fn) tempNodes[fn]=unique_nodes[fn];
+			}
 			// Find the neighbor cell
 			bool internal=false;
 			bool unique=true;
@@ -266,7 +291,8 @@ int Grid::create_faces() {
 					}
 				}
 			}
-			if (unique) { // If a new face
+
+			if (unique && !degenerate) { // If a new face
 				// Insert the node list
 				for (unsigned int fn=0;fn<tempFace.nodeCount;++fn) tempFace.nodes.push_back(tempNodes[fn]);
 				if (!internal) { // If the face is either at inter-partition or boundary
@@ -325,10 +351,23 @@ int Grid::create_faces() {
 			}
 			delete [] tempNodes;
 		} //for face cf
+		cell[c].faceCount-=degenerate_face_count;
 	} // for cells c
 
+	// Loop cells that has repeated nodes and fix the node list
+	set<unsigned int>::iterator sit,sit2;
+	set<unsigned int> unique_cell_nodes;
+	for (sit=repeated_node_cells.begin();sit!=repeated_node_cells.end();sit++) {
+		for (int cn=0;cn<cell[(*sit)].nodeCount;++cn) unique_cell_nodes.insert(cell[(*sit)].nodes[cn]);
+		cell[(*sit)].nodes.clear();
+		for (sit2=unique_cell_nodes.begin();sit2!=unique_cell_nodes.end();sit2++) cell[(*sit)].nodes.push_back((*sit2));
+		cell[(*sit)].nodeCount=unique_cell_nodes.size();
+		unique_cell_nodes.clear();
+	}
+	repeated_node_cells.clear();
+	
 	for (unsigned int c=0; c<cellCount; ++c) {
-		if (cell[c].faceCount != cell[c].faces.size() ) cout << "no match" << "\t" << c << "\t" << cell[c].faceCount << "\t" << cell[c].faces.size() << "\t" << cell[c].nodeCount << endl;
+		if (Rank==0) if (cell[c].faceCount != cell[c].faces.size() ) cout << "no match" << "\t" << c << "\t" << cell[c].faceCount << "\t" << cell[c].faces.size() << "\t" << cell[c].nodeCount << endl;
 	}
 	
 	if (Rank==0) {
@@ -415,18 +454,17 @@ int Grid::create_ghosts() {
 						// 0 means that particular adjacent cell wasn't discovered as a ghost before
 						// If so, create a new ghost
 						if (matchCount>0 && foundFlag[gg]==0) {
-							if (matchCount>=3) foundFlag[gg]=3;
-							if (matchCount<3) foundFlag[gg]=matchCount;
+							foundFlag[gg]=matchCount;
 							Ghost temp;
 							temp.globalId=gg;
 							temp.partition=maps.cellOwner[gg];
 							maps.ghostGlobal2Local[temp.globalId]=ghost.size();
-							ghost.push_back(temp);			
+							ghost.push_back(temp);	
 							++ghostCount;
 						}
 						// If that ghost was found before, now we discovered another face also neighbors the same ghost
-						if (matchCount>=3) {
-							foundFlag[gg]=3;
+						if (matchCount==face[f].nodeCount) {
+							foundFlag[gg]=matchCount;
 							face[f].bc=GHOST;
 							face[f].neighbor=-1*maps.ghostGlobal2Local[gg]-1;
 						}
@@ -492,20 +530,14 @@ int Grid::create_ghosts() {
  	if (Rank!=np-1) MPI_Send(&nodeCountOffsetPlus,1,MPI_INT,Rank+1,Rank+1,MPI_COMM_WORLD);
 	if (Rank!=np-1) MPI_Send(&maps.nodeGlobal2Output[0],globalNodeCount,MPI_INT,Rank+1,Rank+1,MPI_COMM_WORLD);
 	
-// 	for (unsigned int n=0;n<nodeCount;++n) {
-// 		cout << Rank << "\t" << n << "\t" << maps.nodeGlobal2Output[node[n].globalId] << endl;
-// 	}
-	
 } // end int Grid::create_ghosts
 
-bool Cell::HaveNodes(unsigned int &nodelistsize, unsigned int nodelist []) {
-	unsigned int matchCount=0,nodeId;
-	for (unsigned int j=0;j<nodeCount;++j) {
-		nodeId=node(j).id;
-		for (unsigned int i=0;i<nodelistsize;++i) {
-			if (nodelist[i]==nodeId) ++matchCount;
-			if (matchCount==3) return true;
-		}
+bool Cell::HaveNodes(unsigned int &nodelistsize, unsigned int nodelist []) {	
+	bool match;
+	for (unsigned int i=0;i<nodelistsize;++i) {
+		match=false;
+		for (unsigned int j=0;j<nodeCount;++j) if (nodelist[i]==nodes[j]) {match=true; break;}
+		if (!match) return false;
 	}
-	return false;
+	return true;
 }
