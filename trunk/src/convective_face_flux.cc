@@ -83,12 +83,11 @@ void roe_flux(Cell_State &left,Cell_State &right,double fluxNormal[],double &wei
 
 	// Local variables
 	double rho,u,v,w,H,a;
-	double Du,Dv,Dw,Dp,Drho;
+	double Du,Dp,Drho;
 	double mdot;
 
 	double lambda1,lambda5,alpha1,alpha5;
 	double right11,right21,right31,right41,right51,right15,right25,right35,right45,right55;
-	double gmM1=Gamma-1.;
 
 	// The Roe averaged values
 	rho=sqrt(right.rho/left.rho);
@@ -96,30 +95,29 @@ void roe_flux(Cell_State &left,Cell_State &right,double fluxNormal[],double &wei
 	v=(left.vN[1]+rho*right.vN[1])/(1.+rho);
 	w=(left.vN[2]+rho*right.vN[2])/(1.+rho);
 	H=(left.H+rho*right.H)/(1.+rho);
-
-	double Denom,GmL,GmR,GH,Gu,Gv,Gw;
-	//GmL and GmR are already gamma-1
-	Denom=left.H-0.5*left.vN.dot(left.vN);
-	GmL=(left.a)/Denom;
-	GmR=(right.a)/Denom;
-	GH=(GmL*left.H+GmR*rho*right.H)/(1.+rho);
-	Gu= (sqrt(GmL)*left.vN[0]+sqrt(GmR)*rho*right.vN[0])/(1.+rho);
-	Gv= (sqrt(GmL)*left.vN[1]+sqrt(GmR)*rho*right.vN[1])/(1.+rho);
-	Gw= (sqrt(GmL)*left.vN[2]+sqrt(GmR)*rho*right.vN[2])/(1.+rho);
-	a=sqrt(GH-0.5*(Gu*Gu+Gv*Gv+Gw*Gw));
-
-	rho=rho*left.rho;
+	a=sqrt((Gamma-1.)*(H-0.5*(u*u+v*v+w*w)));
+	rho*=left.rho;
+	
+// 	double Denom,GmL,GmR,GH,Gu,Gv,Gw;
+// 	//GmL and GmR are already gamma-1
+// 	Denom=left.H-0.5*left.vN.dot(left.vN);
+// 	GmL=(left.a)/Denom;
+// 	GmR=(right.a)/Denom;
+// 	GH=(GmL*left.H+GmR*rho*right.H)/(1.+rho);
+// 	Gu= (sqrt(GmL)*left.vN[0]+sqrt(GmR)*rho*right.vN[0])/(1.+rho);
+// 	Gv= (sqrt(GmL)*left.vN[1]+sqrt(GmR)*rho*right.vN[1])/(1.+rho);
+// 	Gw= (sqrt(GmL)*left.vN[2]+sqrt(GmR)*rho*right.vN[2])/(1.+rho);
+// 	a=sqrt(GH-0.5*(Gu*Gu+Gv*Gv+Gw*Gw));
 
 	Du=right.vN[0]-left.vN[0];
-	Dv=right.vN[1]-left.vN[1];
-	Dw=right.vN[2]-left.vN[2];
 	Dp=right.p-left.p;
 	Drho=right.rho-left.rho;
 
 	if (u>=0.) { // Calculate from the left side
 		lambda1=u-a;
 		// Entropy fix
-		double Dlambda1=0.5* (min(a,max(0.,2.*(right.a-left.a-Du))));
+		//double Dlambda1=0.5* (min(a,max(0.,2.*(right.a-left.a-Du))));
+		double Dlambda1=2.* (min(a,max(0.,2.*(left.a-right.a+Du))));
 		if (lambda1<= (-0.5*Dlambda1)) {
 			; // do nothing
 		} else if (lambda1< (0.5*Dlambda1)) {    // Needs fixin'
@@ -143,13 +141,14 @@ void roe_flux(Cell_State &left,Cell_State &right,double fluxNormal[],double &wei
 	} else { // Calculate from the right side
 		lambda5=u+a;
 		// Entropy fix
-		double Dlambda5=0.5* (min(a,max(0.,2.* (left.a-right.a-Du))));
-		if (lambda5<= (-0.5*Dlambda5)) {
-			lambda5=0.;
-		} else if (lambda5< (0.5*Dlambda5)) {    // Needs fixin'
-			lambda5=0.5* (lambda5+0.5*Dlambda5)*(lambda5+0.5*Dlambda5)/Dlambda5;
-		} else { // just use left values
+		//double Dlambda5=0.5* (min(a,max(0.,2.* (left.a-right.a-Du))));
+		double Dlambda5=2.* (min(a,max(0.,2.*(right.a-left.a+Du))));
+		if (lambda5>=(0.5*Dlambda5)) {
 			; // do nothing
+		} else if (lambda5>(-0.5*Dlambda5)) {    // Needs fixin'
+			lambda5=0.5*(lambda5+0.5*Dlambda5)*(lambda5+0.5*Dlambda5)/Dlambda5;
+		} else { // just use right values
+			lambda5=0.;
 		}
 		right15=1.;
 		right25=u+a;
@@ -179,12 +178,9 @@ void AUSMplusUP_flux(Cell_State &left,Cell_State &right,double fluxNormal[],doub
 	double rho,u,p,a,M,mdot,Mbar2,Mo2;
 	double aL_hat,aR_hat,Ht,aL_star,aR_star;
 	double ML,MR;
-	double gmM1=Gamma-1.;
 	double fa=0.;
 	double Mref;
 
-// 	aL_star=sqrt(2.*gmM1/(Gamma+1.)*left.H);
-// 	aR_star=sqrt(2.*gmM1/(Gamma+1.)*right.H);
 	aL_star=left.a;
 	aR_star=right.a;
 	

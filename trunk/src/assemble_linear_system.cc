@@ -560,14 +560,8 @@ void state_perturb(Cell_State &state,Face_State &face,int var,double epsilon) {
 	switch (var)
 	{
 		case 0 : // p
-			if (FLAMELET) { // perturb p
-				state.p+=epsilon;
-				state.rho+=state.rho/(state.p+Pref)*epsilon;
-				//flamelet.table.get_rho_T_comp(state.p,state.Z,state.Zvar,state.Chi,state.rho,state.T);
-			} else {
-				state.p+=epsilon;
-				state.rho=eos.rho(state.p,state.T);
-			}
+			state.p+=epsilon;
+			state.rho+=state.rho/(state.p+Pref)*epsilon;
 			state.a=sqrt(state.gamma*(state.p+Pref)/state.rho);
 			break;
 		case 1 : // u
@@ -601,7 +595,7 @@ void state_perturb(Cell_State &state,Face_State &face,int var,double epsilon) {
 			} else {
 				state.T+=epsilon;
 				state.T_center+=epsilon;
-				state.rho=eos.rho(state.p,state.T);
+				state.rho-=state.rho/(state.T+Tref)*epsilon;
 			}
 			state.a=sqrt(state.gamma*(state.p+Pref)/state.rho);
 			break;

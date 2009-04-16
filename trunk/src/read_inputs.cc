@@ -60,7 +60,7 @@ void read_inputs(InputFile &input) {
 	input.registerSection("reference",optional);
 	input.section("reference").register_double("Mach",optional,1.);
 	input.section("reference").register_double("p",optional,0.);
-	input.section("reference").register_double("T",optional,273.);
+	input.section("reference").register_double("T",optional,0.);
 	input.readSection("reference");
 	
 	input.registerSection("timeMarching",required);
