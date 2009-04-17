@@ -83,12 +83,11 @@ void roe_flux(Cell_State &left,Cell_State &right,double fluxNormal[],double &wei
 
 	// Local variables
 	double rho,u,v,w,H,a;
-	double Du,Dp,Drho;
-	double mdot;
-
-	double lambda1,lambda5,alpha1,alpha5;
-	double right11,right21,right31,right41,right51,right15,right25,right35,right45,right55;
-
+	double Du,Dp,Dlambda;
+	double lambda,deltaV;
+	double Rvec[5]; // eigen vector of the flux jacobian
+	double mdot,sign;
+	
 	// The Roe averaged values
 	rho=sqrt(right.rho/left.rho);
 	u=(left.vN[0]+rho*right.vN[0])/(1.+rho);
@@ -111,60 +110,57 @@ void roe_flux(Cell_State &left,Cell_State &right,double fluxNormal[],double &wei
 
 	Du=right.vN[0]-left.vN[0];
 	Dp=right.p-left.p;
-	Drho=right.rho-left.rho;
-
+	
 	if (u>=0.) { // Calculate from the left side
-		lambda1=u-a;
+		
+		lambda=u-a; // left going wave speed
+		deltaV=0.5*(Dp-rho*a*Du)/(a*a); // finite difference of the state vector
+		
 		// Entropy fix
-		//double Dlambda1=0.5* (min(a,max(0.,2.*(right.a-left.a-Du))));
-		double Dlambda1=2.* (min(a,max(0.,2.*(left.a-right.a+Du))));
-		if (lambda1<= (-0.5*Dlambda1)) {
+		Dlambda=2.*(min(a,max(0.,2.*(left.a-right.a+Du))));
+		if (lambda<=(-0.5*Dlambda)) {
 			; // do nothing
-		} else if (lambda1< (0.5*Dlambda1)) {    // Needs fixin'
-			lambda1=-0.5* (lambda1-0.5*Dlambda1)*(lambda1-0.5*Dlambda1) /Dlambda1;
+		} else if (lambda<(0.5*Dlambda)) {    // Needs fixing
+			lambda=-0.5*(lambda-0.5*Dlambda)*(lambda-0.5*Dlambda)/Dlambda;
 		} else { // just use left values
-			lambda1=0.;
+			lambda=0.;
 		}
-		right11=1.;
-		right21=u-a;
-		right31=v;
-		right41=w;
-		right51=H-u*a;
-		alpha1=0.5*(Dp-rho*a*Du)/(a*a);
+		
+		sign=1.;
 		mdot=left.rho*left.vN[0];
-		fluxNormal[0]=mdot+lambda1*alpha1*right11;
-		fluxNormal[1]=mdot*left.vN[0]+left.p+lambda1*alpha1*right21;
-		fluxNormal[2]=mdot*left.vN[1]+lambda1*alpha1*right31;
-		fluxNormal[3]=mdot*left.vN[2]+lambda1*alpha1*right41;
-		fluxNormal[4]=mdot*left.H+lambda1*alpha1*right51;
+		fluxNormal[0]=mdot;
+		fluxNormal[1]=mdot*left.vN[0];
+		fluxNormal[2]=mdot*left.vN[1];
+		fluxNormal[3]=mdot*left.vN[2];
+		fluxNormal[4]=mdot*left.H;
 
 	} else { // Calculate from the right side
-		lambda5=u+a;
-		// Entropy fix
-		//double Dlambda5=0.5* (min(a,max(0.,2.* (left.a-right.a-Du))));
-		double Dlambda5=2.* (min(a,max(0.,2.*(right.a-left.a+Du))));
-		if (lambda5>=(0.5*Dlambda5)) {
-			; // do nothing
-		} else if (lambda5>(-0.5*Dlambda5)) {    // Needs fixin'
-			lambda5=0.5*(lambda5+0.5*Dlambda5)*(lambda5+0.5*Dlambda5)/Dlambda5;
-		} else { // just use right values
-			lambda5=0.;
-		}
-		right15=1.;
-		right25=u+a;
-		right35=v;
-		right45=w;
-		right55=H+u*a;
-		alpha5=0.5*(Dp+rho*a*Du)/(a*a);
 		
+		lambda=u+a; // right going wave speed
+		deltaV=0.5*(Dp+rho*a*Du)/(a*a); // finite difference of the state vector
+		
+		// Entropy fix
+		Dlambda=2.*(min(a,max(0.,2.*(right.a-left.a+Du))));
+		if (lambda>=(0.5*Dlambda)) {
+			; // do nothing
+		} else if (lambda>(-0.5*Dlambda)) {    // Needs fixing
+			lambda=0.5*(lambda+0.5*Dlambda)*(lambda+0.5*Dlambda)/Dlambda;
+		} else { // just use right values
+			lambda=0.;
+		}
+		
+		sign=-1.;
 		mdot=right.rho*right.vN[0];
-		fluxNormal[0]=mdot-lambda5*alpha5*right15;
-		fluxNormal[1]=mdot*right.vN[0]+left.p-lambda5*alpha5*right25;
-		fluxNormal[2]=mdot*right.vN[1]-lambda5*alpha5*right35;
-		fluxNormal[3]=mdot*right.vN[2]-lambda5*alpha5*right45;
-		fluxNormal[4]=mdot*right.H-lambda5*alpha5*right55;
+		fluxNormal[0]=mdot;
+		fluxNormal[1]=mdot*right.vN[0];
+		fluxNormal[2]=mdot*right.vN[1];
+		fluxNormal[3]=mdot*right.vN[2];
+		fluxNormal[4]=mdot*right.H;
 	}
 
+	Rvec[0]=1.; Rvec[1]=u-sign*a; Rvec[2]=v; Rvec[3]=w; Rvec[4]=H-sign*u*a;
+	for (int i=0;i<5;++i) fluxNormal[i]+=sign*lambda*deltaV*Rvec[i];
+	mdot=fluxNormal[0];
 	weightL=0.5;
 	
 	return;
