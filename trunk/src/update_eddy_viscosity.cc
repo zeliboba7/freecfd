@@ -32,7 +32,7 @@ void RANS::update_cell_eddy_viscosity(void) {
 	double mu=viscosity;
 	double a1=0.31; // SST a1 value
 	double turbulent_length_scale;
-	for (unsigned int c=0;c<grid.cellCount;++c) {
+	for (int c=0;c<grid.cellCount;++c) {
 		if (TURBULENCE_MODEL==SST) {
 			arg1=2.*sqrt(cell[c].k+1.e-15)/(kepsilon.beta_star*cell[c].omega*grid.cell[c].closest_wall_distance);
 			if (FLAMELET) mu=flamelet.cell[c].mu;
@@ -66,10 +66,9 @@ void RANS::update_face_eddy_viscosity(void) {
 	
 	// Update face center values
 	map<int,double>::iterator fit;
-	double faceK,faceOmega,faceRho,mu_t;
-	unsigned int parent;
+	int parent;
 	
-	for (unsigned int f=0;f<grid.faceCount;++f) {
+	for (int f=0;f<grid.faceCount;++f) {
 		parent=grid.face[f].parent;
 		// Find face averaged value
 		face[f].mu_t=0.;

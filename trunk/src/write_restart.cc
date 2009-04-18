@@ -68,30 +68,30 @@ void write_restart(double time) {
 	file << "DATAPACKING=BLOCK, ZONETYPE=FEBRICK, SOLUTIONTIME=" << time << endl;
 
 	// Write coordinates
-	for (unsigned int i=0;i<3;++i) {
-		for (unsigned int n=0;n<grid.nodeCount;++n) {
+	for (int i=0;i<3;++i) {
+		for (int n=0;n<grid.nodeCount;++n) {
 			file << setw(16) << setprecision(8) << scientific << grid.node[n].comp[i] << endl;
 		}
 	}
 
 	// Write variables
 
-	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].p << endl;
-	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].v[0] << endl;
-	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].v[1] << endl;
-	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].v[2] << endl;
-	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].T << endl;
-	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].dt << endl;
+	for (int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].p << endl;
+	for (int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].v[0] << endl;
+	for (int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].v[1] << endl;
+	for (int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].v[2] << endl;
+	for (int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].T << endl;
+	for (int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].dt << endl;
 	if (TURBULENCE_MODEL!=NONE) {
-		for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << rans.cell[c].k << endl;
-		for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << rans.cell[c].omega << endl;
+		for (int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << rans.cell[c].k << endl;
+		for (int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << rans.cell[c].omega << endl;
 	}
 	if (FLAMELET) {
-		for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << flamelet.cell[c].Z << endl;
-		for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << flamelet.cell[c].Zvar << endl;
+		for (int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << flamelet.cell[c].Z << endl;
+		for (int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << flamelet.cell[c].Zvar << endl;
 	}
 	// Write coonnectivity
-	for (unsigned int c=0;c<grid.cellCount;++c) {
+	for (int c=0;c<grid.cellCount;++c) {
 		if (grid.cell[c].nodeCount==4) {
 			file << grid.cell[c].nodes[0]+1 << "\t" ;
 			file << grid.cell[c].nodes[2]+1 << "\t" ;
@@ -122,7 +122,7 @@ void write_restart(double time) {
 			file << grid.cell[c].nodes[5]+1 << "\t" ;
 			file << grid.cell[c].nodes[5]+1 << "\t" ;
 		} else if (grid.cell[c].nodeCount==8) {
-			for (unsigned int i=0;i<8;++i) {
+			for (int i=0;i<8;++i) {
 				file << grid.cell[c].nodes[i]+1 << "\t";
 			}
 		}
@@ -138,7 +138,7 @@ void write_restart(double time) {
 			if (Rank==0) { file.open(fileName.c_str(), ios::out); file << np << endl;}
 			else { file.open(fileName.c_str(), ios::app); }
 			file << grid.nodeCount << "\t" << grid.cellCount << endl;
-			for (unsigned int c=0;c<grid.cellCount;++c) file << grid.cell[c].globalId << endl;
+			for (int c=0;c<grid.cellCount;++c) file << grid.cell[c].globalId << endl;
 			file.close();
 		}
 		MPI_Barrier(MPI_COMM_WORLD);
@@ -165,21 +165,21 @@ void write_grad() {
 	file << "DATAPACKING=BLOCK, ZONETYPE=FEBRICK" << endl;
 
 	// Write coordinates
-	for (unsigned int i=0;i<3;++i) {
-		for (unsigned int n=0;n<grid.nodeCount;++n) {
+	for (int i=0;i<3;++i) {
+		for (int n=0;n<grid.nodeCount;++n) {
 			file << setw(16) << setprecision(8) << scientific << grid.node[n].comp[i] << endl;
 		}
 	}
 
 	// Write variables
 
-	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].p << endl;
-	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].grad[0][0] << endl;
-	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].grad[0][1] << endl;
-	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].grad[0][2] << endl;
+	for (int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].p << endl;
+	for (int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].grad[0][0] << endl;
+	for (int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].grad[0][1] << endl;
+	for (int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].grad[0][2] << endl;
 
 	// Write coonnectivity
-	for (unsigned int c=0;c<grid.cellCount;++c) {
+	for (int c=0;c<grid.cellCount;++c) {
 		if (grid.cell[c].nodeCount==4) {
 			file << grid.cell[c].nodes[0]+1 << "\t" ;
 			file << grid.cell[c].nodes[2]+1 << "\t" ;
@@ -210,7 +210,7 @@ void write_grad() {
 			file << grid.cell[c].nodes[5]+1 << "\t" ;
 			file << grid.cell[c].nodes[5]+1 << "\t" ;
 		} else if (grid.cell[c].nodeCount==8) {
-			for (unsigned int i=0;i<8;++i) {
+			for (int i=0;i<8;++i) {
 				file << grid.cell[c].nodes[i]+1 << "\t";
 			}
 		}
@@ -226,7 +226,7 @@ void write_grad() {
 			if (Rank==0) { file.open(fileName.c_str(), ios::out); file << np << endl;}
 			else { file.open(fileName.c_str(), ios::app); }
 			file << grid.nodeCount << "\t" << grid.cellCount << endl;
-			for (unsigned int c=0;c<grid.cellCount;++c) file << grid.cell[c].globalId << endl;
+			for (int c=0;c<grid.cellCount;++c) file << grid.cell[c].globalId << endl;
 			file.close();
 		}
 		MPI_Barrier(MPI_COMM_WORLD);

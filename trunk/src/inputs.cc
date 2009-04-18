@@ -216,7 +216,7 @@ void InputFile::stripComments(string &data) {
 
 void InputFile::strip_white_spaces(string &data) {
 	string whitespaces(" \t\f\v\n\r");
-	size_t found;
+	size_t found=0;
 	while (found!=string::npos) {
 		found=data.find_first_of(whitespaces);
 		if (found!=string::npos) data.erase(found,1);
@@ -260,6 +260,7 @@ bool extract_in_between(string &data, string begin, string end, string &result,b
 int number_of_occurances(string haystack, string needle) {
 	int count=-1;
 	size_t found,start;
+	found=0;
 	while (found!=string::npos) {
 		count++;
 		start=(count==0)? 0 : found+needle.length();

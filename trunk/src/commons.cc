@@ -60,5 +60,5 @@ std::vector<int>::iterator it2;
 std::vector<double>::iterator dit;
 
 // TODO move these over to maps class
-std::vector< std::vector<unsigned int> > sendCells;
-std::vector<unsigned int>  recvCount;
+std::vector< std::vector<int> > sendCells;
+std::vector<int>  recvCount;

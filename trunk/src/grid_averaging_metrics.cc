@@ -34,7 +34,7 @@
 double area_tolerance=1.e-2;
 double volume_tolerance=1.e-2;
 
-int gelimd(double **a,double *b,double *x, int n);
+int gelimd(vector<vector<double> > &a,vector<double> &b,vector<double> &x);
 bool compare_closest(int first,int second);
 
 struct interpolation_tetra {
@@ -68,9 +68,8 @@ int method;
 double weightSum,weightSum2;
 double tetra_volume,tri_area,ave_edge,line_distance;
 double closeness,skewness;
-double **a;
-double *b;
-double *weights;
+vector<vector<double> > a3,a4;
+vector<double> b3,b4,weights3,weights4;
 
 
 double distanceMin=1.e20;
@@ -80,6 +79,13 @@ Vec3D nodeVec;
 
 void Grid::nodeAverages() {
 
+	a3.resize(3); b3.resize(3); weights3.resize(3);
+	for (int i=0;i<3;++i) a3[i].resize(3);
+	
+	a4.resize(4); b4.resize(4); weights4.resize(4);
+	for (int i=0;i<4;++i) a4[i].resize(4);
+	
+	
 	int tetra_node_count=0;		
 	int tri_node_count=0;		
 	int line_node_count=0;		
@@ -187,7 +193,10 @@ void Grid::nodeAverages() {
 		cout << "[I Rank=" << Rank << "] Nodes for which tetra interpolation method was used = " << tetra_node_count << endl; 
 		cout << "[I Rank=" << Rank << "] Nodes for which tri interpolation method was used = " << tri_node_count << endl; 
 		cout << "[I Rank=" << Rank << "] Nodes for which line interpolation method was used = " << line_node_count << endl; 
-		cout << "[I Rank=" << Rank << "] Nodes for which point interpolation method was used = " << point_node_count << endl; 
+		cout << "[I Rank=" << Rank << "] Nodes for which point interpolation method was used = " << point_node_count << endl;
+	
+		a3.clear(); b3.clear(); weights3.clear();
+		a4.clear(); b4.clear(); weights4.clear();
 
 }
 
@@ -351,29 +360,25 @@ void Grid::interpolate_tetra(Node& n) {
 		for (tet=tetras.begin();tet!=tetras.end();tet++) {
 			(*tet).weight/=weightSum;
 			// Form the linear system
-			a = new double* [4];
- 			for (int i=0;i<4;++i) a[i]=new double[4];
- 			b = new double[4];
-			weights= new double [4];
 
 			// Let's move to a new origin located at the first cell's centroid in the stencil
 			// This improves accuracy for large domain sizes
-			centroid1= ((*tet).cell[0]>=0) ? cell[(*tet).cell[0]].centroid : ghost[-1*(*tet).cell[0]-1].centroid;			
+			centroid1= ((*tet).cell[0]>=0) ? cell[(*tet).cell[0]].centroid : ghost[-1*(*tet).cell[0]-1].centroid;	
 			for (int i=0;i<4;++i) {
 				if ((*tet).cell[i]>=0) {
-					for (int j=0;j<3;++j) a[j][i]=cell[(*tet).cell[i]].centroid[j]-centroid1[j];
+					for (int j=0;j<3;++j) a4[j][i]=cell[(*tet).cell[i]].centroid[j]-centroid1[j];
 				} else {
-					for (int j=0;j<3;++j) a[j][i]=ghost[-((*tet).cell[i])-1].centroid[j]-centroid1[j];	
+					for (int j=0;j<3;++j) a4[j][i]=ghost[-((*tet).cell[i])-1].centroid[j]-centroid1[j];	
 				}
 			}
 
-			a[3][0]=1.; a[3][1]=1.; a[3][2]=1.; a[3][3]=1.;
-			b[0]=n[0]-centroid1[0]; b[1]=n[1]-centroid1[1]; b[2]=n[2]-centroid1[2]; b[3]=1.;
+			a4[3][0]=1.; a4[3][1]=1.; a4[3][2]=1.; a4[3][3]=1.;
+			b4[0]=n[0]-centroid1[0]; b4[1]=n[1]-centroid1[1]; b4[2]=n[2]-centroid1[2]; b4[3]=1.;
 			// Solve the 4x4 linear system by Gaussion Elimination
-			gelimd(a,b,weights,4);
+			gelimd(a4,b4,weights4);
 			// Let's see if the linear system solution is good
 			weightSum2=0.;
-			for (int i=0;i<4;++i) weightSum2+=weights[i];
+			for (int i=0;i<4;++i) weightSum2+=weights4[i];
 			if (fabs(weightSum2-1.)>1.e-8) {
 				cerr << "[E Rank=" << Rank << "] Tetra interpolation weightSum=" << weightSum2 << " is not unity for node " << n.id  << endl;
 				exit(1);
@@ -381,9 +386,9 @@ void Grid::interpolate_tetra(Node& n) {
 
 			for (int i=0;i<4;++i) {
 				if (n.average.find((*tet).cell[i])!=n.average.end()) { // if the cell contributing to the node average is already contained in the map
-					n.average[(*tet).cell[i]]+=(*tet).weight*weights[i];
+					n.average[(*tet).cell[i]]+=(*tet).weight*weights4[i];
 				} else {
-					n.average.insert(pair<int,double>((*tet).cell[i],(*tet).weight*weights[i]));
+					n.average.insert(pair<int,double>((*tet).cell[i],(*tet).weight*weights4[i]));
 				}
 			}
 		}
@@ -435,7 +440,7 @@ void Grid::interpolate_tri(Node& n) {
 		weightSum=0.; 
 		for (tri=tris.begin();tri!=tris.end();tri++) weightSum+=(*tri).weight;
 		for (tri=tris.begin();tri!=tris.end();tri++) {
-			(*tri).weight/=weightSum;					
+			(*tri).weight/=weightSum;
 			centroid1= ((*tri).cell[0]>=0) ? cell[(*tri).cell[0]].centroid : ghost[-1*(*tri).cell[0]-1].centroid;
 			centroid2= ((*tri).cell[1]>=0) ? cell[(*tri).cell[1]].centroid : ghost[-1*(*tri).cell[1]-1].centroid;
 			centroid3= ((*tri).cell[2]>=0) ? cell[(*tri).cell[2]].centroid : ghost[-1*(*tri).cell[2]-1].centroid;
@@ -447,22 +452,18 @@ void Grid::interpolate_tri(Node& n) {
 			pp=n-centroid1;
 			pp-=pp.dot(planeNormal)*planeNormal;
 			// Form the linear system
-			a = new double* [3];
-			for (int i=0;i<3;++i) a[i]=new double[3];
-			b = new double[3];
-			weights= new double [3];
-			a[0][0]=0.;
-			a[0][1]=(centroid2-centroid1).dot(basis1);
-			a[0][2]=(centroid3-centroid1).dot(basis1);
-			a[1][0]=0.;
-			a[1][1]=(centroid2-centroid1).dot(basis2);
-			a[1][2]=(centroid3-centroid1).dot(basis2);
-			a[2][0]=1.;
-			a[2][1]=1.;
-			a[2][2]=1.;
-			b[0]=pp.dot(basis1);
-			b[1]=pp.dot(basis2);
-			b[2]=1.;
+			a3[0][0]=0.;
+			a3[0][1]=(centroid2-centroid1).dot(basis1);
+			a3[0][2]=(centroid3-centroid1).dot(basis1);
+			a3[1][0]=0.;
+			a3[1][1]=(centroid2-centroid1).dot(basis2);
+			a3[1][2]=(centroid3-centroid1).dot(basis2);
+			a3[2][0]=1.;
+			a3[2][1]=1.;
+			a3[2][2]=1.;
+			b3[0]=pp.dot(basis1);
+			b3[1]=pp.dot(basis2);
+			b3[2]=1.;
 // 			ave_centroid=1./3.*(centroid1+centroid2+centroid3);
 // 			centroid1-=ave_centroid;
 // 			centroid2-=ave_centroid;
@@ -491,10 +492,10 @@ void Grid::interpolate_tri(Node& n) {
 // 			b[1]=pp.dot(basis2);
 // 			b[2]=1.;
 // 			// Solve the 3x3 linear system by Gaussion Elimination
- 			gelimd(a,b,weights,3);
+ 			gelimd(a3,b3,weights3);
 			// Let's see if the linear system solution is good
 			weightSum2=0.;
-			for (int i=0;i<3;++i) weightSum2+=weights[i];
+			for (int i=0;i<3;++i) weightSum2+=weights3[i];
 			if (fabs(weightSum2-1.)>1.e-8) {
 				cerr << "[E Rank=" << Rank << "] Tri interpolation weightSum=" << weightSum2 << " is not unity for node " << n.id  << endl;
 				exit(1);
@@ -502,9 +503,9 @@ void Grid::interpolate_tri(Node& n) {
 			
 			for (int i=0;i<3;++i) {
 				if (n.average.find((*tri).cell[i])!=n.average.end()) { // if the cell contributing to the node average is already contained in the map
-					n.average[(*tri).cell[i]]+=(*tri).weight*weights[i];
+					n.average[(*tri).cell[i]]+=(*tri).weight*weights3[i];
 				} else {
-					n.average.insert(pair<int,double>((*tri).cell[i],(*tri).weight*weights[i]));
+					n.average.insert(pair<int,double>((*tri).cell[i],(*tri).weight*weights3[i]));
 				}
 			}
 		}
@@ -539,7 +540,7 @@ void Grid::interpolate_line(Node& n) {
 	}
 	
 	lineDirection=(centroid2-centroid1).norm();
-	weights= new double [2];
+	vector<double> weights; weights.resize(2);
 	centroid2-=centroid1;
 	Vec3D pn;
 	pn=n-centroid1;
@@ -551,34 +552,36 @@ void Grid::interpolate_line(Node& n) {
 		
 	n.average.insert(pair<int,double>(p1,weights[0]));
 	n.average.insert(pair<int,double>(p2,weights[1]));
+	
+	weights.clear();
+	
 	return;
 }
 
 void Grid::faceAverages() {
 
-	unsigned int n;
+	int n;
 	map<int,double>::iterator it;
 	map<int,double>::iterator fit;
 
-	for (unsigned int f=0;f<faceCount;++f) {
-		double weightSumCheck;
+	for (int f=0;f<faceCount;++f) {
 		vector<double> nodeWeights;
 		// Mid point of the face
 		Vec3D mid=0.,patchArea;
 		double patchRatio;
-		for (unsigned int fn=0;fn<face[f].nodeCount;++fn) {
+		for (int fn=0;fn<face[f].nodeCount;++fn) {
 			nodeWeights.push_back(0.);
 			mid+=face[f].node(fn);
 		}
 		mid/=double(face[f].nodeCount);
 		// Get node weights
 		int next;
-		for (unsigned int fn=0;fn<face[f].nodeCount;++fn) {
+		for (int fn=0;fn<face[f].nodeCount;++fn) {
 			next=fn+1;
 			if (next==face[f].nodeCount) next=0;
 			patchArea=0.5*(face[f].node(fn)-mid).cross(face[f].node(next)-mid);
 			patchRatio=fabs(patchArea)/face[f].area;
-			for (unsigned int fnn=0;fnn<face[f].nodeCount;++fnn) {
+			for (int fnn=0;fnn<face[f].nodeCount;++fnn) {
 				nodeWeights[fnn]+=(1./double(3*face[f].nodeCount))*patchRatio;
 			}
 			nodeWeights[fn]+=patchRatio/3.;
@@ -586,7 +589,7 @@ void Grid::faceAverages() {
 		}
 
 		face[f].average.clear();
-		for (unsigned int fn=0;fn<face[f].nodeCount;++fn) {
+		for (int fn=0;fn<face[f].nodeCount;++fn) {
 			n=face[f].nodes[fn];
 			for ( it=node[n].average.begin() ; it != node[n].average.end(); it++ ) {
 				if (face[f].average.find((*it).first)!=face[f].average.end()) { // if the cell contributing to the node average is already contained in the face average map
@@ -596,29 +599,17 @@ void Grid::faceAverages() {
 				}
 			}
 		}
-// 		weightSumCheck=0.;
-// 		for ( fit=face[f].average.begin() ; fit != face[f].average.end(); fit++ ) {
-// 			//(*fit).second/=double(face[f].nodeCount);
-// 			weightSumCheck+=(*fit).second;
-// 		}
-		// 
-// 		cout << nodeWeights.size() << "\t" << weightSumCheck << endl;
-		//cout << setw(16) << setprecision(8) << scientific << weightSumCheck << endl;
-// 		std::map<int,double>::iterator it;
-// 		double avg=0.;
-// 		for ( it=face[f].average.begin() ; it != face[f].average.end(); it++ ) {
-// 			avg+=(*it).second*cell[(*it).first].rho;
-// 		}
-// 		if (fabs(avg-2.*face[f].centroid.comp[0]-2.)>1.e-8) cout << 2.*face[f].centroid.comp[0]+2. << "\t" << avg << endl;
+
 	} // end face loop
 
 } // end Grid::faceAverages()
 
 
-int gelimd(double **a,double *b,double *x, int n)
-{
-	double tmp,pvt,*t;
-	int i,j,k,itmp;
+int gelimd(vector<vector<double> > &a,vector<double> &b,vector<double> &x) {
+	
+	int n=b.size();
+	double tmp,pvt;
+	int i,j,k;
 
 	for (i=0;i<n;i++) {             // outer loop on rows
 		pvt = a[i][i];              // get pivot value
@@ -627,9 +618,7 @@ int gelimd(double **a,double *b,double *x, int n)
 				if(fabs(pvt = a[j][i]) >= EPS) break;
 			}
 			if (fabs(pvt) < EPS) return 1;     // nowhere to run!
-			t=a[j];                 // swap matrix rows...
-			a[j]=a[i];
-			a[i]=t;
+			a[i].swap(a[j]);	// swap matrix rows...
 			tmp=b[j];               // ...and result vector
 			b[j]=b[i];
 			b[i]=tmp;
@@ -655,16 +644,16 @@ int gelimd(double **a,double *b,double *x, int n)
 }
 
 void Grid::nodeAverages_idw() {
-	unsigned int c,g;
+	int c,g;
 	double weight=0.;
 	Vec3D node2cell,node2ghost;
 	map<int,double>::iterator it;
 
-	for (unsigned int n=0;n<nodeCount;++n) {
+	for (int n=0;n<nodeCount;++n) {
 		node[n].average.clear();
 		// Add contributions from real cells
 		weightSum=0.;
-		for (unsigned int nc=0;nc<node[n].cells.size();++nc) {
+		for (int nc=0;nc<node[n].cells.size();++nc) {
 			c=node[n].cells[nc];
 			node2cell=node[n]-cell[c].centroid;
 			weight=1./(node2cell.dot(node2cell));
@@ -673,7 +662,7 @@ void Grid::nodeAverages_idw() {
 			weightSum+=weight;
 		}
 		// Add contributions from ghost cells		
-		for (unsigned int ng=0;ng<node[n].ghosts.size();++ng) {
+		for (int ng=0;ng<node[n].ghosts.size();++ng) {
 			g=node[n].ghosts[ng];
 			node2ghost=node[n]-ghost[g].centroid;
 			weight=1./(node2ghost.dot(node2ghost));

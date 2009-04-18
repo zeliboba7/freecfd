@@ -52,7 +52,7 @@ void read_restart(double &time) {
 	for (int p=0;p<nprocs;++p) {
 		file >> nnodes[p];
 		file >> ncells[p];
-		for (unsigned int c=0;c<ncells[p];++c) {
+		for (int c=0;c<ncells[p];++c) {
 			file >> cellGlobalId;
 			partitionMap[p].push_back(cellGlobalId);
 		}
@@ -66,20 +66,20 @@ void read_restart(double &time) {
 	// Skip first two header lines
 	getline(file,data,'\n'); getline(file,data,'\n');
 	// Skip 3 "=" signs and read solution time
-	for (unsigned int i=0; i<3; ++i) getline(file,data,'=');
+	for (int i=0; i<3; ++i) getline(file,data,'=');
 	file >> time;
 	// Rewind the file
 	file.seekg(0,ios::beg);
 	// Skip the variable header line
 	getline(file,data,'\n');
 	int id;
-	for (unsigned int p=0;p<nprocs;++p) {
+	for (int p=0;p<nprocs;++p) {
 		// Skip two header lines
 		getline(file,data,'\n'); getline(file,data,'\n');
 		// Skip node data
-		for (unsigned int n=0;n<3*nnodes[p];++n) file >> dummy;
+		for (int n=0;n<3*nnodes[p];++n) file >> dummy;
 		// Read pressure
-		for (unsigned int c=0;c<ncells[p];++c) {
+		for (int c=0;c<ncells[p];++c) {
 			// Get local cell id
 			id=-1;
 			if (maps.cellGlobal2Local.find(partitionMap[p][c])!=maps.cellGlobal2Local.end()) {
@@ -89,7 +89,7 @@ void read_restart(double &time) {
 			if (id>=0) { file >> grid.cell[id].p; } else { file >> dummy; }
 		}
 		// Read u-velocity
-		for (unsigned int c=0;c<ncells[p];++c) {
+		for (int c=0;c<ncells[p];++c) {
 			id=-1;
 			if (maps.cellGlobal2Local.find(partitionMap[p][c])!=maps.cellGlobal2Local.end()) {
 				id=maps.cellGlobal2Local[partitionMap[p][c]];
@@ -97,7 +97,7 @@ void read_restart(double &time) {
 			if (id>=0) { file >> grid.cell[id].v.comp[0]; } else { file >> dummy; }
 		}
 		// Read v-velocity
-		for (unsigned int c=0;c<ncells[p];++c) {
+		for (int c=0;c<ncells[p];++c) {
 			id=-1;
 			if (maps.cellGlobal2Local.find(partitionMap[p][c])!=maps.cellGlobal2Local.end()) {
 				id=maps.cellGlobal2Local[partitionMap[p][c]];
@@ -105,7 +105,7 @@ void read_restart(double &time) {
 			if (id>=0) { file >> grid.cell[id].v.comp[1]; } else { file >> dummy; }
 		}
 		// Read w-velocity
-		for (unsigned int c=0;c<ncells[p];++c) {
+		for (int c=0;c<ncells[p];++c) {
 			id=-1;
 			if (maps.cellGlobal2Local.find(partitionMap[p][c])!=maps.cellGlobal2Local.end()) {
 				id=maps.cellGlobal2Local[partitionMap[p][c]];
@@ -113,7 +113,7 @@ void read_restart(double &time) {
 			if (id>=0) { file >> grid.cell[id].v.comp[2]; } else { file >> dummy; }
 		}		
 		// Read temperature
-		for (unsigned int c=0;c<ncells[p];++c) {
+		for (int c=0;c<ncells[p];++c) {
 			id=-1;
 			if (maps.cellGlobal2Local.find(partitionMap[p][c])!=maps.cellGlobal2Local.end()) {
 				id=maps.cellGlobal2Local[partitionMap[p][c]];
@@ -125,7 +125,7 @@ void read_restart(double &time) {
 			} else { file >> dummy; }
 		}
 		// Read time step size
- 		for (unsigned int c=0;c<ncells[p];++c) {
+ 		for (int c=0;c<ncells[p];++c) {
 			id=-1;
 			if (maps.cellGlobal2Local.find(partitionMap[p][c])!=maps.cellGlobal2Local.end()) {
 				id=maps.cellGlobal2Local[partitionMap[p][c]];
@@ -140,7 +140,7 @@ void read_restart(double &time) {
 		
 		if (TURBULENCE_MODEL!=NONE) {
 			// Read k
-			for (unsigned int c=0;c<ncells[p];++c) {
+			for (int c=0;c<ncells[p];++c) {
 				id=-1;
 				if (maps.cellGlobal2Local.find(partitionMap[p][c])!=maps.cellGlobal2Local.end()) {
 					id=maps.cellGlobal2Local[partitionMap[p][c]];
@@ -152,7 +152,7 @@ void read_restart(double &time) {
 			}
 			
 			// Read omega
-			for (unsigned int c=0;c<ncells[p];++c) {
+			for (int c=0;c<ncells[p];++c) {
 				id=-1;
 				if (maps.cellGlobal2Local.find(partitionMap[p][c])!=maps.cellGlobal2Local.end()) {
 					id=maps.cellGlobal2Local[partitionMap[p][c]];
@@ -166,7 +166,7 @@ void read_restart(double &time) {
 		
 		if (FLAMELET) {
 			// Read Z
-			for (unsigned int c=0;c<ncells[p];++c) {
+			for (int c=0;c<ncells[p];++c) {
 				id=-1;
 				if (maps.cellGlobal2Local.find(partitionMap[p][c])!=maps.cellGlobal2Local.end()) {
 					id=maps.cellGlobal2Local[partitionMap[p][c]];
@@ -178,7 +178,7 @@ void read_restart(double &time) {
 			}
 			
 			// Read Zvar
-			for (unsigned int c=0;c<ncells[p];++c) {
+			for (int c=0;c<ncells[p];++c) {
 				id=-1;
 				if (maps.cellGlobal2Local.find(partitionMap[p][c])!=maps.cellGlobal2Local.end()) {
 					id=maps.cellGlobal2Local[partitionMap[p][c]];
@@ -194,7 +194,7 @@ void read_restart(double &time) {
 		
 		// Skip connectivity list
 		getline(file,data,'\n');
-		for (unsigned int c=0;c<ncells[p];++c) getline(file,data,'\n');
+		for (int c=0;c<ncells[p];++c) getline(file,data,'\n');
 	}
 
 	file.close();

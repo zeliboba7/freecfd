@@ -42,7 +42,7 @@ using namespace std;
 
 class Node : public Vec3D {
 public:
-	unsigned int id, globalId;
+	int id, globalId;
 	std::vector<int> cells;
 	std::vector<int> ghosts;
 	std::map<int,double> average;
@@ -53,9 +53,9 @@ public:
 class Face {
 public:
 	int bc,parentIndex;
-	unsigned int id;
+	int id;
 	int parent,neighbor;
-	unsigned int nodeCount;
+	int nodeCount;
 	Vec3D centroid;
 	Vec3D normal;
 	std::map<int,double> average;
@@ -67,7 +67,7 @@ public:
 
 class Cell {
 public:
-	unsigned int nodeCount,faceCount,neighborCellCount,ghostCount,globalId,globalCellCount;
+	int nodeCount,faceCount,neighborCellCount,ghostCount,globalId,globalCellCount;
 	double volume,lengthScale,closest_wall_distance;
 	Vec3D centroid;
 	std::vector<int> nodes;
@@ -80,18 +80,18 @@ public:
 	std::map<int,Vec3D> gradMap;
 	double update[5];
 	Cell(void);
-	bool HaveNodes(unsigned int &nodelistsize, unsigned int nodelist[]) ;
+	bool HaveNodes(int &nodelistsize, int nodelist[]) ;
 	Node& node(int n);
 	Face& face(int f);
 };
 
 class Ghost {
 public:
-	unsigned int partition;
-	unsigned int globalId;
-	unsigned int matrix_id;
-	unsigned int id_in_owner;
-	std::vector<unsigned int> cells;
+	int partition;
+	int globalId;
+	int matrix_id;
+	int id_in_owner;
+	std::vector<int> cells;
 	double p,T,rho,closest_wall_distance;
 	// Gradients are stored as p,u,v,w,T in order
 	Vec3D v,centroid,grad[5];
@@ -104,8 +104,8 @@ public:
 	int myOffset;
 	vector<int> partitionOffset;
 	int nodeCountOffset;
-	unsigned int nodeCount,cellCount,faceCount;
-	unsigned int globalNodeCount,globalCellCount,globalFaceCount,ghostCount;
+	int nodeCount,cellCount,faceCount;
+	int globalNodeCount,globalCellCount,globalFaceCount,ghostCount;
 	std::vector<int> boundaryFaceCount;
 	std::vector<int> boundaryNodeCount;
 	std::vector<int> globalBoundaryFaceCount;
@@ -126,7 +126,6 @@ public:
 	int create_nodes_cells();
 	int create_faces();
 	int create_ghosts();
-	void write_bocos();
 	void trim_memory();
 	int areas_volumes();
 	void nodeAverages();
@@ -147,17 +146,16 @@ class GridRawData { // The data will be destroyed after processing
 public:
 	std::vector<double> x,y,z;
 	std::vector<int> cellConnIndex,cellConnectivity;
-	std::vector< vector<int> > bocoConnIndex,bocoConnectivity;
 	std::vector< set<int> > bocoNodes; // Node list for each boundary condition region
 	std::map<string,int> bocoNameMap;
 };
 
 class IndexMaps { // The data will be destroyed after processing
 public:
-	std::vector<unsigned int> cellOwner; // takes cell global id and returns the owner rank
-	std::map<unsigned int,unsigned int> nodeGlobal2Local;
-	std::map<unsigned int,unsigned int> cellGlobal2Local;
-	std::map<unsigned int,unsigned int> ghostGlobal2Local;
+	std::vector<int> cellOwner; // takes cell global id and returns the owner rank
+	std::map<int,int> nodeGlobal2Local;
+	std::map<int,int> cellGlobal2Local;
+	std::map<int,int> ghostGlobal2Local;
 	std::vector<int> nodeGlobal2Output;
 	idxtype* adjIndex;
 	idxtype* adjacency;

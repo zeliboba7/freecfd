@@ -37,7 +37,7 @@ void setBCs(InputFile &input, BC &bc) {
 	
 	// Loop through each boundary condition region and apply sequentially
 	int count=input.section("boundaryConditions").subsection("BC",0).count;
-	for (unsigned int b=0;b<count;++b) {
+	for (int b=0;b<count;++b) {
 		// Store the reference to current BC region
 		Subsection &region=input.section("boundaryConditions").subsection("BC",b);
 	
@@ -48,7 +48,7 @@ void setBCs(InputFile &input, BC &bc) {
 		bcRegion.momentum=0.;
 		
 		// Integrate boundary areas
-		for (unsigned int f=0;f<grid.faceCount;++f) {
+		for (int f=0;f<grid.faceCount;++f) {
 			if (grid.face[f].bc==b) {
 				bcRegion.area+=grid.face[f].area;
 				bcRegion.areaVec+=grid.face[f].area*grid.face[f].normal;
@@ -162,7 +162,7 @@ void setBCs(InputFile &input, BC &bc) {
 		}
 		
 		if (region.get_string("region")=="box") {
-			for (unsigned int f=0;f<grid.faceCount;++f) {
+			for (int f=0;f<grid.faceCount;++f) {
 				// if the face is not already marked as internal or partition boundary
 				// And if the face centroid falls within the defined box
 				if ((grid.face[f].bc>=0 || grid.face[f].bc==UNASSIGNED ) && withinBox(grid.face[f].centroid,region.get_Vec3D("corner_1"),region.get_Vec3D("corner_2"))) {
@@ -181,13 +181,13 @@ void setBCs(InputFile &input, BC &bc) {
 	vector<int> number_of_nsf (np,0); // number of noslip faces in each partition
 	
 	// Mark nodes that touch boundaries
-	for (unsigned int f=0;f<grid.faceCount;++f) {
+	for (int f=0;f<grid.faceCount;++f) {
 		if (grid.face[f].bc==UNASSIGNED) {
 			cerr << "[E Rank=" << Rank << "] Boundary condition could not be found for face " << f << endl;
 			exit(1);
 		}
 		if (grid.face[f].bc>=0) { // if a boundary face
-			for (unsigned int fn=0;fn<grid.face[f].nodeCount;++fn) {
+			for (int fn=0;fn<grid.face[f].nodeCount;++fn) {
 				grid.face[f].node(fn).bcs.insert(grid.face[f].bc);
 			}
 			if (bc.region[grid.face[f].bc].type==NOSLIP) number_of_nsf[Rank]++;
@@ -207,7 +207,7 @@ void setBCs(InputFile &input, BC &bc) {
 	}
 	
 	// Find out number of faces on each bc, locally and globally
-	for (unsigned int f=0;f<grid.faceCount; ++f) {
+	for (int f=0;f<grid.faceCount; ++f) {
 		if (grid.face[f].bc>=0) grid.boundaryFaceCount[grid.face[f].bc]++;
 	}
 
@@ -218,7 +218,7 @@ void setBCs(InputFile &input, BC &bc) {
 	MPI_Barrier(MPI_COMM_WORLD);
 	
 	// Find out number of nodes on each bc, locally and globally
-	for (unsigned int n=0;n<grid.nodeCount;++n) {
+	for (int n=0;n<grid.nodeCount;++n) {
 		for (int boco=0;boco<count;++boco) {
 			if (grid.node[n].bcs.find(boco)!=grid.node[n].bcs.end()) {
 				if (maps.nodeGlobal2Output[grid.node[n].globalId]>=grid.nodeCountOffset) grid.boundaryNodeCount[boco]++;
@@ -246,7 +246,7 @@ void setBCs(InputFile &input, BC &bc) {
 		vector<double> noSlipFaces_z(nsf_sum);
 	
 		count=0;
-		for (unsigned int f=0;f<grid.faceCount;++f) {
+		for (int f=0;f<grid.faceCount;++f) {
 			if (grid.face[f].bc>=0 && bc.region[grid.face[f].bc].type==NOSLIP) { 
 				noSlipFaces_x[displacements[Rank]+count]=grid.face[f].centroid[0];
 				noSlipFaces_y[displacements[Rank]+count]=grid.face[f].centroid[1];
@@ -261,9 +261,9 @@ void setBCs(InputFile &input, BC &bc) {
 		
 		Vec3D thisCentroid;
 		double thisDistance;
-		for (unsigned int c=0;c<grid.cellCount;++c) {
+		for (int c=0;c<grid.cellCount;++c) {
 			grid.cell[c].closest_wall_distance=1.e20;
-			for (unsigned int nsf=0;nsf<nsf_sum;++nsf) {
+			for (int nsf=0;nsf<nsf_sum;++nsf) {
 				thisCentroid[0]=noSlipFaces_x[nsf];
 				thisCentroid[1]=noSlipFaces_y[nsf];
 				thisCentroid[2]=noSlipFaces_z[nsf];

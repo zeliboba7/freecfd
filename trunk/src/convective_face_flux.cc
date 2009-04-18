@@ -171,8 +171,8 @@ void AUSMplusUP_flux(Cell_State &left,Cell_State &right,double fluxNormal[],doub
 	double Kp=0.25;
 	double Ku=0.75;
 	double sigma=1.;
-	double rho,u,p,a,M,mdot,Mbar2,Mo2;
-	double aL_hat,aR_hat,Ht,aL_star,aR_star;
+	double rho,p,a,M,mdot,Mbar2;
+	double aL_hat,aR_hat,aL_star,aR_star;
 	double ML,MR;
 	double fa=0.;
 	double Mref;

@@ -40,17 +40,17 @@ void mpi_update_ghost_primitives(void);
 void mpi_update_ghost_gradients(void);
 
 struct mpiGhost {
-	unsigned int globalId;
+	int globalId;
 	double vars[6];
 };
 
 struct mpiGrad {
-	unsigned int globalId;
+	int globalId;
 	double grads[15];
 };
 
 struct mpiVec3D {
-	unsigned int ids[3]; // contains globalId and matrix_id;
+	int ids[3]; // contains globalId and matrix_id;
 	double comp[3];
 };
 

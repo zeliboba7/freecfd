@@ -70,7 +70,6 @@ int Grid::read(string fname) {
 		mesh2dual();
 		create_faces();
 		create_ghosts();
-		write_bocos();
 		trim_memory();
 		areas_volumes();
 		return 1;
@@ -80,59 +79,27 @@ int Grid::read(string fname) {
 	}
 }
 
-void Grid::write_bocos() {
-// 	if (Rank==0) {
-// 		mkdir("./output",S_IRWXU);
-// 		ofstream file;
-// 		string fileName="./output/coordinates";
-// 		file.open((fileName).c_str(),ios::out | ios::binary);
-// 		// Write coordinates
-// 		for (unsigned int i=0;i<3;++i) {
-// 			for (unsigned int n=0;n<grid.nodeCount;++n) {
-// 				file << setw(16) << setprecision(8) << scientific << node[n][i] << endl;
-// 			}
-// 		}
-// 		file.close();
-// 	}
-	return;
-}
-
-// int Grid::reorderRCM() {
-// 	//void genrcmi (const int n, const int flags, const int *xadj, const int * adj, int * perm, signed char * mask, int * deg)
-// 	
-// 	vector <int> adjIndex;
-// 	adjIndex.assign(raw.cellConnIndex.begin(),raw.cellConnIndex.end());
-// 	adjIndex.push_back(raw.cellConnectivity.size());
-// 	vector<int> RCMpermutation;
-// 	vector<signed char> mask;
-// 	vector<int> deg;
-// 	RCMpermutation.resize(raw.cellConnIndex.size());
-// 	
-// 	genrcmi(raw.cellConnIndex.size(),0,&adjIndex[0],&raw.cellConnectivity[0],&RCMpermutation[0],&mask[0],&deg[0]);
-// 	return 1;
-// }
-
 void Grid::trim_memory() {
 	// Shrink vector capacities to just the right amounts
 	
-	for (unsigned int n=0;n<nodeCount;++n) {
+	for (int n=0;n<nodeCount;++n) {
 		vector<int> (node[n].cells).swap(node[n].cells);
 		vector<int> (node[n].ghosts).swap(node[n].ghosts);
 	}
 	
-	for (unsigned int f=0;f<faceCount;++f) { 
+	for (int f=0;f<faceCount;++f) { 
 		vector<int> (face[f].nodes).swap(face[f].nodes);
 	}
 
-	for (unsigned int c=0;c<cellCount;++c) { 
+	for (int c=0;c<cellCount;++c) { 
 		vector<int> (cell[c].nodes).swap(cell[c].nodes);
 		vector<int> (cell[c].faces).swap(cell[c].faces);
 		vector<int> (cell[c].neighborCells).swap(cell[c].neighborCells);
 		vector<int> (cell[c].ghosts).swap(cell[c].ghosts);
 	}
 	
-	for (unsigned int g=0;g<ghostCount;++g) { 
-		vector<unsigned int> (ghost[g].cells).swap(ghost[g].cells);
+	for (int g=0;g<ghostCount;++g) { 
+		vector<int> (ghost[g].cells).swap(ghost[g].cells);
 	}
 	
 	vector<Node> (node).swap(node);
@@ -141,7 +108,7 @@ void Grid::trim_memory() {
 	vector<Ghost> (ghost).swap(ghost);
 	
 	vector<int> (partitionOffset).swap(partitionOffset);
-	//vector<unsigned int> (noSlipFaces).swap(noSlipFaces);
+	//vector<int> (noSlipFaces).swap(noSlipFaces);
 	
 	// Destroy grid raw data
 	raw.x.clear();
@@ -149,8 +116,6 @@ void Grid::trim_memory() {
 	raw.z.clear();
 	raw.cellConnIndex.clear();
 	raw.cellConnectivity.clear();
-	raw.bocoConnIndex.clear();
-	raw.bocoConnectivity.clear();
 	raw.bocoNameMap.clear();
 	
 	return;
@@ -159,7 +124,7 @@ void Grid::trim_memory() {
 int Grid::scale() {
 	if (input.section("grid").get_Vec3D("scaleBy").is_found) {
 		Vec3D scaleFactor=input.section("grid").get_Vec3D("scaleBy");
-		for (unsigned int n=0;n<globalNodeCount;++n) {
+		for (int n=0;n<globalNodeCount;++n) {
 			raw.x[n]*=scaleFactor[0];
 			raw.y[n]*=scaleFactor[1];
 			raw.z[n]*=scaleFactor[2];
@@ -176,7 +141,7 @@ int Grid::rotate() {
 		// Convert angles to radian
 		angles*=4.*atan(1.)/180.;
 		double x,y,z;
-		for (unsigned int n=0;n<globalNodeCount;++n) {
+		for (int n=0;n<globalNodeCount;++n) {
 			// Translate to the new center
 			raw.x[n]-=center[0];
 			raw.y[n]-=center[1];
@@ -207,12 +172,12 @@ int Grid::areas_volumes() {
 	// smaller tetrahedras
 
 	// Now loop through faces and calculate centroids and areas
-	for (unsigned int f=0;f<faceCount;++f) {
+	for (int f=0;f<faceCount;++f) {
 		Vec3D centroid=0.;
 		Vec3D areaVec=0.;
 		Vec3D patchCentroid,patchArea;
 		// Find an approxiamate centroid (true centroid for triangle)
-		for (unsigned int n=0;n<face[f].nodeCount;++n) {
+		for (int n=0;n<face[f].nodeCount;++n) {
 			centroid+=face[f].node(n);
 		}
 		centroid/=double(face[f].nodeCount);
@@ -230,7 +195,7 @@ int Grid::areas_volumes() {
 		//if (f==1590) cout << length << endl;
 		//if ( !(fabs(fabs(face[f].normal)-1.)<1.e-7))
 		//cout << f << "\t" << fabs(face[f].normal) << endl;
-		for (unsigned int n=0;n<face[f].nodeCount;++n) {
+		for (int n=0;n<face[f].nodeCount;++n) {
 			next=n+1;
 			if (next==face[f].nodeCount) next=0;
 			patchArea=0.5*(face[f].node(n)-centroid).cross(face[f].node(next)-centroid);
@@ -247,15 +212,15 @@ int Grid::areas_volumes() {
 	
 	// Loop through the cells and calculate the volumes
 	double totalVolume=0.;
-	for (unsigned int c=0;c<cellCount;++c) {
+	for (int c=0;c<cellCount;++c) {
 		double volume=0.;
 		double patchVolume=0.;
 		Vec3D height,basePatchArea,patchCentroid;
-		unsigned int f,next;
+		int f,next;
 		// Calculate cell centroid
 		// First calculate an approximate one
 		Vec3D centroid=0.;
-		for (unsigned int cn=0;cn<cell[c].nodeCount;++cn) {
+		for (int cn=0;cn<cell[c].nodeCount;++cn) {
 			centroid+=cell[c].node(cn);
 		}
 		centroid/=double(cell[c].nodeCount);
@@ -263,10 +228,10 @@ int Grid::areas_volumes() {
 		// Calculate the centroid of the cell by taking moments of each tetra
 		cell[c].centroid=0.;
 		double sign;
-		for (unsigned int cf=0;cf<cell[c].faceCount;++cf) {
+		for (int cf=0;cf<cell[c].faceCount;++cf) {
 			f=cell[c].faces[cf];
 			// Every cell face is broken to triangles
-			for (unsigned int n=0;n<face[f].nodeCount;++n) {
+			for (int n=0;n<face[f].nodeCount;++n) {
 				next=n+1;
 				if (next==face[f].nodeCount) next=0;
 				// Triangle area
@@ -294,7 +259,7 @@ int Grid::areas_volumes() {
 	MPI_Allreduce (&totalVolume,&globalTotalVolume,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
 	if (np>1 && Rank==0) cout << "[I] Global Total Volume= " << globalTotalVolume << endl;
 	
-	for (unsigned int f=0;f<faceCount;++f) {
+	for (int f=0;f<faceCount;++f) {
 		if (face[f].normal.dot(face[f].centroid-cell[face[f].parent].centroid)<=0.) {
 			// [TBM] Need to swap the face and reflect the area vector
 			cout << "[W Rank=" << Rank << "] Face " << f << " normal is pointing in to its parent ... fixing " << endl;
@@ -335,12 +300,12 @@ Node& Face::node(int n) {
 
 void Grid::gradMaps() {
 	
-	unsigned int f;
+	int f;
 	map<int,double>::iterator it;
 	Vec3D areaVec;
-	for (unsigned int c=0;c<cellCount;++c) {
+	for (int c=0;c<cellCount;++c) {
 		cell[c].gradMap.clear();
-		for (unsigned int cf=0;cf<cell[c].faceCount;++cf) {
+		for (int cf=0;cf<cell[c].faceCount;++cf) {
 			f=cell[c].faces[cf];
 			if (face[f].bc==INTERNAL || face[f].bc==GHOST ) { // if internal or interpartition face
 				areaVec=face[f].normal*face[f].area/cell[c].volume;
@@ -364,28 +329,28 @@ void Grid::gradients(void) {
 	// Calculate cell gradients
 	map<int,Vec3D>::iterator it;
 	map<int,double>::iterator fit;
-	unsigned int f;
+	int f;
 	Vec3D faceVel,areaVec;
 	double faceP,faceT;
 	
-	for (unsigned int c=0;c<cellCount;++c) {
+	for (int c=0;c<cellCount;++c) {
 		// Initialize all gradients to zero
-		for (unsigned int i=0;i<5;++i) cell[c].grad[i]=0.;
+		for (int i=0;i<5;++i) cell[c].grad[i]=0.;
 		// Add internal and interpartition face contributions
 		for (it=cell[c].gradMap.begin();it!=cell[c].gradMap.end(); it++ ) {
 			if ((*it).first>=0) { // if contribution is coming from a real cell
 				cell[c].grad[0]+=(*it).second*cell[(*it).first].p;
-				for (unsigned int i=1;i<4;++i) cell[c].grad[i]+=(*it).second*cell[(*it).first].v[i-1];
+				for (int i=1;i<4;++i) cell[c].grad[i]+=(*it).second*cell[(*it).first].v[i-1];
 				cell[c].grad[4]+=(*it).second*cell[(*it).first].T;
 			} else { // if contribution is coming from a ghost cell
 				cell[c].grad[0]+=(*it).second*ghost[-1*((*it).first+1)].p;
-				for (unsigned int i=1;i<4;++i) cell[c].grad[i]+=(*it).second*ghost[-1*((*it).first+1)].v[i-1];
+				for (int i=1;i<4;++i) cell[c].grad[i]+=(*it).second*ghost[-1*((*it).first+1)].v[i-1];
 				cell[c].grad[4]+=(*it).second*ghost[-1*((*it).first+1)].T;
 			}
 		} // end gradMap loop
 
  		// Add boundary face contributions
-		for (unsigned int cf=0;cf<cell[c].faceCount;++cf) {
+		for (int cf=0;cf<cell[c].faceCount;++cf) {
 			f=cell[c].faces[cf];
 			
 			if (face[f].bc>=0) { // if a boundary face
@@ -440,20 +405,20 @@ void Grid::gradients(void) {
 
 void Grid::limit_gradients(void) {
 	
-	unsigned int neighbor,g;
+	int neighbor,g;
 	Vec3D maxGrad[5],minGrad[5];
 	if(LIMITER==NONE || order==FIRST) {
 		// Do nothing
 	} else {
-		for (unsigned int c=0;c<cellCount;++c) {
+		for (int c=0;c<cellCount;++c) {
 	
 			// Initialize min and max to current cells values
-			for (unsigned int i=0;i<5;++i) maxGrad[i]=minGrad[i]=cell[c].grad[i];
+			for (int i=0;i<5;++i) maxGrad[i]=minGrad[i]=cell[c].grad[i];
 			// Find extremes in neighboring real cells
-			for (unsigned int cc=0;cc<cell[c].neighborCellCount;++cc) {
+			for (int cc=0;cc<cell[c].neighborCellCount;++cc) {
 				neighbor=cell[c].neighborCells[cc];
-				for (unsigned int var=0;var<5;++var) {
-					for (unsigned int comp=0;comp<3;++comp) {
+				for (int var=0;var<5;++var) {
+					for (int comp=0;comp<3;++comp) {
 						maxGrad[var][comp]=max(maxGrad[var][comp],
 								(1.-limiter_sharpening)*cell[neighbor].grad[var][comp]
 									+limiter_sharpening*cell[c].grad[var][comp]);
@@ -464,10 +429,10 @@ void Grid::limit_gradients(void) {
 				}
 			}
 			// Find extremes in neighboring ghost cells
-			for (unsigned int cg=0;cg<cell[c].ghostCount;++cg) {
+			for (int cg=0;cg<cell[c].ghostCount;++cg) {
 				g=cell[c].ghosts[cg];
-				for (unsigned int var=0;var<5;++var) {
-					for (unsigned int comp=0;comp<3;++comp) {
+				for (int var=0;var<5;++var) {
+					for (int comp=0;comp<3;++comp) {
 						maxGrad[var][comp]=max(maxGrad[var][comp],
 								(1.-limiter_sharpening)*ghost[g].grad[var][comp]
 									+limiter_sharpening*cell[c].grad[var][comp]);
@@ -478,10 +443,10 @@ void Grid::limit_gradients(void) {
 				}
 			}
 			
-			if(LIMITER==MINMOD) for (unsigned int var=0;var<5;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].grad[var][comp]=minmod(maxGrad[var][comp],minGrad[var][comp]);
-			if(LIMITER==DOUBLEMINMOD) for (unsigned int var=0;var<5;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].grad[var][comp]=doubleMinmod(maxGrad[var][comp],minGrad[var][comp]);
-			if(LIMITER==HARMONIC) for (unsigned int var=0;var<5;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].grad[var][comp]=harmonic(maxGrad[var][comp],minGrad[var][comp]);
-			if(LIMITER==SUPERBEE) for (unsigned int var=0;var<5;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].grad[var][comp]=superbee(maxGrad[var][comp],minGrad[var][comp]);
+			if(LIMITER==MINMOD) for (int var=0;var<5;++var) for (int comp=0;comp<3;++comp) cell[c].grad[var][comp]=minmod(maxGrad[var][comp],minGrad[var][comp]);
+			if(LIMITER==DOUBLEMINMOD) for (int var=0;var<5;++var) for (int comp=0;comp<3;++comp) cell[c].grad[var][comp]=doubleMinmod(maxGrad[var][comp],minGrad[var][comp]);
+			if(LIMITER==HARMONIC) for (int var=0;var<5;++var) for (int comp=0;comp<3;++comp) cell[c].grad[var][comp]=harmonic(maxGrad[var][comp],minGrad[var][comp]);
+			if(LIMITER==SUPERBEE) for (int var=0;var<5;++var) for (int comp=0;comp<3;++comp) cell[c].grad[var][comp]=superbee(maxGrad[var][comp],minGrad[var][comp]);
 			
 		}
 	}
@@ -492,11 +457,11 @@ void Grid::limit_gradients(void) {
 
 void Grid::lengthScales(void) {
 	// Loop through the cells and calculate length scales
-	for (unsigned int c=0;c<cellCount;++c) {
+	for (int c=0;c<cellCount;++c) {
 		cell[c].lengthScale=1.e20;
 		double height;
-		unsigned int f;
-		for (unsigned int cf=0;cf<cell[c].faceCount;++cf) {
+		int f;
+		for (int cf=0;cf<cell[c].faceCount;++cf) {
 			f=cell[c].faces[cf];
 			height=fabs(face[f].normal.dot(face[f].centroid-cell[c].centroid));
 			bool skipScale=false;

@@ -34,7 +34,7 @@ extern InputFile input;
 extern void convective_face_flux(Cell_State &left,Cell_State &right,Face_State &face,double flux[]);
 extern void left_state_update(Cell_State &left,Face_State &face);
 extern void right_state_update(Cell_State &left,Cell_State &right,Face_State &face);
-extern void face_geom_update(Face_State &face,unsigned int f);
+extern void face_geom_update(Face_State &face,int f);
 
 void update_face_mdot(void) {
 	

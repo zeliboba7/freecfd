@@ -41,7 +41,7 @@ void apply_bcs(Cell_State &left,Cell_State &right,Face_State &face);
 void diffusive_face_flux(Cell_State &left,Cell_State &right,Face_State &face,double flux[]);
 void left_state_update(Cell_State &left,Face_State &face);
 void right_state_update(Cell_State &left,Cell_State &right,Face_State &face);
-void face_geom_update(Face_State &face,unsigned int f);
+void face_geom_update(Face_State &face,int f);
 void face_state_update(Cell_State &left,Cell_State &right,Face_State &face);
 void state_perturb(Cell_State &state,Face_State &face,int var,double epsilon);
 void face_state_adjust(Cell_State &left,Cell_State &right,Face_State &face,int var);
@@ -62,11 +62,11 @@ void assemble_linear_system(void) {
 	using state::left;
 	using state::right;
 	
-	unsigned int parent,neighbor,f;
+	int parent,neighbor,f;
 	int row,col;
 	
 	vector<bool> cellVisited;
-	for (unsigned int c=0;c<grid.cellCount;++c) cellVisited.push_back(false);
+	for (int c=0;c<grid.cellCount;++c) cellVisited.push_back(false);
 	PetscScalar value;
 
 	flux.convective.resize(5);
@@ -295,21 +295,21 @@ void get_jacobians(const int var) {
 
 void left_state_update(Cell_State &left,Face_State &face) {
 	
-	unsigned int parent;
+	int parent;
 	Vec3D deltaV;
 	double delta[5];
 	
 	parent=grid.face[face.index].parent;
 
 	if (order==SECOND) {
-		for (unsigned int i=0;i<5;++i) {
+		for (int i=0;i<5;++i) {
 			delta[i]=(grid.face[face.index].centroid-grid.cell[parent].centroid).dot(grid.cell[parent].grad[i]);
 		}
 	} else {
-		for (unsigned int i=0;i<5;++i) delta[i]=0.;
+		for (int i=0;i<5;++i) delta[i]=0.;
 	}
 
-	for (unsigned int i=0;i<5;++i) left.update[i]=grid.cell[parent].update[i];
+	for (int i=0;i<5;++i) left.update[i]=grid.cell[parent].update[i];
 	
 	deltaV[0]=delta[1]; deltaV[1]=delta[2]; deltaV[2]=delta[3];
 	
@@ -355,19 +355,19 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 
 		Vec3D deltaV;
 		double delta[5];
-		unsigned int neighbor;
+		int neighbor;
 
   		neighbor=grid.face[face.index].neighbor;
 
 		if (order==SECOND) {
-			for (unsigned int i=0;i<5;++i) {
+			for (int i=0;i<5;++i) {
 				delta[i]=(grid.face[face.index].centroid-grid.cell[neighbor].centroid).dot(grid.cell[neighbor].grad[i]);
 			}
 		} else {
-			for (unsigned int i=0;i<5;++i) delta[i]=0.;
+			for (int i=0;i<5;++i) delta[i]=0.;
 		}
 
-		for (unsigned int i=0;i<5;++i) right.update[i]=grid.cell[neighbor].update[i];
+		for (int i=0;i<5;++i) right.update[i]=grid.cell[neighbor].update[i];
 		
 		deltaV[0]=delta[1]; deltaV[1]=delta[2]; deltaV[2]=delta[3];
 
@@ -413,7 +413,6 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 				right.Z=bc.region[face.bc].Z;
 				right.Zvar=bc.region[face.bc].Zvar;
 				right.Z_center=2.*right.Z-left.Z_center;
-				double uNL=left.v.dot(face.normal);
 				double mdotNR=-1.*(bc.region[face.bc].mdot/bc.region[face.bc].area)*bc.region[face.bc].areaVec.norm().dot(face.normal);
 				// extrapolate pressure
 				right.p=left.p;
@@ -427,7 +426,7 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 
 		}
 		
-		for (unsigned int i=0;i<5;++i) right.update[i]=0.;
+		for (int i=0;i<5;++i) right.update[i]=0.;
 		if (!skip) apply_bcs(left,right,face);
 		
 	} else { // partition boundary
@@ -436,14 +435,14 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 		Vec3D deltaV;
 		double delta[5];
 		if (order==SECOND) {
-			for (unsigned int i=0;i<5;++i) {
+			for (int i=0;i<5;++i) {
 				delta[i]=(grid.face[face.index].centroid-grid.ghost[g].centroid).dot(grid.ghost[g].grad[i]);
 			}
 		} else {
-			for (unsigned int i=0;i<5;++i) delta[i]=0.;
+			for (int i=0;i<5;++i) delta[i]=0.;
 		}
 
-		for (unsigned int i=0;i<5;++i) right.update[i]=grid.ghost[g].update[i];
+		for (int i=0;i<5;++i) right.update[i]=grid.ghost[g].update[i];
 		
 		deltaV[0]=delta[1]; deltaV[1]=delta[2]; deltaV[2]=delta[3];
 
@@ -483,7 +482,7 @@ void right_state_update(Cell_State &left,Cell_State &right,Face_State &face) {
 	return;
 } // end right_state_update
 
-void face_geom_update(Face_State &face,unsigned int f) {
+void face_geom_update(Face_State &face,int f) {
 	face.index=f;
 	face.normal=grid.face[f].normal;
 	face.tangent1=(grid.face[f].centroid-grid.face[f].node(0));
