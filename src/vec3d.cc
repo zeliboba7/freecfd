@@ -193,7 +193,7 @@ bool Vec3D::operator== (const Vec3D &right) {
 }
 
 bool Vec3D::operator!= (const Vec3D &right) {
-	return (comp[0]!=right.comp[0] | comp[1]!=right.comp[1] | comp[2]!=right.comp[2]);
+	return (comp[0]!=right.comp[0] || comp[1]!=right.comp[1] || comp[2]!=right.comp[2]);
 }
 
 double &Vec3D::operator[] (int i) {return comp[i];}

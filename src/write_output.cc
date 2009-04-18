@@ -115,7 +115,7 @@ void write_tec_vars(int &nVar) {
 		int count_p,count_v,count_T,count_k,count_omega,count_mu_t,count_rho,count_Z,count_Zvar;
 		double Ma;
 		
-		for (unsigned int n=0;n<grid.nodeCount;++n) {
+		for (int n=0;n<grid.nodeCount;++n) {
 			if (maps.nodeGlobal2Output[grid.node[n].globalId]>=grid.nodeCountOffset) {
 				
 				p_node=0.;v_node=0.;T_node=0.;k_node=0.;omega_node=0.;Z_node=0.;Zvar_node=0.;
@@ -273,7 +273,7 @@ void write_tec_cells() {
 	file.open((fileName).c_str(),ios::app);
 
 		// Write connectivity
-	for (unsigned int c=0;c<grid.cellCount;++c) {
+	for (int c=0;c<grid.cellCount;++c) {
 		if (grid.cell[c].nodeCount==4) {
 			file << maps.nodeGlobal2Output[grid.cell[c].node(0).globalId]+1 << "\t" ;
 			file << maps.nodeGlobal2Output[grid.cell[c].node(2).globalId]+1 << "\t" ;
@@ -304,7 +304,7 @@ void write_tec_cells() {
 			file << maps.nodeGlobal2Output[grid.cell[c].node(5).globalId]+1 << "\t" ;
 			file << maps.nodeGlobal2Output[grid.cell[c].node(5).globalId]+1 << "\t" ;
 		} else if (grid.cell[c].nodeCount==8) {
-			for (unsigned int i=0;i<8;++i) {
+			for (int i=0;i<8;++i) {
 				file << maps.nodeGlobal2Output[grid.cell[c].node(i).globalId]+1 << "\t" ;
 			}
 		}
@@ -327,7 +327,7 @@ void write_tec_bcs(int bcNo,int nVar) {
 	}
 
 	// Write connectivity
-	for (unsigned int f=0;f<grid.faceCount;++f) {
+	for (int f=0;f<grid.faceCount;++f) {
 		if (grid.face[f].bc==bcNo) {
 			if (grid.face[f].nodeCount==3) {
 				file << maps.nodeGlobal2Output[grid.face[f].node(0).globalId]+1 << "\t" ;
@@ -335,7 +335,7 @@ void write_tec_bcs(int bcNo,int nVar) {
 				file << maps.nodeGlobal2Output[grid.face[f].node(2).globalId]+1 << "\t" ;
 				file << maps.nodeGlobal2Output[grid.face[f].node(2).globalId]+1 << "\t" ;
 			} else if (grid.face[f].nodeCount==4) {
-				for (unsigned int i=0;i<4;++i) {
+				for (int i=0;i<4;++i) {
 					file << maps.nodeGlobal2Output[grid.face[f].node(i).globalId]+1 << "\t" ;
 				}
 			}
@@ -362,16 +362,16 @@ void write_vtk(void) {
 	file << "<Piece NumberOfPoints=\"" << grid.nodeCount << "\" NumberOfCells=\"" << grid.cellCount << "\">" << endl;
 	file << "<Points>" << endl;
 	file << "<DataArray NumberOfComponents=\"3\" type=\"Float32\" format=\"ascii\" >" << endl;
-	for (unsigned int n=0;n<grid.nodeCount;++n) {
-		for (unsigned int i=0; i<3; ++i) file<< setw(16) << setprecision(8) << scientific << grid.node[n].comp[i] << endl;
+	for (int n=0;n<grid.nodeCount;++n) {
+		for (int i=0; i<3; ++i) file<< setw(16) << setprecision(8) << scientific << grid.node[n].comp[i] << endl;
 	}
 	file << "</DataArray>" << endl;
 	file << "</Points>" << endl;
 	file << "<Cells>" << endl;
 	
 	file << "<DataArray Name=\"connectivity\" type=\"Int32\" format=\"ascii\" >" << endl;
-	for (unsigned int c=0;c<grid.cellCount;++c) {
-		for (unsigned int n=0;n<grid.cell[c].nodeCount;++n) {
+	for (int c=0;c<grid.cellCount;++c) {
+		for (int n=0;n<grid.cell[c].nodeCount;++n) {
 			file << grid.cell[c].nodes[n] << "\t";
 		}
 		file << endl;
@@ -380,14 +380,14 @@ void write_vtk(void) {
 	file << "</DataArray>" << endl;
 	file << "<DataArray Name=\"offsets\" type=\"Int32\" format=\"ascii\" >" << endl;
 	int offset=0;
-	for (unsigned int c=0;c<grid.cellCount;++c) {
+	for (int c=0;c<grid.cellCount;++c) {
 		offset+=grid.cell[c].nodeCount;
 		file << offset << endl;
 	}
 	file << "</DataArray>" << endl;
 			
 	file << "<DataArray Name=\"types\" type=\"UInt8\" format=\"ascii\" >" << endl;
-	for (unsigned int c=0;c<grid.cellCount;++c) {
+	for (int c=0;c<grid.cellCount;++c) {
 		if (grid.cell[c].nodeCount==4) file << "10" << endl; // Tetra
 		if (grid.cell[c].nodeCount==8) file << "12" << endl; // Hexa
 		if (grid.cell[c].nodeCount==6) file << "13" << endl; // Prism (Wedge)
@@ -401,19 +401,19 @@ void write_vtk(void) {
 	file << "<CellData Scalars=\"Pressure\" Vectors=\"Velocity\" format=\"ascii\">" << endl;
 	
 	file << "<DataArray Name=\"Pressure\" type=\"Float32\" format=\"ascii\" >" << endl;
-	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].p << endl;
+	for (int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].p << endl;
 	file << "</DataArray>" << endl;
 	
 	file << "<DataArray Name=\"Velocity\" NumberOfComponents=\"3\" type=\"Float32\" format=\"ascii\" >" << endl;
-	for (unsigned int c=0;c<grid.cellCount;++c) for (unsigned int i=0;i<3;++i) file << setw(16) << setprecision(8) << scientific << grid.cell[c].v[i] << endl;
+	for (int c=0;c<grid.cellCount;++c) for (int i=0;i<3;++i) file << setw(16) << setprecision(8) << scientific << grid.cell[c].v[i] << endl;
 	file << "</DataArray>" << endl;	
 	
 	file << "<DataArray Name=\"Temperature\" type=\"Float32\" format=\"ascii\" >" << endl;
-	for (unsigned int c=0;c<grid.cellCount;++c) for (unsigned int i=0;i<3;++i) file << setw(16) << setprecision(8) << scientific << grid.cell[c].T << endl;
+	for (int c=0;c<grid.cellCount;++c) for (int i=0;i<3;++i) file << setw(16) << setprecision(8) << scientific << grid.cell[c].T << endl;
 	file << "</DataArray>" << endl;
 	
 	file << "<DataArray Name=\"Density\" type=\"Float32\" format=\"ascii\" >" << endl;
-	for (unsigned int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].rho << endl;
+	for (int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].rho << endl;
 	file << "</DataArray>" << endl;
 
 

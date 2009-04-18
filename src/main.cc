@@ -184,7 +184,7 @@ int main(int argc, char *argv[]) {
 	// Initialize time step or CFL size if ramping
 	if (ramp) {
 		if (TIME_STEP_TYPE==FIXED) {
-			for (unsigned int c=0;c<grid.cellCount;++c) grid.cell[c].dt=ramp_initial;
+			for (int c=0;c<grid.cellCount;++c) grid.cell[c].dt=ramp_initial;
 			dt_current=ramp_initial;
 		}
 		if (TIME_STEP_TYPE==CFL_MAX) CFLmax=ramp_initial;
@@ -236,7 +236,7 @@ int main(int argc, char *argv[]) {
 			
 			// Solve Navier-Stokes Equations
 			// Gradient are calculated for NS and/or second order schemes
-			if (EQUATIONS==NS | order==SECOND ) {
+			if (EQUATIONS==NS || order==SECOND ) {
 				// Calculate all the cell gradients for each variable
 				grid.gradients();
 				// Update gradients of the ghost cells
@@ -298,7 +298,7 @@ int main(int argc, char *argv[]) {
 		mpi_update_ghost_primitives();
 		
 		// Gradient are calculated for NS and/or second order schemes
-		if (EQUATIONS==NS | order==SECOND ) {
+		if (EQUATIONS==NS || order==SECOND ) {
 			// Calculate all the cell gradients for each variable
 			grid.gradients();
 			// Update gradients of the ghost cells
@@ -378,7 +378,7 @@ int main(int argc, char *argv[]) {
 		if (ramp) {
 			if (TIME_STEP_TYPE==FIXED && dt_current<dt_target) {
 				dt_current=min(dt_current*ramp_growth,dt_target);
-				for (unsigned int c=0;c<grid.cellCount;++c) grid.cell[c].dt=dt_current;
+				for (int c=0;c<grid.cellCount;++c) grid.cell[c].dt=dt_current;
 			}
 			if (TIME_STEP_TYPE==CFL_MAX) CFLmax=min(CFLmax*ramp_growth,CFLmaxTarget);
 			if (TIME_STEP_TYPE==CFL_LOCAL) CFLlocal=min(CFLlocal*ramp_growth,CFLlocalTarget);
@@ -402,11 +402,11 @@ int main(int argc, char *argv[]) {
 				file.open((probes[p].fileName).c_str(),ios::app);
 				file << timeStep << "\t" << setw(16) << setprecision(8)  << time << "\t" << c.p << "\t" << c.v[0] << "\t" << c.v[1] << "\t" << c.v[2] << "\t" << c.T << "\t" << c.rho << "\t" ;
 				if (TURBULENCE_MODEL!=NONE) {
-					unsigned int cc=probes[p].nearestCell;
+					int cc=probes[p].nearestCell;
 					file << rans.cell[cc].k << "\t" << rans.cell[cc].omega << "\t" << c.rho*rans.cell[cc].k/rans.cell[cc].omega ;
 				}
 				if (FLAMELET) {
-					unsigned int cc=probes[p].nearestCell;
+					int cc=probes[p].nearestCell;
 					file << flamelet.cell[cc].Z << "\t" << flamelet.cell[cc].Zvar ;
 				}
 				file << endl;
@@ -507,7 +507,7 @@ double superbee(double a, double b) {
 void update(void) {
 
 	resP=0.; resV=0.; resT=0.; resZ=0.;
-	for (unsigned int c = 0;c < grid.cellCount;++c) {
+	for (int c = 0;c < grid.cellCount;++c) {
 		grid.cell[c].p +=grid.cell[c].update[0];
 		grid.cell[c].v[0] +=grid.cell[c].update[1];
 		grid.cell[c].v[1] +=grid.cell[c].update[2];
@@ -552,7 +552,7 @@ void get_dt(void) {
 	if (TIME_STEP_TYPE==CFL_MAX) {
 		dt_current=1.e20;
 		// Determine time step with CFL condition
-		for (unsigned int c=0;c<grid.cellCount;++c) {
+		for (int c=0;c<grid.cellCount;++c) {
 			if (FLAMELET) Gamma=flamelet.cell[c].gamma;
 			double a=sqrt(Gamma*(grid.cell[c].p+Pref)/grid.cell[c].rho);
 			dt_current=min(dt_current,CFLmax*grid.cell[c].lengthScale/(fabs(grid.cell[c].v)+a));
@@ -561,13 +561,13 @@ void get_dt(void) {
 		for (cit=grid.cell.begin();cit<grid.cell.end();cit++) (*cit).dt=dt_current;
 	} else if (TIME_STEP_TYPE==CFL_LOCAL) {
 		// Determine time step with CFL condition
-		for (unsigned int c=0;c<grid.cellCount;++c) {
+		for (int c=0;c<grid.cellCount;++c) {
 			if (FLAMELET) Gamma=flamelet.cell[c].gamma;
 			double a=sqrt(Gamma*(grid.cell[c].p+Pref)/grid.cell[c].rho);
 			grid.cell[c].dt=CFLlocal*grid.cell[c].lengthScale/(fabs(grid.cell[c].v)+a);
 		}
 	}  else if (TIME_STEP_TYPE==ADAPTIVE) {
-		for (unsigned int c=0;c<grid.cellCount;++c) {
+		for (int c=0;c<grid.cellCount;++c) {
 			double compare2=fabs(grid.cell[c].T+Tref);
 			if (FLAMELET) compare2=flamelet.cell[c].Z;
 			if (fabs(grid.cell[c].update[0]) > fabs(grid.cell[c].p+Pref)*dt_relax ||
@@ -589,7 +589,7 @@ void get_dt(void) {
 void get_CFLmax(void) {
 
 	CFLmax=0.;
-	for (unsigned int c=0;c<grid.cellCount;++c) {
+	for (int c=0;c<grid.cellCount;++c) {
 		if (FLAMELET) Gamma=flamelet.cell[c].gamma;
 		double a=sqrt(Gamma*(grid.cell[c].p+Pref)/grid.cell[c].rho);
 		CFLmax=max(CFLmax,(fabs(grid.cell[c].v)+a)*grid.cell[c].dt/grid.cell[c].lengthScale);

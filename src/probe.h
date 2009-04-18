@@ -32,7 +32,7 @@ class Probe {
 	public:
 		int id;
 		int Rank;
-		unsigned int nearestCell;
+		int nearestCell;
 		Vec3D coord;
 		string fileName;
 };

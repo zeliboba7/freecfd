@@ -41,7 +41,7 @@ void mpi_init(int argc, char *argv[]) {
 
 	// Commit custom communication datatypes
 
-	MPI_Datatype types[2]={MPI_UNSIGNED,MPI_DOUBLE};
+	MPI_Datatype types[2]={MPI_INT,MPI_DOUBLE};
 	int block_lengths[2];
 	MPI_Aint displacements[2];
 
@@ -79,29 +79,29 @@ void mpi_init(int argc, char *argv[]) {
 void mpi_handshake(void) {
 
 	int maxGhost=grid.globalCellCount/np*2;
-	unsigned int ghosts2receive[np][maxGhost],ghosts2send[np][maxGhost];
+	int ghosts2receive[np][maxGhost],ghosts2send[np][maxGhost];
 	
-	for (unsigned int p=0;p<np;++p) {
+	for (int p=0;p<np;++p) {
 		// Global id's of ghosts to request from each other processors
 		// First entry in the array indicates how many of ghosts to be received
 		// The rest are global id's
 		ghosts2receive[p][0]=0;
 	}
 	
-	for (unsigned int g=0; g<grid.ghostCount; ++g) {
-		unsigned int p=grid.ghost[g].partition;
+	for (int g=0; g<grid.ghostCount; ++g) {
+		int p=grid.ghost[g].partition;
 		ghosts2receive[p][ghosts2receive[p][0]+1]=grid.ghost[g].globalId;
 		ghosts2receive[p][0]++;
 	}
 
-	for (unsigned int p=0;p<np;++p) {
-		MPI_Alltoall(ghosts2receive,maxGhost,MPI_UNSIGNED,ghosts2send,maxGhost,MPI_UNSIGNED,MPI_COMM_WORLD);
+	for (int p=0;p<np;++p) {
+		MPI_Alltoall(ghosts2receive,maxGhost,MPI_INT,ghosts2send,maxGhost,MPI_INT,MPI_COMM_WORLD);
 	}
 	MPI_Barrier(MPI_COMM_WORLD);
 	
 	// Transfer data to more efficient containers
-	for (unsigned int p=0;p<np;++p) {
-		for (unsigned int i=1;i<=ghosts2send[p][0];++i) sendCells[p].push_back(ghosts2send[p][i]);
+	for (int p=0;p<np;++p) {
+		for (int i=1;i<=ghosts2send[p][0];++i) sendCells[p].push_back(ghosts2send[p][i]);
 		recvCount[p]=ghosts2receive[p][0];
 	}
 
@@ -109,12 +109,12 @@ void mpi_handshake(void) {
 
 void mpi_get_ghost_centroids(void) {
 	
-	for (unsigned int p=0;p<np;++p) {
+	for (int p=0;p<np;++p) {
 		if (Rank!=p) {
 			mpiVec3D sendBuffer[sendCells[p].size()];
 			mpiVec3D recvBuffer[recvCount[p]];
 			int id;
-			for (unsigned int g=0;g<sendCells[p].size();++g) {
+			for (int g=0;g<sendCells[p].size();++g) {
 				id=maps.cellGlobal2Local[sendCells[p][g]];
 				sendBuffer[g].ids[0]=grid.cell[id].globalId;
 				sendBuffer[g].ids[1]=grid.myOffset+id;
@@ -122,10 +122,9 @@ void mpi_get_ghost_centroids(void) {
 				for (int i=0;i<3;++i) sendBuffer[g].comp[i]=grid.cell[id].centroid[i];
 			}
 
-			int tag=Rank; // tag is set to source
 			MPI_Sendrecv(sendBuffer,sendCells[p].size(),MPI_VEC3D,p,0,recvBuffer,recvCount[p],MPI_VEC3D,p,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
 			
-			for (unsigned int g=0;g<recvCount[p];++g) {
+			for (int g=0;g<recvCount[p];++g) {
 				id=maps.ghostGlobal2Local[recvBuffer[g].ids[0]];
 				grid.ghost[id].matrix_id=recvBuffer[g].ids[1];
 				grid.ghost[id].id_in_owner=recvBuffer[g].ids[2];
@@ -140,12 +139,12 @@ void mpi_get_ghost_centroids(void) {
 
 void mpi_update_ghost_primitives(void) {
 	
-	for (unsigned int p=0;p<np;++p) {
+	for (int p=0;p<np;++p) {
 		if (Rank!=p) {
 			mpiGhost sendBuffer[sendCells[p].size()];
 			mpiGhost recvBuffer[recvCount[p]];
 			int id;
-			for (unsigned int g=0;g<sendCells[p].size();++g) {
+			for (int g=0;g<sendCells[p].size();++g) {
 				id=maps.cellGlobal2Local[sendCells[p][g]];
 				sendBuffer[g].globalId=grid.cell[id].globalId;
 				sendBuffer[g].vars[0]=grid.cell[id].p;
@@ -156,10 +155,9 @@ void mpi_update_ghost_primitives(void) {
 				sendBuffer[g].vars[5]=grid.cell[id].rho;
 			}
 
-			int tag=Rank; // tag is set to source
 			MPI_Sendrecv(sendBuffer,sendCells[p].size(),MPI_GHOST,p,0,recvBuffer,recvCount[p],MPI_GHOST,p,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
 
-			for (unsigned int g=0;g<recvCount[p];++g) {
+			for (int g=0;g<recvCount[p];++g) {
 				id=maps.ghostGlobal2Local[recvBuffer[g].globalId];
 				if (timeStep==restart+1) {
 					for (int i=0;i<5;++i) grid.ghost[id].update[i]=0.;
@@ -187,30 +185,29 @@ void mpi_update_ghost_primitives(void) {
 void mpi_update_ghost_gradients(void) {
 	
 	// Update ghost gradients
-	for (unsigned int p=0;p<np;++p) {
+	for (int p=0;p<np;++p) {
 		mpiGrad sendBuffer[sendCells[p].size()];
 		mpiGrad recvBuffer[recvCount[p]];
 		int id;
-		for (unsigned int g=0;g<sendCells[p].size();++g) {
+		for (int g=0;g<sendCells[p].size();++g) {
 			id=maps.cellGlobal2Local[sendCells[p][g]];
 			sendBuffer[g].globalId=grid.cell[id].globalId;
 			int count=0;
-			for (unsigned int var=0;var<5;++var) {
-				for (unsigned int comp=0;comp<3;++comp) {
+			for (int var=0;var<5;++var) {
+				for (int comp=0;comp<3;++comp) {
 					sendBuffer[g].grads[count]=grid.cell[id].grad[var][comp];
 					count++;
 				}
 			}
 		}
 
-		int tag=Rank; // tag is set to source
 		MPI_Sendrecv(sendBuffer,sendCells[p].size(),MPI_GRAD,p,0,recvBuffer,recvCount[p],MPI_GRAD,p,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
 
-		for (unsigned int g=0;g<recvCount[p];++g) {
+		for (int g=0;g<recvCount[p];++g) {
 			id=maps.ghostGlobal2Local[recvBuffer[g].globalId];
 			int count=0;
-			for (unsigned int var=0;var<5;++var) {
-				for (unsigned int comp=0;comp<3;++comp) {
+			for (int var=0;var<5;++var) {
+				for (int comp=0;comp<3;++comp) {
 					grid.ghost[id].grad[var].comp[comp]=recvBuffer[g].grads[count];
 					count++;
 				}

@@ -44,7 +44,7 @@ int Grid::partition() {
 	// This is just a simple manual partitioning to be able to use parmetis afterwards
 	cellCount=floor(double(globalCellCount)/double(np));
 	int baseCellCount=cellCount;
-	unsigned int offset=Rank*cellCount;
+	int offset=Rank*cellCount;
 	if (Rank==np-1) cellCount=cellCount+globalCellCount-np*cellCount;
 
 	//Implementing Parmetis
@@ -88,7 +88,7 @@ int Grid::partition() {
 	int ncommonnodes=3; // set to 3 for tetrahedra or mixed type
 
 	float tpwgts[np];
-	for (unsigned int p=0; p<np; ++p) tpwgts[p]=1./float(np);
+	for (int p=0; p<np; ++p) tpwgts[p]=1./float(np);
 	float ubvec=1.02;
 	int options[3]; // default values for timing info set 0 -> 1
 
@@ -96,10 +96,10 @@ int Grid::partition() {
 	int edgecut ; // output
 	idxtype* part = new idxtype[cellCount];
 
-	for (unsigned int p=0;p<np;++p) elmdist[p]=p*floor(globalCellCount/np);
+	for (int p=0;p<np;++p) elmdist[p]=p*floor(globalCellCount/np);
 	elmdist[np]=globalCellCount;// Note this is because #elements mod(np) are all on last proc
 
-	for (unsigned int c=0; c<cellCount;++c) {
+	for (int c=0; c<cellCount;++c) {
 		eptr[c]=raw.cellConnIndex[offset+c]-raw.cellConnIndex[offset];
 	}
 	if ((offset+cellCount)==globalCellCount) {
@@ -108,7 +108,7 @@ int Grid::partition() {
 		eptr[cellCount]=raw.cellConnIndex[offset+cellCount]-raw.cellConnIndex[offset];
 	}
 
-	for (unsigned int i=0; i<eindSize; ++i) {
+	for (int i=0; i<eindSize; ++i) {
 		eind[i]=raw.cellConnectivity[raw.cellConnIndex[offset]+i];
 	}
 
@@ -139,12 +139,12 @@ int Grid::partition() {
 	// Find new local cellCount after ParMetis distribution
 	cellCount=0.;
 	int otherCellCounts[np]; 
-	for (unsigned int p=0;p<np;p++) {
+	for (int p=0;p<np;p++) {
 		otherCellCounts[p]=0; 
 		partitionOffset.push_back(0);
 	}
 	
-	for (unsigned int c=0;c<globalCellCount;++c) {
+	for (int c=0;c<globalCellCount;++c) {
 		otherCellCounts[maps.cellOwner[c]]+=1;
 		if (maps.cellOwner[c]==Rank) ++cellCount;
 	}
@@ -155,6 +155,10 @@ int Grid::partition() {
 	for (int p=1;p<np;++p) partitionOffset[p]=partitionOffset[p-1]+otherCellCounts[p-1];
 	myOffset=partitionOffset[Rank];
 	
+	delete[] part;
+	
+	return 0;
+	
 } // end Grid::partition
 
 int Grid::mesh2dual() {
@@ -162,7 +166,7 @@ int Grid::mesh2dual() {
 	// Find out other partition's cell counts
 	int otherCellCounts[np];
 	for (int i=0;i<np;++i) otherCellCounts[i]=0;
-	for (unsigned int c=0;c<globalCellCount;++c) otherCellCounts[maps.cellOwner[c]]+=1;
+	for (int c=0;c<globalCellCount;++c) otherCellCounts[maps.cellOwner[c]]+=1;
 
 	//Create the Mesh2Dual inputs
 	idxtype elmdist[np+1];
@@ -174,19 +178,19 @@ int Grid::mesh2dual() {
 	int numflag=0; // C-style numbering
 	ompi_communicator_t* commWorld=MPI_COMM_WORLD;
 
-	for (unsigned int c=0;c<cellCount;++c) {
+	for (int c=0;c<cellCount;++c) {
 		eindSize+=cell[c].nodeCount;
 	}
 	eind = new idxtype[eindSize];
 
 
 	elmdist[0]=0;
-	for (unsigned int p=1;p<=np;p++) elmdist[p]=otherCellCounts[p-1]+elmdist[p-1];
+	for (int p=1;p<=np;p++) elmdist[p]=otherCellCounts[p-1]+elmdist[p-1];
 	eptr[0]=0;
-	for (unsigned int c=1; c<=cellCount;++c) eptr[c]=eptr[c-1]+cell[c-1].nodeCount;
+	for (int c=1; c<=cellCount;++c) eptr[c]=eptr[c-1]+cell[c-1].nodeCount;
 	int eindIndex=0;
-	for (unsigned int c=0; c<cellCount;c++){
-		for (unsigned int cn=0; cn<cell[c].nodeCount; ++cn) {
+	for (int c=0; c<cellCount;c++){
+		for (int cn=0; cn<cell[c].nodeCount; ++cn) {
 			eind[eindIndex]=cell[c].node(cn).globalId;
 			++eindIndex;
 		}
@@ -194,4 +198,9 @@ int Grid::mesh2dual() {
 
 	ParMETIS_V3_Mesh2Dual(elmdist, eptr, eind, &numflag, &ncommonnodes, &maps.adjIndex, &maps.adjacency, &commWorld);
 
+	delete[] eptr;
+	delete[] eind;
+	
+	return 0;
+	
 } // end Grid::partition

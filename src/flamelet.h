@@ -117,7 +117,7 @@ class Flamelet {
 	void gradients(void);
 	void limit_gradients(void);
 	void terms(void);
-	void get_Z_Zvar(unsigned int &parent,unsigned int &neighbor,unsigned int &f,
+	void get_Z_Zvar(int &parent,int &neighbor,int &f,
 				double &leftZ,double &leftZvar,
       				double &rightZ,double &rightZvar,
       				Vec3D &faceGradZ,Vec3D &faceGradZvar,Vec3D &left2right,

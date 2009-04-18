@@ -27,7 +27,7 @@ extern RANS rans;
 
 void Flamelet::terms(void) {
 
-	unsigned int parent,neighbor,f;
+	int parent,neighbor,f;
 	double leftZ,leftZvar,rightZ,rightZvar;
 	Vec3D faceGradZ, faceGradZvar, left2right;
 	double mu_t=0.;
@@ -164,8 +164,8 @@ void Flamelet::terms(void) {
 	
 	// Now do a cell loop to add the unsteady and source terms
 	double Prod_Zvar,Dest_Zvar;
-	double drho_dZ,drho_dZvar,Chi;
-	for (unsigned int c=0;c<grid.cellCount;++c) {
+	double drho_dZ,drho_dZvar;
+	for (int c=0;c<grid.cellCount;++c) {
 
 		// Unsteady Z term should be:
 		// (rho+Z*drho/dZ)dZ/dt
@@ -213,7 +213,7 @@ void Flamelet::terms(void) {
 	return;
 } // end Flamelet::terms
 
-void Flamelet::get_Z_Zvar(unsigned int &parent,unsigned int &neighbor,unsigned int &f,
+void Flamelet::get_Z_Zvar(int &parent,int &neighbor,int &f,
 			  double &leftZ,double &leftZvar,
 			  double &rightZ,double &rightZvar,
     			  Vec3D &faceGradZ,Vec3D &faceGradZvar,Vec3D &left2right,
@@ -225,11 +225,11 @@ void Flamelet::get_Z_Zvar(unsigned int &parent,unsigned int &neighbor,unsigned i
 	double delta[2];
 
 	if (order==SECOND) {
-		for (unsigned int i=0;i<2;++i) {
+		for (int i=0;i<2;++i) {
 			delta[i]=(grid.face[f].centroid-grid.cell[parent].centroid).dot(cell[parent].grad[i]);
 		}
 	} else {
-		for (unsigned int i=0;i<2;++i) delta[i]=0.;
+		for (int i=0;i<2;++i) delta[i]=0.;
 	}
 	
 	leftZ_center=cell[parent].Z;
@@ -269,11 +269,11 @@ void Flamelet::get_Z_Zvar(unsigned int &parent,unsigned int &neighbor,unsigned i
 	if (grid.face[f].bc==INTERNAL) {// internal face
 
 		if (order==SECOND) {
-			for (unsigned int i=0;i<2;++i) {
+			for (int i=0;i<2;++i) {
 				delta[i]=(grid.face[f].centroid-grid.cell[neighbor].centroid).dot(cell[neighbor].grad[i]);
 			}
 		} else {
-			for (unsigned int i=0;i<2;++i) delta[i]=0.;
+			for (int i=0;i<2;++i) delta[i]=0.;
 		}
 
 		rightZ_center=cell[neighbor].Z;
@@ -305,7 +305,7 @@ void Flamelet::get_Z_Zvar(unsigned int &parent,unsigned int &neighbor,unsigned i
 		int g=-1*grid.face[f].neighbor-1; // ghost cell index
 
 		if (order==SECOND) {
-			for (unsigned int i=0;i<2;++i) {
+			for (int i=0;i<2;++i) {
 				delta[i]=(grid.face[f].centroid-grid.ghost[g].centroid).dot(ghost[g].grad[i]);
 			}
 		}

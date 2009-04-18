@@ -33,12 +33,12 @@ extern double harmonic(double a, double b);
 extern double superbee(double a, double b);
 
 struct mpiGhost {
-	unsigned int globalId;
+	int globalId;
 	double vars[3];
 };
 
 struct mpiGrad {
-	unsigned int globalId;
+	int globalId;
 	double grads[6];
 };
 
@@ -125,7 +125,7 @@ void RANS::petsc_solve(int &nIter, double &rNorm) {
 	KSPGetResidualNorm(ksp,&rNorm); 
 
 	int index;
-	for (unsigned int c=0;c<grid.cellCount;++c) {
+	for (int c=0;c<grid.cellCount;++c) {
 		for (int i=0;i<2;++i) {
 			index=(grid.myOffset+c)*2+i;
 			VecGetValues(deltaU,1,&index,&cell[c].update[i]);
@@ -147,7 +147,7 @@ void RANS::petsc_destroy(void) {
 void RANS::mpi_init(void) {
 
 	// Commit custom communication datatypes
-	MPI_Datatype types[2]={MPI_UNSIGNED,MPI_DOUBLE};
+	MPI_Datatype types[2]={MPI_INT,MPI_DOUBLE};
 	int block_lengths[2];
 	MPI_Aint displacements[2];
 
@@ -174,12 +174,12 @@ void RANS::mpi_init(void) {
 
 void RANS::mpi_update_ghost(void) {
 	
-	for (unsigned int p=0;p<np;++p) {
+	for (int p=0;p<np;++p) {
 		if (Rank!=p) {
 			mpiGhost sendBuffer[sendCells[p].size()];
 			mpiGhost recvBuffer[recvCount[p]];
 			int id;
-			for (unsigned int g=0;g<sendCells[p].size();++g) {
+			for (int g=0;g<sendCells[p].size();++g) {
 				id=maps.cellGlobal2Local[sendCells[p][g]];
 				sendBuffer[g].globalId=grid.cell[id].globalId;
 				sendBuffer[g].vars[0]=cell[id].k;
@@ -189,7 +189,7 @@ void RANS::mpi_update_ghost(void) {
 
 			MPI_Sendrecv(sendBuffer,sendCells[p].size(),MPI_GHOST,p,0,recvBuffer,recvCount[p],MPI_GHOST,p,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
 
-			for (unsigned int g=0;g<recvCount[p];++g) {
+			for (int g=0;g<recvCount[p];++g) {
 				id=maps.ghostGlobal2Local[recvBuffer[g].globalId];
 				ghost[id].k=recvBuffer[g].vars[0];
 				ghost[id].omega=recvBuffer[g].vars[1];
@@ -204,16 +204,16 @@ void RANS::mpi_update_ghost(void) {
 void RANS::mpi_update_ghost_gradients(void) {
 	
 	// Update ghost gradients of rans variables
-	for (unsigned int p=0;p<np;++p) {
+	for (int p=0;p<np;++p) {
 		mpiGrad sendBuffer[sendCells[p].size()];
 		mpiGrad recvBuffer[recvCount[p]];
 		int id;
-		for (unsigned int g=0;g<sendCells[p].size();++g) {
+		for (int g=0;g<sendCells[p].size();++g) {
 			id=maps.cellGlobal2Local[sendCells[p][g]];
 			sendBuffer[g].globalId=grid.cell[id].globalId;
 			int count=0;
-			for (unsigned int var=0;var<2;++var) {
-				for (unsigned int comp=0;comp<3;++comp) {
+			for (int var=0;var<2;++var) {
+				for (int comp=0;comp<3;++comp) {
 					sendBuffer[g].grads[count]=cell[id].grad[var][comp];
 					count++;
 				}
@@ -222,11 +222,11 @@ void RANS::mpi_update_ghost_gradients(void) {
 
 		MPI_Sendrecv(sendBuffer,sendCells[p].size(),MPI_GRAD,p,0,recvBuffer,recvCount[p],MPI_GRAD,p,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
 
-		for (unsigned int g=0;g<recvCount[p];++g) {
+		for (int g=0;g<recvCount[p];++g) {
 			id=maps.ghostGlobal2Local[recvBuffer[g].globalId];
 			int count=0;
-			for (unsigned int var=0;var<2;++var) {
-				for (unsigned int comp=0;comp<3;++comp) {
+			for (int var=0;var<2;++var) {
+				for (int comp=0;comp<3;++comp) {
 					ghost[id].grad[var].comp[comp]=recvBuffer[g].grads[count];
 					count++;
 				}
@@ -242,11 +242,11 @@ void RANS::gradients(void) {
 	// Calculate cell gradients
 	map<int,Vec3D>::iterator it;
 	map<int,double>::iterator fit;
-	unsigned int f;
+	int f;
 	Vec3D areaVec;
 	double faceK,faceOmega,faceRho,mu;
 	
-	for (unsigned int c=0;c<grid.cellCount;++c) {
+	for (int c=0;c<grid.cellCount;++c) {
 		// Initialize all gradients to zero
 		cell[c].grad[0]=0.; cell[c].grad[1]=0.;
 		// Add internal and interpartition face contributions
@@ -261,7 +261,7 @@ void RANS::gradients(void) {
 		} // end gradMap loop
 
  		// Add boundary face contributions
-		for (unsigned int cf=0;cf<grid.cell[c].faceCount;++cf) {
+		for (int cf=0;cf<grid.cell[c].faceCount;++cf) {
 			f=grid.cell[c].faces[cf];
 			if (grid.face[f].bc>=0) { // if a boundary face
 				areaVec=grid.face[f].normal*grid.face[f].area/grid.cell[c].volume;
@@ -313,20 +313,20 @@ void RANS::gradients(void) {
 
 void RANS::limit_gradients(void) {
 	
-	unsigned int neighbor,g;
+	int neighbor,g;
 	Vec3D maxGrad[2],minGrad[2];
 	if (LIMITER==NONE || order==FIRST) {
 		// Don't do anything
 	} else {
-		for (unsigned int c=0;c<grid.cellCount;++c) {
+		for (int c=0;c<grid.cellCount;++c) {
 	
 			// Initialize min and max to current cells values
-			for (unsigned int i=0;i<2;++i) maxGrad[i]=minGrad[i]=cell[c].grad[i];
+			for (int i=0;i<2;++i) maxGrad[i]=minGrad[i]=cell[c].grad[i];
 			// Find extremes in neighboring real cells
-			for (unsigned int cc=0;cc<grid.cell[c].neighborCellCount;++cc) {
+			for (int cc=0;cc<grid.cell[c].neighborCellCount;++cc) {
 				neighbor=grid.cell[c].neighborCells[cc];
-				for (unsigned int var=0;var<2;++var) {
-					for (unsigned int comp=0;comp<3;++comp) {
+				for (int var=0;var<2;++var) {
+					for (int comp=0;comp<3;++comp) {
 						maxGrad[var][comp]=max(maxGrad[var][comp]
 								,(1.-limiter_sharpening)*cell[neighbor].grad[var][comp]
 								+limiter_sharpening*cell[c].grad[var][comp]);
@@ -338,10 +338,10 @@ void RANS::limit_gradients(void) {
 				}
 			}
 			// Find extremes in neighboring ghost cells
-			for (unsigned int cg=0;cg<grid.cell[c].ghostCount;++cg) {
+			for (int cg=0;cg<grid.cell[c].ghostCount;++cg) {
 				g=grid.cell[c].ghosts[cg];
-				for (unsigned int var=0;var<2;++var) {
-					for (unsigned int comp=0;comp<3;++comp) {
+				for (int var=0;var<2;++var) {
+					for (int comp=0;comp<3;++comp) {
 						maxGrad[var][comp]=max(maxGrad[var][comp]
 								,(1.-limiter_sharpening)*ghost[g].grad[var][comp]
 								+limiter_sharpening*cell[c].grad[var][comp]);
@@ -352,10 +352,10 @@ void RANS::limit_gradients(void) {
 				}
 			}
 			
-			if(LIMITER==MINMOD) for (unsigned int var=0;var<2;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].grad[var][comp]=minmod(maxGrad[var][comp],minGrad[var][comp]);
-			if(LIMITER==DOUBLEMINMOD) for (unsigned int var=0;var<2;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].grad[var][comp]=doubleMinmod(maxGrad[var][comp],minGrad[var][comp]);
-			if(LIMITER==HARMONIC) for (unsigned int var=0;var<2;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].grad[var][comp]=harmonic(maxGrad[var][comp],minGrad[var][comp]);
-			if(LIMITER==SUPERBEE) for (unsigned int var=0;var<2;++var) for (unsigned int comp=0;comp<3;++comp) cell[c].grad[var][comp]=superbee(maxGrad[var][comp],minGrad[var][comp]);
+			if(LIMITER==MINMOD) for (int var=0;var<2;++var) for (int comp=0;comp<3;++comp) cell[c].grad[var][comp]=minmod(maxGrad[var][comp],minGrad[var][comp]);
+			if(LIMITER==DOUBLEMINMOD) for (int var=0;var<2;++var) for (int comp=0;comp<3;++comp) cell[c].grad[var][comp]=doubleMinmod(maxGrad[var][comp],minGrad[var][comp]);
+			if(LIMITER==HARMONIC) for (int var=0;var<2;++var) for (int comp=0;comp<3;++comp) cell[c].grad[var][comp]=harmonic(maxGrad[var][comp],minGrad[var][comp]);
+			if(LIMITER==SUPERBEE) for (int var=0;var<2;++var) for (int comp=0;comp<3;++comp) cell[c].grad[var][comp]=superbee(maxGrad[var][comp],minGrad[var][comp]);
 	
 		}
 	}
@@ -368,7 +368,7 @@ void RANS::update(double &resK, double &resOmega) {
 
 	resK=0.; resOmega=0.;
 	int counter=0;
-	for (unsigned int c = 0;c < grid.cellCount;++c) {
+	for (int c = 0;c < grid.cellCount;++c) {
 
 		// Limit the update so that k and omega doesn't end up out of limits
 		cell[c].update[0]=max(-1.*(cell[c].k-kLowLimit),cell[c].update[0]);

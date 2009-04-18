@@ -30,7 +30,7 @@ double EPS=1.e-10;
 void get_kOmega(void);
 double get_blending(double &k,double &omega,double &rho,double &y,double &visc,Vec3D &gradK,Vec3D &gradOmega);
 
-unsigned int parent,neighbor,f;
+int parent,neighbor,f;
 double leftK,leftOmega, rightK, rightOmega, faceK, faceOmega, faceRho;
 double leftK_center, rightK_center, leftOmega_center, rightOmega_center;
 Vec3D faceGradK, faceGradOmega, left2right;
@@ -42,7 +42,7 @@ double mu=viscosity;
 void RANS::terms(void) {
 
 	double blending;
-	double sigma_k,sigma_omega,beta,beta_star,kappa,alpha;
+	double sigma_k,sigma_omega,beta,beta_star,alpha;
 	double value;
 	double dudx,dudy,dudz,dvdx,dvdy,dvdz,dwdx,dwdy,dwdz;
 	double strainRate;
@@ -112,9 +112,6 @@ void RANS::terms(void) {
 		// Assumes k flux doesn't change with omega and vice versa 
 		// This is true for convective flux (effect of mu_t in diffusive flux ignored)
 
-		double leftRho=grid.cell[parent].rho;
-		double rightRho=1.; // if right cell is not internal, jacobian is not inserted into the matrix, so this doesn't matter
-		if (grid.face[f].bc==INTERNAL) rightRho=grid.cell[neighbor].rho;
 		// dF_k/dk_left
 		jacL[0]=weightL*grid.face[f].mdot*grid.face[f].area; // convective
 		if (!extrapolated) jacL[0]+=(mu+mu_t*sigma_k)/(left2right.dot(grid.face[f].normal))*grid.face[f].area; // diffusive
@@ -169,7 +166,7 @@ void RANS::terms(void) {
 	
 	// Now to a cell loop to add the unsteady and source terms
 	double divU,Prod_k,Dest_k;
-	for (unsigned int c=0;c<grid.cellCount;++c) {
+	for (int c=0;c<grid.cellCount;++c) {
 		
 		// Insert unsteady term
 		row=(grid.myOffset+c)*2;
@@ -277,11 +274,11 @@ void get_kOmega() {
 	double delta[2];
 
 	if (order==SECOND) {
-		for (unsigned int i=0;i<2;++i) {
+		for (int i=0;i<2;++i) {
 			delta[i]=(grid.face[f].centroid-grid.cell[parent].centroid).dot(rans.cell[parent].grad[i]);
 		}
 	} else {
-		for (unsigned int i=0;i<2;++i) delta[i]=0.;
+		for (int i=0;i<2;++i) delta[i]=0.;
 	}
 	
 	leftK_center=rans.cell[parent].k;
@@ -322,11 +319,11 @@ void get_kOmega() {
 	if (grid.face[f].bc==INTERNAL) {// internal face
 
 		if (order==SECOND) {
-			for (unsigned int i=0;i<2;++i) {
+			for (int i=0;i<2;++i) {
 				delta[i]=(grid.face[f].centroid-grid.cell[neighbor].centroid).dot(rans.cell[neighbor].grad[i]);
 			}
 		} else {
-			for (unsigned int i=0;i<2;++i) delta[i]=0.;
+			for (int i=0;i<2;++i) delta[i]=0.;
 		}
 
 		rightK_center=rans.cell[neighbor].k;
@@ -374,7 +371,7 @@ void get_kOmega() {
 		int g=-1*grid.face[f].neighbor-1; // ghost cell index
 
 		if (order==SECOND) {
-			for (unsigned int i=0;i<2;++i) {
+			for (int i=0;i<2;++i) {
 				delta[i]=(grid.face[f].centroid-grid.ghost[g].centroid).dot(rans.ghost[g].grad[i]);
 			}
 		}

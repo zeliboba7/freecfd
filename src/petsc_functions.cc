@@ -35,8 +35,6 @@ void petsc_init(int argc, char *argv[],double rtol,double abstol,int maxits) {
 
 	// Initialize petsc
 	PetscInitialize(&argc,&argv,(char *)0,help);
-	PC pc; // preconditioner context
-	PetscErrorCode ierr;
 	//Create nonlinear solver context
 	KSPCreate(PETSC_COMM_WORLD,&ksp);
 	VecCreateMPI(PETSC_COMM_WORLD,grid.cellCount*5,grid.globalCellCount*5,&rhs);
@@ -98,7 +96,7 @@ void petsc_solve(int &nIter,double &rNorm) {
 	KSPGetResidualNorm(ksp,&rNorm); 
 	
 	int index;
-	for (unsigned int c=0;c<grid.cellCount;++c) {
+	for (int c=0;c<grid.cellCount;++c) {
 		for (int i=0;i<5;++i) {
 			index=(grid.myOffset+c)*5+i;
 			VecGetValues(deltaU,1,&index,&grid.cell[c].update[i]);

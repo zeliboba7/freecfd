@@ -36,7 +36,7 @@ void initialize(InputFile &input) {
 
 	// Loop through each initial condition region and apply sequentially
 	int count=input.section("initialConditions").subsection("IC",0).count;
-	for (unsigned int ic=0;ic<count;++ic) {
+	for (int ic=0;ic<count;++ic) {
 		// Store the reference to current IC region
 		Subsection &region=input.section("initialConditions").subsection("IC",ic);
 		Vec3D regionV=region.get_Vec3D("v");
@@ -72,7 +72,7 @@ void initialize(InputFile &input) {
 		// If region is specified with a box method
 		if (region.get_string("region")=="box") {
 			// Loop the cells
-			for (unsigned int c=0;c<grid.cellCount;++c) {
+			for (int c=0;c<grid.cellCount;++c) {
 				// Check if the cell centroid is inside the box region
 				if (withinBox(grid.cell[c].centroid,region.get_Vec3D("corner_1"),region.get_Vec3D("corner_2"))) {
 					// Assign specified values
@@ -93,7 +93,7 @@ void initialize(InputFile &input) {
 			}
 		} else if (region.get_string("region")=="cylinder") {
 			// Loop the cells
-			for (unsigned int c=0;c<grid.cellCount;++c) {
+			for (int c=0;c<grid.cellCount;++c) {
 				// Check if the cell centroid is inside the cylinder region
 				Vec3D axisDirection=region.get_Vec3D("axisDirection");
 				axisDirection=axisDirection.norm();
@@ -123,7 +123,7 @@ void initialize(InputFile &input) {
 			}
 		} else if (region.get_string("region")=="sphere") {
 			// Loop the cells
-			for (unsigned int c=0;c<grid.cellCount;++c) {
+			for (int c=0;c<grid.cellCount;++c) {
 				// Check if the cell centroid is inside the sphere region
 				if (withinSphere(grid.cell[c].centroid,region.get_Vec3D("center"),region.get_double("radius"))) {
 					grid.cell[c].p=regionP;
@@ -146,23 +146,23 @@ void initialize(InputFile &input) {
 		}
 	}
 
-	for (unsigned int c=0;c<grid.cellCount;++c) {
+	for (int c=0;c<grid.cellCount;++c) {
 		if (GRAD_TEST) grid.cell[c].p=2.*grid.cell[c].centroid[1]+2.;
-		for (unsigned int i=0;i<5;++i) grid.cell[c].update[i]=0.;
+		for (int i=0;i<5;++i) grid.cell[c].update[i]=0.;
 		if (FLAMELET) {
 			double Chi=2.*rans.cell[c].omega*flamelet.cell[c].Zvar*rans.kepsilon.beta_star;
 			flamelet.cell[c].mu=flamelet.table.get_mu(flamelet.cell[c].Z,flamelet.cell[c].Zvar,Chi);
-			for (unsigned int i=0;i<2;++i) flamelet.cell[c].update[i]=0.;
+			for (int i=0;i<2;++i) flamelet.cell[c].update[i]=0.;
 		}
 		grid.cell[c].dt=dt_current;
 	}	
 	
-	for (unsigned int g=0;g<grid.ghostCount;++g) {
-		for (unsigned int i=0;i<5;++i) grid.ghost[g].update[i]=0.;
-		//if (FLAMELET) for (unsigned int i=0;i<2;++i) flamelet.ghost[g].update[i]=0.;
+	for (int g=0;g<grid.ghostCount;++g) {
+		for (int i=0;i<5;++i) grid.ghost[g].update[i]=0.;
+		//if (FLAMELET) for (int i=0;i<2;++i) flamelet.ghost[g].update[i]=0.;
 	}
 	
-	if (TURBULENCE_MODEL!=NONE) for (unsigned int f=0;f<grid.faceCount;++f) rans.face[f].mu_t=0.;
+	if (TURBULENCE_MODEL!=NONE) for (int f=0;f<grid.faceCount;++f) rans.face[f].mu_t=0.;
 	
 	return;
 }

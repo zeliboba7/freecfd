@@ -146,14 +146,13 @@ void initialize_linear_system() {
 
 	MatZeroEntries(impOP);
 
-	double d,lengthScale,dtLocal,a;
 	double P [5][5]; // preconditioner
 	for (int i=0;i<5;++i) for (int j=0;j<5;++j) P[i][j]=0.;
 
 	PetscInt row,col;
 	PetscScalar value;
 	
-	for (unsigned int c=0;c<grid.cellCount;++c) {
+	for (int c=0;c<grid.cellCount;++c) {
 
 		if (FLAMELET) {
 			preconditioner_flamelet(grid.cell[c],c,P);
