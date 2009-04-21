@@ -126,12 +126,12 @@ int Grid::create_nodes_cells() {
 	int c2;
 	for (int c=0;c<cellCount;++c) {
 		int n;
-		for (int cn=0;cn<cell[c].nodeCount;++cn) {
+		for (int cn=0;cn<cell[c].nodeCount;++cn) { // Loop nodes of the cell
 			n=cell[c].nodes[cn];
-			for (int nc=0;nc<node[n].cells.size();++nc) {
+			for (int nc=0;nc<node[n].cells.size();++nc) { // Loop neighboring cells of the node
 				c2=node[n].cells[nc];
 				flag=false;
-				for (int cc=0;cc<cell[c].neighborCells.size();++cc) {
+				for (int cc=0;cc<cell[c].neighborCells.size();++cc) { // Check if the cell was found before
 					if(cell[c].neighborCells[cc]==c2) {
 						flag=true;
 						break;

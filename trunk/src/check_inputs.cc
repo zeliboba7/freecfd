@@ -34,8 +34,8 @@ void check_inputs(InputFile &input) {
 			cerr << "[E] Acceptable options are 1, 2 or 3" << endl;
 			exit(1);
 		}
-		DIMENSION=input.section("grid").get_int("dimension");
 	}
+	DIMENSION=input.section("grid").get_int("dimension");
 
 	GRAD_TEST=false;
 	string option;
