@@ -1,0 +1,42 @@
+// Re 1000 lid driven square cavity
+
+grid {dimension=2;}
+
+reference {Mach=1.e-3;p=1.e5;T=273.;}
+
+numericalOptions {preconditioner=ws95; limiter=doubleMinmod;}
+
+timeMarching {
+        CFLmax=1.e6;
+	numberOfSteps=200;
+}
+
+linearSolver {
+        relTolerance=1.e-6;
+        absTolerance=1.e-12;
+        maxIterations=50;
+}
+
+fluidProperties {gamma=1.4; viscosity=1.e-3;} // Re=1000
+
+initialConditions {
+        IC_1( rho=1.; v=[0.,0.,0.]; p=0.;);
+}
+
+//   bc1 symmetry planes
+//   bc2 lid
+//   bc3 walls
+   
+boundaryConditions {
+	BC_1 (type=symmetry;);
+	BC_2 (type=inlet; v=[1.,0.,0.]; rho=1.; p=0.; ); 
+	BC_3 (type=noslip; );
+}
+
+writeOutput {format=tecplot; plotFrequency=50; restartFrequency=200; }
+
+probes { frequency=1;
+	probe_1 (coord=[0.,0.,0.];);
+}
+
+
