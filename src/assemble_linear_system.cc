@@ -340,7 +340,7 @@ void left_state_update(Cell_State &left,Face_State &face) {
 	}
 	
 	left.a=sqrt(left.gamma*(left.p+Pref)/left.rho);
-	left.H=left.a*left.a/(left.gamma-1.)+0.5*left.v.dot(left.v);	
+	left.H=left.a*left.a/(left.gamma-1.)+0.5*left.v.dot(left.v);
 	left.vN[0]=left.v.dot(face.normal);
 	left.vN[1]=left.v.dot(face.tangent1);
 	left.vN[2]=left.v.dot(face.tangent2);

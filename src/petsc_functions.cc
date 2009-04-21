@@ -38,11 +38,11 @@ void petsc_init(int argc, char *argv[],double rtol,double abstol,int maxits) {
 	PetscInitialize(&argc,&argv,(char *)0,help);
 	//Create nonlinear solver context
 	KSPCreate(PETSC_COMM_WORLD,&ksp);
-// 	KSPGetPC(ksp,&pc);
-// 	PCSetType(pc,PCILU);
-// 	if (FLAMELET) PCSetType(pc,PCJACOBI);
-// 	PCFactorSetMatOrderingType(pc,MATORDERING_RCM);
-// 	PCFactorSetReuseOrdering(pc,PETSC_TRUE);
+	//KSPGetPC(ksp,&pc);
+	//PCSetType(pc,PCILU);
+	//if (FLAMELET) PCSetType(pc,PCJACOBI);
+	//PCFactorSetMatOrderingType(pc,MATORDERING_RCM);
+	//PCFactorSetReuseOrdering(pc,PETSC_TRUE);
 	
 	VecCreateMPI(PETSC_COMM_WORLD,grid.cellCount*5,grid.globalCellCount*5,&rhs);
 	VecSetFromOptions(rhs);

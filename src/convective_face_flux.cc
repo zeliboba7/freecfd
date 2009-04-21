@@ -82,13 +82,12 @@ void convective_face_flux(Cell_State &left,Cell_State &right,Face_State &face,do
 } // end face flux
 
 void roe_flux(Cell_State &left,Cell_State &right,double fluxNormal[],double &weightL) {
-
+	
 	// Local variables
 	double rho,u,v,w,H,a;
 	double Du,Dp,Dlambda;
 	double lambda,deltaV;
-	double Rvec[5]; // eigen vector of the flux jacobian
-	double mdot,sign;
+	double mdot,product;
 	
 	// The Roe averaged values
 	rho=sqrt(right.rho/left.rho);
@@ -99,7 +98,61 @@ void roe_flux(Cell_State &left,Cell_State &right,double fluxNormal[],double &wei
 	a=sqrt((Gamma-1.)*(H-0.5*(u*u+v*v+w*w)));
 	rho*=left.rho;
 	
-// 	double Denom,GmL,GmR,GH,Gu,Gv,Gw;
+	Du=right.vN[0]-left.vN[0];
+	Dp=right.p-left.p;
+	
+	if (u>=0.) { // Calculate from the left side
+		
+		deltaV=0.5*(Dp-rho*a*Du)/(a*a); // finite difference of the state vector
+		lambda=u-a;
+		
+		// Entropy fix
+		Dlambda=2.*(min(a,max(0.,2.*(left.a-right.a+Du))));
+		if (lambda<=(-0.5*Dlambda)) {
+			;
+		} else if (lambda<(0.5*Dlambda)) {
+			lambda=-0.5*(lambda-0.5*Dlambda)*(lambda-0.5*Dlambda)/Dlambda;
+		} else { // just use left values
+			lambda=0.;
+		}
+		
+		mdot=left.rho*left.vN[0];
+		product=lambda*deltaV;
+		
+		fluxNormal[0]=mdot+product;
+		fluxNormal[1]=mdot*left.vN[0]+left.p+product*(u-a);
+		fluxNormal[2]=mdot*left.vN[1]+product*v;
+		fluxNormal[3]=mdot*left.vN[2]+product*w;
+		fluxNormal[4]=mdot*left.H+product*(H-u*a);
+
+	} else { // Calculate from the right side
+		
+		deltaV=0.5*(Dp+rho*a*Du)/(a*a); // finite difference of the state vector
+		lambda=u+a;
+		
+		// Entropy fix
+		Dlambda=2.*(min(a,max(0.,2.*(right.a-left.a+Du))));
+		if (lambda>=(0.5*Dlambda)) {
+			;
+		} else if (lambda>(-0.5*Dlambda)) {
+			lambda=0.5*(lambda+0.5*Dlambda)*(lambda+0.5*Dlambda)/Dlambda;
+		} else { // just use right values
+			lambda=0.;
+		}
+		
+		mdot=right.rho*right.vN[0];
+		product=lambda*deltaV;
+		
+		fluxNormal[0]=mdot-product;
+		fluxNormal[1]=mdot*right.vN[0]+right.p-product*(u+a);
+		fluxNormal[2]=mdot*right.vN[1]-product*v;
+		fluxNormal[3]=mdot*right.vN[2]-product*w;
+		fluxNormal[4]=mdot*right.H-product*(H+u*a);
+	}
+	
+	weightL=0.5;
+	
+	// 	double Denom,GmL,GmR,GH,Gu,Gv,Gw;
 // 	//GmL and GmR are already gamma-1
 // 	Denom=left.H-0.5*left.vN.dot(left.vN);
 // 	GmL=(left.a)/Denom;
@@ -109,61 +162,7 @@ void roe_flux(Cell_State &left,Cell_State &right,double fluxNormal[],double &wei
 // 	Gv= (sqrt(GmL)*left.vN[1]+sqrt(GmR)*rho*right.vN[1])/(1.+rho);
 // 	Gw= (sqrt(GmL)*left.vN[2]+sqrt(GmR)*rho*right.vN[2])/(1.+rho);
 // 	a=sqrt(GH-0.5*(Gu*Gu+Gv*Gv+Gw*Gw));
-
-	Du=right.vN[0]-left.vN[0];
-	Dp=right.p-left.p;
 	
-	if (u>=0.) { // Calculate from the left side
-		
-		lambda=u-a; // left going wave speed
-		deltaV=0.5*(Dp-rho*a*Du)/(a*a); // finite difference of the state vector
-		
-		// Entropy fix
-		Dlambda=2.*(min(a,max(0.,2.*(left.a-right.a+Du))));
-		if (lambda<=(-0.5*Dlambda)) {
-			; // do nothing
-		} else if (lambda<(0.5*Dlambda)) {    // Needs fixing
-			lambda=-0.5*(lambda-0.5*Dlambda)*(lambda-0.5*Dlambda)/Dlambda;
-		} else { // just use left values
-			lambda=0.;
-		}
-		
-		sign=1.;
-		mdot=left.rho*left.vN[0];
-		fluxNormal[0]=mdot;
-		fluxNormal[1]=mdot*left.vN[0];
-		fluxNormal[2]=mdot*left.vN[1];
-		fluxNormal[3]=mdot*left.vN[2];
-		fluxNormal[4]=mdot*left.H;
-
-	} else { // Calculate from the right side
-		
-		lambda=u+a; // right going wave speed
-		deltaV=0.5*(Dp+rho*a*Du)/(a*a); // finite difference of the state vector
-		
-		// Entropy fix
-		Dlambda=2.*(min(a,max(0.,2.*(right.a-left.a+Du))));
-		if (lambda>=(0.5*Dlambda)) {
-			; // do nothing
-		} else if (lambda>(-0.5*Dlambda)) {    // Needs fixing
-			lambda=0.5*(lambda+0.5*Dlambda)*(lambda+0.5*Dlambda)/Dlambda;
-		} else { // just use right values
-			lambda=0.;
-		}
-		
-		sign=-1.;
-		mdot=right.rho*right.vN[0];
-		fluxNormal[0]=mdot;
-		fluxNormal[1]=mdot*right.vN[0];
-		fluxNormal[2]=mdot*right.vN[1];
-		fluxNormal[3]=mdot*right.vN[2];
-		fluxNormal[4]=mdot*right.H;
-	}
-
-	Rvec[0]=1.; Rvec[1]=u-sign*a; Rvec[2]=v; Rvec[3]=w; Rvec[4]=H-sign*u*a;
-	for (int i=0;i<5;++i) fluxNormal[i]+=sign*lambda*deltaV*Rvec[i];
-	mdot=fluxNormal[0];
-	weightL=0.5;
 	
 	return;
 } // end roe_flux
