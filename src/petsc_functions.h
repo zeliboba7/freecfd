@@ -24,17 +24,13 @@
 #define PETSC_FUNCTIONS_H
 
 #include "petscksp.h"
-#include <mpi.h>
-#include <vector>
-using namespace std;
 
-#include "grid.h"
+using namespace std;
  
 extern KSP ksp; // linear solver context
+//extern PC pc; // preconditioner context
 extern Vec deltaU,rhs; // solution, residual vectors
 extern Mat impOP; // implicit operator matrix
-extern Grid grid;
-extern int np, Rank;
 
 void petsc_init(int argc, char *argv[],double rtol,double abstol,int maxits);
 void petsc_solve(int &nIter,double &rNorm);

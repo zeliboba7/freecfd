@@ -91,7 +91,7 @@ void Grid::nodeAverages() {
 	int line_node_count=0;		
 	int point_node_count=0;	
 	int stencil_expand_threshold=4;
-	if (DIMENSION==3) stencil_expand_threshold=5;
+	if (DIMENSION==3) stencil_expand_threshold=8;
 
 	// Loop all the nodes
 	for (nit=node.begin();nit!=node.end();nit++) {
@@ -164,8 +164,7 @@ void Grid::nodeAverages() {
                                                 break;
 					}
 				}
-				
-			}		
+			}	
 		}
 		(*nit).average.clear();
 		if (method==INTERPOLATE_TETRA) {
@@ -261,7 +260,7 @@ void Grid::sortStencil(Node& n) {
 	// Now sort entries in each quadrant according to the distance to the node (closest first)
 	nodeVec=n;
 	for (int q=0;q<8;++q) quadrant[q].sort(compare_closest);
-		
+	
 	stencil.clear();
 	
 	int non_empty_quadrant_count=0;
@@ -280,7 +279,7 @@ void Grid::sortStencil(Node& n) {
 		size_cutoff=8;
 	}
 	size_cutoff=min(size_cutoff,stencilSize);
-
+	
 	while (counter<size_cutoff) {
 		for (int q=0;q<8;++q) {
 			lit=quadrant[q].begin();
@@ -330,9 +329,15 @@ void Grid::interpolate_tetra(Node& n) {
                                         // Compare volume with that of an equilateral tetra
 
 					// How close the tetra center to the node for which we are interpolating
-					// Normalized by average edge length
+					// Normalized by average edge length	
 					closeness=fabs(n-ave_centroid)/ave_edge;
-					closeness=max(closeness,1.e-1);
+					closeness=max(closeness,1.e-1*ave_edge);
+					closeness=1./closeness;
+					// If it was an equilateral tri,skewness should be 1, thus the multiplier here.
+					skewness=tri_area/(0.433*ave_edge*ave_edge);
+					
+					closeness=fabs(n-ave_centroid)/ave_edge;
+					closeness=max(closeness,1.e-1*ave_edge);
 					closeness=1./closeness;
 					// If it was an equilateral tetra,skewness should be 1, thus the multiplier here.
 					// Low skewness corresponds to highly skewed cells (I know, counter-intuitive)
@@ -408,12 +413,14 @@ void Grid::interpolate_tri(Node& n) {
 			sit2=sit1; sit2++;
 			for (sit2=sit2;sit2!=stencil.end();sit2++) {
 				centroid3=(*sit2>=0) ? cell[*sit2].centroid : ghost[-(*sit2)-1].centroid;
-				tri_area=0.5*fabs((centroid2-centroid1).cross(centroid3-centroid1));
+				planeNormal=(centroid2-centroid1).cross(centroid3-centroid1);
+				tri_area=0.5*fabs(planeNormal);
+				planeNormal=planeNormal.norm();
 				ave_centroid=1./3.*(centroid1+centroid2+centroid3);
 				ave_edge=1./3.*(fabs(centroid1-centroid2)+fabs(centroid1-centroid3)+fabs(centroid2-centroid3));
 				// How close the triangle center to the node for which we are interpolating
 				// Normalized by average edge length
-				closeness=fabs(n-ave_centroid)/ave_edge;
+				closeness=fabs((n-n.dot(planeNormal)*planeNormal)-ave_centroid)/ave_edge;
 				closeness=max(closeness,1.e-1*ave_edge);
 				closeness=1./closeness;
 				// If it was an equilateral tri,skewness should be 1, thus the multiplier here.

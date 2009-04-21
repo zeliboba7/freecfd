@@ -59,14 +59,16 @@ void convective_face_flux(Cell_State &left,Cell_State &right,Face_State &face,do
 		for (int i=0;i<5;++i) fluxNormal[i]=0.;
 		fluxNormal[1]=left.p;
 		grid.face[face.index].weightL=1.;
-	} else if (face.bc>=0 && (bc.region[face.bc].type==NOSLIP || bc.region[face.bc].type==SLIP) ) {
-		roe_flux(left,right,fluxNormal,grid.face[face.index].weightL);
-		grid.face[face.index].weightL=1.;
 	} else if (CONVECTIVE_FLUX_FUNCTION==ROE) {
 		roe_flux(left,right,fluxNormal,grid.face[face.index].weightL);
 	} else if (CONVECTIVE_FLUX_FUNCTION==AUSM_PLUS_UP) {
 		AUSMplusUP_flux(left,right,fluxNormal,grid.face[face.index].weightL);
 	}
+	
+// 	else if (face.bc>=0 && (bc.region[face.bc].type==NOSLIP || bc.region[face.bc].type==SLIP) ) {
+// 		roe_flux(left,right,fluxNormal,grid.face[face.index].weightL);
+// 		grid.face[face.index].weightL=1.;
+// 	}
 	
 	flux[0] = fluxNormal[0]*face.area;
 	flux[1] = (fluxNormal[1]*face.normal[0]+fluxNormal[2]*face.tangent1[0]+fluxNormal[3]*face.tangent2[0])*face.area;

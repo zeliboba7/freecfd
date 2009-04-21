@@ -201,6 +201,7 @@ int main(int argc, char *argv[]) {
 	MPI_Barrier(MPI_COMM_WORLD);
 	double timeRef, timeEnd;
 	timeRef=MPI_Wtime();
+
 	
 	/*****************************************************************************************/
 	// Begin time loop
@@ -270,6 +271,7 @@ int main(int argc, char *argv[]) {
 		
 		// Solve Navier-Stokes equations
 		initialize_linear_system();
+
 		assemble_linear_system();
 		if (FLAMELET) update_face_mdot();
 		petsc_solve(nIter,rNorm);

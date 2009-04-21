@@ -28,6 +28,7 @@ extern InputFile input;
 
 static char help[] = "Free CFD\n - A free general purpose computational fluid dynamics code";
 KSP ksp; // linear solver context
+PC pc; // preconditioner context
 Vec deltaU,rhs; // solution, residual vectors
 Mat impOP; // implicit operator matrix
 
@@ -37,6 +38,12 @@ void petsc_init(int argc, char *argv[],double rtol,double abstol,int maxits) {
 	PetscInitialize(&argc,&argv,(char *)0,help);
 	//Create nonlinear solver context
 	KSPCreate(PETSC_COMM_WORLD,&ksp);
+// 	KSPGetPC(ksp,&pc);
+// 	PCSetType(pc,PCILU);
+// 	if (FLAMELET) PCSetType(pc,PCJACOBI);
+// 	PCFactorSetMatOrderingType(pc,MATORDERING_RCM);
+// 	PCFactorSetReuseOrdering(pc,PETSC_TRUE);
+	
 	VecCreateMPI(PETSC_COMM_WORLD,grid.cellCount*5,grid.globalCellCount*5,&rhs);
 	VecSetFromOptions(rhs);
 	VecDuplicate(rhs,&deltaU);
@@ -46,7 +53,7 @@ void petsc_init(int argc, char *argv[],double rtol,double abstol,int maxits) {
 	vector<int> diagonal_nonzeros, off_diagonal_nonzeros;
 	int nextCellCount;
 	
-	// Calculate space necessary for matrix memory alocation
+	// Calculate space necessary for matrix memory allocation
 	for (cit=grid.cell.begin();cit!=grid.cell.end();cit++) {
 		nextCellCount=0;
 		for (it=(*cit).faces.begin();it!=(*cit).faces.end();it++) {
@@ -72,7 +79,7 @@ void petsc_init(int argc, char *argv[],double rtol,double abstol,int maxits) {
 	
 	KSPSetOperators(ksp,impOP,impOP,SAME_NONZERO_PATTERN);
 	KSPSetTolerances(ksp,rtol,abstol,1.e15,maxits);
-	KSPSetInitialGuessNonzero(ksp,PETSC_TRUE);
+	//KSPSetInitialGuessNonzero(ksp,PETSC_TRUE);
 	KSPSetInitialGuessKnoll(ksp,PETSC_TRUE);
 	KSPSetType(ksp,KSPFGMRES);
 	KSPGMRESSetRestart(ksp,100);
@@ -85,13 +92,13 @@ void petsc_solve(int &nIter,double &rNorm) {
 
 	MatAssemblyBegin(impOP,MAT_FINAL_ASSEMBLY);
 	MatAssemblyEnd(impOP,MAT_FINAL_ASSEMBLY);
-
+	
 	VecAssemblyBegin(rhs);
 	VecAssemblyEnd(rhs);
-
+	
 	KSPSetOperators(ksp,impOP,impOP,SAME_NONZERO_PATTERN);
 	KSPSolve(ksp,rhs,deltaU);
-
+	
 	KSPGetIterationNumber(ksp,&nIter);
 	KSPGetResidualNorm(ksp,&rNorm); 
 	

@@ -116,6 +116,7 @@ void Grid::trim_memory() {
 	raw.z.clear();
 	raw.cellConnIndex.clear();
 	raw.cellConnectivity.clear();
+	raw.bocoNodes.clear();
 	raw.bocoNameMap.clear();
 	
 	return;
