@@ -25,6 +25,13 @@
 
 void check_inputs(InputFile &input) {
 	
+	// Check for unrecognized inputs
+	if (input.rawData!="") {
+		cerr << "[E] Unrecognized entries in the input file:" << endl;
+		cerr << input.rawData << endl;
+		exit(1);
+	}
+	
 	// While the input class is awesome, it is slow for frequently accessed variables
 	// Pass those to global variables (defined in commons.h) and do some sanity check in the mean time
 

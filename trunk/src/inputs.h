@@ -141,14 +141,6 @@ public:
 	
 };
 
-
-/*
-	
-	
-void read_doubles(map<string,double> &doubles, string sectionData);
-void read_ints(map<string,int> &ints, string sectionData) ;
-void read_strings(map<string,string> &strings, string sectionData) ;
-void read_Vec3Ds(map<string,Vec3D> &Vec3Ds, string sectionData) ; */
 bool extract_in_between(string &data, string begin, string end, string &result,bool check_char_before=false, string acceptList="");
 int number_of_occurances(string haystack, string needle);
 		
