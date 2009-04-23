@@ -230,30 +230,39 @@ int Grid::readCGNS() {
 			} //switch
 
 			if (elemType==MIXED) {
+				int connDataSize;
+				cg_ElementDataSize(fileIndex,baseIndex,zoneIndex,sectionIndex,&connDataSize);
+				vector<int> elemNodes;
+				elemNodes.resize(connDataSize);
+				cg_elements_read(fileIndex,baseIndex,zoneIndex,sectionIndex,&elemNodes[0],0);
+				int connIndex=0;
 				for (int elem=elemStart;elem<=elemEnd;++elem) {
-					cg_ElementPartialSize(fileIndex,baseIndex,zoneIndex,sectionIndex,elem,elem,&elemNodeCount);
-					int elemNodes[1][elemNodeCount];
-					cg_elements_partial_read(fileIndex,baseIndex,zoneIndex,sectionIndex,elem,elem,*elemNodes,0);
+					cg_npe(ElementType_t (elemNodes[connIndex]),&elemNodeCount);
 					raw.cellConnIndex.push_back(raw.cellConnectivity.size());
-					for (int n=1;n<elemNodeCount;++n) { // First entry is the cell type
-						raw.cellConnectivity.push_back(zoneCoordMap[zoneIndex-1][elemNodes[0][n]-1]);
-					}
+					for (int n=1;n<=elemNodeCount;++n) { // First entry is the cell type
+ 						raw.cellConnectivity.push_back(zoneCoordMap[zoneIndex-1][elemNodes[connIndex+n]-1]);
+ 					}
+					connIndex+=(elemNodeCount+1);
 				}
-				globalCellCount+=(elemEnd-elemStart+1);
-				if (Rank==0) cout << "[E]    ...Found Mixed Section " << sectionName << endl;
+				elemNodes.clear();
+ 				globalCellCount+=(elemEnd-elemStart+1);
+				if (Rank==0) cout << "[I]    ...Found Mixed Section " << sectionName << endl;
 			} else {
-				int elemNodes[elemEnd-elemStart+1][elemNodeCount];
-				// Read element node connectivities
-				cg_elements_read(fileIndex,baseIndex,zoneIndex,sectionIndex,*elemNodes,0);
-				// Only pick the volume elements
+				int connDataSize;
+				cg_ElementDataSize(fileIndex,baseIndex,zoneIndex,sectionIndex,&connDataSize);
+				vector<int> elemNodes;
+				elemNodes.resize(connDataSize);
+				cg_elements_read(fileIndex,baseIndex,zoneIndex,sectionIndex,&elemNodes[0],0);
+				int connIndex=0;
 				if (elemType==TETRA_4 || elemType==PYRA_5 || elemType==PENTA_6 || elemType==HEXA_8 ) {
 					if (Rank==0) cout << "[I]    ...Found Volume Section " << sectionName << endl;
 					// elements array serves as a start index for connectivity list elemConnectivity
 					for (int elem=0;elem<=(elemEnd-elemStart);++elem) {
 						raw.cellConnIndex.push_back(raw.cellConnectivity.size());
 						for (int n=0;n<elemNodeCount;++n) {
-							raw.cellConnectivity.push_back(zoneCoordMap[zoneIndex-1][elemNodes[elem][n]-1]);
+							raw.cellConnectivity.push_back(zoneCoordMap[zoneIndex-1][elemNodes[connIndex+n]-1]);
 						}
+						connIndex+=elemNodeCount;
 					}
 					globalCellCount+=(elemEnd-elemStart+1);
 				} else { // If not a volume element
@@ -263,13 +272,15 @@ int Grid::readCGNS() {
 							for (int elem=0;elem<=(elemEnd-elemStart);++elem) {
 								if (bc_element_list[nbc].find(elemStart+elem)!=bc_element_list[nbc].end()) {
 									for (int n=0;n<elemNodeCount;++n) {
-										raw.bocoNodes[nbc].insert(zoneCoordMap[zoneIndex-1][elemNodes[elem][n]-1]);
+										raw.bocoNodes[nbc].insert(zoneCoordMap[zoneIndex-1][elemNodes[connIndex+n]-1]);
 									}
+									connIndex+=elemNodeCount;
 								}
 							}
 						}
 					}
 				}// if
+				elemNodes.clear();
 			} // if
 		} // for section
 	} // for zone
