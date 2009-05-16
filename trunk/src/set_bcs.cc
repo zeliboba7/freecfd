@@ -34,7 +34,6 @@ bool withinBox(Vec3D point, Vec3D corner_1, Vec3D corner_2);
 
 void setBCs(InputFile &input, BC &bc) {
 	
-	
 	// Loop through each boundary condition region and apply sequentially
 	int count=input.section("boundaryConditions").subsection("BC",0).count;
 	for (int b=0;b<count;++b) {
@@ -107,10 +106,15 @@ void setBCs(InputFile &input, BC &bc) {
 			} else if (region.get_double("rho").is_found) {
 				bcRegion.rho=region.get_double("rho");
 				bcRegion.specified=BC_RHO;
-				if (bcRegion.type==NOSLIP || bcRegion.type==SLIP) bcRegion.thermalType=ADIABATIC;
+			} else if (region.get_double("qdot").is_found) {
+				if (bcRegion.type==NOSLIP || bcRegion.type==SLIP) {
+					bcRegion.thermalType=FIXED_Q;
+					bcRegion.qdot=region.get_double("qdot");
+				}
 			} else {
 				if (bcRegion.type==NOSLIP || bcRegion.type==SLIP) bcRegion.thermalType=ADIABATIC;
 			}
+			
 
 			if (bcRegion.type==SYMMETRY) bcRegion.thermalType=ADIABATIC;
 		} else {
