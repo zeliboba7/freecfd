@@ -31,7 +31,7 @@
 
 // Names are a bit counter-intutivite here
 // Larger tolerance means more strict quality measures
-double area_tolerance=1.e-2;
+double area_tolerance=1.e-3;
 double volume_tolerance=1.e-2;
 
 int gelimd(vector<vector<double> > &a,vector<double> &b,vector<double> &x);

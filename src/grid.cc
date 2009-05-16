@@ -382,7 +382,11 @@ void Grid::gradients(void) {
 						faceVel-=faceVel.dot(face[f].normal)*face[f].normal;
 					} else if (bc.region[face[f].bc].type==NOSLIP) {
 						faceVel=0.;
-					}
+					} 
+					
+// 					else if (bc.region[face[f].bc].type==INLET) {
+// 						faceVel=bc.region[face[f].bc].v;
+// 					}
 					
 					if (FLAMELET) {
 						faceP=cell[c].p;

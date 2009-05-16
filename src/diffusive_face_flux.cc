@@ -55,11 +55,19 @@ void diffusive_face_flux(Cell_State &left,Cell_State &right,Face_State &face,dou
 	flux[2]=Tvisc*tau_y.dot(areaVec);
 	flux[3]=Tvisc*tau_z.dot(areaVec);
 	flux[4]=Tvisc*(tau_x.dot(face.v)*areaVec[0]+tau_y.dot(face.v)*areaVec[1]+tau_z.dot(face.v)*areaVec[2]);
-	flux[4]+=cond*face.gradT.dot(areaVec);// TODO Viscous dissipation needs to be added too
+	if (bc.region[face.bc].thermalType==FIXED_Q) {
+		flux[4]+=bc.region[face.bc].qdot*face.area;
+	} else {
+		flux[4]+=cond*face.gradT.dot(areaVec);// TODO Viscous dissipation needs to be added too
+	}
  	if (FLAMELET) {
 		flux[4]=(face.diff+rans.face[face.index].mu_t/flamelet.constants.sigma_t)*face.gradZ.dot(areaVec);
 	}
 
+	//double shear_velocity=sqrt((sqrt(flux[1]*flux[1]+flux[2]*flux[2]+flux[3]*flux[3])/face.area)/right.rho);
+	//double yplus=right.rho*0.5*fabs(face.left2right)*shear_velocity/Tvisc;
+	
+	
 	return;
 } // end function
 

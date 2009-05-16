@@ -120,7 +120,7 @@ inline void preconditioner_ws95(Cell &c,int cid,double &mu,double P[][5]) {
 	
 }
 
-inline void preconditioner_flamelet(Cell &c,int cid,double P[][5]) {
+inline void preconditioner_none_flamelet(Cell &c,int cid,double P[][5]) {
 	
 	double p=c.p+Pref;
 
@@ -140,6 +140,53 @@ inline void preconditioner_flamelet(Cell &c,int cid,double P[][5]) {
 	return;
 }
 
+inline void preconditioner_ws95_flamelet(Cell &c,int cid,double &mu,double P[][5]) {
+	
+	double p=c.p+Pref;
+	double T=c.T+Tref;
+	// Reference velocity
+	double Ur;
+	
+	Gamma=flamelet.cell[cid].gamma;
+	double c_p=c_p=Gamma*flamelet.cell[cid].R/(Gamma-1.);
+	
+	// Speed of sound 
+	double a=sqrt(Gamma*p/c.rho); // For ideal gas
+	
+	Ur=max(fabs(c.v),1.e-5*a);
+	Ur=min(Ur,a);
+	if (EQUATIONS==NS) Ur=max(Ur,mu/(c.rho*c.lengthScale));
+	
+	double deltaPmax=0.;
+	// Now loop through neighbor cells to check pressure differences
+	for (it=c.neighborCells.begin();it!=c.neighborCells.end();it++) {
+		deltaPmax=max(deltaPmax,fabs(c.p-grid.cell[*it].p));
+	}
+	// TODO loop ghosts too
+	
+	Ur=max(Ur,1.e-5*sqrt(deltaPmax/c.rho));
+	
+	double drho_dp; 
+	double drho_dT=-1.*c.rho/T;
+
+	drho_dp=1./(Ur*Ur)-drho_dT/(c.rho*c_p); // This is the only change over non-preconditioned
+	
+	double drho_dZ=flamelet.table.get_drho_dZ(flamelet.cell[cid].Z,flamelet.cell[cid].Zvar,flamelet.cell[cid].Chi);
+
+	// Conservative to primite Jacobian
+	P[0][0]=drho_dp; P[0][4]=drho_dZ;
+	
+	P[1][0]=drho_dp*c.v[0]; P[1][1]=c.rho; P[1][4]=drho_dZ*c.v[0];
+	P[2][0]=drho_dp*c.v[1]; P[2][2]=c.rho; P[2][4]=drho_dZ*c.v[1];
+	P[3][0]=drho_dp*c.v[2]; P[3][3]=c.rho; P[3][4]=drho_dZ*c.v[2];
+	
+	P[4][0]=flamelet.cell[cid].Z*drho_dp;
+	P[4][4]=flamelet.cell[cid].Z*drho_dZ+c.rho;
+	
+	return;
+	
+}
+
 void mat_print(double P[][5]);
 
 void initialize_linear_system() {
@@ -154,13 +201,13 @@ void initialize_linear_system() {
 	
 	for (int c=0;c<grid.cellCount;++c) {
 
-		if (FLAMELET) {
-			preconditioner_flamelet(grid.cell[c],c,P);
-		} else if (PRECONDITIONER==WS95) {
+		if (PRECONDITIONER==WS95) {
 			double mu=viscosity;
-			preconditioner_ws95(grid.cell[c],c,mu,P);
+			if (FLAMELET) preconditioner_ws95_flamelet(grid.cell[c],c,mu,P);
+			else preconditioner_ws95(grid.cell[c],c,mu,P);
 		} else {
-			preconditioner_none(grid.cell[c],c,P);
+			if (FLAMELET) preconditioner_none_flamelet(grid.cell[c],c,P);
+			else preconditioner_none(grid.cell[c],c,P);
 		}
 
 		for (int i=0;i<5;++i) {

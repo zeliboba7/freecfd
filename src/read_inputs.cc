@@ -154,6 +154,7 @@ void read_inputs(InputFile &input) {
 	input.section("boundaryConditions").subsection("BC",0).register_string("pick",optional,"overRide");
 	input.section("boundaryConditions").subsection("BC",0).register_double("p",optional);
 	input.section("boundaryConditions").subsection("BC",0).register_double("mdot",optional);
+	input.section("boundaryConditions").subsection("BC",0).register_double("qdot",optional);
 	input.section("boundaryConditions").subsection("BC",0).register_Vec3D("v",optional);
 	input.section("boundaryConditions").subsection("BC",0).register_double("T",optional);	
 	input.section("boundaryConditions").subsection("BC",0).register_double("rho",optional);	
