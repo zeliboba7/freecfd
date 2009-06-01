@@ -100,6 +100,7 @@
 
 extern int DIMENSION,EQUATIONS,TURBULENCE_MODEL,TURBULENCE_FILTER;
 extern int TIME_INTEGRATOR,TIME_STEP_TYPE;
+extern int PS_TIME_STEP_TYPE;
 extern int CONVECTIVE_FLUX_FUNCTION,CONVECTIVE_FLUX_FUNCTION_JAC,LIMITER,PRECONDITIONER;
 extern int OUTPUT_FORMAT;
 extern bool FLAMELET,GRAD_TEST;
@@ -108,6 +109,8 @@ extern int Rank,np;
 extern double omegaLowLimit,kLowLimit,kHighLimit,viscosityRatioLimit,turbulenceFilterSize;
 extern double dt_relax,dt_current,dt_target,dt_min,dt_max,CFLmax,CFLmaxTarget,CFLlocal,CFLlocalTarget;
 extern int timeStep,restart;
+extern int ps_timeStep;
+extern double ps_dt_relax,ps_dt_current,ps_dt_min,ps_dt_max,ps_CFLmax,ps_CFLlocal;
 extern double Minf,Pref,Tref;
 extern int order;
 extern double limiter_sharpening;

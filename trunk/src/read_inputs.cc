@@ -77,6 +77,16 @@ void read_inputs(InputFile &input) {
 	input.section("timeMarching").register_int("numberOfSteps",required);
 	input.readSection("timeMarching");
 	
+	input.registerSection("pseudoTimeMarching",required);
+	input.section("pseudoTimeMarching").register_double("stepSize",optional,1.);
+	input.section("pseudoTimeMarching").register_double("CFLmax",optional,1000.);
+	input.section("pseudoTimeMarching").register_double("CFLlocal",optional,1000.);
+	input.section("pseudoTimeMarching").register_double("adaptive",optional,0.05);
+	input.section("pseudoTimeMarching").register_double("stepSizeMax",optional,0.01);
+	input.section("pseudoTimeMarching").register_double("stepSizeMin",optional,1.e-9);
+	input.section("pseudoTimeMarching").register_int("numberOfSteps",required);
+	input.readSection("pseudoTimeMarching");
+	
 	input.registerSection("numericalOptions",optional);
 	input.section("numericalOptions").register_string("convectiveFlux",optional,"AUSM+up");
 	input.section("numericalOptions").register_string("convectiveFluxJac",optional,"AUSM+up");

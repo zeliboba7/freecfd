@@ -320,13 +320,24 @@ double Flamelet_Table::get_drho_dZ(double &Z_in, double &Zvar_in, double &Chi_in
 	if (refreshWeights) get_weights(Z_in,Zvar_in,Chi_in);
 	// Now we know i1
 	double Z_minus,Z_plus;
-	if (i1<Z.size()) {
+	if (i1<Z.size()-1 && i1>0) {
+		Z_minus=Z[i1-1];
+		Z_plus=Z[i1+1];
+	} else if (i1<Z.size()) {
 		Z_minus=Z[i1];
 		Z_plus=Z[i1+1];
 	} else {
 		Z_minus=Z[i1-1];
 	 	Z_plus=Z[i1];
 	}
+	
+// 	if (i1<Z.size()) {
+// 		Z_minus=Z[i1];
+// 		Z_plus=Z[i1+1];
+// 	} else {
+// 		Z_minus=Z[i1-1];
+// 	 	Z_plus=Z[i1];
+// 	}
 	
 	return (get_rho(Z_plus,Zvar_in,Chi_in)-get_rho(Z_minus,Zvar_in,Chi_in))/(Z_plus-Z_minus);
 }

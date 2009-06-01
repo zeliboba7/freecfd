@@ -61,9 +61,11 @@ void update(void);
 string int2str(int number) ;
 void assemble_linear_system(void);
 void initialize_linear_system(void);
+void pseudo_time_terms(void);
 void update_face_mdot(void);
 void linear_system_turb(void);
 void get_dt(void);
+void get_ps_dt(void);
 void get_CFLmax(void);
 void set_probes(void);
 void set_integrateBoundary(void);
@@ -85,6 +87,8 @@ vector<Probe> probes;
 vector<BoundaryFlux> boundaryFluxes;
 
 double resP,resV,resT,resK,resOmega,resZ,resZvar;
+double resP_old,resV_old,resT_old,factor;
+double resP_norm,resV_norm,resT_norm;
 
 int main(int argc, char *argv[]) {
 	
@@ -99,7 +103,6 @@ int main(int argc, char *argv[]) {
 	gridFileName.assign(argv[1]);
 	inputFileName+=".in";
 	gridFileName+=".cgns";
-	//gridFileName+=".dat";
 
 	restart=0;
 	if (argc>2) restart=atoi(argv[2]);
@@ -116,6 +119,7 @@ int main(int argc, char *argv[]) {
 		ramp=false;
 	}
 	int timeStepMax=input.section("timeMarching").get_int("numberOfSteps");
+	int ps_timeStepMax=input.section("pseudoTimeMarching").get_int("numberOfSteps");
 	
 	grid.read(gridFileName);
 	// Hand shake with other processors
@@ -272,21 +276,53 @@ int main(int argc, char *argv[]) {
 		// Solve Navier-Stokes equations
 		initialize_linear_system();
 
-		assemble_linear_system();
-		if (FLAMELET) update_face_mdot();
-		petsc_solve(nIter,rNorm);
-
+		for (ps_timeStep=1;ps_timeStep<=ps_timeStepMax;++ps_timeStep) {
+			get_ps_dt();
+			assemble_linear_system();
+			pseudo_time_terms();
+			petsc_solve(nIter,rNorm);
+			// Update Navier-Stokes
+			update();
+			// Update ghost Navier-Stokes variables
+			mpi_update_ghost_primitives();
+		
+			// Gradient are calculated for NS and/or second order schemes
+			if (EQUATIONS==NS || order==SECOND ) {
+			// Calculate all the cell gradients for each variable
+				grid.gradients();
+			// Update gradients of the ghost cells
+				mpi_update_ghost_gradients();
+			}
+		
+			if (LIMITER!=NONE) {
+			// Limit gradients
+				grid.limit_gradients(); 
+			// Update limited gradients of the ghost cells
+				mpi_update_ghost_gradients();
+			}
+			
+			flamelet.lookup();
+			flamelet.mpi_update_ghost();
+			flamelet.gradients();
+			flamelet.mpi_update_ghost_gradients();
+			flamelet.limit_gradients();
+			flamelet.mpi_update_ghost_gradients(); // Called again to update the ghost gradients
+			flamelet.update_face_properties();
+			
+			if (Rank==0) cout << ps_timeStep << "\t" << resP << "\t" << resV << "\t" << resT << "\t" << factor << "\t" << ps_CFLlocal << endl;
+			
+			if (resP<0.1 && resV<0.1) break;
+		}
+		
+		get_dt();
+		get_CFLmax();
+		
 		// Solve flamelet equations
 		if (FLAMELET) {
+			update_face_mdot();
 			flamelet.terms();
 			flamelet.petsc_solve(nIterFlame,rNormFlame);
 			flamelet.update(resZ,resZvar);
-		}
-
-		// Update Navier-Stokes
-		update();
-		
-		if (FLAMELET) {
 			flamelet.lookup();
 			flamelet.mpi_update_ghost();
 			flamelet.gradients();
@@ -296,23 +332,7 @@ int main(int argc, char *argv[]) {
 			flamelet.update_face_properties();
 		}
 		
-		// Update ghost Navier-Stokes variables
-		mpi_update_ghost_primitives();
-		
-		// Gradient are calculated for NS and/or second order schemes
-		if (EQUATIONS==NS || order==SECOND ) {
-			// Calculate all the cell gradients for each variable
-			grid.gradients();
-			// Update gradients of the ghost cells
-			mpi_update_ghost_gradients();
-		}
-		
-		if (LIMITER!=NONE) {
-			// Limit gradients
-			grid.limit_gradients(); 
-			// Update limited gradients of the ghost cells
-			mpi_update_ghost_gradients();
-		}
+
 		
 		if (TURBULENCE_MODEL!=NONE) {
 			update_face_mdot();
@@ -508,8 +528,10 @@ double superbee(double a, double b) {
 
 void update(void) {
 
+	resP_old=resP; resV_old=resV; resT_old=resT;
 	resP=0.; resV=0.; resT=0.; resZ=0.;
 	for (int c = 0;c < grid.cellCount;++c) {
+		//grid.cell[c].update[0]*=0.5;
 		grid.cell[c].p +=grid.cell[c].update[0];
 		grid.cell[c].v[0] +=grid.cell[c].update[1];
 		grid.cell[c].v[1] +=grid.cell[c].update[2];
@@ -535,10 +557,19 @@ void update(void) {
 	residuals[0]=resP; residuals[1]=resV; residuals[2]=resT;
 
         if (np!=1) {
-        	MPI_Reduce(&residuals,&totalResiduals,3, MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
+        	MPI_Allreduce(&residuals,&totalResiduals,3, MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
 		resP=totalResiduals[0]; resV=totalResiduals[1]; resT=totalResiduals[2];
         }
+	
 	resP=sqrt(resP); resV=sqrt(resV); resT=sqrt(resT); 
+	if (ps_timeStep==1) {
+		resP_norm=resP; resV_norm=resV; resT_norm=resT;
+		resP=1.; resV=1.; resT=1.;
+	} else {
+		resP/=resP_norm;
+		resV/=resV_norm;
+		resT/=resT_norm;
+	}
 	if (FLAMELET) resZ=resT;
 	return;
 }
@@ -551,7 +582,9 @@ string int2str(int number) {
 
 void get_dt(void) {
 	
-	if (TIME_STEP_TYPE==CFL_MAX) {
+	if (TIME_STEP_TYPE==FIXED) {
+		for (cit=grid.cell.begin();cit<grid.cell.end();cit++) (*cit).dt=dt_current;
+	} else if (TIME_STEP_TYPE==CFL_MAX) {
 		dt_current=1.e20;
 		// Determine time step with CFL condition
 		for (int c=0;c<grid.cellCount;++c) {
@@ -587,6 +620,69 @@ void get_dt(void) {
 
 	return;
 } // end get_dt
+
+void get_ps_dt(void) {
+	
+	if (ps_timeStep>=3) {
+		factor=resP_old*factor/resP;
+		factor=min(factor,resV_old*factor/resV);
+		//factor=min(factor,log10(resT_old)/log10(resT));
+	} else {
+		factor=1.;
+	}
+	factor=max(0.5,factor);
+	factor=min(1.1,factor);
+// 	if (factor<=1.) {
+// 		if (resP<1. && resV<1.) factor=1.;
+// 	}
+	ps_dt_current*=factor;
+	
+	//cout << factor << "\t" << resP_old << "\t" << resP << endl;
+	
+	//cerr << "\t" << Rank << "\t" << factor << endl;
+	
+	if (PS_TIME_STEP_TYPE==CFL_MAX) {
+		//ps_CFLmax*=factor;
+		ps_CFLmax=max(0.5,ps_CFLmax*factor);
+		ps_CFLmax=min(1.e4,ps_CFLmax*factor);
+		ps_dt_current=1.e20;
+		// Determine time step with CFL condition
+		for (int c=0;c<grid.cellCount;++c) {
+			if (FLAMELET) Gamma=flamelet.cell[c].gamma;
+			double a=sqrt(Gamma*(grid.cell[c].p+Pref)/grid.cell[c].rho);
+			ps_dt_current=min(ps_dt_current,ps_CFLmax*grid.cell[c].lengthScale/(fabs(grid.cell[c].v)+a));
+		}
+		MPI_Allreduce(&ps_dt_current,&ps_dt_current,1, MPI_DOUBLE,MPI_MIN,MPI_COMM_WORLD);
+		for (cit=grid.cell.begin();cit<grid.cell.end();cit++) (*cit).dt=ps_dt_current;
+	} else if (PS_TIME_STEP_TYPE==CFL_LOCAL) {
+// 		ps_CFLlocal=max(0.5,ps_CFLlocal*factor);
+// 		ps_CFLlocal=min(5.,ps_CFLlocal);
+		// Determine time step with CFL condition
+		for (int c=0;c<grid.cellCount;++c) {
+			if (FLAMELET) Gamma=flamelet.cell[c].gamma;
+			double a=sqrt(Gamma*(grid.cell[c].p+Pref)/grid.cell[c].rho);
+			grid.cell[c].dt=ps_CFLlocal*grid.cell[c].lengthScale/(fabs(grid.cell[c].v)+a);
+		}
+	}  else if (PS_TIME_STEP_TYPE==ADAPTIVE) {
+		for (int c=0;c<grid.cellCount;++c) {
+			double compare2=fabs(grid.cell[c].T+Tref);
+			if (FLAMELET) compare2=flamelet.cell[c].Z;
+			if (fabs(grid.cell[c].update[0]) > fabs(grid.cell[c].p+Pref)*ps_dt_relax ||
+			    fabs(grid.cell[c].update[4]) > compare2*ps_dt_relax ) {
+				grid.cell[c].dt*=0.5;
+			} else if (fabs(grid.cell[c].update[0]) < 0.5*fabs(grid.cell[c].p+Pref)*ps_dt_relax ||
+			    fabs(grid.cell[c].update[4]) < 0.5*compare2*ps_dt_relax ) {
+				grid.cell[c].dt*=(1.+ps_dt_relax);
+			}
+			grid.cell[c].dt=min(grid.cell[c].dt,ps_dt_max);
+			grid.cell[c].dt=max(grid.cell[c].dt,ps_dt_min);
+		}
+		
+	}
+
+	return;
+} // end get_ps_dt
+
 
 void get_CFLmax(void) {
 
