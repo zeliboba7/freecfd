@@ -151,6 +151,46 @@ void check_inputs(InputFile &input) {
 		dt_max=input.section("timeMarching").get_double("stepSizeMax");
 	}
 	
+	PS_TIME_STEP_TYPE=NONE;
+	ps_dt_current=input.section("pseudoTimeMarching").get_double("stepSize");
+	if (input.section("pseudoTimeMarching").get_double("stepSize").is_found) {
+		PS_TIME_STEP_TYPE=FIXED; 
+	}
+	if (input.section("pseudoTimeMarching").get_double("CFLmax").is_found) {
+		if (PS_TIME_STEP_TYPE==FIXED) {
+			cerr << "[E] Input entry pseudoTimeMarching -> CFLmax can't be specified together with stepSize!!" << endl;
+			exit(1);
+		}
+		PS_TIME_STEP_TYPE=CFL_MAX; ps_CFLmax=input.section("pseudoTimeMarching").get_double("CFLmax");
+	}
+	else if (input.section("pseudoTimeMarching").get_double("CFLlocal").is_found) {
+		if (PS_TIME_STEP_TYPE==FIXED) {
+			cerr << "[E] Input entry pseudoTimeMarching -> CFLlocal can't be specified together with stepSize!!" << endl;
+			exit(1);
+		}
+		if (PS_TIME_STEP_TYPE==CFL_MAX) {
+			cerr << "[E] Input entry pseudoTimeMarching -> CFLlocal can't be specified together with CFLmax!!" << endl;
+			exit(1);
+		}
+		PS_TIME_STEP_TYPE=CFL_LOCAL; ps_CFLlocal=input.section("pseudoTimeMarching").get_double("CFLlocal");
+	}
+	else if (input.section("pseudoTimeMarching").get_double("adaptive").is_found) {
+
+		if (PS_TIME_STEP_TYPE==CFL_MAX) {
+			cerr << "[E] Input entry pseudoTimeMarching -> adaptive can't be specified together with CFLmax!!" << endl;
+			exit(1);
+		}
+		if (PS_TIME_STEP_TYPE==CFL_LOCAL) {
+			cerr << "[E] Input entry pseudoTimeMarching -> adaptive can't be specified together with CFLlocal!!" << endl;
+			exit(1);
+		}
+		PS_TIME_STEP_TYPE=ADAPTIVE; 
+		ps_dt_relax=input.section("pseudoTimeMarching").get_double("adaptive");
+		ps_dt_min=input.section("pseudoTimeMarching").get_double("stepSizeMin");
+		ps_dt_max=input.section("pseudoTimeMarching").get_double("stepSizeMax");
+	}
+	
+	
 	option=input.section("numericalOptions").get_string("convectiveFlux");
 	if (option=="Roe") {
 		CONVECTIVE_FLUX_FUNCTION=ROE;

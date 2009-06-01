@@ -22,9 +22,9 @@
 *************************************************************************/
 #include "commons.h"
 
-
 int DIMENSION,EQUATIONS,TURBULENCE_MODEL,TURBULENCE_FILTER;
 int TIME_INTEGRATOR,TIME_STEP_TYPE;
+int PS_TIME_STEP_TYPE;
 int CONVECTIVE_FLUX_FUNCTION,CONVECTIVE_FLUX_FUNCTION_JAC,LIMITER,PRECONDITIONER;
 int OUTPUT_FORMAT;
 bool FLAMELET,GRAD_TEST;
@@ -33,6 +33,8 @@ int Rank,np;
 double omegaLowLimit,kLowLimit,kHighLimit,viscosityRatioLimit,turbulenceFilterSize;
 double dt_relax,dt_current,dt_target,dt_min,dt_max,CFLmax,CFLmaxTarget,CFLlocal,CFLlocalTarget;
 int timeStep,restart;
+int ps_timeStep;
+double ps_dt_relax,ps_dt_current,ps_dt_min,ps_dt_max,ps_CFLmax,ps_CFLlocal;
 double Minf,Pref,Tref;
 int order;
 double limiter_sharpening;

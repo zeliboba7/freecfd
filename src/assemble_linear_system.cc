@@ -144,7 +144,7 @@ void assemble_linear_system(void) {
 			}
 		}
 
-		if (implicit) {
+		if (implicit && ps_timeStep==1) {
 
 			for (int i=0;i<5;++i) { // perturb each variable
 				

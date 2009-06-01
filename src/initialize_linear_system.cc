@@ -30,7 +30,7 @@ extern BC bc;
 extern Flamelet flamelet;
 extern RANS rans;
 
-inline void preconditioner_none(Cell &c,int cid,double P[][5]) {
+inline void cons2prim(Cell &c,int cid,double P[][5]) {
 	
 	double p=c.p+Pref;
 	
@@ -61,72 +61,15 @@ inline void preconditioner_none(Cell &c,int cid,double P[][5]) {
 
 	return;
 }
-		
-inline void preconditioner_ws95(Cell &c,int cid,double &mu,double P[][5]) {
-	
-	double p=c.p+Pref;
-	double T=c.T+Tref;
-	// Reference velocity
-	double Ur;
-	
-	double c_p;
-	if (FLAMELET) {
-		Gamma=flamelet.cell[cid].gamma;
-		c_p=Gamma*flamelet.cell[cid].R/(Gamma-1.);
-	} else {
-		c_p=Gamma/(Gamma-1.)*p/(c.rho*T);
-	}
-	
-	// Speed of sound 
-	double a=sqrt(Gamma*p/c.rho); // For ideal gas
-	
-	Ur=max(fabs(c.v),1.e-5*a);
-	Ur=min(Ur,a);
-	if (EQUATIONS==NS) Ur=max(Ur,mu/(c.rho*c.lengthScale));
-	
-	double deltaPmax=0.;
-	// Now loop through neighbor cells to check pressure differences
-	for (it=c.neighborCells.begin();it!=c.neighborCells.end();it++) {
-		deltaPmax=max(deltaPmax,fabs(c.p-grid.cell[*it].p));
-	}
-	// TODO loop ghosts too
-	
-	Ur=max(Ur,1.e-5*sqrt(deltaPmax/c.rho));
-	
-	double drho_dp; // Derivative of density w.r.t press. @ const temp.
-	double drho_dT; // Derivative of density w.r.t temp. @ const. press
-	
-	// For ideal gas
-	drho_dT=-1.*c.rho/T;
 
-	drho_dp=1./(Ur*Ur)-drho_dT/(c.rho*c_p); // This is the only change over non-preconditioned
-	
-	double H=c_p*T+0.5*c.v.dot(c.v);
-	
-	// Conservative to primite Jacobian
-	P[0][0]=drho_dp; P[0][4]=drho_dT;
-			
-	P[1][0]=drho_dp*c.v[0]; P[1][1]=c.rho; P[1][4]=drho_dT*c.v[0];
-	P[2][0]=drho_dp*c.v[1]; P[2][2]=c.rho; P[2][4]=drho_dT*c.v[1];
-	P[3][0]=drho_dp*c.v[2]; P[3][3]=c.rho; P[3][4]=drho_dT*c.v[2];
-		
-	P[4][0]=drho_dp*H-1.; 
-	P[4][1]=c.rho*c.v[0];
-	P[4][2]=c.rho*c.v[1];
-	P[4][3]=c.rho*c.v[2];
-	P[4][4]=drho_dT*H+c.rho*c_p; 
-	
-	return;
-	
-}
-
-inline void preconditioner_none_flamelet(Cell &c,int cid,double P[][5]) {
+inline void cons2prim_flamelet(Cell &c,int cid,double P[][5]) {
 	
 	double p=c.p+Pref;
 
 	double drho_dp=c.rho/p; //flamelet.cell[cid].gamma;
 	double drho_dZ=flamelet.table.get_drho_dZ(flamelet.cell[cid].Z,flamelet.cell[cid].Zvar,flamelet.cell[cid].Chi);
 
+	//drho_dp=0.;
 	// Conservative to primite Jacobian
 	P[0][0]=drho_dp; P[0][4]=drho_dZ;
 	
@@ -138,53 +81,6 @@ inline void preconditioner_none_flamelet(Cell &c,int cid,double P[][5]) {
 	P[4][4]=flamelet.cell[cid].Z*drho_dZ+c.rho;
 
 	return;
-}
-
-inline void preconditioner_ws95_flamelet(Cell &c,int cid,double &mu,double P[][5]) {
-	
-	double p=c.p+Pref;
-	double T=c.T+Tref;
-	// Reference velocity
-	double Ur;
-	
-	Gamma=flamelet.cell[cid].gamma;
-	double c_p=c_p=Gamma*flamelet.cell[cid].R/(Gamma-1.);
-	
-	// Speed of sound 
-	double a=sqrt(Gamma*p/c.rho); // For ideal gas
-	
-	Ur=max(fabs(c.v),1.e-5*a);
-	Ur=min(Ur,a);
-	if (EQUATIONS==NS) Ur=max(Ur,mu/(c.rho*c.lengthScale));
-	
-	double deltaPmax=0.;
-	// Now loop through neighbor cells to check pressure differences
-	for (it=c.neighborCells.begin();it!=c.neighborCells.end();it++) {
-		deltaPmax=max(deltaPmax,fabs(c.p-grid.cell[*it].p));
-	}
-	// TODO loop ghosts too
-	
-	Ur=max(Ur,1.e-5*sqrt(deltaPmax/c.rho));
-	
-	double drho_dp; 
-	double drho_dT=-1.*c.rho/T;
-
-	drho_dp=1./(Ur*Ur)-drho_dT/(c.rho*c_p); // This is the only change over non-preconditioned
-	
-	double drho_dZ=flamelet.table.get_drho_dZ(flamelet.cell[cid].Z,flamelet.cell[cid].Zvar,flamelet.cell[cid].Chi);
-
-	// Conservative to primite Jacobian
-	P[0][0]=drho_dp; P[0][4]=drho_dZ;
-	
-	P[1][0]=drho_dp*c.v[0]; P[1][1]=c.rho; P[1][4]=drho_dZ*c.v[0];
-	P[2][0]=drho_dp*c.v[1]; P[2][2]=c.rho; P[2][4]=drho_dZ*c.v[1];
-	P[3][0]=drho_dp*c.v[2]; P[3][3]=c.rho; P[3][4]=drho_dZ*c.v[2];
-	
-	P[4][0]=flamelet.cell[cid].Z*drho_dp;
-	P[4][4]=flamelet.cell[cid].Z*drho_dZ+c.rho;
-	
-	return;
-	
 }
 
 void mat_print(double P[][5]);
@@ -201,14 +97,8 @@ void initialize_linear_system() {
 	
 	for (int c=0;c<grid.cellCount;++c) {
 
-		if (PRECONDITIONER==WS95) {
-			double mu=viscosity;
-			if (FLAMELET) preconditioner_ws95_flamelet(grid.cell[c],c,mu,P);
-			else preconditioner_ws95(grid.cell[c],c,mu,P);
-		} else {
-			if (FLAMELET) preconditioner_none_flamelet(grid.cell[c],c,P);
-			else preconditioner_none(grid.cell[c],c,P);
-		}
+		if (FLAMELET) cons2prim_flamelet(grid.cell[c],c,P);
+		else cons2prim(grid.cell[c],c,P);
 
 		for (int i=0;i<5;++i) {
 			row=(grid.myOffset+c)*5+i;
@@ -225,7 +115,6 @@ void initialize_linear_system() {
 }
 
 void mat_print(double mat[][5]) {
-
 
 	cout << endl;
 	for (int i=0;i<5;++i) {

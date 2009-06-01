@@ -31,6 +31,8 @@ KSP ksp; // linear solver context
 PC pc; // preconditioner context
 Vec deltaU,rhs; // solution, residual vectors
 Mat impOP; // implicit operator matrix
+Vec pseudo_right; // Contribution to rhs due to pseudo time stepping
+Mat pseudo_time; // Pseudo time stepping terms
 
 void petsc_init(int argc, char *argv[],double rtol,double abstol,int maxits) {
 
@@ -47,6 +49,7 @@ void petsc_init(int argc, char *argv[],double rtol,double abstol,int maxits) {
 	VecCreateMPI(PETSC_COMM_WORLD,grid.cellCount*5,grid.globalCellCount*5,&rhs);
 	VecSetFromOptions(rhs);
 	VecDuplicate(rhs,&deltaU);
+	VecDuplicate(rhs,&pseudo_right);
 	VecSet(rhs,0.);
 	VecSet(deltaU,0.);
 
@@ -77,6 +80,27 @@ void petsc_init(int argc, char *argv[],double rtol,double abstol,int maxits) {
    			0,&off_diagonal_nonzeros[0],
    			&impOP);
 	
+	
+	// Calculate space necessary for pseudo time step terms matrix memory allocation
+	diagonal_nonzeros.clear(); off_diagonal_nonzeros.clear();
+	for (cit=grid.cell.begin();cit!=grid.cell.end();cit++) {
+		for (int i=0;i<5;++i) {
+			diagonal_nonzeros.push_back(5);
+			off_diagonal_nonzeros.push_back(0);
+		}
+	}
+	
+	MatCreateMPIAIJ(
+			PETSC_COMM_WORLD,
+   			grid.cellCount*5,
+   			grid.cellCount*5,
+   			grid.globalCellCount*5,
+   			grid.globalCellCount*5,
+   			0,&diagonal_nonzeros[0],
+   			0,&off_diagonal_nonzeros[0],
+      			&pseudo_time);
+	
+	
 	KSPSetOperators(ksp,impOP,impOP,SAME_NONZERO_PATTERN);
 	KSPSetTolerances(ksp,rtol,abstol,1.e15,maxits);
 	//KSPSetInitialGuessNonzero(ksp,PETSC_TRUE);
@@ -90,17 +114,30 @@ void petsc_init(int argc, char *argv[],double rtol,double abstol,int maxits) {
 
 void petsc_solve(int &nIter,double &rNorm) {
 
+
+	
 	MatAssemblyBegin(impOP,MAT_FINAL_ASSEMBLY);
 	MatAssemblyEnd(impOP,MAT_FINAL_ASSEMBLY);
 	
 	VecAssemblyBegin(rhs);
 	VecAssemblyEnd(rhs);
 	
+	MatAssemblyBegin(pseudo_time,MAT_FINAL_ASSEMBLY);
+	MatAssemblyEnd(pseudo_time,MAT_FINAL_ASSEMBLY);
+	
+	VecAssemblyBegin(pseudo_right);
+	VecAssemblyEnd(pseudo_right);
+	
+	VecAXPY(rhs,-1.,pseudo_right); // rhs-=pseudo_right
+	MatAXPY(impOP,1.,pseudo_time,DIFFERENT_NONZERO_PATTERN); // impOP+=pseudo_time
+	
 	KSPSetOperators(ksp,impOP,impOP,SAME_NONZERO_PATTERN);
 	KSPSolve(ksp,rhs,deltaU);
 	
 	KSPGetIterationNumber(ksp,&nIter);
 	KSPGetResidualNorm(ksp,&rNorm); 
+	
+	MatAXPY(impOP,-1.,pseudo_time,DIFFERENT_NONZERO_PATTERN); // impOP-=pseudo_time
 	
 	int index;
 	for (int c=0;c<grid.cellCount;++c) {

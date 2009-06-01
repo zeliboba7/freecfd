@@ -28,7 +28,7 @@ SRC= \
 	grid.cc grid_averaging_metrics.cc grid_create_elements.cc grid_partition.cc grid_readers.cc  \
 	initialize.cc initialize_linear_system.cc inputs.cc \
 	main.cc mpi_functions.cc \
-	petsc_functions.cc probes.cc \
+	petsc_functions.cc probes.cc pseudo_time.cc\
 	read_inputs.cc read_restart.cc \
 	set_bcs.cc sources.cc \
 	rans.cc rans_terms.cc\

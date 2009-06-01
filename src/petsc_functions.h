@@ -31,6 +31,9 @@ extern KSP ksp; // linear solver context
 //extern PC pc; // preconditioner context
 extern Vec deltaU,rhs; // solution, residual vectors
 extern Mat impOP; // implicit operator matrix
+extern Vec pseudo_right; // Contribution to rhs due to pseudo time stepping
+extern Mat pseudo_time; // Pseudo time stepping terms
+
 
 void petsc_init(int argc, char *argv[],double rtol,double abstol,int maxits);
 void petsc_solve(int &nIter,double &rNorm);
