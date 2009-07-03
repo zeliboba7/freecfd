@@ -34,11 +34,9 @@ using namespace std;
 
 #include "inputs.h"
 #include "bc.h"
-#include "flamelet.h"
 
 extern InputFile input;
 extern BC bc;
-extern Flamelet flamelet;
 
 string int2str(int number) ;
 double minmod(double a, double b);
@@ -387,11 +385,7 @@ void Grid::gradients(void) {
 // 					else if (bc.region[face[f].bc].type==INLET) {
 // 						faceVel=bc.region[face[f].bc].v;
 // 					}
-					
-					if (FLAMELET) {
-						faceP=cell[c].p;
-						faceT=cell[c].T;
-					}	
+						
 					
 				}
 				

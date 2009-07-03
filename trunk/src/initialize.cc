@@ -24,9 +24,7 @@
 #include "grid.h"
 #include "inputs.h"
 #include "rans.h"
-#include "flamelet.h"
 extern RANS rans;
-extern Flamelet flamelet;
 
 bool withinBox(Vec3D point, Vec3D corner_1, Vec3D corner_2);
 bool withinCylinder(Vec3D point, Vec3D center, double radius, Vec3D axisDirection, double height);
@@ -40,34 +38,28 @@ void initialize(InputFile &input) {
 		// Store the reference to current IC region
 		Subsection &region=input.section("initialConditions").subsection("IC",ic);
 		Vec3D regionV=region.get_Vec3D("v");
-		double regionRho,regionP,regionT,regionK,regionOmega,regionMu_t,regionZ,regionZvar;
+		double regionRho,regionP,regionT,regionK,regionOmega,regionMu_t;
 		// Assign specified values
 		regionP=region.get_double("p");
-		if (!FLAMELET) {
-			if (region.get_double("rho").is_found) { // Rho is specified in the input file
-				//  Check if Temperature is also specifid
-				if (region.get_double("T").is_found) {
-					cerr << "Both rho and T can't be specified in initial condition IC_" << ic+1 << endl;
-					exit(1);
-				}
-				regionRho=region.get_double("rho");
-				regionT=eos.T(regionP,regionRho);
-			} else if (region.get_double("T").is_found) {
-				regionT=region.get_double("T");
-				regionRho=eos.rho(regionP,regionT);	
-			} else {
-				cerr << "Need to specify either rho or T in initial condition IC_" << ic+1 << endl;
+		
+		if (region.get_double("rho").is_found) { // Rho is specified in the input file
+			//  Check if Temperature is also specifid
+			if (region.get_double("T").is_found) {
+				cerr << "Both rho and T can't be specified in initial condition IC_" << ic+1 << endl;
 				exit(1);
 			}
+			regionRho=region.get_double("rho");
+			regionT=eos.T(regionP,regionRho);
+		} else if (region.get_double("T").is_found) {
+			regionT=region.get_double("T");
+			regionRho=eos.rho(regionP,regionT);	
+		} else {
+			cerr << "Need to specify either rho or T in initial condition IC_" << ic+1 << endl;
+			exit(1);
 		}
+	
 		regionK=region.get_double("k");
 		regionOmega=region.get_double("omega");
-		if (FLAMELET) {
-			regionZ=region.get_double("Z");
-			regionZvar=region.get_double("Zvar");
-			double Chi=2.*regionOmega*regionZvar*rans.kepsilon.beta_star;
-			flamelet.table.get_rho_T_comp(regionP,regionZ,regionZvar,Chi,regionRho,regionT);
-		}
 		regionMu_t=regionRho*regionK/regionOmega;
 		// If region is specified with a box method
 		if (region.get_string("region")=="box") {
@@ -85,10 +77,6 @@ void initialize(InputFile &input) {
 						rans.cell[c].omega=regionOmega;
 						rans.cell[c].mu_t=regionMu_t;
 					}
-					if (FLAMELET) {
-						flamelet.cell[c].Z=regionZ;
-						flamelet.cell[c].Zvar=regionZvar;
-					}
 				}
 			}
 		} else if (region.get_string("region")=="cylinder") {
@@ -105,10 +93,6 @@ void initialize(InputFile &input) {
 						rans.cell[c].k=regionK;
 						rans.cell[c].omega=regionOmega;
 						rans.cell[c].mu_t=regionMu_t;
-					}
-					if (FLAMELET) {
-						flamelet.cell[c].Z=regionZ;
-						flamelet.cell[c].Zvar=regionZvar;
 					}
 					// first component of the specified velocity is interpreted as the axial velocity
 					// second component of the specified velocity is interpreted as the radial velocity
@@ -134,10 +118,6 @@ void initialize(InputFile &input) {
 						rans.cell[c].omega=regionOmega;
 						rans.cell[c].mu_t=regionMu_t;
 					}
-					if (FLAMELET) {
-						flamelet.cell[c].Z=regionZ;
-						flamelet.cell[c].Zvar=regionZvar;
-					}
 					// first component of the specified velocity is interpreted as the radial velocity
 					// second and third components of the specified velocity are ignored
 					grid.cell[c].v=regionV[0]*(grid.cell[c].centroid-region.get_Vec3D("center"));
@@ -149,17 +129,11 @@ void initialize(InputFile &input) {
 	for (int c=0;c<grid.cellCount;++c) {
 		if (GRAD_TEST) grid.cell[c].p=2.*grid.cell[c].centroid[1]+2.;
 		for (int i=0;i<5;++i) grid.cell[c].update[i]=0.;
-		if (FLAMELET) {
-			double Chi=2.*rans.cell[c].omega*flamelet.cell[c].Zvar*rans.kepsilon.beta_star;
-			flamelet.cell[c].mu=flamelet.table.get_mu(flamelet.cell[c].Z,flamelet.cell[c].Zvar,Chi);
-			for (int i=0;i<2;++i) flamelet.cell[c].update[i]=0.;
-		}
 		grid.cell[c].dt=dt_current;
 	}	
 	
 	for (int g=0;g<grid.ghostCount;++g) {
 		for (int i=0;i<5;++i) grid.ghost[g].update[i]=0.;
-		//if (FLAMELET) for (int i=0;i<2;++i) flamelet.ghost[g].update[i]=0.;
 	}
 	
 	if (TURBULENCE_MODEL!=NONE) for (int f=0;f<grid.faceCount;++f) rans.face[f].mu_t=0.;

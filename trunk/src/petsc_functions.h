@@ -37,7 +37,6 @@ extern Mat pseudo_time; // Pseudo time stepping terms
 
 void petsc_init(int argc, char *argv[],double rtol,double abstol,int maxits);
 void petsc_solve(int &nIter,double &rNorm);
-void petsc_solve_turb(int &nIter_turb, double &rNorm_turb);
 void petsc_finalize(void);
 
 #endif

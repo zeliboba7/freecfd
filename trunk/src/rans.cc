@@ -23,9 +23,6 @@
 #include "commons.h"
 #include "petscksp.h"
 #include "rans.h"
-#include "flamelet.h"
-
-extern Flamelet flamelet;
 
 extern double minmod(double a, double b);
 extern double doubleMinmod(double a, double b);
@@ -282,7 +279,6 @@ void RANS::gradients(void) {
 				
 				faceRho=grid.cell[c].rho;
 				mu=viscosity;
-				if (FLAMELET) mu=flamelet.cell[c].mu;
 				
 				if (bc.region[grid.face[f].bc].type==INLET) {
 					faceK=bc.region[grid.face[f].bc].k;
@@ -378,7 +374,6 @@ void RANS::update(double &resK, double &resOmega) {
 		
 		double new_mu_t=grid.cell[c].rho*(cell[c].k+cell[c].update[0])/(cell[c].omega+cell[c].update[1]);
 		double mu=viscosity;
-		if (FLAMELET) mu=flamelet.cell[c].mu;
 		if (new_mu_t/mu>viscosityRatioLimit) {
 			counter++; 
 			double under_relax;
@@ -404,6 +399,8 @@ void RANS::update(double &resK, double &resOmega) {
 		resK=totalResiduals[0]; resOmega=totalResiduals[1];
 	}
 	resK=sqrt(resK); resOmega=sqrt(resOmega);
+	resK/=resK_norm*double(grid.globalCellCount);
+	resOmega/=resOmega_norm*double(grid.globalCellCount);
 	
 	return;
 

@@ -23,11 +23,9 @@
 #include "commons.h"
 #include "petsc_functions.h"
 #include "bc.h"
-#include "flamelet.h"
 #include "rans.h"
 
 extern BC bc;
-extern Flamelet flamelet;
 extern RANS rans;
 
 inline void cons2prim(Cell &c,int cid,double P[][5]) {
@@ -62,27 +60,6 @@ inline void cons2prim(Cell &c,int cid,double P[][5]) {
 	return;
 }
 
-inline void cons2prim_flamelet(Cell &c,int cid,double P[][5]) {
-	
-	double p=c.p+Pref;
-
-	double drho_dp=c.rho/p; //flamelet.cell[cid].gamma;
-	double drho_dZ=flamelet.table.get_drho_dZ(flamelet.cell[cid].Z,flamelet.cell[cid].Zvar,flamelet.cell[cid].Chi);
-
-	//drho_dp=0.;
-	// Conservative to primite Jacobian
-	P[0][0]=drho_dp; P[0][4]=drho_dZ;
-	
-	P[1][0]=drho_dp*c.v[0]; P[1][1]=c.rho; P[1][4]=drho_dZ*c.v[0];
-	P[2][0]=drho_dp*c.v[1]; P[2][2]=c.rho; P[2][4]=drho_dZ*c.v[1];
-	P[3][0]=drho_dp*c.v[2]; P[3][3]=c.rho; P[3][4]=drho_dZ*c.v[2];
-	
-	P[4][0]=flamelet.cell[cid].Z*drho_dp;
-	P[4][4]=flamelet.cell[cid].Z*drho_dZ+c.rho;
-
-	return;
-}
-
 void mat_print(double P[][5]);
 
 void initialize_linear_system() {
@@ -97,8 +74,7 @@ void initialize_linear_system() {
 	
 	for (int c=0;c<grid.cellCount;++c) {
 
-		if (FLAMELET) cons2prim_flamelet(grid.cell[c],c,P);
-		else cons2prim(grid.cell[c],c,P);
+		cons2prim(grid.cell[c],c,P);
 
 		for (int i=0;i<5;++i) {
 			row=(grid.myOffset+c)*5+i;

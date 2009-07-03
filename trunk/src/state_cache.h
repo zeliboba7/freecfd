@@ -27,7 +27,7 @@
 
 class Cell_State {
 	public:
-		double p,T,T_center,rho,a,H,volume,Z,Z_center,Zvar,Chi,R,gamma;
+		double p,T,T_center,rho,a,H,volume,R,gamma;
 		Vec3D v,v_center,vN;
 		Vec3D gradU,gradV,gradW;
 		vector<double> update;
@@ -39,10 +39,6 @@ class Cell_State {
 			a=rhs.a;
 			H=rhs.H;
 			v=rhs.v;
-			Z=rhs.Z;
-			Z_center=rhs.Z_center;
-			Zvar=rhs.Zvar;
-			Chi=rhs.Chi;
 			R=rhs.R;
 			gamma=rhs.gamma;
 			gradU=rhs.gradU;
@@ -61,7 +57,7 @@ class Face_State {
 		int index;
 		double p,T,mu_t,diff;
 		Vec3D v;
-		Vec3D gradU,gradV,gradW,gradT,gradZ;
+		Vec3D gradU,gradV,gradW,gradT;
 		Vec3D normal,tangent1,tangent2,left2right;
 		double area;
 		int bc;

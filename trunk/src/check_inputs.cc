@@ -153,6 +153,7 @@ void check_inputs(InputFile &input) {
 	
 	PS_TIME_STEP_TYPE=NONE;
 	ps_dt_current=input.section("pseudoTimeMarching").get_double("stepSize");
+	ps_timeStepMax=input.section("pseudoTimeMarching").get_int("numberOfSteps");
 	if (input.section("pseudoTimeMarching").get_double("stepSize").is_found) {
 		PS_TIME_STEP_TYPE=FIXED; 
 	}
@@ -174,22 +175,25 @@ void check_inputs(InputFile &input) {
 		}
 		PS_TIME_STEP_TYPE=CFL_LOCAL; ps_CFLlocal=input.section("pseudoTimeMarching").get_double("CFLlocal");
 	}
-	else if (input.section("pseudoTimeMarching").get_double("adaptive").is_found) {
-
-		if (PS_TIME_STEP_TYPE==CFL_MAX) {
-			cerr << "[E] Input entry pseudoTimeMarching -> adaptive can't be specified together with CFLmax!!" << endl;
-			exit(1);
-		}
-		if (PS_TIME_STEP_TYPE==CFL_LOCAL) {
-			cerr << "[E] Input entry pseudoTimeMarching -> adaptive can't be specified together with CFLlocal!!" << endl;
-			exit(1);
-		}
-		PS_TIME_STEP_TYPE=ADAPTIVE; 
-		ps_dt_relax=input.section("pseudoTimeMarching").get_double("adaptive");
-		ps_dt_min=input.section("pseudoTimeMarching").get_double("stepSizeMin");
-		ps_dt_max=input.section("pseudoTimeMarching").get_double("stepSizeMax");
+	
+	if (input.section("pseudoTimeMarching").get_double("adaptive").is_found) {
+		ps_relax=input.section("pseudoTimeMarching").get_double("adaptive");
+		ps_min=input.section("pseudoTimeMarching").get_double("min");
+		ps_max=input.section("pseudoTimeMarching").get_double("max");
 	}
 	
+	option=input.section("pseudoTimeMarching").get_string("preconditioner");
+	if (option=="none") {
+		PRECONDITIONER=NONE;
+	} else if (option=="ws95") {
+		PRECONDITIONER=WS95;
+	} else {
+		if (Rank==0) {
+			cerr << "[E] Input entry pseudoTimeMarching -> preconditioner=" << option << " is not recognized!!" << endl;
+			cerr << "[E] Acceptable options are none and ws95" << endl;
+			exit(1);
+		}
+	}
 	
 	option=input.section("numericalOptions").get_string("convectiveFlux");
 	if (option=="Roe") {
@@ -216,20 +220,7 @@ void check_inputs(InputFile &input) {
 			exit(1);
 		}
 	}
-	
-	option=input.section("numericalOptions").get_string("preconditioner");
-	if (option=="none") {
-		PRECONDITIONER=NONE;
-	} else if (option=="ws95") {
-		PRECONDITIONER=WS95;
-	} else {
-		if (Rank==0) {
-			cerr << "[E] Input entry numericalOptions -> preconditioner=" << option << " is not recognized!!" << endl;
-			cerr << "[E] Acceptable options are none and ws95" << endl;
-			exit(1);
-		}
-	}
-	
+		
 	option=input.section("numericalOptions").get_string("order");
 	if (option=="first") {
 		order=1;
@@ -285,7 +276,7 @@ void check_inputs(InputFile &input) {
 		}
 	}
 	
-	FLAMELET=input.section("flamelet").get_string("tableFile").is_found;
+
 	omegaLowLimit=input.section("turbulence").get_double("omegaLowLimit");
 	kLowLimit=input.section("turbulence").get_double("kLowLimit");
 	kHighLimit=input.section("turbulence").get_double("kHighLimit");
@@ -297,12 +288,18 @@ void check_inputs(InputFile &input) {
 	Minf=input.section("reference").get_double("Mach");
 	Pref=input.section("reference").get_double("p");
 	Tref=input.section("reference").get_double("T");
+	resP_norm=input.section("residualNormalization").get_double("p");
+	resV_norm=input.section("residualNormalization").get_double("v");
+	resT_norm=input.section("residualNormalization").get_double("T");
+	resK_norm=input.section("residualNormalization").get_double("k");
+	resOmega_norm=input.section("residualNormalization").get_double("omega");
 	jacobianUpdateFreq=input.section("jacobian").get_int("updateFrequency");
 	outFreq=input.section("writeOutput").get_int("plotFrequency");
 	restartFreq=input.section("writeOutput").get_int("restartFrequency");
 	ramp=input.section("timeMarching").subsection("ramp").is_found;
 	ramp_initial=input.section("timeMarching").subsection("ramp").get_double("initial");
 	ramp_growth=input.section("timeMarching").subsection("ramp").get_double("growth");
+	ps_tolerance=input.section("pseudoTimeMarching").get_double("tolerance");
 	limiter_sharpening=input.section("numericalOptions").get_double("sharpeningFactor");
 	probeFreq=input.section("probes").get_int("frequency");
 	integrateBoundaryFreq=input.section("integrateBoundary").get_int("frequency");

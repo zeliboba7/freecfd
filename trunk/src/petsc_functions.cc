@@ -42,7 +42,6 @@ void petsc_init(int argc, char *argv[],double rtol,double abstol,int maxits) {
 	KSPCreate(PETSC_COMM_WORLD,&ksp);
 	//KSPGetPC(ksp,&pc);
 	//PCSetType(pc,PCILU);
-	//if (FLAMELET) PCSetType(pc,PCJACOBI);
 	//PCFactorSetMatOrderingType(pc,MATORDERING_RCM);
 	//PCFactorSetReuseOrdering(pc,PETSC_TRUE);
 	
@@ -122,14 +121,16 @@ void petsc_solve(int &nIter,double &rNorm) {
 	VecAssemblyBegin(rhs);
 	VecAssemblyEnd(rhs);
 	
-	MatAssemblyBegin(pseudo_time,MAT_FINAL_ASSEMBLY);
-	MatAssemblyEnd(pseudo_time,MAT_FINAL_ASSEMBLY);
-	
-	VecAssemblyBegin(pseudo_right);
-	VecAssemblyEnd(pseudo_right);
-	
-	VecAXPY(rhs,-1.,pseudo_right); // rhs-=pseudo_right
-	MatAXPY(impOP,1.,pseudo_time,DIFFERENT_NONZERO_PATTERN); // impOP+=pseudo_time
+	if (ps_timeStepMax>1) {
+		MatAssemblyBegin(pseudo_time,MAT_FINAL_ASSEMBLY);
+		MatAssemblyEnd(pseudo_time,MAT_FINAL_ASSEMBLY);
+		
+		VecAssemblyBegin(pseudo_right);
+		VecAssemblyEnd(pseudo_right);
+		
+		VecAXPY(rhs,-1.,pseudo_right); // rhs-=pseudo_right
+		MatAXPY(impOP,1.,pseudo_time,DIFFERENT_NONZERO_PATTERN); // impOP+=pseudo_time
+	}
 	
 	KSPSetOperators(ksp,impOP,impOP,SAME_NONZERO_PATTERN);
 	KSPSolve(ksp,rhs,deltaU);
@@ -137,7 +138,7 @@ void petsc_solve(int &nIter,double &rNorm) {
 	KSPGetIterationNumber(ksp,&nIter);
 	KSPGetResidualNorm(ksp,&rNorm); 
 	
-	MatAXPY(impOP,-1.,pseudo_time,DIFFERENT_NONZERO_PATTERN); // impOP-=pseudo_time
+	if (ps_timeStepMax>1) MatAXPY(impOP,-1.,pseudo_time,DIFFERENT_NONZERO_PATTERN); // impOP-=pseudo_time
 	
 	int index;
 	for (int c=0;c<grid.cellCount;++c) {

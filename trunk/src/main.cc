@@ -33,7 +33,6 @@
 
 #include "commons.h"
 #include "rans.h"
-#include "flamelet.h"
 #include "inputs.h"
 #include "bc.h"
 #include "mpi_functions.h"
@@ -80,15 +79,13 @@ InputFile input;
 // But memory won't be allocated for cell,face,etc.. variables for laminar cases
 // So it is OK
 RANS rans;
-// Same goes for the flamelet model
-Flamelet flamelet;
 
 vector<Probe> probes;
 vector<BoundaryFlux> boundaryFluxes;
 
-double resP,resV,resT,resK,resOmega,resZ,resZvar;
-double resP_old,resV_old,resT_old,factor;
-double resP_norm,resV_norm,resT_norm;
+double resP,resV,resT,resK,resOmega;
+double resP_old,resV_old,resT_old;
+double resP_first,resV_first,resT_first;
 
 int main(int argc, char *argv[]) {
 	
@@ -119,7 +116,6 @@ int main(int argc, char *argv[]) {
 		ramp=false;
 	}
 	int timeStepMax=input.section("timeMarching").get_int("numberOfSteps");
-	int ps_timeStepMax=input.section("pseudoTimeMarching").get_int("numberOfSteps");
 	
 	grid.read(gridFileName);
 	// Hand shake with other processors
@@ -131,15 +127,6 @@ int main(int argc, char *argv[]) {
 		rans.allocate();
 		rans.mpi_init();
 		if (Rank==0) cout << "[I] Initialized turbulence model" << endl;
-	}
-	
-	if (FLAMELET) {
-		flamelet.allocate();
-		flamelet.mpi_init();
-		if (Rank==0) cout << "[I] Initialized flamelet model" << endl;
-		flamelet.table.read(input.section("flamelet").get_string("tableFile"));
-		if (Rank==0) cout << "[I] Read flamelet pdf table" << endl;
-		flamelet.relaxation=input.section("flamelet").get_double("relaxation");
 	}
 	
 	initialize(input);
@@ -178,13 +165,6 @@ int main(int argc, char *argv[]) {
 					input.section("linearSolver").get_int("maxIterations"));
 	}
 	
-	if (FLAMELET) {
-		// Initialize petsc for turbulence model
-		flamelet.petsc_init(input.section("linearSolver").get_double("relTolerance"),
-				input.section("linearSolver").get_double("absTolerance"),
-				input.section("linearSolver").get_int("maxIterations"));
-	}
-	
 	// Initialize time step or CFL size if ramping
 	if (ramp) {
 		if (TIME_STEP_TYPE==FIXED) {
@@ -213,8 +193,8 @@ int main(int argc, char *argv[]) {
 	bool firstTimeStep=true;
 	for (timeStep=restart+1;timeStep<=timeStepMax+restart;++timeStep) {
 
-		int nIter,nIterTurb,nIterFlame; // Number of linear solver iterations
-		double rNorm,rNormTurb,rNormFlame; // Residual norm of the linear solver
+		int nIter,nIterTurb; // Number of linear solver iterations
+		double rNorm,rNormTurb; // Residual norm of the linear solver
 
 		// Flush boundary forces
 		if ((timeStep) % integrateBoundaryFreq == 0) {
@@ -226,16 +206,6 @@ int main(int argc, char *argv[]) {
 		}
 		
 		if (firstTimeStep) {
-			
-			if (FLAMELET) {
-				flamelet.lookup();
-				flamelet.mpi_update_ghost();
-				flamelet.gradients();
-				flamelet.mpi_update_ghost_gradients();
-				flamelet.limit_gradients();
-				flamelet.mpi_update_ghost_gradients(); // Called again to update the ghost gradients
-				flamelet.update_face_properties();
-			}
 			
 			mpi_update_ghost_primitives();
 			
@@ -277,9 +247,9 @@ int main(int argc, char *argv[]) {
 		initialize_linear_system();
 
 		for (ps_timeStep=1;ps_timeStep<=ps_timeStepMax;++ps_timeStep) {
-			get_ps_dt();
+			if (ps_timeStepMax>1) get_ps_dt();
 			assemble_linear_system();
-			pseudo_time_terms();
+			if (ps_timeStepMax>1) pseudo_time_terms();
 			petsc_solve(nIter,rNorm);
 			// Update Navier-Stokes
 			update();
@@ -288,51 +258,26 @@ int main(int argc, char *argv[]) {
 		
 			// Gradient are calculated for NS and/or second order schemes
 			if (EQUATIONS==NS || order==SECOND ) {
-			// Calculate all the cell gradients for each variable
+				// Calculate all the cell gradients for each variable
 				grid.gradients();
-			// Update gradients of the ghost cells
+				// Update gradients of the ghost cells
 				mpi_update_ghost_gradients();
 			}
 		
 			if (LIMITER!=NONE) {
-			// Limit gradients
+				// Limit gradients
 				grid.limit_gradients(); 
-			// Update limited gradients of the ghost cells
+				// Update limited gradients of the ghost cells
 				mpi_update_ghost_gradients();
 			}
+					
+			if (Rank==0 && ps_timeStepMax>1) cout << ps_timeStep << "\t" << resP << "\t" << resV << "\t" << resT << endl;
 			
-			flamelet.lookup();
-			flamelet.mpi_update_ghost();
-			flamelet.gradients();
-			flamelet.mpi_update_ghost_gradients();
-			flamelet.limit_gradients();
-			flamelet.mpi_update_ghost_gradients(); // Called again to update the ghost gradients
-			flamelet.update_face_properties();
-			
-			if (Rank==0) cout << ps_timeStep << "\t" << resP << "\t" << resV << "\t" << resT << "\t" << factor << "\t" << ps_CFLlocal << endl;
-			
-			if (resP<0.1 && resV<0.1) break;
+			if (resP/resP_first<ps_tolerance && resV/resV_first<ps_tolerance) break;
 		}
 		
 		get_dt();
 		get_CFLmax();
-		
-		// Solve flamelet equations
-		if (FLAMELET) {
-			update_face_mdot();
-			flamelet.terms();
-			flamelet.petsc_solve(nIterFlame,rNormFlame);
-			flamelet.update(resZ,resZvar);
-			flamelet.lookup();
-			flamelet.mpi_update_ghost();
-			flamelet.gradients();
-			flamelet.mpi_update_ghost_gradients();
-			flamelet.limit_gradients();
-			flamelet.mpi_update_ghost_gradients(); // Called again to update the ghost gradients
-			flamelet.update_face_properties();
-		}
-		
-
 		
 		if (TURBULENCE_MODEL!=NONE) {
 			update_face_mdot();
@@ -365,9 +310,8 @@ int main(int argc, char *argv[]) {
 				cout << setw(12) << "CFLmax";
 				cout << setw(12) << "resP";
 				cout << setw(12) << "resV";
-				if (!FLAMELET) cout << setw(12) << "resT";
+				cout << setw(12) << "resT";
 				if (TURBULENCE_MODEL!=NONE) cout << setw(12) << "resK" << setw(12) << "resOmega";
-				if (FLAMELET) cout << setw(12) << "resZ" << setw(12) << "resZvar";
 				cout << endl;	
  			}
 
@@ -379,17 +323,14 @@ int main(int argc, char *argv[]) {
 			cout << setw(12) << CFLmax;
 			cout << setw(12) << resP;
 			cout << setw(12) << resV;
-			if (!FLAMELET) cout << setw(12) << resT;
+			cout << setw(12) << resT;
 			iterFile << timeStep << "\t" << nIter << "\t" << rNorm;
 			
 			if (TURBULENCE_MODEL!=NONE) {
 				cout << setw(12) << resK << setw(12) << resOmega;
 				iterFile << "\t" << nIterTurb << "\t" << rNormTurb;
 			}
-			if (FLAMELET) {
-				cout << setw(12) << resZ << setw(12) << resZvar;
-				iterFile << "\t" << nIterFlame << "\t" << rNormFlame;
-			}
+			
 			cout << endl; iterFile << endl;
 			
 			
@@ -426,10 +367,6 @@ int main(int argc, char *argv[]) {
 				if (TURBULENCE_MODEL!=NONE) {
 					int cc=probes[p].nearestCell;
 					file << rans.cell[cc].k << "\t" << rans.cell[cc].omega << "\t" << c.rho*rans.cell[cc].k/rans.cell[cc].omega ;
-				}
-				if (FLAMELET) {
-					int cc=probes[p].nearestCell;
-					file << flamelet.cell[cc].Z << "\t" << flamelet.cell[cc].Zvar ;
 				}
 				file << endl;
 				file.close();
@@ -477,7 +414,6 @@ int main(int argc, char *argv[]) {
 	}
 	
 	if (TURBULENCE_MODEL!=NONE) rans.petsc_destroy();
-	if (FLAMELET) flamelet.petsc_destroy();
 	petsc_finalize();
 
 	return 0;
@@ -529,27 +465,17 @@ double superbee(double a, double b) {
 void update(void) {
 
 	resP_old=resP; resV_old=resV; resT_old=resT;
-	resP=0.; resV=0.; resT=0.; resZ=0.;
+	resP=0.; resV=0.; resT=0.;
 	for (int c = 0;c < grid.cellCount;++c) {
-		//grid.cell[c].update[0]*=0.5;
 		grid.cell[c].p +=grid.cell[c].update[0];
 		grid.cell[c].v[0] +=grid.cell[c].update[1];
 		grid.cell[c].v[1] +=grid.cell[c].update[2];
 		grid.cell[c].v[2] +=grid.cell[c].update[3];
-		if (!FLAMELET) {
-			grid.cell[c].T += grid.cell[c].update[4];
-			grid.cell[c].rho=eos.rho(grid.cell[c].p,grid.cell[c].T);
-		} else {
-			// Limit the update so Z doesn't end up negative
-			grid.cell[c].update[4]=max(-1.*flamelet.cell[c].Z,grid.cell[c].update[4]);
-			// Limit the update so Z doesn't end up larger than 1
-			grid.cell[c].update[4]=min(1.-flamelet.cell[c].Z,grid.cell[c].update[4]);
-			flamelet.cell[c].Z += grid.cell[c].update[4];
-		}
+		grid.cell[c].T += grid.cell[c].update[4];
+		grid.cell[c].rho=eos.rho(grid.cell[c].p,grid.cell[c].T);
 		
 		resP+=grid.cell[c].update[0]*grid.cell[c].update[0];
 		resV+=grid.cell[c].update[1]*grid.cell[c].update[1]+grid.cell[c].update[2]*grid.cell[c].update[2]+grid.cell[c].update[3]*grid.cell[c].update[3];
-		// If flamelet, this is actually Z residual
 		resT+=grid.cell[c].update[4]*grid.cell[c].update[4];
 		
 	} // cell loop
@@ -561,16 +487,18 @@ void update(void) {
 		resP=totalResiduals[0]; resV=totalResiduals[1]; resT=totalResiduals[2];
         }
 	
-	resP=sqrt(resP); resV=sqrt(resV); resT=sqrt(resT); 
+	resP=sqrt(resP); resV=sqrt(resV); resT=sqrt(resT);
+
+	resP/=resP_norm*double(grid.globalCellCount);
+	resV/=resV_norm*double(grid.globalCellCount);
+	resT/=resT_norm*double(grid.globalCellCount);
+	
 	if (ps_timeStep==1) {
-		resP_norm=resP; resV_norm=resV; resT_norm=resT;
-		resP=1.; resV=1.; resT=1.;
-	} else {
-		resP/=resP_norm;
-		resV/=resV_norm;
-		resT/=resT_norm;
+		resP_first=resP;
+		resV_first=resV;
+		resT_first=resT;
 	}
-	if (FLAMELET) resZ=resT;
+	
 	return;
 }
 
@@ -588,7 +516,6 @@ void get_dt(void) {
 		dt_current=1.e20;
 		// Determine time step with CFL condition
 		for (int c=0;c<grid.cellCount;++c) {
-			if (FLAMELET) Gamma=flamelet.cell[c].gamma;
 			double a=sqrt(Gamma*(grid.cell[c].p+Pref)/grid.cell[c].rho);
 			dt_current=min(dt_current,CFLmax*grid.cell[c].lengthScale/(fabs(grid.cell[c].v)+a));
 		}
@@ -597,14 +524,12 @@ void get_dt(void) {
 	} else if (TIME_STEP_TYPE==CFL_LOCAL) {
 		// Determine time step with CFL condition
 		for (int c=0;c<grid.cellCount;++c) {
-			if (FLAMELET) Gamma=flamelet.cell[c].gamma;
 			double a=sqrt(Gamma*(grid.cell[c].p+Pref)/grid.cell[c].rho);
 			grid.cell[c].dt=CFLlocal*grid.cell[c].lengthScale/(fabs(grid.cell[c].v)+a);
 		}
 	}  else if (TIME_STEP_TYPE==ADAPTIVE) {
 		for (int c=0;c<grid.cellCount;++c) {
 			double compare2=fabs(grid.cell[c].T+Tref);
-			if (FLAMELET) compare2=flamelet.cell[c].Z;
 			if (fabs(grid.cell[c].update[0]) > fabs(grid.cell[c].p+Pref)*dt_relax ||
 			    fabs(grid.cell[c].update[4]) > compare2*dt_relax ) {
 				grid.cell[c].dt*=0.5;
@@ -622,60 +547,35 @@ void get_dt(void) {
 } // end get_dt
 
 void get_ps_dt(void) {
-	
-	if (ps_timeStep>=3) {
-		factor=resP_old*factor/resP;
-		factor=min(factor,resV_old*factor/resV);
-		//factor=min(factor,log10(resT_old)/log10(resT));
-	} else {
-		factor=1.;
-	}
-	factor=max(0.5,factor);
-	factor=min(1.1,factor);
-// 	if (factor<=1.) {
-// 		if (resP<1. && resV<1.) factor=1.;
-// 	}
-	ps_dt_current*=factor;
-	
-	//cout << factor << "\t" << resP_old << "\t" << resP << endl;
-	
-	//cerr << "\t" << Rank << "\t" << factor << endl;
+
 	
 	if (PS_TIME_STEP_TYPE==CFL_MAX) {
-		//ps_CFLmax*=factor;
-		ps_CFLmax=max(0.5,ps_CFLmax*factor);
-		ps_CFLmax=min(1.e4,ps_CFLmax*factor);
 		ps_dt_current=1.e20;
 		// Determine time step with CFL condition
 		for (int c=0;c<grid.cellCount;++c) {
-			if (FLAMELET) Gamma=flamelet.cell[c].gamma;
 			double a=sqrt(Gamma*(grid.cell[c].p+Pref)/grid.cell[c].rho);
 			ps_dt_current=min(ps_dt_current,ps_CFLmax*grid.cell[c].lengthScale/(fabs(grid.cell[c].v)+a));
 		}
 		MPI_Allreduce(&ps_dt_current,&ps_dt_current,1, MPI_DOUBLE,MPI_MIN,MPI_COMM_WORLD);
 		for (cit=grid.cell.begin();cit<grid.cell.end();cit++) (*cit).dt=ps_dt_current;
 	} else if (PS_TIME_STEP_TYPE==CFL_LOCAL) {
-// 		ps_CFLlocal=max(0.5,ps_CFLlocal*factor);
-// 		ps_CFLlocal=min(5.,ps_CFLlocal);
 		// Determine time step with CFL condition
 		for (int c=0;c<grid.cellCount;++c) {
-			if (FLAMELET) Gamma=flamelet.cell[c].gamma;
 			double a=sqrt(Gamma*(grid.cell[c].p+Pref)/grid.cell[c].rho);
 			grid.cell[c].dt=ps_CFLlocal*grid.cell[c].lengthScale/(fabs(grid.cell[c].v)+a);
 		}
 	}  else if (PS_TIME_STEP_TYPE==ADAPTIVE) {
 		for (int c=0;c<grid.cellCount;++c) {
 			double compare2=fabs(grid.cell[c].T+Tref);
-			if (FLAMELET) compare2=flamelet.cell[c].Z;
-			if (fabs(grid.cell[c].update[0]) > fabs(grid.cell[c].p+Pref)*ps_dt_relax ||
-			    fabs(grid.cell[c].update[4]) > compare2*ps_dt_relax ) {
+			if (fabs(grid.cell[c].update[0]) > fabs(grid.cell[c].p+Pref)*ps_relax ||
+			    fabs(grid.cell[c].update[4]) > compare2*ps_relax ) {
 				grid.cell[c].dt*=0.5;
-			} else if (fabs(grid.cell[c].update[0]) < 0.5*fabs(grid.cell[c].p+Pref)*ps_dt_relax ||
-			    fabs(grid.cell[c].update[4]) < 0.5*compare2*ps_dt_relax ) {
-				grid.cell[c].dt*=(1.+ps_dt_relax);
+			} else if (fabs(grid.cell[c].update[0]) < 0.5*fabs(grid.cell[c].p+Pref)*ps_relax ||
+			    fabs(grid.cell[c].update[4]) < 0.5*compare2*ps_relax ) {
+				grid.cell[c].dt*=(1.+ps_relax);
 			}
-			grid.cell[c].dt=min(grid.cell[c].dt,ps_dt_max);
-			grid.cell[c].dt=max(grid.cell[c].dt,ps_dt_min);
+			grid.cell[c].dt=min(grid.cell[c].dt,ps_max);
+			grid.cell[c].dt=max(grid.cell[c].dt,ps_min);
 		}
 		
 	}
@@ -688,7 +588,6 @@ void get_CFLmax(void) {
 
 	CFLmax=0.;
 	for (int c=0;c<grid.cellCount;++c) {
-		if (FLAMELET) Gamma=flamelet.cell[c].gamma;
 		double a=sqrt(Gamma*(grid.cell[c].p+Pref)/grid.cell[c].rho);
 		CFLmax=max(CFLmax,(fabs(grid.cell[c].v)+a)*grid.cell[c].dt/grid.cell[c].lengthScale);
 	}
