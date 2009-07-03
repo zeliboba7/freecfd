@@ -21,10 +21,8 @@
 
 *************************************************************************/
 #include "rans.h"
-#include "flamelet.h"
 
 extern RANS rans;
-extern Flamelet flamelet;
 double EPS=1.e-10;
 
 void get_kOmega(void);
@@ -62,7 +60,6 @@ void RANS::terms(void) {
 		
 		parent=grid.face[f].parent; neighbor=grid.face[f].neighbor;
 		
-		if (FLAMELET) mu=flamelet.face[f].mu;
 		mu_t=face[f].mu_t;
 		
 		// Convective flux is based on mdot calculated through the Riemann solver right after
@@ -175,7 +172,6 @@ void RANS::terms(void) {
 		row++;
 		MatSetValues(impOP,1,&row,1,&row,&value,ADD_VALUES);
 		
-		if (FLAMELET) mu=flamelet.cell[c].mu;
 		if (TURBULENCE_MODEL==BSL || TURBULENCE_MODEL==SST) {
 			blending=get_blending(cell[c].k,cell[c].omega,grid.cell[c].rho,grid.cell[c].closest_wall_distance,mu,cell[c].grad[0],cell[c].grad[1]);
 		}

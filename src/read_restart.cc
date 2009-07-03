@@ -28,9 +28,7 @@ using namespace std;
 
 #include <cgnslib.h>
 #include "rans.h"
-#include "flamelet.h"
 extern RANS rans;
-extern Flamelet flamelet;
 extern IndexMaps maps;
 extern string int2str(int number) ;
 
@@ -161,34 +159,6 @@ void read_restart(double &time) {
 					file >> rans.cell[id].omega; 
 				
 				} else { file >> dummy; }
-			}
-		}
-		
-		if (FLAMELET) {
-			// Read Z
-			for (int c=0;c<ncells[p];++c) {
-				id=-1;
-				if (maps.cellGlobal2Local.find(partitionMap[p][c])!=maps.cellGlobal2Local.end()) {
-					id=maps.cellGlobal2Local[partitionMap[p][c]];
-				}
-				if (id>=0) { 
-					file >> flamelet.cell[id].Z;
-				
-				} else { file >> dummy; }
-			}
-			
-			// Read Zvar
-			for (int c=0;c<ncells[p];++c) {
-				id=-1;
-				if (maps.cellGlobal2Local.find(partitionMap[p][c])!=maps.cellGlobal2Local.end()) {
-					id=maps.cellGlobal2Local[partitionMap[p][c]];
-				}
-				if (id>=0) { 
-					file >> flamelet.cell[id].Zvar; 
-				
-				} else { file >> dummy; }
-				double Chi=2.0*rans.kepsilon.beta_star*rans.cell[id].omega*flamelet.cell[id].Zvar;
-				flamelet.cell[id].mu=flamelet.table.get_mu(flamelet.cell[id].Z,flamelet.cell[id].Zvar,Chi);
 			}
 		}
 		

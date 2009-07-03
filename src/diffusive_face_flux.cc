@@ -23,10 +23,8 @@
 #include "commons.h"
 #include "state_cache.h"
 #include "rans.h"
-#include "flamelet.h"
 
 extern RANS rans;
-extern Flamelet flamelet;
 
 void diffusive_face_flux(Cell_State &left,Cell_State &right,Face_State &face,double flux[]) {
 
@@ -34,7 +32,6 @@ void diffusive_face_flux(Cell_State &left,Cell_State &right,Face_State &face,dou
 
 	double Tvisc=viscosity;
 	double cond=conductivity;
-	if (FLAMELET) Tvisc=flamelet.face[face.index].mu;
 	if (TURBULENCE_MODEL!=NONE) {
 		Tvisc+=rans.face[face.index].mu_t;
 		cond+=rans.face[face.index].mu_t/0.7;
@@ -59,9 +56,6 @@ void diffusive_face_flux(Cell_State &left,Cell_State &right,Face_State &face,dou
 		flux[4]+=bc.region[face.bc].qdot*face.area;
 	} else {
 		flux[4]+=cond*face.gradT.dot(areaVec);// TODO Viscous dissipation needs to be added too
-	}
- 	if (FLAMELET) {
-		flux[4]=(face.diff+rans.face[face.index].mu_t/flamelet.constants.sigma_t)*face.gradZ.dot(areaVec);
 	}
 
 	//double shear_velocity=sqrt((sqrt(flux[1]*flux[1]+flux[2]*flux[2]+flux[3]*flux[3])/face.area)/right.rho);

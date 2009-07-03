@@ -33,12 +33,7 @@ void read_inputs(InputFile &input) {
 	
 	input.register_string("equations",optional,"NS");
 	input.readEntries();
-	
-	input.registerSection("flamelet",optional);
-	input.section("flamelet").register_string("tableFile",optional,"none");
-	input.section("flamelet").register_double("relaxation",optional,1.);
-	input.readSection("flamelet");
-	
+		
 	input.registerSection("turbulence",optional);
 	input.section("turbulence").register_string("model",optional,"none");
 	input.section("turbulence").register_double("omegaLowLimit",optional,1.);
@@ -63,6 +58,14 @@ void read_inputs(InputFile &input) {
 	input.section("reference").register_double("T",optional,0.);
 	input.readSection("reference");
 	
+	input.registerSection("residualNormalization",optional);
+	input.section("residualNormalization").register_double("p",optional,1.);
+	input.section("residualNormalization").register_double("v",optional,1.);
+	input.section("residualNormalization").register_double("T",optional,1.);
+	input.section("residualNormalization").register_double("k",optional,1.);
+	input.section("residualNormalization").register_double("omega",optional,1.);
+	input.readSection("residualNormalization");
+	
 	input.registerSection("timeMarching",required);
 	input.section("timeMarching").register_string("integrator",optional,"backwardEuler");
 	input.section("timeMarching").register_double("stepSize",optional,1.);
@@ -77,20 +80,21 @@ void read_inputs(InputFile &input) {
 	input.section("timeMarching").register_int("numberOfSteps",required);
 	input.readSection("timeMarching");
 	
-	input.registerSection("pseudoTimeMarching",required);
+	input.registerSection("pseudoTimeMarching",optional);
+	input.section("pseudoTimeMarching").register_string("preconditioner",optional,"none");
 	input.section("pseudoTimeMarching").register_double("stepSize",optional,1.);
 	input.section("pseudoTimeMarching").register_double("CFLmax",optional,1000.);
 	input.section("pseudoTimeMarching").register_double("CFLlocal",optional,1000.);
-	input.section("pseudoTimeMarching").register_double("adaptive",optional,0.05);
-	input.section("pseudoTimeMarching").register_double("stepSizeMax",optional,0.01);
-	input.section("pseudoTimeMarching").register_double("stepSizeMin",optional,1.e-9);
-	input.section("pseudoTimeMarching").register_int("numberOfSteps",required);
+	input.section("pseudoTimeMarching").register_double("adaptive",optional,1.);
+	input.section("pseudoTimeMarching").register_double("max",optional,0.01);
+	input.section("pseudoTimeMarching").register_double("min",optional,1.e-9);
+	input.section("pseudoTimeMarching").register_double("tolerance",optional,1.e-1);
+	input.section("pseudoTimeMarching").register_int("numberOfSteps",optional,1);
 	input.readSection("pseudoTimeMarching");
 	
 	input.registerSection("numericalOptions",optional);
 	input.section("numericalOptions").register_string("convectiveFlux",optional,"AUSM+up");
 	input.section("numericalOptions").register_string("convectiveFluxJac",optional,"AUSM+up");
-	input.section("numericalOptions").register_string("preconditioner",optional,"none");
 	input.section("numericalOptions").register_string("order",optional,"second");
 	input.section("numericalOptions").register_string("limiter",optional,"none");
 	input.section("numericalOptions").register_double("sharpeningFactor",optional,0.25);
@@ -150,8 +154,6 @@ void read_inputs(InputFile &input) {
 	input.section("initialConditions").subsection("IC",0).register_double("rho",optional);
 	input.section("initialConditions").subsection("IC",0).register_double("k",optional,0.);
 	input.section("initialConditions").subsection("IC",0).register_double("omega",optional,0.);
-	input.section("initialConditions").subsection("IC",0).register_double("Z",optional,0.);
-	input.section("initialConditions").subsection("IC",0).register_double("Zvar",optional,0.);
 	input.readSection("initialConditions");
 	
 	input.registerSection("boundaryConditions",required);
@@ -170,8 +172,6 @@ void read_inputs(InputFile &input) {
 	input.section("boundaryConditions").subsection("BC",0).register_double("rho",optional);	
 	input.section("boundaryConditions").subsection("BC",0).register_double("k",optional,0.);
 	input.section("boundaryConditions").subsection("BC",0).register_double("omega",optional,0.);
-	input.section("boundaryConditions").subsection("BC",0).register_double("Z",optional,0.);
-	input.section("boundaryConditions").subsection("BC",0).register_double("Zvar",optional,0.);
 	input.readSection("boundaryConditions");
 	
 	check_inputs(input);

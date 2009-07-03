@@ -39,11 +39,6 @@ void symmetry(Cell_State &left,Cell_State &right,Face_State &face);
 
 void apply_bcs(Cell_State &left,Cell_State &right,Face_State &face) {
 
-	if (FLAMELET) {
-		Gamma=0.5*(left.gamma+right.gamma);
-		eos.R=0.5*(left.R+right.R);
-	}
-	
 	if (bc.region[face.bc].type==INLET) {
 		if (bc.region[face.bc].kind==VELOCITY) velocity_inlet(left,right,face);
 		else if (bc.region[face.bc].kind==MDOT) mdot_inlet(left,right,face);

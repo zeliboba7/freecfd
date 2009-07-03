@@ -21,9 +21,6 @@
 
 *************************************************************************/
 #include "rans.h"
-#include "flamelet.h"
-
-extern Flamelet flamelet;
 
 // Updates the eddy viscosity stores at the cell centers
 void RANS::update_cell_eddy_viscosity(void) {
@@ -35,7 +32,6 @@ void RANS::update_cell_eddy_viscosity(void) {
 	for (int c=0;c<grid.cellCount;++c) {
 		if (TURBULENCE_MODEL==SST) {
 			arg1=2.*sqrt(cell[c].k+1.e-15)/(kepsilon.beta_star*cell[c].omega*grid.cell[c].closest_wall_distance);
-			if (FLAMELET) mu=flamelet.cell[c].mu;
 			arg2=500.*mu/(grid.cell[c].rho*cell[c].omega
 					*grid.cell[c].closest_wall_distance*grid.cell[c].closest_wall_distance);
 			arg3=max(arg1,arg2);

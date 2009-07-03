@@ -32,10 +32,8 @@ using namespace std;
 
 #include <cgnslib.h>
 #include "rans.h"
-#include "flamelet.h"
 
 extern RANS rans;
-extern Flamelet flamelet;
 
 extern string int2str(int number) ;
 
@@ -53,9 +51,6 @@ void write_restart(double time) {
 		file << "VARIABLES = \"x\", \"y\", \"z\",\"p\",\"u\",\"v\",\"w\",\"T\",\"dt\" " ;
 		if (TURBULENCE_MODEL!=NONE) {
 			file << "\"k\", \"omega\" " ; nVar+=2;
-		}
-		if (FLAMELET) {
-			file << "\"Mixture Fraction\", \"Mixture Fraction Variance\" " ; nVar+=2;
 		}
 		file << endl; // DEBUG
 	} else {
@@ -85,10 +80,6 @@ void write_restart(double time) {
 	if (TURBULENCE_MODEL!=NONE) {
 		for (int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << rans.cell[c].k << endl;
 		for (int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << rans.cell[c].omega << endl;
-	}
-	if (FLAMELET) {
-		for (int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << flamelet.cell[c].Z << endl;
-		for (int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << flamelet.cell[c].Zvar << endl;
 	}
 	// Write coonnectivity
 	for (int c=0;c<grid.cellCount;++c) {

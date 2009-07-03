@@ -32,11 +32,9 @@ using namespace std;
 #include "bc.h"
 #include "inputs.h"
 #include "rans.h"
-#include "flamelet.h"
 
 extern BC bc;
 extern RANS rans;
-extern Flamelet flamelet;
 
 extern string int2str(int number) ;
 void write_tec_vars(int &nVar);
@@ -94,10 +92,6 @@ void write_tec_vars(int &nVar) {
 				nVar++;
 			}
 		}
-		if (FLAMELET) {
-			file << ",\"viscosity\", \"Mixture Fraction\",\"Mixture Fraction Variance\",\"Laminar T\" ";
-			nVar+=4;
-		}
 		file << endl;
 		file << "ZONE, T=\"Volume " << Rank << "\" ZONETYPE=FEBRICK DATAPACKING=POINT" << endl;
 		file << "NODES=" << grid.globalNodeCount << " ELEMENTS=" << grid.globalCellCount << endl;
@@ -108,18 +102,17 @@ void write_tec_vars(int &nVar) {
 		// Write variables
 		map<int,double>::iterator it;
 		set<int>::iterator sit;
-		double p_node,T_node,rho_node,k_node,omega_node,Z_node,Zvar_node,visc_node,dt_node;
-		double mu_t_node, filter_node,R_node;
-		double laminar_T_node;
+		double p_node,T_node,rho_node,k_node,omega_node,dt_node;
+		double mu_t_node, filter_node;
 		Vec3D v_node;
-		int count_p,count_v,count_T,count_k,count_omega,count_mu_t,count_rho,count_Z,count_Zvar;
+		int count_p,count_v,count_T,count_k,count_omega,count_mu_t,count_rho;
 		double Ma;
 		
 		for (int n=0;n<grid.nodeCount;++n) {
 			if (maps.nodeGlobal2Output[grid.node[n].globalId]>=grid.nodeCountOffset) {
 				
-				p_node=0.;v_node=0.;T_node=0.;k_node=0.;omega_node=0.;Z_node=0.;Zvar_node=0.;
-				mu_t_node=0.; filter_node=0.; dt_node=0.; R_node=0.;
+				p_node=0.;v_node=0.;T_node=0.;k_node=0.;omega_node=0.;
+				mu_t_node=0.; filter_node=0.; dt_node=0.; 
 				double real_weight_sum=0.;
 				for ( it=grid.node[n].average.begin() ; it != grid.node[n].average.end(); it++ ) {
 					if ((*it).first>=0) { // if contribution is coming from a real cell
@@ -133,11 +126,6 @@ void write_tec_vars(int &nVar) {
 							mu_t_node+=(*it).second*rans.cell[(*it).first].mu_t;
 							filter_node+=(*it).second*rans.cell[(*it).first].filterFunction;
 						}
-						if (FLAMELET) {
-							Z_node+=(*it).second*flamelet.cell[(*it).first].Z;
-							Zvar_node+=(*it).second*flamelet.cell[(*it).first].Zvar;
-							R_node+=(*it).second*flamelet.cell[(*it).first].R;
-						}
 						real_weight_sum+=(*it).second;
 					} else { // if contribution is coming from a ghost cell
 						p_node+=(*it).second*grid.ghost[-1*((*it).first+1)].p;
@@ -147,11 +135,6 @@ void write_tec_vars(int &nVar) {
 							k_node+=(*it).second*rans.ghost[-1*((*it).first+1)].k;
 							omega_node+=(*it).second*rans.ghost[-1*((*it).first+1)].omega;
 							mu_t_node+=(*it).second*rans.ghost[-1*((*it).first+1)].mu_t;
-						}
-						if (FLAMELET) {
-							Z_node+=(*it).second*flamelet.ghost[-1*((*it).first+1)].Z;
-							Zvar_node+=(*it).second*flamelet.ghost[-1*((*it).first+1)].Zvar;
-							R_node+=(*it).second*flamelet.ghost[-1*((*it).first+1)].R;
 						}
 					}
 				}
@@ -168,11 +151,9 @@ void write_tec_vars(int &nVar) {
 				
 				k_node=max(k_node,kLowLimit);
 				omega_node=max(omega_node,omegaLowLimit);
-				Z_node=max(Z_node,0.);
-				Z_node=min(Z_node,1.);
-				Zvar_node=max(Zvar_node,0.);
+								
+				count_p=0; count_v=0; count_T=0; count_rho=0; count_k=0; count_omega=0; count_mu_t=0;
 				
-				count_p=0; count_v=0; count_T=0; count_rho=0; count_k=0; count_omega=0; count_Z=0; count_Zvar=0; count_mu_t=0;
 				for (sit=grid.node[n].bcs.begin();sit!=grid.node[n].bcs.end();sit++) {
 					if (bc.region[(*sit)].specified==BC_STATE) {
 						if (count_p>0) p_node+=bc.region[(*sit)].p; else p_node=bc.region[(*sit)].p;
@@ -219,18 +200,7 @@ void write_tec_vars(int &nVar) {
 				if (count_k>0) k_node/=double(count_k);
 				if (count_omega>0) omega_node/=double(count_omega);
 				if (count_mu_t>0) mu_t_node/=double(count_mu_t);
-				if (count_Z>0) Z_node/=double(count_Z);
-				if (count_Zvar>0) Zvar_node/=double(count_Zvar);
-				
-				if (FLAMELET) {
-					double Chi=log10(2.0*rans.kepsilon.beta_star*omega_node*Zvar_node);
-					double zero=0.;
-					flamelet.table.get_rho_T_comp(p_node,Z_node,zero,zero,rho_node,laminar_T_node);
-					flamelet.table.get_rho_T_comp(p_node,Z_node,Zvar_node,Chi,rho_node,T_node);
-					visc_node=flamelet.table.get_mu(Z_node,Zvar_node,Chi,false);
-					Gamma=flamelet.table.get_gamma(Z_node,Zvar_node,Chi,false);
-				}
-				
+								
 				Ma=sqrt((v_node.dot(v_node))/(Gamma*(p_node+Pref)/rho_node));
 		
 				file << setw(16) << setprecision(8) << scientific;
@@ -250,12 +220,6 @@ void write_tec_vars(int &nVar) {
 					file << omega_node << "\t";
 					file << mu_t_node << "\t";
 					if (TURBULENCE_FILTER!=NONE) file << filter_node << "\t";
-				}
-				if (FLAMELET) {
-					file << visc_node << "\t";
-					file << Z_node << "\t";
-					file << Zvar_node << "\t";
-					file << laminar_T_node << "\t";
 				}
 				file << endl;
 			}

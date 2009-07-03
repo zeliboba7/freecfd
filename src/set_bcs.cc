@@ -25,11 +25,9 @@
 #include "inputs.h"
 #include "bc.h"
 #include "rans.h"
-#include "flamelet.h"
 
 extern RANS rans;
 extern BC bc;
-extern Flamelet flamelet;
 bool withinBox(Vec3D point, Vec3D corner_1, Vec3D corner_2);
 
 void setBCs(InputFile &input, BC &bc) {
@@ -71,70 +69,51 @@ void setBCs(InputFile &input, BC &bc) {
 		bcRegion.k=region.get_double("k");
 		bcRegion.omega=region.get_double("omega");
 		
-		if (!FLAMELET) {
-			if (region.get_double("p").is_found) {
-				bcRegion.p=region.get_double("p");
-				if (region.get_double("T").is_found) {
-					if (region.get_double("rho").is_found) {
-						cerr << "[E] Thermodynamic state is overspecified in boundary condition BC_" << b+1 << endl;
-						exit(1);
-					}
-					bcRegion.T=region.get_double("T");
-					bcRegion.rho=eos.rho(bcRegion.p,bcRegion.T);
-					bcRegion.specified=BC_STATE;
-					bcRegion.thermalType=FIXED_T;
-				} else if (region.get_double("rho").is_found) {
-					bcRegion.rho=region.get_double("rho");
-					bcRegion.T=eos.T(bcRegion.p,bcRegion.rho);
-					bcRegion.specified=BC_STATE;
-					bcRegion.thermalType=FIXED_T;
-				} else {
-					bcRegion.specified=BC_P;
-					if (bcRegion.type==NOSLIP || bcRegion.type==SLIP) bcRegion.thermalType=ADIABATIC;
-				}
-			} else if (region.get_double("T").is_found) {
-				bcRegion.T=region.get_double("T");
+		if (region.get_double("p").is_found) {
+			bcRegion.p=region.get_double("p");
+			if (region.get_double("T").is_found) {
 				if (region.get_double("rho").is_found) {
-					bcRegion.rho=region.get_double("rho");
-					bcRegion.p=eos.p(bcRegion.rho,bcRegion.T);
-					bcRegion.specified=BC_STATE;
-					bcRegion.thermalType=FIXED_T;
-				} else {
-					bcRegion.specified=BC_T;
-					bcRegion.thermalType=FIXED_T;
+					cerr << "[E] Thermodynamic state is overspecified in boundary condition BC_" << b+1 << endl;
+					exit(1);
 				}
+				bcRegion.T=region.get_double("T");
+				bcRegion.rho=eos.rho(bcRegion.p,bcRegion.T);
+				bcRegion.specified=BC_STATE;
+				bcRegion.thermalType=FIXED_T;
 			} else if (region.get_double("rho").is_found) {
 				bcRegion.rho=region.get_double("rho");
-				bcRegion.specified=BC_RHO;
-			} else if (region.get_double("qdot").is_found) {
-				if (bcRegion.type==NOSLIP || bcRegion.type==SLIP) {
-					bcRegion.thermalType=FIXED_Q;
-					bcRegion.qdot=region.get_double("qdot");
-				}
+				bcRegion.T=eos.T(bcRegion.p,bcRegion.rho);
+				bcRegion.specified=BC_STATE;
+				bcRegion.thermalType=FIXED_T;
 			} else {
+				bcRegion.specified=BC_P;
 				if (bcRegion.type==NOSLIP || bcRegion.type==SLIP) bcRegion.thermalType=ADIABATIC;
 			}
-			
-
-			if (bcRegion.type==SYMMETRY) bcRegion.thermalType=ADIABATIC;
-		} else {
-			bcRegion.thermalType=ADIABATIC;
-			if (region.get_double("Z").is_found) {
-				bcRegion.specified=BC_T;
-				bcRegion.Z=region.get_double("Z");
-				bcRegion.Zvar=region.get_double("Zvar");
-				double Chi=2.*bcRegion.omega*bcRegion.Zvar*rans.kepsilon.beta_star;
-				bcRegion.rho=flamelet.table.get_rho(bcRegion.Z,bcRegion.Zvar,Chi);	
-				bcRegion.T=flamelet.table.get_T(bcRegion.Z,bcRegion.Zvar,Chi,false);
-				if (region.get_double("p").is_found) {
-					bcRegion.p=region.get_double("p");
-					bcRegion.specified=BC_FLAMELET_INLET_P;
-				}
+		} else if (region.get_double("T").is_found) {
+			bcRegion.T=region.get_double("T");
+			if (region.get_double("rho").is_found) {
+				bcRegion.rho=region.get_double("rho");
+				bcRegion.p=eos.p(bcRegion.rho,bcRegion.T);
+				bcRegion.specified=BC_STATE;
 				bcRegion.thermalType=FIXED_T;
-			} else if (bcRegion.type==OUTLET && region.get_double("p").is_found) {
-				bcRegion.specified=BC_P;
+			} else {
+				bcRegion.specified=BC_T;
+				bcRegion.thermalType=FIXED_T;
 			}
+		} else if (region.get_double("rho").is_found) {
+			bcRegion.rho=region.get_double("rho");
+			bcRegion.specified=BC_RHO;
+		} else if (region.get_double("qdot").is_found) {
+			if (bcRegion.type==NOSLIP || bcRegion.type==SLIP) {
+				bcRegion.thermalType=FIXED_Q;
+				bcRegion.qdot=region.get_double("qdot");
+			}
+		} else {
+			if (bcRegion.type==NOSLIP || bcRegion.type==SLIP) bcRegion.thermalType=ADIABATIC;
 		}
+		
+
+		if (bcRegion.type==SYMMETRY) bcRegion.thermalType=ADIABATIC;
 		
 
 		

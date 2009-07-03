@@ -95,23 +95,22 @@
 #define BC_V 5
 #define BC_EXTRAPOLATE 6
 #define BC_REFLECT 7
-#define BC_FLAMELET_INLET 8
-#define BC_FLAMELET_INLET_P 9
 
 extern int DIMENSION,EQUATIONS,TURBULENCE_MODEL,TURBULENCE_FILTER;
 extern int TIME_INTEGRATOR,TIME_STEP_TYPE;
 extern int PS_TIME_STEP_TYPE;
 extern int CONVECTIVE_FLUX_FUNCTION,CONVECTIVE_FLUX_FUNCTION_JAC,LIMITER,PRECONDITIONER;
 extern int OUTPUT_FORMAT;
-extern bool FLAMELET,GRAD_TEST;
+extern bool GRAD_TEST;
 
 extern int Rank,np;
 extern double omegaLowLimit,kLowLimit,kHighLimit,viscosityRatioLimit,turbulenceFilterSize;
 extern double dt_relax,dt_current,dt_target,dt_min,dt_max,CFLmax,CFLmaxTarget,CFLlocal,CFLlocalTarget;
 extern int timeStep,restart;
-extern int ps_timeStep;
-extern double ps_dt_relax,ps_dt_current,ps_dt_min,ps_dt_max,ps_CFLmax,ps_CFLlocal;
+extern int ps_timeStep,ps_timeStepMax;
+extern double ps_relax,ps_dt_current,ps_min,ps_max,ps_CFLmax,ps_CFLlocal,ps_tolerance;
 extern double Minf,Pref,Tref;
+extern double resP_norm,resV_norm,resT_norm,resK_norm,resOmega_norm;
 extern int order;
 extern double limiter_sharpening;
 extern int jacobianUpdateFreq;
