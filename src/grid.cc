@@ -414,34 +414,35 @@ void Grid::limit_gradients(void) {
 			// Initialize min and max to current cells values
 			for (int i=0;i<5;++i) maxGrad[i]=minGrad[i]=cell[c].grad[i];
 			// Find extremes in neighboring real cells
-			for (int cc=0;cc<cell[c].neighborCellCount;++cc) {
-				neighbor=cell[c].neighborCells[cc];
-				for (int var=0;var<5;++var) {
-					for (int comp=0;comp<3;++comp) {
-						maxGrad[var][comp]=max(maxGrad[var][comp],
-								(1.-limiter_sharpening)*cell[neighbor].grad[var][comp]
-									+limiter_sharpening*cell[c].grad[var][comp]);
-						minGrad[var][comp]=min(minGrad[var][comp],
-								(1.-limiter_sharpening)*cell[neighbor].grad[var][comp]
-									+limiter_sharpening*cell[c].grad[var][comp]);
+			for (int fn=0;fn<cell[c].faceCount;++fn) {
+				c==cell[c].face(fn).parent ? neighbor=cell[c].face(fn).neighbor : neighbor=cell[c].face(fn).parent;
+				if (neighbor>=0) { // real cell
+					for (int var=0;var<5;++var) {
+						for (int comp=0;comp<3;++comp) {
+							maxGrad[var][comp]=max(maxGrad[var][comp],
+									(1.-limiter_sharpening)*cell[neighbor].grad[var][comp]
+											+limiter_sharpening*cell[c].grad[var][comp]);
+							minGrad[var][comp]=min(minGrad[var][comp],
+									(1.-limiter_sharpening)*cell[neighbor].grad[var][comp]
+											+limiter_sharpening*cell[c].grad[var][comp]);
+						}
+					}
+				} else { // neighbor cell is a ghost (partition interface)
+					neighbor=-1*neighbor-1;
+					for (int var=0;var<5;++var) {
+						for (int comp=0;comp<3;++comp) {
+							maxGrad[var][comp]=max(maxGrad[var][comp],
+									(1.-limiter_sharpening)*ghost[neighbor].grad[var][comp]
+										+limiter_sharpening*cell[c].grad[var][comp]);
+							minGrad[var][comp]=min(minGrad[var][comp],
+									(1.-limiter_sharpening)*ghost[neighbor].grad[var][comp]
+										+limiter_sharpening*cell[c].grad[var][comp]);
+						}
 					}
 				}
+				
 			}
-			// Find extremes in neighboring ghost cells
-			for (int cg=0;cg<cell[c].ghostCount;++cg) {
-				g=cell[c].ghosts[cg];
-				for (int var=0;var<5;++var) {
-					for (int comp=0;comp<3;++comp) {
-						maxGrad[var][comp]=max(maxGrad[var][comp],
-								(1.-limiter_sharpening)*ghost[g].grad[var][comp]
-									+limiter_sharpening*cell[c].grad[var][comp]);
-						minGrad[var][comp]=min(minGrad[var][comp],
-								(1.-limiter_sharpening)*ghost[g].grad[var][comp]
-									+limiter_sharpening*cell[c].grad[var][comp]);
-					}
-				}
-			}
-			
+				
 			if(LIMITER==MINMOD) for (int var=0;var<5;++var) for (int comp=0;comp<3;++comp) cell[c].grad[var][comp]=minmod(maxGrad[var][comp],minGrad[var][comp]);
 			if(LIMITER==DOUBLEMINMOD) for (int var=0;var<5;++var) for (int comp=0;comp<3;++comp) cell[c].grad[var][comp]=doubleMinmod(maxGrad[var][comp],minGrad[var][comp]);
 			if(LIMITER==HARMONIC) for (int var=0;var<5;++var) for (int comp=0;comp<3;++comp) cell[c].grad[var][comp]=harmonic(maxGrad[var][comp],minGrad[var][comp]);

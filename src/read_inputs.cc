@@ -97,7 +97,7 @@ void read_inputs(InputFile &input) {
 	input.section("numericalOptions").register_string("convectiveFluxJac",optional,"AUSM+up");
 	input.section("numericalOptions").register_string("order",optional,"second");
 	input.section("numericalOptions").register_string("limiter",optional,"none");
-	input.section("numericalOptions").register_double("sharpeningFactor",optional,0.25);
+	input.section("numericalOptions").register_double("sharpeningFactor",optional,0.5);
 	input.readSection("numericalOptions");
 	
 	input.registerSection("linearSolver",required);
