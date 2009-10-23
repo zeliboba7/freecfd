@@ -405,6 +405,11 @@ void Grid::gradients(void) {
 void Grid::limit_gradients(void) {
 	
 	int neighbor,g;
+	double phi[5];
+	double deltaP,deltaP2,deltaM,deltaM2,eps2;
+	double K=0.3;
+	double max_values[5], min_values[5];
+				
 	Vec3D maxGrad[5],minGrad[5];
 	if(LIMITER==NONE || order==FIRST) {
 		// Do nothing
@@ -412,48 +417,162 @@ void Grid::limit_gradients(void) {
 		for (int c=0;c<cellCount;++c) {
 	
 			// Initialize min and max to current cells values
-			for (int i=0;i<5;++i) maxGrad[i]=minGrad[i]=cell[c].grad[i];
-			// Find extremes in neighboring real cells
+			for (int i=0;i<5;++i) {
+				phi[i]=1.;
+				max_values[0]=cell[c].p;
+				max_values[1]=cell[c].v[0];
+				max_values[2]=cell[c].v[1];
+				max_values[3]=cell[c].v[2];
+				max_values[4]=cell[c].T;
+				
+				min_values[0]=cell[c].p;
+				min_values[1]=cell[c].v[0];
+				min_values[2]=cell[c].v[1];
+				min_values[3]=cell[c].v[2];
+				min_values[4]=cell[c].T;
+			}
+			
+			// First loop through face neighbors to find max values
 			for (int fn=0;fn<cell[c].faceCount;++fn) {
+				
 				c==cell[c].face(fn).parent ? neighbor=cell[c].face(fn).neighbor : neighbor=cell[c].face(fn).parent;
+				
 				if (neighbor>=0) { // real cell
-					for (int var=0;var<5;++var) {
-						for (int comp=0;comp<3;++comp) {
-							maxGrad[var][comp]=max(maxGrad[var][comp],
-									(1.-limiter_sharpening)*cell[neighbor].grad[var][comp]
-											+limiter_sharpening*cell[c].grad[var][comp]);
-							minGrad[var][comp]=min(minGrad[var][comp],
-									(1.-limiter_sharpening)*cell[neighbor].grad[var][comp]
-											+limiter_sharpening*cell[c].grad[var][comp]);
-						}
-					}
+					max_values[0]=max(max_values[0],cell[neighbor].p);
+					max_values[1]=max(max_values[1],cell[neighbor].v[0]);
+					max_values[2]=max(max_values[2],cell[neighbor].v[1]);
+					max_values[3]=max(max_values[3],cell[neighbor].v[2]);
+					max_values[4]=max(max_values[4],cell[neighbor].T);
+					
+					min_values[0]=min(min_values[0],cell[neighbor].p);
+					min_values[1]=min(min_values[1],cell[neighbor].v[0]);
+					min_values[2]=min(min_values[2],cell[neighbor].v[1]);
+					min_values[3]=min(min_values[3],cell[neighbor].v[2]);
+					min_values[4]=min(min_values[4],cell[neighbor].T);	
 				} else { // neighbor cell is a ghost (partition interface)
 					neighbor=-1*neighbor-1;
-					for (int var=0;var<5;++var) {
-						for (int comp=0;comp<3;++comp) {
-							maxGrad[var][comp]=max(maxGrad[var][comp],
-									(1.-limiter_sharpening)*ghost[neighbor].grad[var][comp]
-										+limiter_sharpening*cell[c].grad[var][comp]);
-							minGrad[var][comp]=min(minGrad[var][comp],
-									(1.-limiter_sharpening)*ghost[neighbor].grad[var][comp]
-										+limiter_sharpening*cell[c].grad[var][comp]);
-						}
-					}
+					max_values[0]=max(max_values[0],ghost[neighbor].p);
+					max_values[1]=max(max_values[1],ghost[neighbor].v[0]);
+					max_values[2]=max(max_values[2],ghost[neighbor].v[1]);
+					max_values[3]=max(max_values[3],ghost[neighbor].v[2]);
+					max_values[4]=max(max_values[4],ghost[neighbor].T);
+					
+					min_values[0]=min(min_values[0],ghost[neighbor].p);
+					min_values[1]=min(min_values[1],ghost[neighbor].v[0]);
+					min_values[2]=min(min_values[2],ghost[neighbor].v[1]);
+					min_values[3]=min(min_values[3],ghost[neighbor].v[2]);
+					min_values[4]=min(min_values[4],ghost[neighbor].T);
 				}
-				
+		
 			}
 				
-			if(LIMITER==MINMOD) for (int var=0;var<5;++var) for (int comp=0;comp<3;++comp) cell[c].grad[var][comp]=minmod(maxGrad[var][comp],minGrad[var][comp]);
-			if(LIMITER==DOUBLEMINMOD) for (int var=0;var<5;++var) for (int comp=0;comp<3;++comp) cell[c].grad[var][comp]=doubleMinmod(maxGrad[var][comp],minGrad[var][comp]);
-			if(LIMITER==HARMONIC) for (int var=0;var<5;++var) for (int comp=0;comp<3;++comp) cell[c].grad[var][comp]=harmonic(maxGrad[var][comp],minGrad[var][comp]);
-			if(LIMITER==SUPERBEE) for (int var=0;var<5;++var) for (int comp=0;comp<3;++comp) cell[c].grad[var][comp]=superbee(maxGrad[var][comp],minGrad[var][comp]);
-			
-		}
+			// Second loop through face neigbors to calculate min limiter
+			for (int fn=0;fn<cell[c].faceCount;++fn) {
+				
+				eps2=pow(K*fabs(cell[c].face(fn).centroid-cell[c].centroid),3);
+				//eps2=pow(K*fabs(cell[c].lengthScale),3);
+								
+				for (int var=0;var<5;++var) {
+					deltaM=cell[c].grad[var].dot(cell[c].face(fn).centroid-cell[c].centroid);
+					if (deltaM>0) {
+						if (var==0) deltaP=max_values[var]-cell[c].p;
+						if (var==1) deltaP=max_values[var]-cell[c].v[0];
+						if (var==2) deltaP=max_values[var]-cell[c].v[1];
+						if (var==3) deltaP=max_values[var]-cell[c].v[2];
+						if (var==4) deltaP=max_values[var]-cell[c].T;
+					} else {
+						if (var==0) deltaP=min_values[var]-cell[c].p;
+						if (var==1) deltaP=min_values[var]-cell[c].v[0];
+						if (var==2) deltaP=min_values[var]-cell[c].v[1];
+						if (var==3) deltaP=min_values[var]-cell[c].v[2];
+						if (var==4) deltaP=min_values[var]-cell[c].T;
+					}
+					
+					if (deltaM==0) {
+						phi[var]=min(phi[var],1.);
+					} else {
+						deltaM>0 ? deltaM+=1.e-12 : deltaM-=1.e-12;
+					
+						deltaM2=deltaM*deltaM;
+						deltaP2=deltaP*deltaP;
+					
+						phi[var]=min(phi[var],(1./deltaM)*((deltaP2+eps2)*deltaM+2.*deltaM2*deltaP)/(deltaP2+2.*deltaM2+deltaM*deltaP+eps2));
+					}
+					
+// 					if (deltaM>=1.e-6) {
+// 					cout << ((deltaP2+eps2)*deltaM+2.*deltaM2*deltaP) << "\t" << (deltaP2+2.*deltaM2+deltaM*deltaP+eps2) << endl;
+// 					cout << phi[var] << endl;
+// 					}
+				
+				}
+
+			} // end face loop
+				
+			for (int var=0;var<5;++var) {
+				cell[c].grad[var]*=phi[var];
+				//cout << phi[var] << "\t";
+			}
+			//cout  << endl;
+						
+		} // end cell loop
 	}
 	
 	return;
 
 } // end Grid::limit_gradients()
+
+// void Grid::limit_gradients(void) {
+// 	
+// 	int neighbor,g;
+// 	Vec3D maxGrad[5],minGrad[5];
+// 	if(LIMITER==NONE || order==FIRST) {
+// 		// Do nothing
+// 	} else {
+// 		for (int c=0;c<cellCount;++c) {
+// 	
+// 			// Initialize min and max to current cells values
+// 			for (int i=0;i<5;++i) maxGrad[i]=minGrad[i]=cell[c].grad[i];
+// 			// Find extremes in neighboring real cells
+// 			for (int fn=0;fn<cell[c].faceCount;++fn) {
+// 				c==cell[c].face(fn).parent ? neighbor=cell[c].face(fn).neighbor : neighbor=cell[c].face(fn).parent;
+// 				if (neighbor>=0) { // real cell
+// 					for (int var=0;var<5;++var) {
+// 						for (int comp=0;comp<3;++comp) {
+// 							maxGrad[var][comp]=max(maxGrad[var][comp],
+// 									(1.-limiter_sharpening)*cell[neighbor].grad[var][comp]
+// 											+limiter_sharpening*cell[c].grad[var][comp]);
+// 							minGrad[var][comp]=min(minGrad[var][comp],
+// 									(1.-limiter_sharpening)*cell[neighbor].grad[var][comp]
+// 											+limiter_sharpening*cell[c].grad[var][comp]);
+// 						}
+// 					}
+// 				} else { // neighbor cell is a ghost (partition interface)
+// 					neighbor=-1*neighbor-1;
+// 					for (int var=0;var<5;++var) {
+// 						for (int comp=0;comp<3;++comp) {
+// 							maxGrad[var][comp]=max(maxGrad[var][comp],
+// 									(1.-limiter_sharpening)*ghost[neighbor].grad[var][comp]
+// 										+limiter_sharpening*cell[c].grad[var][comp]);
+// 							minGrad[var][comp]=min(minGrad[var][comp],
+// 									(1.-limiter_sharpening)*ghost[neighbor].grad[var][comp]
+// 										+limiter_sharpening*cell[c].grad[var][comp]);
+// 						}
+// 					}
+// 				}
+// 				
+// 			}
+// 				
+// 			if(LIMITER==MINMOD) for (int var=0;var<5;++var) for (int comp=0;comp<3;++comp) cell[c].grad[var][comp]=minmod(maxGrad[var][comp],minGrad[var][comp]);
+// 			if(LIMITER==DOUBLEMINMOD) for (int var=0;var<5;++var) for (int comp=0;comp<3;++comp) cell[c].grad[var][comp]=doubleMinmod(maxGrad[var][comp],minGrad[var][comp]);
+// 			if(LIMITER==HARMONIC) for (int var=0;var<5;++var) for (int comp=0;comp<3;++comp) cell[c].grad[var][comp]=harmonic(maxGrad[var][comp],minGrad[var][comp]);
+// 			if(LIMITER==SUPERBEE) for (int var=0;var<5;++var) for (int comp=0;comp<3;++comp) cell[c].grad[var][comp]=superbee(maxGrad[var][comp],minGrad[var][comp]);
+// 			
+// 		}
+// 	}
+// 	
+// 	return;
+// 
+// } // end Grid::limit_gradients()
 
 void Grid::lengthScales(void) {
 	// Loop through the cells and calculate length scales
