@@ -407,7 +407,7 @@ void Grid::limit_gradients(void) {
 	int neighbor,g;
 	double phi[5];
 	double deltaP,deltaP2,deltaM,deltaM2,eps2;
-	double K=0.3;
+	double K=1.;
 	double max_values[5], min_values[5];
 				
 	Vec3D maxGrad[5],minGrad[5];
@@ -415,27 +415,27 @@ void Grid::limit_gradients(void) {
 		// Do nothing
 	} else {
 		for (int c=0;c<cellCount;++c) {
+			//eps2=pow(K*cell[c].lengthScale,3);
 	
 			// Initialize min and max to current cells values
-			for (int i=0;i<5;++i) {
-				phi[i]=1.;
-				max_values[0]=cell[c].p;
-				max_values[1]=cell[c].v[0];
-				max_values[2]=cell[c].v[1];
-				max_values[3]=cell[c].v[2];
-				max_values[4]=cell[c].T;
+			for (int i=0;i<5;++i) phi[i]=1.;
+			
+			max_values[0]=cell[c].p;
+			max_values[1]=cell[c].v[0];
+			max_values[2]=cell[c].v[1];
+			max_values[3]=cell[c].v[2];
+			max_values[4]=cell[c].T;
 				
-				min_values[0]=cell[c].p;
-				min_values[1]=cell[c].v[0];
-				min_values[2]=cell[c].v[1];
-				min_values[3]=cell[c].v[2];
-				min_values[4]=cell[c].T;
-			}
+			min_values[0]=cell[c].p;
+			min_values[1]=cell[c].v[0];
+			min_values[2]=cell[c].v[1];
+			min_values[3]=cell[c].v[2];
+			min_values[4]=cell[c].T;
 			
 			// First loop through face neighbors to find max values
-			for (int fn=0;fn<cell[c].faceCount;++fn) {
+			for (int cf=0;cf<cell[c].faceCount;++cf) {
 				
-				c==cell[c].face(fn).parent ? neighbor=cell[c].face(fn).neighbor : neighbor=cell[c].face(fn).parent;
+				c==cell[c].face(cf).parent ? neighbor=cell[c].face(cf).neighbor : neighbor=cell[c].face(cf).parent;
 				
 				if (neighbor>=0) { // real cell
 					max_values[0]=max(max_values[0],cell[neighbor].p);
@@ -467,52 +467,46 @@ void Grid::limit_gradients(void) {
 			}
 				
 			// Second loop through face neigbors to calculate min limiter
-			for (int fn=0;fn<cell[c].faceCount;++fn) {
+			for (int cf=0;cf<cell[c].faceCount;++cf) {
 				
-				eps2=pow(K*fabs(cell[c].face(fn).centroid-cell[c].centroid),3);
-				//eps2=pow(K*fabs(cell[c].lengthScale),3);
-								
+				eps2=pow(K*fabs(cell[c].face(cf).centroid-cell[c].centroid),3);
+				c==cell[c].face(cf).parent ? neighbor=cell[c].face(cf).neighbor : neighbor=cell[c].face(cf).parent;	
+				
 				for (int var=0;var<5;++var) {
-					deltaM=cell[c].grad[var].dot(cell[c].face(fn).centroid-cell[c].centroid);
+					deltaM=2.*cell[c].grad[var].dot(cell[c].face(cf).centroid-cell[c].centroid);
+
 					if (deltaM>0) {
 						if (var==0) deltaP=max_values[var]-cell[c].p;
 						if (var==1) deltaP=max_values[var]-cell[c].v[0];
 						if (var==2) deltaP=max_values[var]-cell[c].v[1];
 						if (var==3) deltaP=max_values[var]-cell[c].v[2];
 						if (var==4) deltaP=max_values[var]-cell[c].T;
+						deltaM+=1.e-12;
 					} else {
 						if (var==0) deltaP=min_values[var]-cell[c].p;
 						if (var==1) deltaP=min_values[var]-cell[c].v[0];
 						if (var==2) deltaP=min_values[var]-cell[c].v[1];
 						if (var==3) deltaP=min_values[var]-cell[c].v[2];
 						if (var==4) deltaP=min_values[var]-cell[c].T;
+						deltaM-=1.e-12;
 					}
 					
-					if (deltaM==0) {
-						phi[var]=min(phi[var],1.);
-					} else {
-						deltaM>0 ? deltaM+=1.e-12 : deltaM-=1.e-12;
+					deltaM2=deltaM*deltaM;
+					deltaP2=deltaP*deltaP;
 					
-						deltaM2=deltaM*deltaM;
-						deltaP2=deltaP*deltaP;
+					phi[var]=min(phi[var],(1./deltaM)*((deltaP2+eps2)*deltaM+2.*deltaM2*deltaP)/(deltaP2+2.*deltaM2+deltaM*deltaP+eps2));
 					
-						phi[var]=min(phi[var],(1./deltaM)*((deltaP2+eps2)*deltaM+2.*deltaM2*deltaP)/(deltaP2+2.*deltaM2+deltaM*deltaP+eps2));
-					}
-					
-// 					if (deltaM>=1.e-6) {
-// 					cout << ((deltaP2+eps2)*deltaM+2.*deltaM2*deltaP) << "\t" << (deltaP2+2.*deltaM2+deltaM*deltaP+eps2) << endl;
-// 					cout << phi[var] << endl;
-// 					}
-				
 				}
 
 			} // end face loop
 				
 			for (int var=0;var<5;++var) {
+				if ((phi[var]>1)||(phi[var]<0)) cout<<"ERRORphi"<<endl;
 				cell[c].grad[var]*=phi[var];
-				//cout << phi[var] << "\t";
+				
+				//if (c==8521) cout << phi[var] << "\t";
 			}
-			//cout  << endl;
+			//if (c==8521)  cout  << endl;
 						
 		} // end cell loop
 	}
