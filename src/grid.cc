@@ -254,7 +254,7 @@ int Grid::areas_volumes() {
 	}
 	
 	cout << "[I Rank=" << Rank << "] Total Volume= " << setw(16) << setprecision(8) << scientific << totalVolume << endl;
-	double globalTotalVolume=0.;
+	globalTotalVolume=0.;
 	MPI_Allreduce (&totalVolume,&globalTotalVolume,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
 	if (np>1 && Rank==0) cout << "[I] Global Total Volume= " << globalTotalVolume << endl;
 	
@@ -407,9 +407,19 @@ void Grid::limit_gradients(void) {
 	int neighbor,g;
 	double phi[5];
 	double deltaP,deltaP2,deltaM,deltaM2,eps2;
-	double K=1.;
+	double K=threshold;
 	double max_values[5], min_values[5];
-				
+			
+	double Lref,Uref,pref,tref;
+	if (DIMENSION==3) {
+		Lref=pow(globalTotalVolume,1./3.);
+	} else {
+		double maxD=0.;
+		for (int cn=0;cn<cell[0].nodeCount;++cn) maxD=max(maxD,fabs((cell[0].centroid-cell[0].node(cn)).comp[DEPTH_DIRECTION]));
+		Lref=sqrt(0.5*globalTotalVolume/maxD);
+	}
+	Uref=935.;
+	
 	Vec3D maxGrad[5],minGrad[5];
 	if(LIMITER==NONE || order==FIRST) {
 		// Do nothing
@@ -463,17 +473,28 @@ void Grid::limit_gradients(void) {
 					min_values[3]=min(min_values[3],ghost[neighbor].v[2]);
 					min_values[4]=min(min_values[4],ghost[neighbor].T);
 				}
-		
 			}
 				
 			// Second loop through face neigbors to calculate min limiter
 			for (int cf=0;cf<cell[c].faceCount;++cf) {
 				
-				eps2=pow(K*fabs(cell[c].face(cf).centroid-cell[c].centroid),3);
+				//eps2=pow(K*fabs(cell[c].face(cf).centroid-cell[c].centroid),3);
+				eps2=pow(K/Lref,3);
 				c==cell[c].face(cf).parent ? neighbor=cell[c].face(cf).neighbor : neighbor=cell[c].face(cf).parent;	
 				
+				pref=cell[c].p+Pref;
+				tref=cell[c].T+Tref;
+				Uref=sqrt(Gamma*pref/(eos.rho(cell[c].p,cell[c].T)));
+				
 				for (int var=0;var<5;++var) {
-					deltaM=2.*cell[c].grad[var].dot(cell[c].face(cf).centroid-cell[c].centroid);
+					
+					if (var==0) eps2*=pref*pref;
+					if (var==1) eps2*=Uref*Uref;
+					if (var==2) eps2*=Uref*Uref;
+					if (var==3) eps2*=Uref*Uref;
+					if (var==4) eps2*=tref*tref;
+					
+					deltaM=cell[c].grad[var].dot(cell[c].face(cf).centroid-cell[c].centroid);
 
 					if (deltaM>0) {
 						if (var==0) deltaP=max_values[var]-cell[c].p;

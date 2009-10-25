@@ -96,7 +96,7 @@
 #define BC_EXTRAPOLATE 6
 #define BC_REFLECT 7
 
-extern int DIMENSION,EQUATIONS,TURBULENCE_MODEL,TURBULENCE_FILTER;
+extern int DIMENSION,DEPTH_DIRECTION,EQUATIONS,TURBULENCE_MODEL,TURBULENCE_FILTER;
 extern int TIME_INTEGRATOR,TIME_STEP_TYPE;
 extern int PS_TIME_STEP_TYPE;
 extern int CONVECTIVE_FLUX_FUNCTION,CONVECTIVE_FLUX_FUNCTION_JAC,LIMITER,PRECONDITIONER;
@@ -112,7 +112,7 @@ extern double ps_relax,ps_dt_current,ps_min,ps_max,ps_CFLmax,ps_CFLlocal,ps_tole
 extern double Minf,Pref,Tref;
 extern double resP_norm,resV_norm,resT_norm,resK_norm,resOmega_norm;
 extern int order;
-extern double limiter_sharpening;
+extern double limiter_sharpening,threshold;
 extern int jacobianUpdateFreq;
 extern double Gamma,gmp1,gmm1,viscosity,conductivity;
 extern double eosType,molarMass;
