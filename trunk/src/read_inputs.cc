@@ -47,6 +47,7 @@ void read_inputs(InputFile &input) {
 	
 	input.registerSection("grid",optional);
 	input.section("grid").register_int("dimension",optional,3);
+	input.section("grid").register_string("depthDirection",optional,"z");
 	input.section("grid").register_Vec3D("scaleBy",optional,1.);
 	input.section("grid").register_Vec3D("rotationCenter",optional,0.);
 	input.section("grid").register_Vec3D("rotationAngles",optional,0.);
@@ -98,6 +99,7 @@ void read_inputs(InputFile &input) {
 	input.section("numericalOptions").register_string("order",optional,"second");
 	input.section("numericalOptions").register_string("limiter",optional,"none");
 	input.section("numericalOptions").register_double("sharpeningFactor",optional,0.5);
+	input.section("numericalOptions").register_double("threshold",optional,1.);
 	input.readSection("numericalOptions");
 	
 	input.registerSection("linearSolver",required);

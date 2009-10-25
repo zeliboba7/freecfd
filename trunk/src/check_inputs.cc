@@ -44,6 +44,19 @@ void check_inputs(InputFile &input) {
 	}
 	DIMENSION=input.section("grid").get_int("dimension");
 
+	if (input.section("grid").get_string("depthDirection")=="x") {
+		DEPTH_DIRECTION=0;
+	} else if (input.section("grid").get_string("depthDirection")=="y") {
+		DEPTH_DIRECTION=1;
+	} else if (input.section("grid").get_string("depthDirection")=="z") {
+		DEPTH_DIRECTION=2;
+	} else {
+		cerr << "[E] Input entry grid -> depthDirection is not recognized" << endl;
+		cerr << "[E] Acceptable options are x, y or z" << endl;
+		exit(1);
+	}
+	
+	
 	GRAD_TEST=false;
 	string option;
 	option=input.get_string("equations");
@@ -301,6 +314,7 @@ void check_inputs(InputFile &input) {
 	ramp_growth=input.section("timeMarching").subsection("ramp").get_double("growth");
 	ps_tolerance=input.section("pseudoTimeMarching").get_double("tolerance");
 	limiter_sharpening=input.section("numericalOptions").get_double("sharpeningFactor");
+	threshold=input.section("numericalOptions").get_double("threshold");
 	probeFreq=input.section("probes").get_int("frequency");
 	integrateBoundaryFreq=input.section("integrateBoundary").get_int("frequency");
 	bcCount=input.section("boundaryConditions").subsection("BC",0).count;

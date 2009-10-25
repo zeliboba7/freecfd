@@ -22,7 +22,7 @@
 *************************************************************************/
 #include "commons.h"
 
-int DIMENSION,EQUATIONS,TURBULENCE_MODEL,TURBULENCE_FILTER;
+int DIMENSION,DEPTH_DIRECTION,EQUATIONS,TURBULENCE_MODEL,TURBULENCE_FILTER;
 int TIME_INTEGRATOR,TIME_STEP_TYPE;
 int PS_TIME_STEP_TYPE;
 int CONVECTIVE_FLUX_FUNCTION,CONVECTIVE_FLUX_FUNCTION_JAC,LIMITER,PRECONDITIONER;
@@ -38,7 +38,7 @@ double ps_relax,ps_dt_current,ps_min,ps_max,ps_CFLmax,ps_CFLlocal,ps_tolerance;
 double Minf,Pref,Tref;
 double resP_norm,resV_norm,resT_norm,resK_norm,resOmega_norm;
 int order;
-double limiter_sharpening;
+double limiter_sharpening,threshold;
 int jacobianUpdateFreq;
 double Gamma,gmp1,gmm1,viscosity,conductivity;
 double eosType,molarMass;

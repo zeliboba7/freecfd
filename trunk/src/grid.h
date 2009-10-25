@@ -106,6 +106,7 @@ public:
 	int nodeCountOffset;
 	int nodeCount,cellCount,faceCount;
 	int globalNodeCount,globalCellCount,globalFaceCount,ghostCount;
+	double globalTotalVolume;
 	std::vector<int> boundaryFaceCount;
 	std::vector<int> boundaryNodeCount;
 	std::vector<int> globalBoundaryFaceCount;
