@@ -1,8 +1,8 @@
 /************************************************************************
 	
-	Copyright 2007-2009 Emre Sozer & Patrick Clark Trizila
-
-	Contact: emresozer@freecfd.com , ptrizila@freecfd.com
+	Copyright 2007-2010 Emre Sozer 
+ 
+	Contact: emresozer@freecfd.com
 
 	This file is a part of Free CFD
 
@@ -20,403 +20,281 @@
     see <http://www.gnu.org/licenses/>.
 
 *************************************************************************/
-#include "commons.h"
 #include <iostream>
 #include <fstream>
-
-#include <cmath>
-#include <mpi.h>
-
 using namespace std;
 
-#include "bc.h"
+#include "utilities.h"
+#include "vec3d.h"
+#include "grid.h"
 #include "inputs.h"
-#include "rans.h"
+#include "ns.h"
+#include "hc.h"
+#include "commons.h"
 
-extern BC bc;
-extern RANS rans;
+extern vector<Grid> grid;
+extern InputFile input;
+extern vector<NavierStokes> ns;
+extern vector<HeatConduction> hc;
+extern vector<Variable<double> > dt;
+extern vector<int> equations;
 
-extern string int2str(int number) ;
-void write_tec_vars(int &nVar);
+int timeStep,gid;
+vector<string> varList;
+vector<bool> var_is_vec3d;
+
+void write_tec_vars(void);
 void write_tec_cells(void);
-void write_tec_bcs(int bcNo,int nVar);
-void write_vtk(void);
-void write_vtk_parallel(void);
+void write_tec_bcs(int nbc, int nVar);
 
-void write_output(double time, InputFile input) {
+void write_output(int gridid, int step) {
 	mkdir("./output",S_IRWXU);
-	if (OUTPUT_FORMAT==VTK) {
-		// Write vtk output file
-		if (Rank==0) write_vtk_parallel();
-		write_vtk();
-	} else if(OUTPUT_FORMAT==TECPLOT) {
-		int nVar=0;
-		// Write tecplot output file
-		for (int p=0;p<np;++p) {
-			if(Rank==p) write_tec_vars(nVar);
-			MPI_Barrier(MPI_COMM_WORLD);
+	gid=gridid;
+	timeStep=step;
+	varList=input.section("grid",gid).subsection("writeoutput").get_stringList("variables");
+	var_is_vec3d.resize(varList.size());
+	int nVar=0;
+	for (int var=0; var<varList.size(); ++var) {
+		nVar++;
+		var_is_vec3d[var]=false;
+		if (varList[var]=="V" || varList[var].substr(0,4)=="grad" || varList[var]=="resV" || varList[var]=="limiterV") {
+			var_is_vec3d[var]=true;
+			nVar+=2;
 		}
+		// The following ghost values only need to be updated when writing node centered output
+		if  (varList[var]=="dt") dt[gid].mpi_update(); 
+		if  (varList[var]=="resp") ns[gid].update[0].mpi_update(); 
+		if  (varList[var]=="resT") ns[gid].update[4].mpi_update();
+		if  (varList[var]=="resV") for (int i=1;i<4;++i) ns[gid].update[i].mpi_update();
+		if  (varList[var]=="limiterp") ns[gid].limiter[0].mpi_update(); 
+		if  (varList[var]=="limiterT") ns[gid].limiter[4].mpi_update();
+		if  (varList[var]=="limiterV") for (int i=1;i<4;++i) ns[gid].limiter[i].mpi_update();
+
+	}
+	// Write tecplot output file
+	for (int p=0;p<np;++p) {
+		if(Rank==p) write_tec_vars();
+		MPI_Barrier(MPI_COMM_WORLD);
+	}
+	for (int p=0;p<np;++p) {
+		if(Rank==p) write_tec_cells();
+		MPI_Barrier(MPI_COMM_WORLD);
+	}
+	// Write boundary condition regions
+	for (int nbc=0;nbc<input.section("grid",gid).subsection("BC",0).count;++nbc) {
 		for (int p=0;p<np;++p) {
-			if(Rank==p) write_tec_cells();
+			if(Rank==p) write_tec_bcs(nbc,nVar);
 			MPI_Barrier(MPI_COMM_WORLD);
-		}
-		for (int nbc=0;nbc<grid.globalBoundaryFaceCount.size();++nbc) {
-			for (int p=0;p<np;++p) {
-				if(Rank==p) write_tec_bcs(nbc,nVar);
-				MPI_Barrier(MPI_COMM_WORLD);
-			}
 		}
 	}
+
 	return;
 }
 
-void write_tec_vars(int &nVar) {
+void write_tec_vars(void) {
 	
 	ofstream file;
-	string fileName="./output/out"+int2str(timeStep)+".dat";
-	
-	// Shorthand for turbulence model test
-	bool turb=(TURBULENCE_MODEL!=NONE);
+	string fileName="./output/out_"+int2str(gid+1)+"_"+int2str(timeStep)+".dat";
 	
 	// Proc 0 creates the output file and writes variable list
 	
 	if (Rank==0) {
-		file.open((fileName).c_str(),ios::out); 
-		nVar=11;
-		file << "VARIABLES = \"x\", \"y\", \"z\",\"p\",\"u\",\"v\",\"w\",\"T\",\"rho\",\"Ma\",\"dt\"";
-		if (turb) {
-			file << ",\"k\",\"omega\",\"mu_t\"";
-			nVar+=3;
-			if (TURBULENCE_FILTER!=NONE) {
-				file << ",\"filterFunction\"";
-				nVar++;
+		file.open((fileName).c_str(),ios::out);
+		file << "VARIABLES = \"x\", \"y\", \"z\" ";
+		for (int var=0;var<varList.size();++var) {
+			if (var_is_vec3d[var]) {
+				file << ",\"" << varList[var] << "_x\" "; 
+				file << ",\"" << varList[var] << "_y\" "; 
+				file << ",\"" << varList[var] << "_z\" "; 
+			} else {
+				file << ",\"" << varList[var] << "\" "; 
 			}
 		}
 		file << endl;
-		file << "ZONE, T=\"Volume " << Rank << "\" ZONETYPE=FEBRICK DATAPACKING=POINT" << endl;
-		file << "NODES=" << grid.globalNodeCount << " ELEMENTS=" << grid.globalCellCount << endl;
+		file << "ZONE, T=\"Grid " << gid+1 << "\", ZONETYPE=FEBRICK, DATAPACKING=POINT" << endl;
+		file << "NODES=" << grid[gid].globalNodeCount << ", ELEMENTS=" << grid[gid].globalCellCount << endl;
 	} else {
 		file.open((fileName).c_str(),ios::app);
 	}
 	
-		// Write variables
-		map<int,double>::iterator it;
-		set<int>::iterator sit;
-		double p_node,T_node,rho_node,k_node,omega_node,dt_node;
-		double mu_t_node, filter_node;
-		Vec3D v_node;
-		int count_p,count_v,count_T,count_k,count_omega,count_mu_t,count_rho;
-		double Ma;
-		
-		for (int n=0;n<grid.nodeCount;++n) {
-			if (maps.nodeGlobal2Output[grid.node[n].globalId]>=grid.nodeCountOffset) {
-				
-				p_node=0.;v_node=0.;T_node=0.;k_node=0.;omega_node=0.;
-				mu_t_node=0.; filter_node=0.; dt_node=0.; 
-				double real_weight_sum=0.;
-				for ( it=grid.node[n].average.begin() ; it != grid.node[n].average.end(); it++ ) {
-					if ((*it).first>=0) { // if contribution is coming from a real cell
-						p_node+=(*it).second*grid.cell[(*it).first].p;
-						v_node+=(*it).second*grid.cell[(*it).first].v;
-						T_node+=(*it).second*grid.cell[(*it).first].T;
-						dt_node+=(*it).second*grid.cell[(*it).first].dt;
-						if (turb) {
-							k_node+=(*it).second*rans.cell[(*it).first].k;
-							omega_node+=(*it).second*rans.cell[(*it).first].omega;
-							mu_t_node+=(*it).second*rans.cell[(*it).first].mu_t;
-							filter_node+=(*it).second*rans.cell[(*it).first].filterFunction;
-						}
-						real_weight_sum+=(*it).second;
-					} else { // if contribution is coming from a ghost cell
-						p_node+=(*it).second*grid.ghost[-1*((*it).first+1)].p;
-						v_node+=(*it).second*grid.ghost[-1*((*it).first+1)].v;
-						T_node+=(*it).second*grid.ghost[-1*((*it).first+1)].T;
-						if (turb) {
-							k_node+=(*it).second*rans.ghost[-1*((*it).first+1)].k;
-							omega_node+=(*it).second*rans.ghost[-1*((*it).first+1)].omega;
-							mu_t_node+=(*it).second*rans.ghost[-1*((*it).first+1)].mu_t;
-						}
+	file << scientific << setprecision(8);
+	
+	for (int n=0;n<grid[gid].nodeCount;++n) {
+		// Note that some nodes are repeated in different partitions
+		if (grid[gid].maps.nodeGlobal2Output[grid[gid].node[n].globalId]>=grid[gid].nodeCountOffset) {
+			
+			// Write node coordinates
+			file << grid[gid].node[n][0] << "\t";
+			file << grid[gid].node[n][1] << "\t";
+			file << grid[gid].node[n][2] << "\t";
+			// Write Navier-Stokes variables
+			
+			// Node temperature and pressure are repeatedly used. Store them first
+			double p_node,T_node;
+			p_node=ns[gid].p.node(n);
+			if (equations[gid]==NS)	T_node=ns[gid].T.node(n);
+			else if (equations[gid]==HEAT) T_node=hc[gid].T.node(n);
+			
+			for (int ov=0;ov<varList.size();++ov) {
+				// Scalars
+				if (varList[ov]=="p") file << p_node << "\t";
+				else if (varList[ov]=="T") file << T_node << "\t";
+				else if (varList[ov]=="rho") file << ns[gid].material.rho(p_node,T_node) << "\t";
+				else if (varList[ov]=="dt") file << dt[gid].node(n) << "\t";
+				else if (varList[ov]=="mu") file << ns[gid].material.viscosity(T_node) << "\t";
+				else if (varList[ov]=="lambda") file << ns[gid].material.therm_cond(T_node) << "\t";	
+				else if (varList[ov]=="Cp") file << ns[gid].material.Cp(T_node) << "\t";
+				else if (varList[ov]=="resp") file << ns[gid].update[0].node(n) << "\t";
+				else if (varList[ov]=="resT") file << ns[gid].update[4].node(n) << "\t";
+				else if (varList[ov]=="limiterp") file << ns[gid].limiter[0].node(n) << "\t"; 
+				else if (varList[ov]=="limiterT") file << ns[gid].limiter[4].node(n) << "\t";
+				else if (varList[ov]=="Mach") {
+					file << fabs(ns[gid].V.node(n))/ns[gid].material.a(p_node,T_node) << "\t";
+				}
+				// Vectors
+				else if (varList[ov]=="V") {
+					file << ns[gid].V.node(n)[0] << "\t";
+					file << ns[gid].V.node(n)[1] << "\t";
+					file << ns[gid].V.node(n)[2] << "\t";
+				} 
+				else if (varList[ov]=="gradp") {
+					file << ns[gid].gradp.node(n)[0] << "\t";
+					file << ns[gid].gradp.node(n)[1] << "\t";
+					file << ns[gid].gradp.node(n)[2] << "\t";
+				}
+				else if (varList[ov]=="gradu") {
+					file << ns[gid].gradu.node(n)[0] << "\t";
+					file << ns[gid].gradu.node(n)[1] << "\t";
+					file << ns[gid].gradu.node(n)[2] << "\t";
+				}
+				else if (varList[ov]=="gradv") {
+					file << ns[gid].gradv.node(n)[0] << "\t";
+					file << ns[gid].gradv.node(n)[1] << "\t";
+					file << ns[gid].gradv.node(n)[2] << "\t";
+				}
+				else if (varList[ov]=="gradw") {
+					file << ns[gid].gradw.node(n)[0] << "\t";
+					file << ns[gid].gradw.node(n)[1] << "\t";
+					file << ns[gid].gradw.node(n)[2] << "\t";
+				}
+				else if (varList[ov]=="gradT") {
+					if (equations[gid]==NS) {
+						file << ns[gid].gradT.node(n)[0] << "\t";
+						file << ns[gid].gradT.node(n)[1] << "\t";
+						file << ns[gid].gradT.node(n)[2] << "\t";
+					} else if (equations[gid]==HEAT) {
+						file << hc[gid].gradT.node(n)[0] << "\t";
+						file << hc[gid].gradT.node(n)[1] << "\t";
+						file << hc[gid].gradT.node(n)[2] << "\t";
 					}
+				}				
+				else if (varList[ov]=="gradrho") {
+					file << ns[gid].gradrho.node(n)[0] << "\t";
+					file << ns[gid].gradrho.node(n)[1] << "\t";
+					file << ns[gid].gradrho.node(n)[2] << "\t";
+				}
+				else if (varList[ov]=="resV") {
+					file << ns[gid].update[1].node(n) << "\t";
+					file << ns[gid].update[2].node(n) << "\t";
+					file << ns[gid].update[3].node(n) << "\t";
+				}
+				else if (varList[ov]=="limiterV") {
+					file << ns[gid].limiter[1].node(n) << "\t";
+					file << ns[gid].limiter[2].node(n) << "\t";
+					file << ns[gid].limiter[3].node(n) << "\t";
 				}
 				
-				rho_node=eos.rho(p_node,T_node);
-				
-				if (real_weight_sum>=1.e-10) {
-					filter_node/=real_weight_sum;
-					dt_node/=real_weight_sum;
-				} else { filter_node=1.; dt_node=dt_current; }
-				
-				filter_node=min(1.,filter_node);
-				filter_node=max(0.,filter_node);
-				
-				k_node=max(k_node,kLowLimit);
-				omega_node=max(omega_node,omegaLowLimit);
-								
-				count_p=0; count_v=0; count_T=0; count_rho=0; count_k=0; count_omega=0; count_mu_t=0;
-				
-				for (sit=grid.node[n].bcs.begin();sit!=grid.node[n].bcs.end();sit++) {
-					if (bc.region[(*sit)].specified==BC_STATE) {
-						if (count_p>0) p_node+=bc.region[(*sit)].p; else p_node=bc.region[(*sit)].p;
-						if (count_rho>0) rho_node+=bc.region[(*sit)].rho; else rho_node=bc.region[(*sit)].rho;
-						if (count_T>0) T_node+=bc.region[(*sit)].T; else T_node=bc.region[(*sit)].T;
-						count_p++; count_rho++; count_T++;
-					} else if (bc.region[(*sit)].specified==BC_RHO) {
-						if (count_rho>0) rho_node+=bc.region[(*sit)].rho; else rho_node=bc.region[(*sit)].rho;
-						count_rho++;
-					} else if (bc.region[(*sit)].specified==BC_T) {
-						if (count_T>0) T_node+=bc.region[(*sit)].T; else T_node=bc.region[(*sit)].T;
-						count_T++;
-					} else if (bc.region[(*sit)].specified==BC_P) {
-						if (count_p>0) p_node+=bc.region[(*sit)].p; else p_node=bc.region[(*sit)].p;
-						count_p++;
-					}
-
-					if (bc.region[(*sit)].type==INLET) {
-						if (bc.region[(*sit)].kind==VELOCITY) {
-							if (count_v>0) v_node+=bc.region[(*sit)].v; else v_node=bc.region[(*sit)].v;
-							count_v++;
-						}
-						if (turb) {
-							if (count_k>0) k_node+=bc.region[(*sit)].k; else k_node+=bc.region[(*sit)].k;
-							if (count_omega>0) omega_node+=bc.region[(*sit)].omega; else omega_node+=bc.region[(*sit)].omega;
-							count_k++; count_omega++;
-						}
-					}
-					
-					if (bc.region[(*sit)].type==NOSLIP) {
-						if (count_v>0) v_node+=0.; else v_node=0.;
-						count_v++;
-						if (count_k>0) k_node+=0.; else k_node=0.;
-						count_k++;
-						if (count_mu_t>0) mu_t_node+=0.; else mu_t_node=0.;
-						count_mu_t++;
-					}
-				}
-				
-				if (count_p>0) p_node/=double(count_p);
-				if (count_rho>0) rho_node/=double(count_rho);
-				if (count_T>0) T_node/=double(count_T);
-				if (count_v>0) v_node/=double(count_v);
-				if (count_k>0) k_node/=double(count_k);
-				if (count_omega>0) omega_node/=double(count_omega);
-				if (count_mu_t>0) mu_t_node/=double(count_mu_t);
-								
-				Ma=sqrt((v_node.dot(v_node))/(Gamma*(p_node+Pref)/rho_node));
-		
-				file << setw(16) << setprecision(8) << scientific;
-				file << grid.node[n][0] << "\t";
-				file << grid.node[n][1] << "\t";
-				file << grid.node[n][2] << "\t";
-				file << p_node << "\t" ;
-				file << v_node.comp[0] << "\t";
-				file << v_node.comp[1] << "\t";
-				file << v_node.comp[2] << "\t";
-				file << T_node << "\t";
-				file << rho_node << "\t";
-				file << Ma << "\t";
-				file << dt_node << "\t";
-				if (turb) {
-					file << k_node << "\t";
-					file << omega_node << "\t";
-					file << mu_t_node << "\t";
-					if (TURBULENCE_FILTER!=NONE) file << filter_node << "\t";
-				}
-				file << endl;
 			}
 		}
-
+		file << endl;
+	}
+		 
 	file.close();
-
 }
 
 void write_tec_cells() {
 	
 	ofstream file;
-	string fileName="./output/out"+int2str(timeStep)+".dat";
+	string fileName="./output/out_"+int2str(gid+1)+"_"+int2str(timeStep)+".dat";
 	
 	file.open((fileName).c_str(),ios::app);
-
-		// Write connectivity
-	for (int c=0;c<grid.cellCount;++c) {
-		if (grid.cell[c].nodeCount==4) {
-			file << maps.nodeGlobal2Output[grid.cell[c].node(0).globalId]+1 << "\t" ;
-			file << maps.nodeGlobal2Output[grid.cell[c].node(2).globalId]+1 << "\t" ;
-			file << maps.nodeGlobal2Output[grid.cell[c].node(1).globalId]+1 << "\t" ;
-			file << maps.nodeGlobal2Output[grid.cell[c].node(1).globalId]+1 << "\t" ;
-			file << maps.nodeGlobal2Output[grid.cell[c].node(3).globalId]+1 << "\t" ;
-			file << maps.nodeGlobal2Output[grid.cell[c].node(3).globalId]+1 << "\t" ;
-			file << maps.nodeGlobal2Output[grid.cell[c].node(3).globalId]+1 << "\t" ;
-			file << maps.nodeGlobal2Output[grid.cell[c].node(3).globalId]+1 << "\t" ;
+	
+	// Write connectivity
+	for (int c=0;c<grid[gid].cellCount;++c) {
+		if (grid[gid].cell[c].nodeCount==4) {
+			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,0).globalId]+1 << "\t" ;
+			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,2).globalId]+1 << "\t" ;
+			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,1).globalId]+1 << "\t" ;
+			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,1).globalId]+1 << "\t" ;
+			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,3).globalId]+1 << "\t" ;
+			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,3).globalId]+1 << "\t" ;
+			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,3).globalId]+1 << "\t" ;
+			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,3).globalId]+1 << "\t" ;
 		}
-		else if (grid.cell[c].nodeCount==5) {
-			file << maps.nodeGlobal2Output[grid.cell[c].node(0).globalId]+1 << "\t" ;
-			file << maps.nodeGlobal2Output[grid.cell[c].node(1).globalId]+1 << "\t" ;
-			file << maps.nodeGlobal2Output[grid.cell[c].node(2).globalId]+1 << "\t" ;
-			file << maps.nodeGlobal2Output[grid.cell[c].node(3).globalId]+1 << "\t" ;
-			file << maps.nodeGlobal2Output[grid.cell[c].node(4).globalId]+1 << "\t" ;
-			file << maps.nodeGlobal2Output[grid.cell[c].node(4).globalId]+1 << "\t" ;
-			file << maps.nodeGlobal2Output[grid.cell[c].node(4).globalId]+1 << "\t" ;
-			file << maps.nodeGlobal2Output[grid.cell[c].node(4).globalId]+1 << "\t" ;
+		else if (grid[gid].cell[c].nodeCount==5) {
+			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,0).globalId]+1 << "\t" ;
+			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,1).globalId]+1 << "\t" ;
+			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,2).globalId]+1 << "\t" ;
+			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,3).globalId]+1 << "\t" ;
+			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,4).globalId]+1 << "\t" ;
+			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,4).globalId]+1 << "\t" ;
+			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,4).globalId]+1 << "\t" ;
+			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,4).globalId]+1 << "\t" ;
 		}
-		else if (grid.cell[c].nodeCount==6) {
-			file << maps.nodeGlobal2Output[grid.cell[c].node(0).globalId]+1 << "\t" ;
-			file << maps.nodeGlobal2Output[grid.cell[c].node(1).globalId]+1 << "\t" ;
-			file << maps.nodeGlobal2Output[grid.cell[c].node(2).globalId]+1 << "\t" ;
-			file << maps.nodeGlobal2Output[grid.cell[c].node(2).globalId]+1 << "\t" ;
-			file << maps.nodeGlobal2Output[grid.cell[c].node(3).globalId]+1 << "\t" ;
-			file << maps.nodeGlobal2Output[grid.cell[c].node(4).globalId]+1 << "\t" ;
-			file << maps.nodeGlobal2Output[grid.cell[c].node(5).globalId]+1 << "\t" ;
-			file << maps.nodeGlobal2Output[grid.cell[c].node(5).globalId]+1 << "\t" ;
-		} else if (grid.cell[c].nodeCount==8) {
+		else if (grid[gid].cell[c].nodeCount==6) {
+			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,0).globalId]+1 << "\t" ;
+			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,1).globalId]+1 << "\t" ;
+			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,2).globalId]+1 << "\t" ;
+			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,2).globalId]+1 << "\t" ;
+			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,3).globalId]+1 << "\t" ;
+			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,4).globalId]+1 << "\t" ;
+			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,5).globalId]+1 << "\t" ;
+			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,5).globalId]+1 << "\t" ;
+		} else if (grid[gid].cell[c].nodeCount==8) {
 			for (int i=0;i<8;++i) {
-				file << maps.nodeGlobal2Output[grid.cell[c].node(i).globalId]+1 << "\t" ;
+				file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,i).globalId]+1 << "\t" ;
 			}
 		}
 		file << endl;
 	}
 	
 	file.close();
-
+	
+	return;
+	
 }
 
 void write_tec_bcs(int bcNo,int nVar) {
 	
 	ofstream file;
-	string fileName="./output/out"+int2str(timeStep)+".dat";
-	
+	string fileName="./output/out_"+int2str(gid+1)+"_"+int2str(timeStep)+".dat";
+
 	file.open((fileName).c_str(),ios::app);
 	if (Rank==0) {
-		file << "ZONE T=\"BC_" << bcNo+1 << "\" " << "NODES=" << grid.globalNodeCount << " ELEMENTS=" << grid.globalBoundaryFaceCount[bcNo] << " ZONETYPE=FEQUADRILATERAL" << endl;
-		file << "VARSHARELIST = ([1-" << nVar << "]=1)" << endl;
+		file << "ZONE T=\"Grid " << gid+1 << " BC_" << bcNo+1 << "\" " << ", ZONETYPE=FEQUADRILATERAL, VARSHARELIST=([1-" << nVar+3 << "]=1)" << endl;
+		file << "NODES=" << grid[gid].globalNodeCount << ", ELEMENTS=" << grid[gid].globalBoundaryFaceCount[bcNo] << endl;
 	}
-
+	
 	// Write connectivity
-	for (int f=0;f<grid.faceCount;++f) {
-		if (grid.face[f].bc==bcNo) {
-			if (grid.face[f].nodeCount==3) {
-				file << maps.nodeGlobal2Output[grid.face[f].node(0).globalId]+1 << "\t" ;
-				file << maps.nodeGlobal2Output[grid.face[f].node(1).globalId]+1 << "\t" ;
-				file << maps.nodeGlobal2Output[grid.face[f].node(2).globalId]+1 << "\t" ;
-				file << maps.nodeGlobal2Output[grid.face[f].node(2).globalId]+1 << "\t" ;
-			} else if (grid.face[f].nodeCount==4) {
-				for (int i=0;i<4;++i) {
-					file << maps.nodeGlobal2Output[grid.face[f].node(i).globalId]+1 << "\t" ;
-				}
-			}
-			file << endl;
-		}
+	for (int f=0;f<grid[gid].faceCount;++f) {
+	   if (grid[gid].face[f].bc==bcNo) {
+		   if (grid[gid].face[f].nodeCount==3) {
+			   file << grid[gid].maps.nodeGlobal2Output[grid[gid].faceNode(f,0).globalId]+1 << "\t" ;
+			   file << grid[gid].maps.nodeGlobal2Output[grid[gid].faceNode(f,1).globalId]+1 << "\t" ;
+			   file << grid[gid].maps.nodeGlobal2Output[grid[gid].faceNode(f,2).globalId]+1 << "\t" ;
+			   file << grid[gid].maps.nodeGlobal2Output[grid[gid].faceNode(f,2).globalId]+1 << "\t" ;
+		   } else if (grid[gid].face[f].nodeCount==4) {
+			   for (int i=0;i<4;++i) {
+				   file << grid[gid].maps.nodeGlobal2Output[grid[gid].faceNode(f,i).globalId]+1 << "\t" ;
+			   }
+		   }
+		   file << endl;
+	   }
 	}
-	
+
 	file.close();
 
+	return;
+
 }
-
-void write_vtk(void) {
-
-	string filePath="./output/"+int2str(timeStep);
-	string fileName=filePath+"/proc"+int2str(Rank)+".vtu";
-		
-	mkdir(filePath.c_str(),S_IRWXU);
 	
-	ofstream file;
-	file.open((fileName).c_str(),ios::out);
-	file << "<?xml version=\"1.0\"?>" << endl;
-	file << "<VTKFile type=\"UnstructuredGrid\">" << endl;
-	file << "<UnstructuredGrid>" << endl;
-	file << "<Piece NumberOfPoints=\"" << grid.nodeCount << "\" NumberOfCells=\"" << grid.cellCount << "\">" << endl;
-	file << "<Points>" << endl;
-	file << "<DataArray NumberOfComponents=\"3\" type=\"Float32\" format=\"ascii\" >" << endl;
-	for (int n=0;n<grid.nodeCount;++n) {
-		for (int i=0; i<3; ++i) file<< setw(16) << setprecision(8) << scientific << grid.node[n].comp[i] << endl;
-	}
-	file << "</DataArray>" << endl;
-	file << "</Points>" << endl;
-	file << "<Cells>" << endl;
-	
-	file << "<DataArray Name=\"connectivity\" type=\"Int32\" format=\"ascii\" >" << endl;
-	for (int c=0;c<grid.cellCount;++c) {
-		for (int n=0;n<grid.cell[c].nodeCount;++n) {
-			file << grid.cell[c].nodes[n] << "\t";
-		}
-		file << endl;
-	}
-	
-	file << "</DataArray>" << endl;
-	file << "<DataArray Name=\"offsets\" type=\"Int32\" format=\"ascii\" >" << endl;
-	int offset=0;
-	for (int c=0;c<grid.cellCount;++c) {
-		offset+=grid.cell[c].nodeCount;
-		file << offset << endl;
-	}
-	file << "</DataArray>" << endl;
-			
-	file << "<DataArray Name=\"types\" type=\"UInt8\" format=\"ascii\" >" << endl;
-	for (int c=0;c<grid.cellCount;++c) {
-		if (grid.cell[c].nodeCount==4) file << "10" << endl; // Tetra
-		if (grid.cell[c].nodeCount==8) file << "12" << endl; // Hexa
-		if (grid.cell[c].nodeCount==6) file << "13" << endl; // Prism (Wedge)
-		if (grid.cell[c].nodeCount==5) file << "14" << endl; // Pyramid (Wedge)
-	}
-	file << endl;
-	file << "</DataArray>" << endl;;
-	
-	file << "</Cells>" << endl;
-
-	file << "<CellData Scalars=\"Pressure\" Vectors=\"Velocity\" format=\"ascii\">" << endl;
-	
-	file << "<DataArray Name=\"Pressure\" type=\"Float32\" format=\"ascii\" >" << endl;
-	for (int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].p << endl;
-	file << "</DataArray>" << endl;
-	
-	file << "<DataArray Name=\"Velocity\" NumberOfComponents=\"3\" type=\"Float32\" format=\"ascii\" >" << endl;
-	for (int c=0;c<grid.cellCount;++c) for (int i=0;i<3;++i) file << setw(16) << setprecision(8) << scientific << grid.cell[c].v[i] << endl;
-	file << "</DataArray>" << endl;	
-	
-	file << "<DataArray Name=\"Temperature\" type=\"Float32\" format=\"ascii\" >" << endl;
-	for (int c=0;c<grid.cellCount;++c) for (int i=0;i<3;++i) file << setw(16) << setprecision(8) << scientific << grid.cell[c].T << endl;
-	file << "</DataArray>" << endl;
-	
-	file << "<DataArray Name=\"Density\" type=\"Float32\" format=\"ascii\" >" << endl;
-	for (int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].rho << endl;
-	file << "</DataArray>" << endl;
-
-
-	file << "</CellData>" << endl;
-	
-	file << "</Piece>" << endl;
-	file << "</UnstructuredGrid>" << endl;
-	file << "</VTKFile>" << endl;
-	file.close();
-	
-}
-
-void write_vtk_parallel(void) {
-
-	string filePath="./output/"+int2str(timeStep);
-	string fileName=filePath+"/out"+int2str(timeStep)+".pvtu";
-		
-	mkdir("./output",S_IRWXU);
-	mkdir(filePath.c_str(),S_IRWXU);
-	
-	ofstream file;
-	file.open((fileName).c_str(),ios::out);
-	file << "<?xml version=\"1.0\"?>" << endl;
-	file << "<VTKFile type=\"PUnstructuredGrid\">" << endl;
-	file << "<PUnstructuredGrid GhostLevel=\"0\">" << endl;
-	file << "<PPoints>" << endl;
-	file << "<DataArray NumberOfComponents=\"3\" type=\"Float32\" format=\"ascii\" />" << endl;
-	file << "</PPoints>" << endl;
-
-	file << "<PCellData Scalars=\"Pressure\" Vectors=\"Velocity\" format=\"ascii\">" << endl;
-	file << "<DataArray Name=\"Pressure\" type=\"Float32\" format=\"ascii\" />" << endl;
-	file << "<DataArray Name=\"Velocity\" NumberOfComponents=\"3\" type=\"Float32\" format=\"ascii\" />" << endl;
-	file << "<DataArray Name=\"Temperature\" type=\"Float32\" format=\"ascii\" />" << endl;
-	file << "<DataArray Name=\"Density\" type=\"Float32\" format=\"ascii\" />" << endl;
-	file << "</PCellData>" << endl;
-	for (int p=0;p<np;++p) file << "<Piece Source=\"proc" << int2str(p) << ".vtu\" />" << endl;
-	file << "</PUnstructuredGrid>" << endl;
-	file << "</VTKFile>" << endl;
-	file.close();
-	
-}
-

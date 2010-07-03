@@ -1,8 +1,8 @@
 /************************************************************************
 	
-	Copyright 2007-2009 Emre Sozer & Patrick Clark Trizila
+	Copyright 2007-2010 Emre Sozer
 
-	Contact: emresozer@freecfd.com , ptrizila@freecfd.com
+	Contact: emresozer@freecfd.com
 
 	This file is a part of Free CFD
 
@@ -20,209 +20,52 @@
     see <http://www.gnu.org/licenses/>.
 
 *************************************************************************/
-#include "commons.h"
 #include <iostream>
 #include <fstream>
-#include <string>
-#include <iomanip>
-#include <mpi.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 using namespace std;
 
-#include <cgnslib.h>
-#include "rans.h"
+#include "utilities.h"
+#include "vec3d.h"
+#include "grid.h"
+#include "inputs.h"
+#include "ns.h"
+#include "hc.h"
+#include "commons.h"
 
-extern RANS rans;
+extern vector<Grid> grid;
+extern InputFile input;
+extern vector<NavierStokes> ns;
+extern vector<HeatConduction> hc;
+extern vector<Variable<double> > dt;
+extern vector<int> equations;
 
-extern string int2str(int number) ;
+void write_restart(int gid,int timeStep,int restart_step,double time) {
 
-void write_restart(double time) {
-
+	string fileName;
+	
+	// Create the restart folder
 	ofstream file;
 	mkdir("./restart",S_IRWXU);
 	string dirname="./restart/"+int2str(timeStep);
 	mkdir(dirname.c_str(),S_IRWXU);
-	string fileName="./restart/"+int2str(timeStep)+"/field.dat";
-	// Proc 0 creates the output file and writes variable list
-	int nVar=9;
-	if (Rank==0) {
-		file.open((fileName).c_str(),ios::out); 
-		file << "VARIABLES = \"x\", \"y\", \"z\",\"p\",\"u\",\"v\",\"w\",\"T\",\"dt\" " ;
-		if (TURBULENCE_MODEL!=NONE) {
-			file << "\"k\", \"omega\" " ; nVar+=2;
-		}
-		file << endl; // DEBUG
-	} else {
-		file.open((fileName).c_str(),ios::app);
-	}
-	
-	// Write header (each proc has its own zone)
-	file << "ZONE, T=\"Partition " << Rank << "\"" ;
-	file << ", N=" << grid.nodeCount << ", E=" << grid.cellCount << ", VARLOCATION=([4-" << nVar << "]=CellCentered)" << endl;
-	file << "DATAPACKING=BLOCK, ZONETYPE=FEBRICK, SOLUTIONTIME=" << time << endl;
-
-	// Write coordinates
-	for (int i=0;i<3;++i) {
-		for (int n=0;n<grid.nodeCount;++n) {
-			file << setw(16) << setprecision(8) << scientific << grid.node[n].comp[i] << endl;
-		}
-	}
-
-	// Write variables
-
-	for (int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].p << endl;
-	for (int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].v[0] << endl;
-	for (int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].v[1] << endl;
-	for (int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].v[2] << endl;
-	for (int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].T << endl;
-	for (int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].dt << endl;
-	if (TURBULENCE_MODEL!=NONE) {
-		for (int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << rans.cell[c].k << endl;
-		for (int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << rans.cell[c].omega << endl;
-	}
-	// Write coonnectivity
-	for (int c=0;c<grid.cellCount;++c) {
-		if (grid.cell[c].nodeCount==4) {
-			file << grid.cell[c].nodes[0]+1 << "\t" ;
-			file << grid.cell[c].nodes[2]+1 << "\t" ;
-			file << grid.cell[c].nodes[1]+1 << "\t" ;
-			file << grid.cell[c].nodes[1]+1 << "\t" ;
-			file << grid.cell[c].nodes[3]+1 << "\t" ;
-			file << grid.cell[c].nodes[3]+1 << "\t" ;
-			file << grid.cell[c].nodes[3]+1 << "\t" ;
-			file << grid.cell[c].nodes[3]+1 << "\t" ;
-		}
-		else if (grid.cell[c].nodeCount==5) {
-			file << grid.cell[c].nodes[0]+1 << "\t" ;
-			file << grid.cell[c].nodes[1]+1 << "\t" ;
-			file << grid.cell[c].nodes[2]+1 << "\t" ;
-			file << grid.cell[c].nodes[3]+1 << "\t" ;
-			file << grid.cell[c].nodes[4]+1 << "\t" ;
-			file << grid.cell[c].nodes[4]+1 << "\t" ;
-			file << grid.cell[c].nodes[4]+1 << "\t" ;
-			file << grid.cell[c].nodes[4]+1 << "\t" ;
-		}
-		else if (grid.cell[c].nodeCount==6) {
-			file << grid.cell[c].nodes[0]+1 << "\t" ;
-			file << grid.cell[c].nodes[1]+1 << "\t" ;
-			file << grid.cell[c].nodes[2]+1 << "\t" ;
-			file << grid.cell[c].nodes[2]+1 << "\t" ;
-			file << grid.cell[c].nodes[3]+1 << "\t" ;
-			file << grid.cell[c].nodes[4]+1 << "\t" ;
-			file << grid.cell[c].nodes[5]+1 << "\t" ;
-			file << grid.cell[c].nodes[5]+1 << "\t" ;
-		} else if (grid.cell[c].nodeCount==8) {
-			for (int i=0;i<8;++i) {
-				file << grid.cell[c].nodes[i]+1 << "\t";
-			}
-		}
-		file << endl;
-	}
-	
-	file.close();
 
 	// write partition map
 	for (int p=0;p<np;++p) {
 		if (Rank==p) {
-			fileName="./restart/"+int2str(timeStep)+"/partitionMap.dat";
-			if (Rank==0) { file.open(fileName.c_str(), ios::out); file << np << endl;}
+			fileName="./restart/partitionMap_"+int2str(gid+1)+".dat";
+			if (Rank==0) { file.open(fileName.c_str()); file << np << endl;}
 			else { file.open(fileName.c_str(), ios::app); }
-			file << grid.nodeCount << "\t" << grid.cellCount << endl;
-			for (int c=0;c<grid.cellCount;++c) file << grid.cell[c].globalId << endl;
+			file << grid[gid].nodeCount << "\t" << grid[gid].cellCount << endl;
+			for (int c=0;c<grid[gid].cellCount;++c) file << grid[gid].cell[c].globalId << endl;
 			file.close();
 		}
 		MPI_Barrier(MPI_COMM_WORLD);
 	}
-
-
+	
+	string gs="."+int2str(gid+1);
+	dt[gid].dump_cell_data(dirname+"/dt"+gs);
+	if (equations[gid]==NS) ns[gid].write_restart(timeStep);
+	
 }
 
-void write_grad() {
-
-	ofstream file;
-	string fileName="grad.dat";
-
-	if (Rank==0) {
-		file.open((fileName).c_str(),ios::out); 
-		file << "VARIABLES = \"x\", \"y\", \"z\",\"p\",\"dpdx\",\"dpdy\",\"dpdz\" " << endl;
-	} else {
-		file.open((fileName).c_str(),ios::app);
-	}
-	
-	// Write header (each proc has its own zone)
-	file << "ZONE, T=\"Partition " << Rank << "\"" ;
-	file << ", N=" << grid.nodeCount << ", E=" << grid.cellCount << ", VARLOCATION=([4-8]=CellCentered)" << endl;
-	file << "DATAPACKING=BLOCK, ZONETYPE=FEBRICK" << endl;
-
-	// Write coordinates
-	for (int i=0;i<3;++i) {
-		for (int n=0;n<grid.nodeCount;++n) {
-			file << setw(16) << setprecision(8) << scientific << grid.node[n].comp[i] << endl;
-		}
-	}
-
-	// Write variables
-
-	for (int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].p << endl;
-	for (int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].grad[0][0] << endl;
-	for (int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].grad[0][1] << endl;
-	for (int c=0;c<grid.cellCount;++c) file << setw(16) << setprecision(8) << scientific << grid.cell[c].grad[0][2] << endl;
-
-	// Write coonnectivity
-	for (int c=0;c<grid.cellCount;++c) {
-		if (grid.cell[c].nodeCount==4) {
-			file << grid.cell[c].nodes[0]+1 << "\t" ;
-			file << grid.cell[c].nodes[2]+1 << "\t" ;
-			file << grid.cell[c].nodes[1]+1 << "\t" ;
-			file << grid.cell[c].nodes[1]+1 << "\t" ;
-			file << grid.cell[c].nodes[3]+1 << "\t" ;
-			file << grid.cell[c].nodes[3]+1 << "\t" ;
-			file << grid.cell[c].nodes[3]+1 << "\t" ;
-			file << grid.cell[c].nodes[3]+1 << "\t" ;
-		}
-		else if (grid.cell[c].nodeCount==5) {
-			file << grid.cell[c].nodes[0]+1 << "\t" ;
-			file << grid.cell[c].nodes[1]+1 << "\t" ;
-			file << grid.cell[c].nodes[2]+1 << "\t" ;
-			file << grid.cell[c].nodes[3]+1 << "\t" ;
-			file << grid.cell[c].nodes[4]+1 << "\t" ;
-			file << grid.cell[c].nodes[4]+1 << "\t" ;
-			file << grid.cell[c].nodes[4]+1 << "\t" ;
-			file << grid.cell[c].nodes[4]+1 << "\t" ;
-		}
-		else if (grid.cell[c].nodeCount==6) {
-			file << grid.cell[c].nodes[0]+1 << "\t" ;
-			file << grid.cell[c].nodes[1]+1 << "\t" ;
-			file << grid.cell[c].nodes[2]+1 << "\t" ;
-			file << grid.cell[c].nodes[2]+1 << "\t" ;
-			file << grid.cell[c].nodes[3]+1 << "\t" ;
-			file << grid.cell[c].nodes[4]+1 << "\t" ;
-			file << grid.cell[c].nodes[5]+1 << "\t" ;
-			file << grid.cell[c].nodes[5]+1 << "\t" ;
-		} else if (grid.cell[c].nodeCount==8) {
-			for (int i=0;i<8;++i) {
-				file << grid.cell[c].nodes[i]+1 << "\t";
-			}
-		}
-		file << endl;
-	}
-	
-	file.close();
-
-	// write partition map
-	for (int p=0;p<np;++p) {
-		if (Rank==p) {
-			fileName="./restart/"+int2str(timeStep)+"/partitionMap.dat";
-			if (Rank==0) { file.open(fileName.c_str(), ios::out); file << np << endl;}
-			else { file.open(fileName.c_str(), ios::app); }
-			file << grid.nodeCount << "\t" << grid.cellCount << endl;
-			for (int c=0;c<grid.cellCount;++c) file << grid.cell[c].globalId << endl;
-			file.close();
-		}
-		MPI_Barrier(MPI_COMM_WORLD);
-	}
-
-
-}
 

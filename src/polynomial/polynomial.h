@@ -20,14 +20,28 @@
     see <http://www.gnu.org/licenses/>.
 
 *************************************************************************/
-#ifndef COMMONS_H
-#define COMMONS_H
+#ifndef POLYNOMIAL_H
+#define POLYNOMIAL_H
 
-#define NONE -1
-// Equation options
-#define NS 1
-#define HEAT 2
+#include <vector>
+#include <cmath>
+#include <string>
+using namespace std;
 
-extern int Rank,np;
+// Options for polynomial types
+#define REGULAR 1
+#define SCHOMATE 2
+
+class Polynomial {
+public:
+	// A piece-wise polynomial
+	int type;
+	// Beginning point of each piece
+	vector<double> begin;
+	// Coefficients for each piece
+	vector<vector<double> > coeff;
+	void set(string type_in,int piece_count,vector<double> list);
+	double eval(double x);
+};
 
 #endif

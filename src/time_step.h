@@ -20,14 +20,28 @@
     see <http://www.gnu.org/licenses/>.
 
 *************************************************************************/
-#ifndef COMMONS_H
-#define COMMONS_H
+#include "grid.h"
+#include "inputs.h"
+#include "variable.h"
+#include "ns.h"
+
+extern InputFile input;
+extern vector<Grid> grid;
+extern vector<NavierStokes> ns;
+// Time step for each grid
+extern vector<Variable<double> > dt;
 
 #define NONE -1
-// Equation options
-#define NS 1
-#define HEAT 2
+// Options for time_integrator
+#define FORWARD_EULER 1
+#define BACKWARD_EULER 2
+// Options for time_step_type
+#define FIXED 1
+#define CFL_MAX 2
+#define CFL_LOCAL 3
 
-extern int Rank,np;
-
-#endif
+int time_integrator, time_step_type;
+double time_step_current,time_step_target;
+double CFLmax,CFLmaxTarget,CFLlocal,CFLlocalTarget;
+bool time_step_ramp;
+double time_step_ramp_initial,time_step_ramp_growth;

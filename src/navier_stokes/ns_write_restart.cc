@@ -20,14 +20,17 @@
     see <http://www.gnu.org/licenses/>.
 
 *************************************************************************/
-#ifndef COMMONS_H
-#define COMMONS_H
+#include "ns.h"
 
-#define NONE -1
-// Equation options
-#define NS 1
-#define HEAT 2
+void NavierStokes::write_restart(int timeStep) {
 
-extern int Rank,np;
+	string dirname="./restart/"+int2str(timeStep)+"/";
+	string gs="."+int2str(gid+1);
+	
+	p.dump_cell_data(dirname+"p"+gs);
+	V.dump_cell_data(dirname+"V"+gs);
+	T.dump_cell_data(dirname+"T"+gs);
+	
+}
 
-#endif
+

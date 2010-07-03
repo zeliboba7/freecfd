@@ -20,14 +20,27 @@
     see <http://www.gnu.org/licenses/>.
 
 *************************************************************************/
-#ifndef COMMONS_H
-#define COMMONS_H
+#include "hc.h"
 
-#define NONE -1
-// Equation options
-#define NS 1
-#define HEAT 2
+void HeatConduction::diffusive_face_flux(HC_Face_State &face,double &flux) {
 
-extern int Rank,np;
+	Vec3D areaVec;
 
-#endif
+	areaVec=face.normal*face.area;
+	
+	if (face.bc>=0) {
+		if (bc[gid][face.bc].thermalType==FIXED_Q) {
+			flux=qdot.bc(face.bc,face.index)*face.area;
+		} else if (bc[gid][face.bc].thermalType==FIXED_T) {
+			flux=face.lambda*face.gradT.dot(areaVec);
+		} else {
+			// Adiabatic
+			flux=0.;
+		}
+	} else {
+		flux=face.lambda*face.gradT.dot(areaVec);
+	}
+	
+	return;
+}
+
