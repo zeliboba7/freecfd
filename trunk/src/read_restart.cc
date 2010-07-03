@@ -1,8 +1,8 @@
 /************************************************************************
 	
-	Copyright 2007-2009 Emre Sozer & Patrick Clark Trizila
+	Copyright 2007-2010 Emre Sozer
 
-	Contact: emresozer@freecfd.com , ptrizila@freecfd.com
+	Contact: emresozer@freecfd.com
 
 	This file is a part of Free CFD
 
@@ -20,24 +20,31 @@
     see <http://www.gnu.org/licenses/>.
 
 *************************************************************************/
-#include "commons.h"
 #include <iostream>
 #include <fstream>
-#include <iomanip>
 using namespace std;
 
-#include <cgnslib.h>
-#include "rans.h"
-extern RANS rans;
-extern IndexMaps maps;
-extern string int2str(int number) ;
+#include "utilities.h"
+#include "vec3d.h"
+#include "grid.h"
+#include "inputs.h"
+#include "ns.h"
+#include "hc.h"
+#include "commons.h"
 
-void read_restart(double &time) {
-	
+extern vector<Grid> grid;
+extern InputFile input;
+extern vector<NavierStokes> ns;
+extern vector<HeatConduction> hc;
+extern vector<Variable<double> > dt;
+extern vector<int> equations;
+
+void read_restart(int gid,int restart_step,double time) {
+
 	fstream file;
-
+		
 	// Read partitionMap
-	string fileName="./restart/"+int2str(restart)+"/partitionMap.dat";
+	string fileName="./restart/partitionMap_"+int2str(gid+1)+".dat";
 	int nprocs,cellGlobalId;
 	int ncells[np],nnodes[np];
 	file.open(fileName.c_str(),ios::in);	
@@ -46,127 +53,24 @@ void read_restart(double &time) {
 		exit(1);
 	}
 	file >> nprocs;
-	vector<int> partitionMap[nprocs];
+	vector<vector<int> > partitionMap;
+	partitionMap.resize(nprocs);
 	for (int p=0;p<nprocs;++p) {
 		file >> nnodes[p];
 		file >> ncells[p];
+		partitionMap[p].resize(ncells[p]);
 		for (int c=0;c<ncells[p];++c) {
 			file >> cellGlobalId;
-			partitionMap[p].push_back(cellGlobalId);
+			partitionMap[p][c]=cellGlobalId;
 		}
 	}
 	file.close();
 	
-	fileName="./restart/"+int2str(restart)+"/field.dat";
-	string data="";
-	double dummy;
-	file.open(fileName.c_str(),ios::in);
-	// Skip first two header lines
-	getline(file,data,'\n'); getline(file,data,'\n');
-	// Skip 3 "=" signs and read solution time
-	for (int i=0; i<3; ++i) getline(file,data,'=');
-	file >> time;
-	// Rewind the file
-	file.seekg(0,ios::beg);
-	// Skip the variable header line
-	getline(file,data,'\n');
-	int id;
-	for (int p=0;p<nprocs;++p) {
-		// Skip two header lines
-		getline(file,data,'\n'); getline(file,data,'\n');
-		// Skip node data
-		for (int n=0;n<3*nnodes[p];++n) file >> dummy;
-		// Read pressure
-		for (int c=0;c<ncells[p];++c) {
-			// Get local cell id
-			id=-1;
-			if (maps.cellGlobal2Local.find(partitionMap[p][c])!=maps.cellGlobal2Local.end()) {
-				id=maps.cellGlobal2Local[partitionMap[p][c]];
-			}
-			// If id is negative, that means the cell currently lies on another partition
-			if (id>=0) { file >> grid.cell[id].p; } else { file >> dummy; }
-		}
-		// Read u-velocity
-		for (int c=0;c<ncells[p];++c) {
-			id=-1;
-			if (maps.cellGlobal2Local.find(partitionMap[p][c])!=maps.cellGlobal2Local.end()) {
-				id=maps.cellGlobal2Local[partitionMap[p][c]];
-			}
-			if (id>=0) { file >> grid.cell[id].v.comp[0]; } else { file >> dummy; }
-		}
-		// Read v-velocity
-		for (int c=0;c<ncells[p];++c) {
-			id=-1;
-			if (maps.cellGlobal2Local.find(partitionMap[p][c])!=maps.cellGlobal2Local.end()) {
-				id=maps.cellGlobal2Local[partitionMap[p][c]];
-			}
-			if (id>=0) { file >> grid.cell[id].v.comp[1]; } else { file >> dummy; }
-		}
-		// Read w-velocity
-		for (int c=0;c<ncells[p];++c) {
-			id=-1;
-			if (maps.cellGlobal2Local.find(partitionMap[p][c])!=maps.cellGlobal2Local.end()) {
-				id=maps.cellGlobal2Local[partitionMap[p][c]];
-			}
-			if (id>=0) { file >> grid.cell[id].v.comp[2]; } else { file >> dummy; }
-		}		
-		// Read temperature
-		for (int c=0;c<ncells[p];++c) {
-			id=-1;
-			if (maps.cellGlobal2Local.find(partitionMap[p][c])!=maps.cellGlobal2Local.end()) {
-				id=maps.cellGlobal2Local[partitionMap[p][c]];
-			}
-			if (id>=0) { 
-				file >> grid.cell[id].T; 
-				grid.cell[id].rho=eos.rho(grid.cell[id].p,grid.cell[id].T);
-			
-			} else { file >> dummy; }
-		}
-		// Read time step size
- 		for (int c=0;c<ncells[p];++c) {
-			id=-1;
-			if (maps.cellGlobal2Local.find(partitionMap[p][c])!=maps.cellGlobal2Local.end()) {
-				id=maps.cellGlobal2Local[partitionMap[p][c]];
-			}
-			if (id>=0 && TIME_STEP_TYPE!=FIXED) { 
-				file >> grid.cell[id].dt; 
-			} else { file >> dummy; 
-			}
-			
- 		}
- 		dt_current=grid.cell[0].dt;
-		
-		if (TURBULENCE_MODEL!=NONE) {
-			// Read k
-			for (int c=0;c<ncells[p];++c) {
-				id=-1;
-				if (maps.cellGlobal2Local.find(partitionMap[p][c])!=maps.cellGlobal2Local.end()) {
-					id=maps.cellGlobal2Local[partitionMap[p][c]];
-				}
-				if (id>=0) { 
-					file >> rans.cell[id].k;
-				
-				} else { file >> dummy; }
-			}
-			
-			// Read omega
-			for (int c=0;c<ncells[p];++c) {
-				id=-1;
-				if (maps.cellGlobal2Local.find(partitionMap[p][c])!=maps.cellGlobal2Local.end()) {
-					id=maps.cellGlobal2Local[partitionMap[p][c]];
-				}
-				if (id>=0) { 
-					file >> rans.cell[id].omega; 
-				
-				} else { file >> dummy; }
-			}
-		}
-		
-		// Skip connectivity list
-		getline(file,data,'\n');
-		for (int c=0;c<ncells[p];++c) getline(file,data,'\n');
+	for (int g=0;g<grid.size();++g) {
+		if (equations[gid]==NS) ns[gid].read_restart(restart_step,partitionMap);
 	}
-
-	file.close();
-
+	
+	return;
 }
+
+

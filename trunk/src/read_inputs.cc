@@ -1,8 +1,8 @@
 /************************************************************************
 	
-	Copyright 2007-2009 Emre Sozer & Patrick Clark Trizila
+	Copyright 2007-2010 Emre Sozer
 
-	Contact: emresozer@freecfd.com , ptrizila@freecfd.com
+	Contact: emresozer@freecfd.com
 
 	This file is a part of Free CFD
 
@@ -20,162 +20,142 @@
     see <http://www.gnu.org/licenses/>.
 
 *************************************************************************/
-#include "commons.h"
 #include "inputs.h"
 
-void check_inputs(InputFile &input);
+extern InputFile input;
+extern vector<InputFile> material_input;
 
-void read_inputs(InputFile &input) {
+void read_inputs(void) {
 
 	// These will make more sense as you read the input registration lines below
 	bool required=true; bool optional=false;
 	bool numbered=true; bool single=false;
 	
-	input.register_string("equations",optional,"NS");
-	input.readEntries();
-		
-	input.registerSection("turbulence",optional);
-	input.section("turbulence").register_string("model",optional,"none");
-	input.section("turbulence").register_double("omegaLowLimit",optional,1.);
-	input.section("turbulence").register_double("kLowLimit",optional,1.e-8);
-	input.section("turbulence").register_double("kHighLimit",optional,1.e4);
-	input.section("turbulence").register_double("viscosityRatioLimit",optional,1.e5);
-	input.section("turbulence").registerSubsection("filter",single,optional);
-	input.section("turbulence").subsection("filter").register_string("type",optional,"uniform");
-	input.section("turbulence").subsection("filter").register_double("size",optional,1.e20);
-	input.readSection("turbulence");
-	
-	input.registerSection("grid",optional);
-	input.section("grid").register_int("dimension",optional,3);
-	input.section("grid").register_string("depthDirection",optional,"z");
-	input.section("grid").register_Vec3D("scaleBy",optional,1.);
-	input.section("grid").register_Vec3D("rotationCenter",optional,0.);
-	input.section("grid").register_Vec3D("rotationAngles",optional,0.);
-	input.readSection("grid");
-	
-	input.registerSection("reference",optional);
-	input.section("reference").register_double("Mach",optional,1.);
+	input.registerSection("reference",single,optional);
 	input.section("reference").register_double("p",optional,0.);
 	input.section("reference").register_double("T",optional,0.);
-	input.readSection("reference");
+	input.section("reference").register_double("Mach",optional,1.);
+	input.read("reference");
 	
-	input.registerSection("residualNormalization",optional);
-	input.section("residualNormalization").register_double("p",optional,1.);
-	input.section("residualNormalization").register_double("v",optional,1.);
-	input.section("residualNormalization").register_double("T",optional,1.);
-	input.section("residualNormalization").register_double("k",optional,1.);
-	input.section("residualNormalization").register_double("omega",optional,1.);
-	input.readSection("residualNormalization");
+	input.registerSection("grid",numbered,required);
+	input.section("grid",0).register_string("file",required);
+	input.section("grid",0).register_int("dimension",optional,3);
 	
-	input.registerSection("timeMarching",required);
-	input.section("timeMarching").register_string("integrator",optional,"backwardEuler");
-	input.section("timeMarching").register_double("stepSize",optional,1.);
-	input.section("timeMarching").register_double("CFLmax",optional,1000.);
-	input.section("timeMarching").register_double("CFLlocal",optional,1000.);
-	input.section("timeMarching").register_double("adaptive",optional,0.05);
-	input.section("timeMarching").register_double("stepSizeMax",optional,0.01);
-	input.section("timeMarching").register_double("stepSizeMin",optional,1.e-9);
-	input.section("timeMarching").registerSubsection("ramp",single,optional);
-	input.section("timeMarching").subsection("ramp").register_double("initial",optional,1.);
-	input.section("timeMarching").subsection("ramp").register_double("growth",optional,1.2);
-	input.section("timeMarching").register_int("numberOfSteps",required);
-	input.readSection("timeMarching");
+	input.section("grid",0).register_string("equations",required);
 	
-	input.registerSection("pseudoTimeMarching",optional);
-	input.section("pseudoTimeMarching").register_string("preconditioner",optional,"none");
-	input.section("pseudoTimeMarching").register_double("stepSize",optional,1.);
-	input.section("pseudoTimeMarching").register_double("CFLmax",optional,1000.);
-	input.section("pseudoTimeMarching").register_double("CFLlocal",optional,1000.);
-	input.section("pseudoTimeMarching").register_double("adaptive",optional,1.);
-	input.section("pseudoTimeMarching").register_double("max",optional,0.01);
-	input.section("pseudoTimeMarching").register_double("min",optional,1.e-9);
-	input.section("pseudoTimeMarching").register_double("tolerance",optional,1.e-1);
-	input.section("pseudoTimeMarching").register_int("numberOfSteps",optional,1);
-	input.readSection("pseudoTimeMarching");
-	
-	input.registerSection("numericalOptions",optional);
-	input.section("numericalOptions").register_string("convectiveFlux",optional,"AUSM+up");
-	input.section("numericalOptions").register_string("convectiveFluxJac",optional,"AUSM+up");
-	input.section("numericalOptions").register_string("order",optional,"second");
-	input.section("numericalOptions").register_string("limiter",optional,"none");
-	input.section("numericalOptions").register_double("sharpeningFactor",optional,0.5);
-	input.section("numericalOptions").register_double("threshold",optional,1.);
-	input.readSection("numericalOptions");
-	
-	input.registerSection("linearSolver",required);
-	input.section("linearSolver").register_double("relTolerance",optional,1.e-6);
-	input.section("linearSolver").register_double("absTolerance",optional,1.e-12);
-	input.section("linearSolver").register_int("maxIterations",required);
-	input.readSection("linearSolver");
-	
-	input.registerSection("jacobian",optional);
-	input.section("jacobian").register_int("updateFrequency",optional,1);
-	input.readSection("jacobian");
-	
-	input.registerSection("fluidProperties",required);
-	input.section("fluidProperties").register_double("gamma",required);
-	// molarMass is used in calculating the ideal gas constant 
-	// by default, air's molar mass is used if not specified
-	input.section("fluidProperties").register_double("molarMass",optional,0.02897);
-	input.section("fluidProperties").register_string("eos",optional,"idealGas");
-	bool viscRequired= (input.get_string("equations")=="Euler")? false : true;
-	input.section("fluidProperties").register_double("viscosity",viscRequired,0.);
-	input.section("fluidProperties").register_double("thermalConductivity",optional,0.);
-	input.readSection("fluidProperties");
-	
-	input.registerSection("writeOutput",required);
-	input.section("writeOutput").register_string("format",optional,"tecplot");
-	input.section("writeOutput").register_int("plotFrequency",required);
-	input.section("writeOutput").register_int("restartFrequency",required);
-	input.readSection("writeOutput");
-	
-	input.registerSection("probes",optional);
-	input.section("probes").register_int("frequency",optional,1);
-	input.section("probes").registerSubsection("probe",numbered,optional);
-	input.section("probes").subsection("probe",0).register_Vec3D("coord",optional);
-	input.readSection("probes");
+	input.section("grid",0).registerSubsection("writeoutput",single,required);
+	input.section("grid",0).subsection("writeoutput").register_int("plotfrequency",optional,1e20);
+	input.section("grid",0).subsection("writeoutput").register_int("restartfrequency",optional,1e20);
+	input.section("grid",0).subsection("writeoutput").register_stringList("variables",required);
 
-	input.registerSection("integrateBoundary",optional);
-	input.section("integrateBoundary").register_int("frequency",optional,1);
-	input.section("integrateBoundary").registerSubsection("flux",numbered,optional);
-	input.section("integrateBoundary").subsection("flux",0).register_int("bc",optional);
-	input.readSection("integrateBoundary");
+	input.section("grid",0).register_string("material",optional,"none");
+	input.section("grid",0).registerSubsection("material",single,optional);
+	// Default air values assigned
+	input.section("grid",0).subsection("material").register_double("gamma",optional,1.4);
+	input.section("grid",0).subsection("material").register_double("molarmass",optional,28.97);
+	input.section("grid",0).subsection("material").register_double("viscosity",optional,0.);
+	input.section("grid",0).subsection("material").register_double("thermalconductivity",optional,0.);
 	
-	input.registerSection("initialConditions",required);
-	input.section("initialConditions").registerSubsection("IC",numbered,required);
-	input.section("initialConditions").subsection("IC",0).register_string("region",optional,"box");
-	input.section("initialConditions").subsection("IC",0).register_Vec3D("corner_1",optional,-1.e20);
-	input.section("initialConditions").subsection("IC",0).register_Vec3D("corner_2",optional,1e20);
-	input.section("initialConditions").subsection("IC",0).register_Vec3D("center",optional);
-	input.section("initialConditions").subsection("IC",0).register_Vec3D("axisDirection",optional);
-	input.section("initialConditions").subsection("IC",0).register_double("radius",optional);
-	input.section("initialConditions").subsection("IC",0).register_double("height",optional);
-	input.section("initialConditions").subsection("IC",0).register_double("p",required);
-	input.section("initialConditions").subsection("IC",0).register_Vec3D("v",required);
-	input.section("initialConditions").subsection("IC",0).register_double("T",optional);
-	input.section("initialConditions").subsection("IC",0).register_double("rho",optional);
-	input.section("initialConditions").subsection("IC",0).register_double("k",optional,0.);
-	input.section("initialConditions").subsection("IC",0).register_double("omega",optional,0.);
-	input.readSection("initialConditions");
+	input.section("grid",0).registerSubsection("IC",numbered,required);
+	input.section("grid",0).subsection("IC",0).register_string("region",optional,"box");
+	input.section("grid",0).subsection("IC",0).register_Vec3D("corner_1",optional,-1.e20);
+	input.section("grid",0).subsection("IC",0).register_Vec3D("corner_2",optional,1e20);
+	input.section("grid",0).subsection("IC",0).register_Vec3D("center",optional);
+	input.section("grid",0).subsection("IC",0).register_Vec3D("axisdirection",optional);
+	input.section("grid",0).subsection("IC",0).register_double("radius",optional);
+	input.section("grid",0).subsection("IC",0).register_double("height",optional);
+	input.section("grid",0).subsection("IC",0).register_double("p",optional);
+	input.section("grid",0).subsection("IC",0).register_Vec3D("V",optional);
+	input.section("grid",0).subsection("IC",0).register_double("T",optional);
+	input.section("grid",0).subsection("IC",0).register_double("rho",optional);
+	input.section("grid",0).subsection("IC",0).register_double("k",optional,0.);
+	input.section("grid",0).subsection("IC",0).register_double("omega",optional,0.);
 	
-	input.registerSection("boundaryConditions",required);
-	input.section("boundaryConditions").registerSubsection("BC",numbered,required);
-	input.section("boundaryConditions").subsection("BC",0).register_string("type",required);
-	input.section("boundaryConditions").subsection("BC",0).register_string("kind",optional,"none");
-	input.section("boundaryConditions").subsection("BC",0).register_string("region",optional,"gridFile");
-	input.section("boundaryConditions").subsection("BC",0).register_Vec3D("corner_1",optional);
-	input.section("boundaryConditions").subsection("BC",0).register_Vec3D("corner_2",optional);
-	input.section("boundaryConditions").subsection("BC",0).register_string("pick",optional,"overRide");
-	input.section("boundaryConditions").subsection("BC",0).register_double("p",optional);
-	input.section("boundaryConditions").subsection("BC",0).register_double("mdot",optional);
-	input.section("boundaryConditions").subsection("BC",0).register_double("qdot",optional);
-	input.section("boundaryConditions").subsection("BC",0).register_Vec3D("v",optional);
-	input.section("boundaryConditions").subsection("BC",0).register_double("T",optional);	
-	input.section("boundaryConditions").subsection("BC",0).register_double("rho",optional);	
-	input.section("boundaryConditions").subsection("BC",0).register_double("k",optional,0.);
-	input.section("boundaryConditions").subsection("BC",0).register_double("omega",optional,0.);
-	input.readSection("boundaryConditions");
+	input.section("grid",0).registerSubsection("BC",numbered,required);
+	input.section("grid",0).subsection("BC",0).register_string("type",required);
+	input.section("grid",0).subsection("BC",0).register_string("kind",optional,"none");
+	input.section("grid",0).subsection("BC",0).register_string("region",optional,"gridfile");
+	input.section("grid",0).subsection("BC",0).register_string("interface",optional,"none");	
+	input.section("grid",0).subsection("BC",0).register_Vec3D("corner_1",optional);
+	input.section("grid",0).subsection("BC",0).register_Vec3D("corner_2",optional);
+	input.section("grid",0).subsection("BC",0).register_string("pick",optional,"override");
+	input.section("grid",0).subsection("BC",0).register_double("p",optional);
+	input.section("grid",0).subsection("BC",0).register_double("mdot",optional);
+	input.section("grid",0).subsection("BC",0).register_double("qdot",optional);
+	input.section("grid",0).subsection("BC",0).register_Vec3D("V",optional);
+	input.section("grid",0).subsection("BC",0).register_double("T",optional);
+	input.section("grid",0).subsection("BC",0).register_double("rho",optional);
+	input.section("grid",0).subsection("BC",0).register_double("k",optional,0.);
+	input.section("grid",0).subsection("BC",0).register_double("omega",optional,0.);
 	
-	check_inputs(input);
+	input.section("grid",0).registerSubsection("navierstokes",single,optional);
+	input.section("grid",0).subsection("navierstokes").register_double("relativetolerance",optional,1.e-6);
+	input.section("grid",0).subsection("navierstokes").register_double("absolutetolerance",optional,1.e-12);
+	input.section("grid",0).subsection("navierstokes").register_int("maximumiterations",optional,10);	
+	input.section("grid",0).subsection("navierstokes").register_string("limiter",optional,"none");
+	input.section("grid",0).subsection("navierstokes").register_double("limiter_threshold",optional,1.);
+	input.section("grid",0).subsection("navierstokes").register_string("order",optional,"second");
+	input.section("grid",0).subsection("navierstokes").register_string("convectiveflux",optional,"AUSM+up");
 	
+	input.section("grid",0).registerSubsection("transform",numbered,optional);
+	input.section("grid",0).subsection("transform",0).register_string("function",optional);
+	input.section("grid",0).subsection("transform",0).register_Vec3D("anchor",optional,0.);
+	input.section("grid",0).subsection("transform",0).register_Vec3D("begin",optional,0.);
+	input.section("grid",0).subsection("transform",0).register_Vec3D("end",optional,0.);
+	input.section("grid",0).subsection("transform",0).register_double("factor",optional,0.);
+	input.section("grid",0).subsection("transform",0).register_Vec3D("axis",optional,0.);
+	input.section("grid",0).subsection("transform",0).register_double("angle",optional,0.);
+	
+	input.read("grid",0);
+	
+	input.registerSection("timemarching",single,required);
+	input.section("timemarching").register_string("integrator",optional,"backwardEuler");
+	input.section("timemarching").register_double("stepsize",optional,1.);
+	input.section("timemarching").register_double("CFLmax",optional,1000.);
+	input.section("timemarching").register_double("CFLlocal",optional,1000.);
+	input.section("timemarching").registerSubsection("ramp",single,optional);
+	input.section("timemarching").subsection("ramp").register_double("initial",optional,1.);
+	input.section("timemarching").subsection("ramp").register_double("growth",optional,1.2);
+	input.section("timemarching").register_int("numberofsteps",required);
+	input.read("timemarching");
+
+	input.readEntries();
+	
+	// Read the material file for each grid
+	material_input.resize(input.section("grid",0).count);
+	for (int gid=0;gid<material_input.size();++gid) {
+		// If a material specification exists
+		if(input.section("grid",0).get_string("material").is_found) {
+			// Default values are set to air properties
+			string fileName=input.section("grid",0).get_string("material");
+			fileName+=".mat";
+			material_input[gid].setFile(fileName);
+			material_input[gid].register_double("molar mass",optional,28.97);
+			material_input[gid].register_double("gamma",optional,1.4);
+			material_input[gid].registerSection("equationofstate",single,optional);
+			material_input[gid].section("equationofstate").register_string("model",optional,"idealgas");
+			material_input[gid].read("equationofstate");
+			material_input[gid].register_double("viscosity",optional,1.716e-5);
+			material_input[gid].registerSection("viscosity",single,optional);
+			material_input[gid].section("viscosity").register_string("model",optional,"sutherlands");
+			material_input[gid].section("viscosity").register_double("referenceviscosity",optional,1.716e-5);
+			material_input[gid].section("viscosity").register_double("referencetemperature",optional,273.15);
+			material_input[gid].section("viscosity").register_double("sutherlandtemperature",optional,110.4);			
+			material_input[gid].read("viscosity");
+			material_input[gid].register_double("Cp",optional,1.716e-5);
+			material_input[gid].registerSection("Cp",single,optional);
+			material_input[gid].section("Cp").register_int("numberofpieces",optional);
+			material_input[gid].section("Cp").register_string("model",optional,"shomate");
+			material_input[gid].section("Cp").register_doubleList("coefficients",optional);
+			material_input[gid].read("Cp");
+			material_input[gid].register_double("thermalconductivity",optional,0.024);
+			material_input[gid].registerSection("thermalconductivity",single,optional);
+			material_input[gid].section("thermalconductivity").register_string("model",optional,"constantPrandtl");
+			material_input[gid].section("thermalconductivity").register_double("Pr",optional,0.7);
+			material_input[gid].read("thermalconductivity");
+			material_input[gid].readEntries();
+		}
+	}
+
+	return;
 }

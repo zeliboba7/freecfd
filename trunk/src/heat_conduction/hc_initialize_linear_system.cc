@@ -20,14 +20,22 @@
     see <http://www.gnu.org/licenses/>.
 
 *************************************************************************/
-#ifndef COMMONS_H
-#define COMMONS_H
+#include "hc.h"
 
-#define NONE -1
-// Equation options
-#define NS 1
-#define HEAT 2
+void HeatConduction::initialize_linear_system() {
 
-extern int Rank,np;
+	MatZeroEntries(impOP);
 
-#endif
+	PetscInt row,col;
+	PetscScalar value;
+	
+	for (int c=0;c<grid[gid].cellCount;++c) {
+		row=(grid[gid].myOffset+c);
+		col=row;
+		value=grid[gid].cell[c].volume/dt[gid].cell(c);
+		MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
+	}
+	
+	return;
+}
+

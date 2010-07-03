@@ -20,14 +20,12 @@
     see <http://www.gnu.org/licenses/>.
 
 *************************************************************************/
-#ifndef COMMONS_H
-#define COMMONS_H
+#include "hc.h"
 
-#define NONE -1
-// Equation options
-#define NS 1
-#define HEAT 2
+void HeatConduction::sources(HC_Cell_State &state,double &source,bool forJacobian) {
 
-extern int Rank,np;
+	// A nice place to put your sources in
 
-#endif
+	return;
+} // end function
+

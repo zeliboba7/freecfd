@@ -20,14 +20,32 @@
     see <http://www.gnu.org/licenses/>.
 
 *************************************************************************/
-#ifndef COMMONS_H
-#define COMMONS_H
+#ifndef HC_STATE_CACHE_H
+#define HC_STATE_CACHE_H
 
-#define NONE -1
-// Equation options
-#define NS 1
-#define HEAT 2
+class HC_Cell_State {
+	public:
+		double T,T_center,volume;
+		double update;
+		HC_Cell_State &operator= (const HC_Cell_State & rhs) {
+			// TODO: simplify this
+			// Is this even needed? What about default copy constructor?
+			T=rhs.T;
+			T_center=rhs.T_center;
+			volume=rhs.volume;
+			update=rhs.update;
+			return *this;
+		}
+};
 
-extern int Rank,np;
+class HC_Face_State {
+	public:
+		int index;
+		double T,lambda;
+		Vec3D gradT;
+		Vec3D normal,tangent1,tangent2,left2right;
+		double area;
+		int bc;
+};
 
 #endif

@@ -20,14 +20,22 @@
     see <http://www.gnu.org/licenses/>.
 
 *************************************************************************/
-#ifndef COMMONS_H
-#define COMMONS_H
+#include "ns.h"
 
-#define NONE -1
-// Equation options
-#define NS 1
-#define HEAT 2
+void NavierStokes::read_restart(int restart_step,vector<vector<int> > &partitionMap) {
 
-extern int Rank,np;
+	string dirname="./restart/"+int2str(restart_step)+"/";
+	string gs="."+int2str(gid+1);
+	
+	p.read_cell_data(dirname+"p"+gs,partitionMap);
+	V.read_cell_data(dirname+"V"+gs,partitionMap);
+	T.read_cell_data(dirname+"T"+gs,partitionMap);
+	for (int c=0;c<grid[gid].cellCount;++c) rho.cell(c)=material.rho(p.cell(c),T.cell(c));
+	mpi_update_ghost_primitives();
+	calc_cell_grads();
+	mpi_update_ghost_gradients();
+	calc_limiter();
+	mpi_update_ghost_gradients(); // Needs to be updated again after grads are limited
+}
 
-#endif
+
