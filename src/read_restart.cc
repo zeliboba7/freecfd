@@ -68,6 +68,7 @@ void read_restart(int gid,int restart_step,double time) {
 	
 	for (int g=0;g<grid.size();++g) {
 		if (equations[gid]==NS) ns[gid].read_restart(restart_step,partitionMap);
+		if (equations[gid]==HEAT) hc[gid].read_restart(restart_step,partitionMap);
 	}
 	
 	return;

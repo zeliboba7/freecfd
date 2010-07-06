@@ -32,7 +32,7 @@ void HeatConduction::initialize_linear_system() {
 	for (int c=0;c<grid[gid].cellCount;++c) {
 		row=(grid[gid].myOffset+c);
 		col=row;
-		value=grid[gid].cell[c].volume/dt[gid].cell(c);
+		value=grid[gid].cell[c].volume/(1000.*dt[gid].cell(c));
 		MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
 	}
 	

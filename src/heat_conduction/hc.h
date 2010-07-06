@@ -107,7 +107,8 @@ public:
 	void symmetry(HC_Cell_State &left,HC_Cell_State &right,HC_Face_State &face);
 	
 	void update_variables(void);
-
+	void write_restart(int timeStep);
+	void read_restart(int restart_step,vector<vector<int> > &partitionMap);
 };
 
 #endif

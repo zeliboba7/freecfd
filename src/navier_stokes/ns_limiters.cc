@@ -128,17 +128,13 @@ void NavierStokes::venkatakrishnan_limiter(void) {
 			}
 
 		} // end face loop
+		double min_lim=1.;
 		for (int var=0;var<5;++var) {
 			if ((phi[var]>1)||(phi[var]<0)) cout<<"ERRORphi"<< "\t" << phi[var] << endl; // DEBUG
-			limiter[var].cell(c)=phi[var];
+			min_lim=min(min_lim,limiter[var].cell(c));
+			//limiter[var].cell(c)=phi[var];
 		}
-		/*
-		gradp.cell(c)*=phi[0];
-		gradu.cell(c)*=phi[1];
-		gradv.cell(c)*=phi[2];
-		gradw.cell(c)*=phi[3];
-		gradT.cell(c)*=phi[4];
-		 */
+		for (int var=0;var<5;++var) limiter[var].cell(c)=min_lim;
 
 	} // end cell loop
 

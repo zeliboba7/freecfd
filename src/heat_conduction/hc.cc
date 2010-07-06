@@ -55,7 +55,7 @@ void HeatConduction::solve (int timeStep) {
 	int nIter;
 	double rNorm;
 	petsc_solve(nIter,rNorm);
-	if (Rank==0) cout << "\t" << gid+1 << "\t" << nIter << "\t" << rNorm << endl;
+	if (Rank==0) cout << "\t" << gid+1 << "\t" << nIter << "\t" << rNorm ;
 	update_variables();
 	mpi_update_ghost_primitives();
 	calc_cell_grads();

@@ -29,6 +29,7 @@ MATERIAL::MATERIAL() {
 void MATERIAL::set(int gid) {
 	if (input.section("grid",gid).get_string("material").is_found) {
 		Mw=material_input[gid].get_double("molar mass");
+		density=material_input[gid].get_double("density"); // for solids
 		gamma=material_input[gid].get_double("gamma");
 		
 		if (material_input[gid].section("equationofstate").get_string("model")=="idealgas") {
@@ -88,11 +89,14 @@ void MATERIAL::set(int gid) {
 		eos_model=IDEAL_GAS;
 		Mw=input.section("grid",gid).subsection("material").get_double("molarmass");
 		R=UNIV_GAS_CONST/Mw;
+		density=input.section("grid",gid).subsection("material").get_double("density");
 		gamma=input.section("grid",gid).subsection("material").get_double("gamma");
 		visc_model=CONSTANT;
 		mu=input.section("grid",gid).subsection("material").get_double("viscosity");
 		lambda_model=CONSTANT;
 		lambda=input.section("grid",gid).subsection("material").get_double("thermalconductivity");
+		Cp_model=CONSTANT;
+		Cp_value=input.section("grid",gid).subsection("material").get_double("Cp");
 	}
 	Pref=input.section("reference").get_double("p");
   	Tref=input.section("reference").get_double("T");

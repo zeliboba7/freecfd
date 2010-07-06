@@ -68,7 +68,7 @@ void bc_interface_sync(void) {
 					else if (interface[gid][i].donor_var=="qdot") {
 						//if (interface[gid][i].donor_eqn==NS) sendBuffer.push_back(ns[donor_grid].qdot.bc(interface[gid][i].donor_bc,f));
 						if (interface[gid][i].donor_eqn==NS) sendBuffer.push_back(ns[donor_grid].qdot.face(f));
-						else if (interface[gid][i].donor_eqn==HEAT) sendBuffer.push_back(hc[donor_grid].qdot.bc(interface[gid][i].donor_bc,f));
+						else if (interface[gid][i].donor_eqn==HEAT) sendBuffer.push_back(hc[donor_grid].qdot.face(f));
 					}
 					counter++;
 				}
@@ -88,12 +88,12 @@ void bc_interface_sync(void) {
 			for (int f=0;f<grid[gid].faceCount;++f) {
 				if (grid[gid].face[f].bc==interface[gid][i].recv_bc) {
 					if (interface[gid][i].donor_var=="T") {
-						if (interface[gid][i].recv_eqn==NS) ns[gid].T.bc(grid[gid].face[f].bc,f)=interface[gid][i].donor_data[interface[gid][i].donor_index[count]];
-						else if (interface[gid][i].recv_eqn==HEAT) hc[gid].T.bc(grid[gid].face[f].bc,f)=interface[gid][i].donor_data[interface[gid][i].donor_index[count]];
+						if (interface[gid][i].recv_eqn==NS) ns[gid].T.face(f)=interface[gid][i].donor_data[interface[gid][i].donor_index[count]];
+						else if (interface[gid][i].recv_eqn==HEAT) hc[gid].T.face(f)=interface[gid][i].donor_data[interface[gid][i].donor_index[count]];
 					}
 					else if (interface[gid][i].donor_var=="qdot") {
-						if (interface[gid][i].recv_eqn==NS) ns[gid].qdot.bc(grid[gid].face[f].bc,f)=interface[gid][i].donor_data[interface[gid][i].donor_index[count]];
-						else if (interface[gid][i].recv_eqn==HEAT) hc[gid].qdot.bc(grid[gid].face[f].bc,f)=interface[gid][i].donor_data[interface[gid][i].donor_index[count]];
+						if (interface[gid][i].recv_eqn==NS) ns[gid].qdot.face(f)=interface[gid][i].donor_data[interface[gid][i].donor_index[count]];
+						else if (interface[gid][i].recv_eqn==HEAT) hc[gid].qdot.face(f)=interface[gid][i].donor_data[interface[gid][i].donor_index[count]];
 					}
 					count++;
 				}

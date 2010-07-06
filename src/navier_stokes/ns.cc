@@ -65,7 +65,6 @@ void NavierStokes::initialize (void) {
 	calc_cell_grads();
 	mpi_update_ghost_gradients();
 	calc_limiter();
-	mpi_update_ghost_gradients(); // Needs to be updated again after grads are limited
 	petsc_init();
 
 	return;
@@ -83,8 +82,7 @@ void NavierStokes::solve (int timeStep) {
 	calc_cell_grads();
 	mpi_update_ghost_gradients();
 	calc_limiter();
-	mpi_update_ghost_gradients(); // Needs to be updated again after grads are limited
-	
+
 	return;
 }
 
@@ -201,17 +199,19 @@ void NavierStokes::apply_initial_conditions (void) {
 	//	V.cell(c)[0]=grid[gid].cell[c].centroid[0];
 	//}
 	
-	// initialize updates and limiter to zero
+	// initialize updates and limiter
 	for (int c=0;c<grid[gid].cellCount;++c) {
 		for (int i=0;i<5;++i) {
 			update[i].cell(c)=0.;
-			limiter[i].cell(c)=0.;
+			if (limiter_function==NONE) limiter[i].cell(c)=1.;
+			if (order==FIRST) limiter[i].cell(c)=0.;
 		}
 	}
 	for (int g=0;g<grid[gid].ghostCount;++g) {
 		for (int i=0;i<5;++i) {
 			update[i].ghost(g)=0.;
-			limiter[i].ghost(g)=0.;
+			if (limiter_function==NONE) limiter[i].ghost(g)=1.;
+			if (order==FIRST) limiter[i].ghost(g)=0.;
 		}
 	}
 	return;
