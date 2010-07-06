@@ -55,6 +55,8 @@ void read_inputs(void) {
 	input.section("grid",0).subsection("material").register_double("molarmass",optional,28.97);
 	input.section("grid",0).subsection("material").register_double("viscosity",optional,0.);
 	input.section("grid",0).subsection("material").register_double("thermalconductivity",optional,0.);
+	input.section("grid",0).subsection("material").register_double("Cp",optional,1000.);
+	input.section("grid",0).subsection("material").register_double("density",optional,0.);
 	
 	input.section("grid",0).registerSubsection("IC",numbered,required);
 	input.section("grid",0).subsection("IC",0).register_string("region",optional,"box");
@@ -68,8 +70,8 @@ void read_inputs(void) {
 	input.section("grid",0).subsection("IC",0).register_Vec3D("V",optional);
 	input.section("grid",0).subsection("IC",0).register_double("T",optional);
 	input.section("grid",0).subsection("IC",0).register_double("rho",optional);
-	input.section("grid",0).subsection("IC",0).register_double("k",optional,0.);
-	input.section("grid",0).subsection("IC",0).register_double("omega",optional,0.);
+	input.section("grid",0).subsection("IC",0).register_double("turbulenceintensity",optional,1.e-2);
+	input.section("grid",0).subsection("IC",0).register_double("eddyviscosityratio",optional,0.1);
 	
 	input.section("grid",0).registerSubsection("BC",numbered,required);
 	input.section("grid",0).subsection("BC",0).register_string("type",required);
@@ -87,6 +89,13 @@ void read_inputs(void) {
 	input.section("grid",0).subsection("BC",0).register_double("rho",optional);
 	input.section("grid",0).subsection("BC",0).register_double("k",optional,0.);
 	input.section("grid",0).subsection("BC",0).register_double("omega",optional,0.);
+	
+	input.section("grid",0).registerSubsection("turbulence",single,optional);
+	input.section("grid",0).subsection("turbulence").register_double("relativetolerance",optional,1.e-6);
+	input.section("grid",0).subsection("turbulence").register_double("absolutetolerance",optional,1.e-12);
+	input.section("grid",0).subsection("turbulence").register_int("maximumiterations",optional,10);	
+	input.section("grid",0).subsection("turbulence").register_string("model",optional,"none");
+	input.section("grid",0).subsection("turbulence").register_string("order",optional,"second");
 	
 	input.section("grid",0).registerSubsection("navierstokes",single,optional);
 	input.section("grid",0).subsection("navierstokes").register_double("relativetolerance",optional,1.e-6);
@@ -131,6 +140,7 @@ void read_inputs(void) {
 			fileName+=".mat";
 			material_input[gid].setFile(fileName);
 			material_input[gid].register_double("molar mass",optional,28.97);
+			material_input[gid].register_double("density",optional,0.);
 			material_input[gid].register_double("gamma",optional,1.4);
 			material_input[gid].registerSection("equationofstate",single,optional);
 			material_input[gid].section("equationofstate").register_string("model",optional,"idealgas");
@@ -142,7 +152,7 @@ void read_inputs(void) {
 			material_input[gid].section("viscosity").register_double("referencetemperature",optional,273.15);
 			material_input[gid].section("viscosity").register_double("sutherlandtemperature",optional,110.4);			
 			material_input[gid].read("viscosity");
-			material_input[gid].register_double("Cp",optional,1.716e-5);
+			material_input[gid].register_double("Cp",optional,1000.);
 			material_input[gid].registerSection("Cp",single,optional);
 			material_input[gid].section("Cp").register_int("numberofpieces",optional);
 			material_input[gid].section("Cp").register_string("model",optional,"shomate");

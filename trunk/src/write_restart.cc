@@ -65,7 +65,7 @@ void write_restart(int gid,int timeStep,int restart_step,double time) {
 	string gs="."+int2str(gid+1);
 	dt[gid].dump_cell_data(dirname+"/dt"+gs);
 	if (equations[gid]==NS) ns[gid].write_restart(timeStep);
-	
+	if (equations[gid]==HEAT) hc[gid].write_restart(timeStep);	
 }
 
 

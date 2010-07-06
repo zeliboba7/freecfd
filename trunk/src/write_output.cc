@@ -94,7 +94,7 @@ void write_output(int gridid, int step) {
 void write_tec_vars(void) {
 	
 	ofstream file;
-	string fileName="./output/out_"+int2str(gid+1)+"_"+int2str(timeStep)+".dat";
+	string fileName="./output/out_"+int2str(timeStep)+"_"+int2str(gid+1)+".dat";
 	
 	// Proc 0 creates the output file and writes variable list
 	
@@ -131,8 +131,8 @@ void write_tec_vars(void) {
 			
 			// Node temperature and pressure are repeatedly used. Store them first
 			double p_node,T_node;
-			p_node=ns[gid].p.node(n);
-			if (equations[gid]==NS)	T_node=ns[gid].T.node(n);
+			
+			if (equations[gid]==NS)	{p_node=ns[gid].p.node(n); T_node=ns[gid].T.node(n);}
 			else if (equations[gid]==HEAT) T_node=hc[gid].T.node(n);
 			
 			for (int ov=0;ov<varList.size();++ov) {
@@ -215,7 +215,7 @@ void write_tec_vars(void) {
 void write_tec_cells() {
 	
 	ofstream file;
-	string fileName="./output/out_"+int2str(gid+1)+"_"+int2str(timeStep)+".dat";
+	string fileName="./output/out_"+int2str(timeStep)+"_"+int2str(gid+1)+".dat";
 	
 	file.open((fileName).c_str(),ios::app);
 	
@@ -267,7 +267,7 @@ void write_tec_cells() {
 void write_tec_bcs(int bcNo,int nVar) {
 	
 	ofstream file;
-	string fileName="./output/out_"+int2str(gid+1)+"_"+int2str(timeStep)+".dat";
+	string fileName="./output/out_"+int2str(timeStep)+"_"+int2str(gid+1)+".dat";
 
 	file.open((fileName).c_str(),ios::app);
 	if (Rank==0) {

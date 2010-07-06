@@ -50,6 +50,7 @@ public:
 	double gamma;
 	double Cp_value;
 	Polynomial Cp_poly;
+	double density;
 	double Pref,Tref; // Reference properties (everything is relative to these)
 	// Constant viscosity and thermal conductivity variables
 	double mu, lambda;

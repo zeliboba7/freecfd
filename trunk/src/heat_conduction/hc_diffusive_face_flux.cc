@@ -32,13 +32,13 @@ void HeatConduction::diffusive_face_flux(HC_Face_State &face,double &flux) {
 		if (bc[gid][face.bc].thermalType==FIXED_Q) {
 			flux=qdot.bc(face.bc,face.index)*face.area;
 		} else if (bc[gid][face.bc].thermalType==FIXED_T) {
-			flux=face.lambda*face.gradT.dot(areaVec);
+			flux=face.lambda/(material.density*material.Cp(face.T))*face.gradT.dot(areaVec);
 		} else {
 			// Adiabatic
 			flux=0.;
 		}
 	} else {
-		flux=face.lambda*face.gradT.dot(areaVec);
+		flux=face.lambda/(material.density*material.Cp(face.T))*face.gradT.dot(areaVec);
 	}
 	
 	return;
