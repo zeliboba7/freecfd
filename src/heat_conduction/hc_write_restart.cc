@@ -22,20 +22,12 @@
 *************************************************************************/
 #include "hc.h"
 
-void HeatConduction::initialize_linear_system() {
+void HeatConduction::write_restart(int timeStep) {
 
-	MatZeroEntries(impOP);
-
-	PetscInt row,col;
-	PetscScalar value;
+	string dirname="./restart/"+int2str(timeStep)+"/";
+	string gs="."+int2str(gid+1);
+	T.dump_cell_data(dirname+"T"+gs);
 	
-	for (int c=0;c<grid[gid].cellCount;++c) {
-		row=(grid[gid].myOffset+c);
-		col=row;
-		value=grid[gid].cell[c].volume/(dt[gid].cell(c));
-		MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
-	}
-	
-	return;
 }
+
 

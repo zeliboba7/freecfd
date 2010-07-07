@@ -93,7 +93,7 @@ int Grid::partition() {
 		eind[i]=raw.cellConnectivity[raw.cellConnIndex[offset]+i];
 	}
 
-	ompi_communicator_t* commWorld=MPI_COMM_WORLD;
+	MPI_Comm commWorld=MPI_COMM_WORLD;
 	ParMETIS_V3_PartMeshKway(elmdist,eptr,eind, elmwgt,
 	                         &wgtflag, &numflag, &ncon, &ncommonnodes,
 	                         &np, tpwgts, &ubvec, options, &edgecut,
@@ -155,7 +155,7 @@ int Grid::mesh2dual() {
 	int eindSize=0;
 	int ncommonnodes=1;
 	int numflag=0; // C-style numbering
-	ompi_communicator_t* commWorld=MPI_COMM_WORLD;
+	MPI_Comm commWorld=MPI_COMM_WORLD;
 
 	for (int c=0;c<cellCount;++c) {
 		eindSize+=cell[c].nodeCount;
