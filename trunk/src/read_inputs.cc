@@ -44,8 +44,8 @@ void read_inputs(void) {
 	input.section("grid",0).register_string("equations",required);
 	
 	input.section("grid",0).registerSubsection("writeoutput",single,required);
-	input.section("grid",0).subsection("writeoutput").register_int("plotfrequency",optional,1e20);
-	input.section("grid",0).subsection("writeoutput").register_int("restartfrequency",optional,1e20);
+	input.section("grid",0).subsection("writeoutput").register_int("plotfrequency",optional,1e10);
+	input.section("grid",0).subsection("writeoutput").register_int("restartfrequency",optional,1e10);
 	input.section("grid",0).subsection("writeoutput").register_stringList("variables",required);
 
 	input.section("grid",0).register_string("material",optional,"none");
