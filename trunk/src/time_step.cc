@@ -116,7 +116,7 @@ void update_time_step(int timeStep,int gid) {
 }
 	*/
 	// Output current time step, max dt and max CFL
-	if (Rank==0 ) cout << timeStep << "\t" << time_step_current << "\t";
+	if (Rank==0 && gid==0) cout << timeStep << "\t" << time_step_current << "\t";
 	double max_cfl=-1.;
 	for (int gid=0;gid<grid.size();++gid) {
 		if (equations[gid]==NS) {

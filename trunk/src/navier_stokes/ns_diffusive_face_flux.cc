@@ -21,20 +21,21 @@
 
 *************************************************************************/
 #include "ns.h"
+#include "rans.h"
+extern vector<RANS> rans;
 
 void NavierStokes::diffusive_face_flux(NS_Cell_State &left,NS_Cell_State &right,NS_Face_State &face,double flux[]) {
 
 	Vec3D tau_x,tau_y,tau_z,areaVec;
 
 	double qq;
+	double turb_visc=0.;
+	double turb_cond=0.;
 	
-	// TODO: Add in turbulence contribution 
-	/*
-	if (TURBULENCE_MODEL!=NONE) {
-		Tvisc+=rans.face[face.index].mu_t;
-		cond+=rans.face[face.index].mu_t/0.7;
+	if (turbulent[gid]) {
+		turb_visc=rans[gid].mu_t.face(face.index);
+		turb_cond=material.Cp(face.T)*turb_visc/material.Pr;
 	}
-	 */
 	
 	areaVec=face.normal*face.area;
 	tau_x[0]=2./3.*(2.*face.gradu[0]-face.gradv[1]-face.gradw[2]);
@@ -47,11 +48,11 @@ void NavierStokes::diffusive_face_flux(NS_Cell_State &left,NS_Cell_State &right,
 	tau_z[1]=tau_y[2];
 	tau_z[2]=2./3.*(2.*face.gradw[2]-face.gradu[0]-face.gradv[1]);
 
-	flux[1]=face.mu*tau_x.dot(areaVec);
-	flux[2]=face.mu*tau_y.dot(areaVec);
-	flux[3]=face.mu*tau_z.dot(areaVec);
-	flux[4]=face.mu*(tau_x.dot(face.V)*areaVec[0]+tau_y.dot(face.V)*areaVec[1]+tau_z.dot(face.V)*areaVec[2]);
-	qq=face.lambda*face.gradT.dot(areaVec);
+	flux[1]=(face.mu+turb_visc)*tau_x.dot(areaVec);
+	flux[2]=(face.mu+turb_visc)*tau_y.dot(areaVec);
+	flux[3]=(face.mu+turb_visc)*tau_z.dot(areaVec);
+	flux[4]=(face.mu+turb_visc)*(tau_x.dot(face.V)*areaVec[0]+tau_y.dot(face.V)*areaVec[1]+tau_z.dot(face.V)*areaVec[2]);
+	qq=(face.lambda+turb_cond)*face.gradT.dot(areaVec);
 	if (face.bc>=0) {
 		if (bc[gid][face.bc].thermalType==FIXED_Q) qq=qdot.bc(face.bc,face.index)*face.area;
 		else if (qdot.bcValue[face.bc].size()>1) qdot.bc(face.bc,face.index)=-qq;

@@ -28,7 +28,7 @@ NavierStokes::NavierStokes (void) {
 }
 
 void NavierStokes::initialize (void) {
-	
+	nVars=5;
 	rtol=input.section("grid",gid).subsection("navierstokes").get_double("relativetolerance");
 	abstol=input.section("grid",gid).subsection("navierstokes").get_double("absolutetolerance");
 	maxits=input.section("grid",gid).subsection("navierstokes").get_int("maximumiterations");
@@ -76,7 +76,7 @@ void NavierStokes::solve (int timeStep) {
 	int nIter;
 	double rNorm;
 	petsc_solve(nIter,rNorm);
-	if (Rank==0) cout << "\t" << gid+1 << "\t" << nIter << "\t" << rNorm;
+	if (Rank==0) cout << "\t" << gid+1 << "\t" << nIter << "\t" << rNorm << "\t";
 	update_variables();
 	mpi_update_ghost_primitives();
 	calc_cell_grads();
@@ -113,6 +113,9 @@ void NavierStokes::create_vars (void) {
 	
 	// This one is for other solvers to find out contribution from either left or right side
 	weightL.cellStore=false; weightL.faceStore=true; weightL.allocate(gid);
+	
+	p_total.cellStore=false; p_total.allocate(gid);	
+	T_total.cellStore=false; T_total.allocate(gid);
 	
 	return;
 }

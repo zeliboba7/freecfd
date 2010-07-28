@@ -131,12 +131,14 @@ void NavierStokes::venkatakrishnan_limiter(void) {
 		double min_lim=1.;
 		for (int var=0;var<5;++var) {
 			if ((phi[var]>1)||(phi[var]<0)) cout<<"ERRORphi"<< "\t" << phi[var] << endl; // DEBUG
-			min_lim=min(min_lim,limiter[var].cell(c));
+			min_lim=min(min_lim,phi[var]);
 			//limiter[var].cell(c)=phi[var];
 		}
+		//min_lim=0.;
 		for (int var=0;var<5;++var) limiter[var].cell(c)=min_lim;
-
+	
 	} // end cell loop
+	for (int var=0;var<5;++var) limiter[var].mpi_update();
 
 	return;
 } 

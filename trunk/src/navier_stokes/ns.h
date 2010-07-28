@@ -52,11 +52,13 @@ extern vector<Grid> grid;
 extern vector<vector<BCregion> > bc;
 extern vector<Variable<double> > dt;
 extern vector<vector<BC_Interface> > interface; // for each grid
+extern vector<bool> turbulent;
 
 // Class for Navier-Stokes equations
 class NavierStokes {
 public:
 	int gid; // Grid id
+	int nVars;
 	int Rank,np; // Current processors index and total number of processors
 	int ps_steps_max;
 	
@@ -75,7 +77,7 @@ public:
 	double resP,resV,resT;
 	
 	// Scalar variables
-	Variable<double> rho,p,T,qdot,mdot,weightL;
+	Variable<double> rho,p,T,qdot,mdot,weightL,p_total,T_total;
 	// Vector variables
 	Variable<Vec3D> V,gradu,gradv,gradw,gradrho,gradp,gradT;
 	vector<Variable<double> > update,limiter;
@@ -127,6 +129,7 @@ public:
 	void apply_bcs(NS_Cell_State &left,NS_Cell_State &right,NS_Face_State &face);
 	void velocity_inlet(NS_Cell_State &left,NS_Cell_State &right,NS_Face_State &face);
 	void mdot_inlet(NS_Cell_State &left,NS_Cell_State &right,NS_Face_State &face);
+	void stagnation_inlet(NS_Cell_State &left,NS_Cell_State &right,NS_Face_State &face);
 	void outlet(NS_Cell_State &left,NS_Cell_State &right,NS_Face_State &face);
 	void wall(NS_Cell_State &left,NS_Cell_State &right,NS_Face_State &face,bool slip=false);
 	void symmetry(NS_Cell_State &left,NS_Cell_State &right,NS_Face_State &face);

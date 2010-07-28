@@ -37,6 +37,16 @@ void NavierStokes::set_bcs(void) {
 		if (kind=="noreverse") bc[gid][b].kind=NO_REVERSE;
 		if (kind=="dampreverse") bc[gid][b].kind=DAMP_REVERSE;
 		if (kind=="slip") bc[gid][b].kind=SLIP;
+
+		if (region.get_double("p_total").is_found && region.get_double("T_total").is_found) {
+			bc[gid][b].kind=STAGNATION;
+			p_total.fixedonBC[b]=true;
+			p_total.bcValue[b].resize(1);
+			p_total.bc(b)=region.get_double("p_total");
+			T_total.fixedonBC[b]=true;
+			T_total.bcValue[b].resize(1);
+			T_total.bc(b)=region.get_double("T_total");
+		}
 		
 		if (region.get_double("p").is_found) {
 			p.fixedonBC[b]=true;

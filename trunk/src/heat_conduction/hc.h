@@ -46,6 +46,7 @@ extern vector<vector<BC_Interface> > interface; // for each grid
 class HeatConduction {
 public:
 	int gid; // Grid id
+	int nVars;
 	int Rank,np; // Current processors index and total number of processors
 	
 	// Inputs
