@@ -30,6 +30,7 @@ void NavierStokes::apply_bcs(NS_Cell_State &left,NS_Cell_State &right,NS_Face_St
 	if (bc[gid][face.bc].type==INLET) {
 		if (bc[gid][face.bc].kind==VELOCITY) velocity_inlet(left,right,face);
 		else if (bc[gid][face.bc].kind==MDOT) mdot_inlet(left,right,face);
+		else if (bc[gid][face.bc].kind==STAGNATION) stagnation_inlet(left,right,face);
 	} else if (bc[gid][face.bc].type==OUTLET) {
 		outlet(left,right,face);
 	} else if (bc[gid][face.bc].type==WALL) {
@@ -150,6 +151,21 @@ void NavierStokes::mdot_inlet(NS_Cell_State &left,NS_Cell_State &right,NS_Face_S
 	return;
 } // end mdot_inlet
 
+void NavierStokes::stagnation_inlet(NS_Cell_State &left,NS_Cell_State &right,NS_Face_State &face) {
+	// Extrapolate velocity from inside
+	right.V=left.V;
+	right.V_center=2.*right.V-left.V_center;
+	// Impose pressure and temperature
+	right.T=T_total.bc(face.bc)-0.5*(material.gamma-1.)/(material.gamma*material.R)*right.V.dot(right.V);
+
+	right.p=(p_total.bc(face.bc)+material.Pref)/(1.+0.5*right.V.dot(right.V)/(material.R*(right.T+material.Tref)))-material.Pref;
+	right.T_center=right.T;
+	right.rho=material.rho(right.p,right.T);
+	//right.T_center=2.*right.T-left.T_center;
+	//cout << right.T << "\t" << left.T_center << endl;
+	return;
+} // end stagnation_inlet
+
 void NavierStokes::outlet(NS_Cell_State &left,NS_Cell_State &right,NS_Face_State &face) {
 	
 	double uNL=left.V.dot(face.normal);
@@ -200,6 +216,7 @@ void NavierStokes::outlet(NS_Cell_State &left,NS_Cell_State &right,NS_Face_State
 		uNR=uNL+2.*(left.a-right.a)/(material.gamma-1.);
 		right.V=left.V-left.V.dot(face.normal)*face.normal+uNR*face.normal;
 	} else {
+
 		// If nothing is specified, everything is extrapolated
 		right.p=left.p;
 		if (MachL<0.) { // reverse flow
@@ -211,12 +228,20 @@ void NavierStokes::outlet(NS_Cell_State &left,NS_Cell_State &right,NS_Face_State
 		// Extrapolate outgoing characteristic
 		uNR=uNL+2.*(left.a-right.a)/(material.gamma-1.);
 		right.V=left.V-left.V.dot(face.normal)*face.normal+uNR*face.normal;
-		//right.V_center=2.*right.V-left.V_center;
-		right.V_center=right.V;
+		right.V_center=2.*right.V-left.V_center;
 		right.T=material.T(right.p,right.rho);
-		//right.T_center=2.*right.T-left.T_center;
+		right.T_center=2.*right.T-left.T_center;
+/*		
+		right.p=left.p;
+		right.T=left.T;
+		right.V=left.V;
+		right.rho=left.rho;
 		right.T_center=right.T;
-	}
+		right.V_center=right.V;
+		//right.V_center=2.*right.V-left.V_center;
+		//right.T_center=2.*right.T-left.T_center;
+*/
+    }
 	
 	if (MachL<0.) { // reverse flow
 		if (bc[gid][face.bc].kind==NO_REVERSE) {

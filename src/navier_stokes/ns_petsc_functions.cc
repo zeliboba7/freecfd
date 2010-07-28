@@ -30,7 +30,7 @@ void NavierStokes::petsc_init(void) {
 	//Create nonlinear solver context
 	KSPCreate(PETSC_COMM_WORLD,&ksp);
 	
-	VecCreateMPI(PETSC_COMM_WORLD,grid[gid].cellCount*5,grid[gid].globalCellCount*5,&rhs);
+	VecCreateMPI(PETSC_COMM_WORLD,grid[gid].cellCount*nVars,grid[gid].globalCellCount*nVars,&rhs);
 	VecSetFromOptions(rhs);
 	VecDuplicate(rhs,&deltaU);
 	VecDuplicate(rhs,&pseudo_right);
@@ -48,18 +48,18 @@ void NavierStokes::petsc_init(void) {
 				nextCellCount++;
 			}
 		}
-		for (int i=0;i<5;++i) {
-			diagonal_nonzeros.push_back( (nextCellCount+1)*5);
-			off_diagonal_nonzeros.push_back( ((*cit).ghosts.size())*5);
+		for (int i=0;i<nVars;++i) {
+			diagonal_nonzeros.push_back( (nextCellCount+1)*nVars);
+			off_diagonal_nonzeros.push_back( ((*cit).ghosts.size())*nVars);
 		}
 	}
 	
 	MatCreateMPIAIJ(
 			PETSC_COMM_WORLD,
-   			grid[gid].cellCount*5,
- 			grid[gid].cellCount*5,
-   			grid[gid].globalCellCount*5,
-   			grid[gid].globalCellCount*5,
+   			grid[gid].cellCount*nVars,
+ 			grid[gid].cellCount*nVars,
+   			grid[gid].globalCellCount*nVars,
+   			grid[gid].globalCellCount*nVars,
    			0,&diagonal_nonzeros[0],
    			0,&off_diagonal_nonzeros[0],
    			&impOP);
@@ -68,18 +68,18 @@ void NavierStokes::petsc_init(void) {
 	// Calculate space necessary for pseudo time step terms matrix memory allocation
 	diagonal_nonzeros.clear(); off_diagonal_nonzeros.clear();
 	for (cit=grid[gid].cell.begin();cit!=grid[gid].cell.end();cit++) {
-		for (int i=0;i<5;++i) {
-			diagonal_nonzeros.push_back(5);
+		for (int i=0;i<nVars;++i) {
+			diagonal_nonzeros.push_back(nVars);
 			off_diagonal_nonzeros.push_back(0);
 		}
 	}
 	
 	MatCreateMPIAIJ(
 			PETSC_COMM_WORLD,
-   			grid[gid].cellCount*5,
-   			grid[gid].cellCount*5,
-   			grid[gid].globalCellCount*5,
-   			grid[gid].globalCellCount*5,
+   			grid[gid].cellCount*nVars,
+   			grid[gid].cellCount*nVars,
+   			grid[gid].globalCellCount*nVars,
+   			grid[gid].globalCellCount*nVars,
    			0,&diagonal_nonzeros[0],
    			0,&off_diagonal_nonzeros[0],
       			&pseudo_time);
@@ -127,8 +127,8 @@ void NavierStokes::petsc_solve(int &nIter,double &rNorm) {
 	
 	int index;
 	for (int c=0;c<grid[gid].cellCount;++c) {
-		for (int i=0;i<5;++i) {
-			index=(grid[gid].myOffset+c)*5+i;
+		for (int i=0;i<nVars;++i) {
+			index=(grid[gid].myOffset+c)*nVars+i;
 			VecGetValues(deltaU,1,&index,&update[i].cell(c));
 		}
 	}

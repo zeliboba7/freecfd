@@ -36,6 +36,7 @@ using namespace std;
 #include "grid.h"
 #include "ns.h"
 #include "hc.h"
+#include "rans.h"
 #include "bc.h"
 #include "commons.h"
 #include "bc_interface.h"
@@ -58,6 +59,8 @@ vector<Grid> grid;
 vector<vector<BCregion> > bc;
 vector<NavierStokes> ns;
 vector<HeatConduction> hc;
+vector<RANS> rans;
+vector<bool> turbulent;
 // Time step for each grid
 vector<Variable<double> > dt;
 vector<int> equations;
@@ -93,17 +96,20 @@ int main(int argc, char *argv[]) {
 	read_inputs();
 	
 	equations.resize(input.section("grid",0).count);
+	turbulent.resize(input.section("grid",0).count);
 	for (int gid=0;gid<input.section("grid",0).count;++gid) {
 		if (input.section("grid",gid).get_string("equations")=="navierstokes") {
 			equations[gid]=NS;
 		} else if (input.section("grid",gid).get_string("equations")=="heatconduction") {
 			equations[gid]=HEAT;
 		}
+		if (input.section("grid",gid).subsection("turbulence").is_found) turbulent[gid]=true;
 	}
 
 	// Allocate space for each grid and equations and BC's on each grid
 	grid.resize(input.section("grid",0).count);
 	ns.resize(grid.size());
+	rans.resize(grid.size());
 	hc.resize(grid.size());
 	bc.resize(grid.size());
 	interface.resize(grid.size());
@@ -124,7 +130,7 @@ int main(int argc, char *argv[]) {
 				grid[gid].translate(begin,end);
 			} else if (input.section("grid",gid).subsection("transform",t).get_string("function")=="scale") {
 				Vec3D anchor=input.section("grid",gid).subsection("transform",t).get_Vec3D("anchor");
-				double factor=input.section("grid",gid).subsection("transform",t).get_double("factor");
+				Vec3D factor=input.section("grid",gid).subsection("transform",t).get_Vec3D("factor");
 				grid[gid].scale(anchor,factor);
 			} else if (input.section("grid",gid).subsection("transform",t).get_string("function")=="rotate") {
 				Vec3D anchor=input.section("grid",gid).subsection("transform",t).get_Vec3D("anchor");
@@ -154,6 +160,11 @@ int main(int argc, char *argv[]) {
 			if (Rank==0) cout << "[I grid=" << gid+1 << " ] Initializing Navier Stokes solver" << endl; 
 			ns[gid].gid=gid;
 			ns[gid].initialize();
+			if (turbulent[gid]) {
+				if (Rank==0) cout << "[I grid=" << gid+1 << " ] Initializing RANS solver" << endl; 
+				rans[gid].gid=gid;
+				rans[gid].initialize();
+			}
 		}
 		if (equations[gid]==HEAT) {
 			if (Rank==0) cout << "[I grid=" << gid+1 << " ] Initializing Heat Conduction solver" << endl;
@@ -182,7 +193,10 @@ int main(int argc, char *argv[]) {
 		if (timeStep==(timeStepMax+restart_step)) lastTimeStep=true;
 		for (int gid=0;gid<grid.size();++gid) {
 			update_time_step(timeStep,gid);
-			if (equations[gid]==NS) ns[gid].solve(timeStep);
+			if (equations[gid]==NS) {
+				ns[gid].solve(timeStep);
+				if (turbulent[gid]) rans[gid].solve(timeStep);
+			}
 			if (equations[gid]==HEAT) hc[gid].solve(timeStep);
 			bc_interface_sync();
 			if (timeStep%plotFreq[gid]==0 || lastTimeStep) {

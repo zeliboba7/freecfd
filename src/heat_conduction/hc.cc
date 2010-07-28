@@ -28,7 +28,7 @@ HeatConduction::HeatConduction (void) {
 }
 
 void HeatConduction::initialize (void) {
-
+	nVars=1;
 	// Relative tolerance
 	rtol=input.section("grid",gid).subsection("heatconduction").get_double("relativetolerance");
 	// Absolute tolerance

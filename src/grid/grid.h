@@ -147,7 +147,7 @@ public:
 	void setup(void);
 	int readCGNS();
 	int translate(Vec3D begin, Vec3D end);
-	int scale(Vec3D anchor, double scale);
+	int scale(Vec3D anchor, Vec3D factor);
 	int rotate(Vec3D anchor, Vec3D axis, double angle);
 	int partition();
 	int mesh2dual();

@@ -32,11 +32,11 @@ int Grid::translate(Vec3D begin, Vec3D end) {
 	return 1;
 }
 
-int Grid::scale(Vec3D anchor, double scale) {
+int Grid::scale(Vec3D anchor, Vec3D factor) {
 	for (int n=0;n<globalNodeCount;++n) {
-		raw.node[n]=anchor+scale*(raw.node[n]-anchor);
+		for (int i=0;i<3;++i) raw.node[n][i]=anchor[i]+factor[i]*(raw.node[n][i]-anchor[i]);
 	}
-	if (Rank==0) cout << "[I grid=" << gid+1 << "] scaled by " << scale << " with anchor = " << anchor << endl;
+	if (Rank==0) cout << "[I grid=" << gid+1 << "] scaled by " << factor << " with anchor = " << anchor << endl;
 	return 1;
 }
 

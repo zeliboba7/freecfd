@@ -4,8 +4,8 @@ set (CGNS_INCLUDE_DIRS /Users/esozer/fcfd/deps/cgnslib_2.5/include)
 set (CGNS_LIBRARY_DIRS /Users/esozer/fcfd/deps/cgnslib_2.5/lib)
 set (PARMETIS_INCLUDE_DIRS /Users/esozer/fcfd/deps/ParMetis-3.1.1)
 set (PARMETIS_LIBRARY_DIRS /Users/esozer/fcfd/deps/ParMetis-3.1.1)
-set (PETSC_INCLUDE_DIRS /Users/esozer/fcfd/deps/petsc-3.1p2/include)
-set (PETSC_LIBRARY_DIRS /Users/esozer/fcfd/deps/petsc-3.1p2/lib)
+set (PETSC_INCLUDE_DIRS /Users/esozer/fcfd/deps/petsc-3.1-p2/include /Users/esozer/fcfd/deps/petsc-3.1-p2/darwin9.8.0-c-debug/include)
+set (PETSC_LIBRARY_DIRS /Users/esozer/fcfd/deps/petsc-3.1-p2/darwin9.8.0-c-debug/lib)
 
 cmake_minimum_required(VERSION 2.6)
 
@@ -49,13 +49,13 @@ add_subdirectory(inputs)
 add_subdirectory(material)
 add_subdirectory(navier_stokes)
 add_subdirectory(polynomial)
-#add_subdirectory(rans)
+add_subdirectory(rans)
 add_subdirectory(utilities)
 add_subdirectory(variable)
 add_subdirectory(vec3d)
 
-set (FCFD_LIBS grid hc inputs material ns polynomial utilities variable vec3d)
-set (EXTRA_LIBS cgns metis parmetis petsc)
+set (FCFD_LIBS grid hc inputs material ns polynomial rans utilities variable vec3d)
+set (EXTRA_LIBS cgns metis parmetis petsc f2cblas f2clapack)
 
 #add the executable
 set (SOURCES
@@ -66,5 +66,5 @@ add_executable(freecfd ${SOURCES})
 
 target_link_libraries (freecfd ${FCFD_LIBS} ${EXTRA_LIBS})
 
-install (FILES freecfd DESTINATION bin)
+install (TARGETS freecfd RUNTIME DESTINATION bin)
  

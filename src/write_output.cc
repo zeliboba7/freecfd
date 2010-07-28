@@ -29,6 +29,7 @@ using namespace std;
 #include "grid.h"
 #include "inputs.h"
 #include "ns.h"
+#include "rans.h"
 #include "hc.h"
 #include "commons.h"
 
@@ -36,6 +37,7 @@ extern vector<Grid> grid;
 extern InputFile input;
 extern vector<NavierStokes> ns;
 extern vector<HeatConduction> hc;
+extern vector<RANS> rans;
 extern vector<Variable<double> > dt;
 extern vector<int> equations;
 
@@ -148,6 +150,9 @@ void write_tec_vars(void) {
 				else if (varList[ov]=="resT") file << ns[gid].update[4].node(n) << "\t";
 				else if (varList[ov]=="limiterp") file << ns[gid].limiter[0].node(n) << "\t"; 
 				else if (varList[ov]=="limiterT") file << ns[gid].limiter[4].node(n) << "\t";
+				else if (varList[ov]=="k") file << rans[gid].k.node(n) << "\t";
+				else if (varList[ov]=="omega") file << rans[gid].omega.node(n) << "\t";
+				else if (varList[ov]=="mu_t") file << rans[gid].mu_t.node(n) << "\t";
 				else if (varList[ov]=="Mach") {
 					file << fabs(ns[gid].V.node(n))/ns[gid].material.a(p_node,T_node) << "\t";
 				}
@@ -203,7 +208,16 @@ void write_tec_vars(void) {
 					file << ns[gid].limiter[2].node(n) << "\t";
 					file << ns[gid].limiter[3].node(n) << "\t";
 				}
-				
+				else if (varList[ov]=="gradk") {
+					file << rans[gid].gradk.node(n)[0] << "\t";
+					file << rans[gid].gradk.node(n)[1] << "\t";
+					file << rans[gid].gradk.node(n)[2] << "\t";
+				}
+				else if (varList[ov]=="gradomega") {
+					file << rans[gid].gradomega.node(n)[0] << "\t";
+					file << rans[gid].gradomega.node(n)[1] << "\t";
+					file << rans[gid].gradomega.node(n)[2] << "\t";
+				}				
 			}
 		}
 		file << endl;

@@ -29,6 +29,7 @@ using namespace std;
 #include "grid.h"
 #include "inputs.h"
 #include "ns.h"
+#include "rans.h"
 #include "hc.h"
 #include "commons.h"
 
@@ -36,6 +37,8 @@ extern vector<Grid> grid;
 extern InputFile input;
 extern vector<NavierStokes> ns;
 extern vector<HeatConduction> hc;
+extern vector<RANS> rans;
+extern vector<bool> turbulent;
 extern vector<Variable<double> > dt;
 extern vector<int> equations;
 
@@ -64,7 +67,10 @@ void write_restart(int gid,int timeStep,int restart_step,double time) {
 	
 	string gs="."+int2str(gid+1);
 	dt[gid].dump_cell_data(dirname+"/dt"+gs);
-	if (equations[gid]==NS) ns[gid].write_restart(timeStep);
+	if (equations[gid]==NS) {
+		ns[gid].write_restart(timeStep);
+		if (turbulent[gid]) rans[gid].write_restart(timeStep);
+	}
 	if (equations[gid]==HEAT) hc[gid].write_restart(timeStep);	
 }
 

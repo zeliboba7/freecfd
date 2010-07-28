@@ -82,10 +82,12 @@ void read_inputs(void) {
 	input.section("grid",0).subsection("BC",0).register_Vec3D("corner_2",optional);
 	input.section("grid",0).subsection("BC",0).register_string("pick",optional,"override");
 	input.section("grid",0).subsection("BC",0).register_double("p",optional);
+	input.section("grid",0).subsection("BC",0).register_double("p_total",optional);
 	input.section("grid",0).subsection("BC",0).register_double("mdot",optional);
 	input.section("grid",0).subsection("BC",0).register_double("qdot",optional);
 	input.section("grid",0).subsection("BC",0).register_Vec3D("V",optional);
 	input.section("grid",0).subsection("BC",0).register_double("T",optional);
+	input.section("grid",0).subsection("BC",0).register_double("T_total",optional);
 	input.section("grid",0).subsection("BC",0).register_double("rho",optional);
 	input.section("grid",0).subsection("BC",0).register_double("k",optional,0.);
 	input.section("grid",0).subsection("BC",0).register_double("omega",optional,0.);
@@ -96,6 +98,11 @@ void read_inputs(void) {
 	input.section("grid",0).subsection("turbulence").register_int("maximumiterations",optional,10);	
 	input.section("grid",0).subsection("turbulence").register_string("model",optional,"none");
 	input.section("grid",0).subsection("turbulence").register_string("order",optional,"second");
+	input.section("grid",0).subsection("turbulence").register_double("klowlimit",optional,1.e-8);
+	input.section("grid",0).subsection("turbulence").register_double("khighlimit",optional,1.e4);
+	input.section("grid",0).subsection("turbulence").register_double("omegalowlimit",optional,1.);
+	input.section("grid",0).subsection("turbulence").register_double("viscosityratiolimit",optional,5.e4);
+	input.section("grid",0).subsection("turbulence").register_double("turbulentPr",optional,0.9);
 	
 	input.section("grid",0).registerSubsection("navierstokes",single,optional);
 	input.section("grid",0).subsection("navierstokes").register_double("relativetolerance",optional,1.e-6);
@@ -111,7 +118,7 @@ void read_inputs(void) {
 	input.section("grid",0).subsection("transform",0).register_Vec3D("anchor",optional,0.);
 	input.section("grid",0).subsection("transform",0).register_Vec3D("begin",optional,0.);
 	input.section("grid",0).subsection("transform",0).register_Vec3D("end",optional,0.);
-	input.section("grid",0).subsection("transform",0).register_double("factor",optional,0.);
+	input.section("grid",0).subsection("transform",0).register_Vec3D("factor",optional,0.);
 	input.section("grid",0).subsection("transform",0).register_Vec3D("axis",optional,0.);
 	input.section("grid",0).subsection("transform",0).register_double("angle",optional,0.);
 	
