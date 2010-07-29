@@ -38,22 +38,33 @@ void RANS::set_bcs(void) {
 		viscRatio=region.get_double("eddyviscosityratio");
 
 		if (type=="inlet") {
-			if (!region.get_double("intensity").is_found) {
-				cerr << "[E] Turbulence intensity needs to be specified in " << gid+1 << " boundary condition BC_" << b+1 << endl;
+			if (!region.get_double("turbulenceintensity").is_found) {
+				cerr << "[E] Turbulence intensity needs to be specified in grid=" << gid+1 << " boundary condition BC_" << b+1 << endl;
 				exit(1);
 			}
 			if (!region.get_double("eddyviscosityratio").is_found) {
-				cerr << "[E] Eddy viscosity ratio needs to be specified in " << gid+1 << " boundary condition BC_" << b+1 << endl;
+				cerr << "[E] Eddy viscosity ratio needs to be specified in grid=" << gid+1 << " boundary condition BC_" << b+1 << endl;
 				exit(1);
 			}
 			k.fixedonBC[b]=true; omega.fixedonBC[b]=true;
 			k.bcValue[b].resize(1); omega.bcValue[b].resize(1);
 			k.bc(b)=intensity*fabs(ns[gid].V.bc(b));
 			k.bc(b)*=1.5*k.bc(b);
-			omega.bc(b)=viscRatio*material.viscosity(ns[gid].T.bc(b))/(ns[gid].rho.bc(b)*k.bc(b));
-			
+			// TODO: This could be done better
+			// Find a face index that is on this boundary (if any on this partition)
+			int fid=0;
+			for (int f=0;f<grid[gid].faceCount;++f) {
+				if (grid[gid].face[f].bc==b) {
+					fid=f;
+					break;
+				}
+			}
+			double rho,T;
+			rho=ns[gid].rho.face(fid);
+			T=ns[gid].T.face(fid);
+			omega.bc(b)=viscRatio*material.viscosity(T)/(rho*k.bc(b));
 			mu_t.fixedonBC[b]=true; mu_t.bcValue[b].resize(1);
-			mu_t.bc(b)=viscRatio*material.viscosity(ns[gid].T.bc(b));
+			mu_t.bc(b)=viscRatio*material.viscosity(T);
 		} else if (type=="wall") {
 			if (kind!="slip") {
 				mu_t.fixedonBC[b]=true; mu_t.bcValue[b].resize(1);

@@ -70,7 +70,6 @@ void RANS::initialize (void) {
 	viscosityRatioLimit=input.section("grid",0).subsection("turbulence").get_double("viscosityratiolimit");
 	Pr_t=input.section("grid",0).subsection("turbulence").get_double("turbulentPr");
 
-	
 	mpi_init();
 	material.set(gid);
 	create_vars();
@@ -81,7 +80,6 @@ void RANS::initialize (void) {
 	calc_cell_grads();
 	mpi_update_ghost_gradients();
 	petsc_init();
-
 	
 	return;
 }
@@ -189,7 +187,7 @@ void RANS::update_variables(void) {
 	for (int c=0;c<grid[gid].cellCount;++c) {
 		for (int i=0;i<2;++i) {
 			if (isnan(update[i].cell(c)) || isinf(update[i].cell(c))) {
-				cerr << "[E] Divergence detected!...exiting" << endl;
+				cerr << "[E] Divergence detected in RANS!...exiting" << endl;
 				MPI_Abort(MPI_COMM_WORLD,1);
 			}
 		}

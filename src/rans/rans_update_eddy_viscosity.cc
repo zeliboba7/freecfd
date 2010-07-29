@@ -45,7 +45,6 @@ void RANS::update_eddy_viscosity(void) {
 			turbulent_length_scale=sqrt(k.cell(c)+1.e-15)/omega.cell(c);
 			turbulent_length_scale/=0.083;
 		}
-		
 	}
 	
 	return;

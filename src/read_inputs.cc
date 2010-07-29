@@ -89,14 +89,14 @@ void read_inputs(void) {
 	input.section("grid",0).subsection("BC",0).register_double("T",optional);
 	input.section("grid",0).subsection("BC",0).register_double("T_total",optional);
 	input.section("grid",0).subsection("BC",0).register_double("rho",optional);
-	input.section("grid",0).subsection("BC",0).register_double("k",optional,0.);
-	input.section("grid",0).subsection("BC",0).register_double("omega",optional,0.);
+	input.section("grid",0).subsection("BC",0).register_double("turbulenceintensity",optional,1.e-2);
+	input.section("grid",0).subsection("BC",0).register_double("eddyviscosityratio",optional,0.1);
 	
 	input.section("grid",0).registerSubsection("turbulence",single,optional);
 	input.section("grid",0).subsection("turbulence").register_double("relativetolerance",optional,1.e-6);
 	input.section("grid",0).subsection("turbulence").register_double("absolutetolerance",optional,1.e-12);
 	input.section("grid",0).subsection("turbulence").register_int("maximumiterations",optional,10);	
-	input.section("grid",0).subsection("turbulence").register_string("model",optional,"none");
+	input.section("grid",0).subsection("turbulence").register_string("model",optional,"sst");
 	input.section("grid",0).subsection("turbulence").register_string("order",optional,"second");
 	input.section("grid",0).subsection("turbulence").register_double("klowlimit",optional,1.e-8);
 	input.section("grid",0).subsection("turbulence").register_double("khighlimit",optional,1.e4);
