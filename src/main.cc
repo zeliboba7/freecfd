@@ -40,16 +40,18 @@ using namespace std;
 #include "bc.h"
 #include "commons.h"
 #include "bc_interface.h"
+#include "loads.h"
 
 // Function prototypes
 void read_inputs(void);
 void set_bcs(int gid);
 void write_output(int gid, int step);
 void write_restart(int gid,int timeStep,int restart_step,double time);
-void read_restart(int gid,int restart_step,double time);
+void write_loads(int gid,int timeStep,double time);
+void read_restart(int gid,int restart_step,double &time);
 void set_lengthScales(int gid);
 void set_time_step_options(void);
-void update_time_step(int timeStep,int gid);
+void update_time_step(int timeStep,double &time,int gid);
 void bc_interface_sync(void);
 
 // Global declerations
@@ -65,6 +67,7 @@ vector<bool> turbulent;
 vector<Variable<double> > dt;
 vector<int> equations;
 vector<vector<BC_Interface> > interface; // for each grid
+vector<Loads> loads;
 int Rank,np;
 
 // Equation options
@@ -154,7 +157,8 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	double time=0.;
+	vector<double> time (grid.size(),0.);
+
 	for (int gid=0;gid<grid.size();++gid) {
 		if (equations[gid]==NS) {
 			if (Rank==0) cout << "[I grid=" << gid+1 << " ] Initializing Navier Stokes solver" << endl; 
@@ -171,7 +175,7 @@ int main(int argc, char *argv[]) {
 			hc[gid].gid=gid;
 			hc[gid].initialize();
 		}
-		if (restart_step>0) read_restart(gid,restart_step,time);
+		if (restart_step>0) read_restart(gid,restart_step,time[gid]);
 		set_time_step_options();
 	}
 	
@@ -179,9 +183,28 @@ int main(int argc, char *argv[]) {
 	int timeStepMax=input.section("timemarching").get_int("numberofsteps");
 	// Get the output frequency for each grid
 	vector<int> plotFreq,restartFreq;
+	loads.resize(grid.size());
 	for (int gid=0;gid<grid.size();++gid) {
 		plotFreq.push_back(input.section("grid",gid).subsection("writeoutput").get_int("plotfrequency"));
-		restartFreq.push_back(input.section("grid",gid).subsection("writeoutput").get_int("restartfrequency"));	
+		restartFreq.push_back(input.section("grid",gid).subsection("writeoutput").get_int("restartfrequency"));
+		loads[gid].moment_center=input.section("grid",gid).subsection("writeoutput").get_Vec3D("momentcenter");
+		loads[gid].frequency=input.section("grid",gid).subsection("writeoutput").get_int("loadfrequency");
+		vector<string> temp;
+		temp=input.section("grid",gid).subsection("writeoutput").get_stringList("includebcs");
+		loads[gid].force.resize(temp.size());
+		loads[gid].moment.resize(temp.size());
+		for (int i=0;i<temp.size();++i) {
+			loads[gid].include_bcs.push_back(atoi(temp[i].c_str())-1);
+			loads[gid].force[i]=0.;
+			loads[gid].moment[i]=0.;
+		}
+	}
+	
+	// Write out label for residuals
+	if (Rank==0) {
+		cout << "=============================================================================================================" << endl;
+		cout << "step -- for each grid -> [grid-no  time  -- for each equation -> {cfl-max linear-iterations total-residual} ]" << endl;
+		cout << "=============================================================================================================" << endl;
 	}
 	/*****************************************************************************************/
 	// Begin time loop
@@ -192,7 +215,7 @@ int main(int argc, char *argv[]) {
 	for (int timeStep=restart_step+1;timeStep<=timeStepMax+restart_step;++timeStep) {
 		if (timeStep==(timeStepMax+restart_step)) lastTimeStep=true;
 		for (int gid=0;gid<grid.size();++gid) {
-			update_time_step(timeStep,gid);
+			update_time_step(timeStep,time[gid],gid);
 			if (equations[gid]==NS) {
 				ns[gid].solve(timeStep);
 				if (turbulent[gid]) rans[gid].solve(timeStep);
@@ -201,11 +224,14 @@ int main(int argc, char *argv[]) {
 			bc_interface_sync();
 			if (timeStep%plotFreq[gid]==0 || lastTimeStep) {
 				if (Rank==0) cout << "\nwriting output for grid=" << gid+1;
-				  write_output(gid,timeStep);
+				write_output(gid,timeStep);
 			} // end if
 			if (timeStep%restartFreq[gid]==0 || lastTimeStep) {
 				if (Rank==0) cout << "\nwriting restart for grid=" << gid+1;
-				write_restart(gid,timeStep,restart_step,time);
+				write_restart(gid,timeStep,restart_step,time[gid]);
+			} // end if
+			if (timeStep%loads[gid].frequency==0) {
+				write_loads(gid,timeStep,time[gid]);
 			} // end if
 		} // end grid loop
 		if (Rank==0) cout << endl;

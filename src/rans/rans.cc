@@ -80,17 +80,18 @@ void RANS::initialize (void) {
 	calc_cell_grads();
 	mpi_update_ghost_gradients();
 	petsc_init();
-	
+	first_residuals.resize(2);
 	return;
 }
 
-void RANS::solve (int timeStep) {
+void RANS::solve (int ts) {
 
+	timeStep=ts;
 	terms();
 	int nIter;
 	double rNorm;
 	petsc_solve(nIter,rNorm);
-	if (Rank==0) cout << "\t" << gid+1 << "\t" << nIter << "\t" << rNorm << "\t";
+	if (Rank==0) cout << "\t" << nIter;
 	update_variables();
 	update_eddy_viscosity();
 	mpi_update_ghost_primitives();
@@ -181,7 +182,9 @@ void RANS::calc_cell_grads (void) {
 
 void RANS::update_variables(void) {
 	
-	//resK=0.; resOmega=0.;
+	double residuals[2],totalResiduals[2];
+	for (int i=0;i<2;++i) residuals[i]=0.;
+	
 	int counter=0;
 	double mu,new_mu_t;
 	for (int c=0;c<grid[gid].cellCount;++c) {
@@ -212,22 +215,19 @@ void RANS::update_variables(void) {
 		k.cell(c) += update[0].cell(c);
 		omega.cell(c)+= update[1].cell(c);
 		
-		//resK+=update[0].cell(c)*update[0].cell(c);
-		//resOmega+=update[1].cell(c)*update[1].cell(c);
+		residuals[0]+=update[0].cell(c)*update[0].cell(c);
+		residuals[1]+=update[1].cell(c)*update[1].cell(c);
 		
 	} // cell loop
 	if (counter>0) cout << "[I] Update of k and omega is limited due to viscosityRatioLimit constraint for " << counter << " cells" << endl;
 
-	/*
-	double residuals[2],totalResiduals[2];
-	residuals[0]=resK; residuals[1]=resOmega;
-	if (np!=1) {
-		MPI_Reduce(&residuals,&totalResiduals,2, MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
-		resK=totalResiduals[0]; resOmega=totalResiduals[1];
-	}
-	resK=sqrt(resK); resOmega=sqrt(resOmega);
-	resK/=resK_norm*double(grid.globalCellCount);
-	resOmega/=resOmega_norm*double(grid.globalCellCount);
-	*/
+	MPI_Allreduce(&residuals,&totalResiduals,2, MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+	if (timeStep==1) for (int i=0;i<2;++i) first_residuals[i]=sqrt(totalResiduals[i]);
+	
+	double res=0.;
+	for (int i=0;i<2;++i) res+=0.5*sqrt(totalResiduals[i])/first_residuals[i];
+	
+	if (Rank==0) cout << "\t" << res;
+	
 	return;
 }

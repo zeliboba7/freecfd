@@ -56,7 +56,10 @@ void write_restart(int gid,int timeStep,int restart_step,double time) {
 	for (int p=0;p<np;++p) {
 		if (Rank==p) {
 			fileName="./restart/partitionMap_"+int2str(gid+1)+".dat";
-			if (Rank==0) { file.open(fileName.c_str()); file << np << endl;}
+			if (Rank==0) { 
+				file.open(fileName.c_str());
+				file << np << endl;
+			}
 			else { file.open(fileName.c_str(), ios::app); }
 			file << grid[gid].nodeCount << "\t" << grid[gid].cellCount << endl;
 			for (int c=0;c<grid[gid].cellCount;++c) file << grid[gid].cell[c].globalId << endl;
@@ -64,6 +67,26 @@ void write_restart(int gid,int timeStep,int restart_step,double time) {
 		}
 		MPI_Barrier(MPI_COMM_WORLD);
 	}
+	
+	// Write time file
+	fileName=dirname+"/time.dat";
+	if (Rank==0) { 
+		file.open(fileName.c_str());
+		// Write physical time
+		file << time << endl;
+		// Write residual normalization information
+		if (equations[gid]==NS) {
+			file << ns[gid].first_residuals[0] << "\t" << ns[gid].first_residuals[1] << "\t" << ns[gid].first_residuals[2] << endl;
+			if (turbulent[gid]) file << rans[gid].first_residuals[0] << "\t" << rans[gid].first_residuals[1] << endl;
+			else file << -1. << "\t" << -1. << endl;
+		} else {
+			file << -1. << "\t" << -1. << "\t" << -1. << endl;	
+			file << -1. << "\t" << -1. << endl;	
+		}
+		if (equations[gid]==HEAT) file << hc[gid].first_residual << endl;
+		else file << -1 << endl;
+		file.close();
+	}		
 	
 	string gs="."+int2str(gid+1);
 	dt[gid].dump_cell_data(dirname+"/dt"+gs);
