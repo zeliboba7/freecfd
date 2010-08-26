@@ -66,17 +66,18 @@ void NavierStokes::initialize (void) {
 	mpi_update_ghost_gradients();
 	calc_limiter();
 	petsc_init();
-
+	first_residuals.resize(3);
 	return;
 }
 
-void NavierStokes::solve (int timeStep) {
+void NavierStokes::solve (int ts) {
+	timeStep=ts;
 	initialize_linear_system();
 	assemble_linear_system();
 	int nIter;
 	double rNorm;
 	petsc_solve(nIter,rNorm);
-	if (Rank==0) cout << "\t" << gid+1 << "\t" << nIter << "\t" << rNorm << "\t";
+	if (Rank==0) cout << "\t" << nIter;
 	update_variables();
 	mpi_update_ghost_primitives();
 	calc_cell_grads();
@@ -236,7 +237,9 @@ void NavierStokes::calc_cell_grads (void) {
 
 void NavierStokes::update_variables(void) {
 	
-	resP=0.; resV=0.; resT=0.;
+	double residuals[3],totalResiduals[3];
+	for (int i=0;i<3;++i) residuals[i]=0.;
+
 	for (int c=0;c<grid[gid].cellCount;++c) {
 		for (int i=0;i<5;++i) {
 			if (isnan(update[i].cell(c)) || isinf(update[i].cell(c))) {
@@ -251,18 +254,19 @@ void NavierStokes::update_variables(void) {
 		V.cell(c)[1]+=update[2].cell(c);
 		V.cell(c)[2]+=update[3].cell(c);
 		
-		resP+=update[0].cell(c)*update[0].cell(c);
-		resV+=update[1].cell(c)*update[1].cell(c)+update[2].cell(c)*update[2].cell(c)+update[3].cell(c)*update[3].cell(c);
-		resT+=update[4].cell(c)*update[4].cell(c);
+		residuals[0]+=update[0].cell(c)*update[0].cell(c);
+		residuals[1]+=update[1].cell(c)*update[1].cell(c)+update[2].cell(c)*update[2].cell(c)+update[3].cell(c)*update[3].cell(c);
+		residuals[2]+=update[4].cell(c)*update[4].cell(c);
 		
 	} // cell loop
-	double residuals[3],totalResiduals[3];
-	residuals[0]=resP; residuals[1]=resV; residuals[2]=resT;
 	
 	MPI_Allreduce(&residuals,&totalResiduals,3, MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
-	resP=totalResiduals[0]; resV=totalResiduals[1]; resT=totalResiduals[2];
-	
-	resP=sqrt(resP); resV=sqrt(resV); resT=sqrt(resT);
+	if (timeStep==1) for (int i=0;i<3;++i) first_residuals[i]=sqrt(totalResiduals[i]);
+
+	double res=0.;
+	for (int i=0;i<3;++i) res+=sqrt(totalResiduals[i])/first_residuals[i]/3.;
+
+	if (Rank==0) cout << "\t" << res;
 	
 	// TODO: fix normalization
 	/*

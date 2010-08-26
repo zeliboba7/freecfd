@@ -72,7 +72,11 @@ public:
 	double Pr_t;
 	double rtol,abstol;
 	int maxits;
+	int timeStep;
 	
+	// Total residuals
+	vector<double> first_residuals;
+
 	// PETSC variables
 	KSP ksp; // linear solver context
 	PC pc; // preconditioner context

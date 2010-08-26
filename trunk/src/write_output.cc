@@ -40,6 +40,7 @@ extern vector<HeatConduction> hc;
 extern vector<RANS> rans;
 extern vector<Variable<double> > dt;
 extern vector<int> equations;
+extern vector<Loads> loads;
 
 int timeStep,gid;
 vector<string> varList;
@@ -48,6 +49,29 @@ vector<bool> var_is_vec3d;
 void write_tec_vars(void);
 void write_tec_cells(void);
 void write_tec_bcs(int nbc, int nVar);
+
+void write_loads(int gid,int step,double time) {
+	ofstream file;
+	for (int b=0;b<loads[gid].include_bcs.size();++b) {
+		double force_x,force_y,force_z,moment_x,moment_y,moment_z;
+		MPI_Allreduce (&loads[gid].force[b][0],&force_x,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+		MPI_Allreduce (&loads[gid].force[b][1],&force_y,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+		MPI_Allreduce (&loads[gid].force[b][2],&force_z,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+		MPI_Allreduce (&loads[gid].moment[b][0],&moment_x,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+		MPI_Allreduce (&loads[gid].moment[b][1],&moment_y,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+		MPI_Allreduce (&loads[gid].moment[b][2],&moment_z,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+		if (Rank==0) {
+			string fileName="./output/loads_grid_"+int2str(gid+1)+"_BC_"+int2str(loads[gid].include_bcs[b]+1)+".dat";
+			file.open((fileName).c_str(),ios::app);
+			file << step << "\t" << time << "\t";
+			file << force_x << "\t" << force_y << "\t" << force_z << "\t" << moment_x << "\t" << moment_y << "\t" << moment_z << endl;
+			file.close();
+		}
+		loads[gid].force[b]=0.;
+		loads[gid].moment[b]=0.;
+	}
+	return;
+}
 
 void write_output(int gridid, int step) {
 	mkdir("./output",S_IRWXU);

@@ -29,6 +29,7 @@ using namespace std;
 #include "grid.h"
 #include "inputs.h"
 #include "ns.h"
+#include "rans.h"
 #include "hc.h"
 #include "commons.h"
 
@@ -36,10 +37,11 @@ extern vector<Grid> grid;
 extern InputFile input;
 extern vector<NavierStokes> ns;
 extern vector<HeatConduction> hc;
+extern vector<RANS> rans;
 extern vector<Variable<double> > dt;
 extern vector<int> equations;
 
-void read_restart(int gid,int restart_step,double time) {
+void read_restart(int gid,int restart_step,double &time) {
 
 	fstream file;
 		
@@ -66,8 +68,33 @@ void read_restart(int gid,int restart_step,double time) {
 	}
 	file.close();
 	
+	// Read time file
+	string dirname="./restart/"+int2str(restart_step);
+	fileName=dirname+"/time.dat";
+	double dump;
+	if (Rank==0) { 
+		file.open(fileName.c_str());
+		// Read physical time
+		file >> time;
+		// Read residual normalization information
+		if (equations[gid]==NS) {
+			file >> ns[gid].first_residuals[0] >> ns[gid].first_residuals[1] >> ns[gid].first_residuals[2];
+			if (turbulent[gid]) file >> rans[gid].first_residuals[0] >> rans[gid].first_residuals[1];
+			else file >> dump >> dump;
+		} else {
+			file >> dump >> dump >> dump;
+			file >> dump;
+		}
+		if (equations[gid]==HEAT) file >> hc[gid].first_residual;
+		else file >> dump;
+		file.close();
+	}	
+	
 	for (int g=0;g<grid.size();++g) {
-		if (equations[gid]==NS) ns[gid].read_restart(restart_step,partitionMap);
+		if (equations[gid]==NS) {
+			ns[gid].read_restart(restart_step,partitionMap);
+			if (turbulent[gid]) rans[gid].read_restart(restart_step,partitionMap);
+		}
 		if (equations[gid]==HEAT) hc[gid].read_restart(restart_step,partitionMap);
 	}
 	

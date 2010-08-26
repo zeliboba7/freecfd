@@ -46,6 +46,9 @@ void read_inputs(void) {
 	input.section("grid",0).registerSubsection("writeoutput",single,required);
 	input.section("grid",0).subsection("writeoutput").register_int("plotfrequency",optional,1e10);
 	input.section("grid",0).subsection("writeoutput").register_int("restartfrequency",optional,1e10);
+	input.section("grid",0).subsection("writeoutput").register_int("loadfrequency",optional,1e10);
+	input.section("grid",0).subsection("writeoutput").register_Vec3D("momentcenter",optional,0.);
+	input.section("grid",0).subsection("writeoutput").register_stringList("includebcs",optional);
 	input.section("grid",0).subsection("writeoutput").register_stringList("variables",required);
 
 	input.section("grid",0).register_string("material",optional,"none");

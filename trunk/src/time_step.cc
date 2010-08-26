@@ -67,7 +67,7 @@ void set_time_step_options(void) {
 	return;
 }
 
-void update_time_step(int timeStep,int gid) {
+void update_time_step(int timeStep,double &time,int gid) {
 	
 	// TODO: What to do with ramping when restarting
 	if (time_step_ramp) {
@@ -82,8 +82,6 @@ void update_time_step(int timeStep,int gid) {
 		}
 	}
 	
-	// TODO: Following assumes NS is solved on each grid
-
 	double a;
 	if (time_step_type==FIXED) {
 		for (int gid=0;gid<grid.size();++gid) for (int c=0;c<grid[gid].cellCount;++c) dt[gid].cell(c)=time_step_current;
@@ -103,7 +101,7 @@ void update_time_step(int timeStep,int gid) {
 			for (int c=0;c<grid[gid].cellCount;++c) dt[gid].cell(c)=time_step_current;
 		}
 	}
-
+	time+=time_step_current;
 	
 	// TODO: Work on CFLlocal option
 	/* 
@@ -116,18 +114,16 @@ void update_time_step(int timeStep,int gid) {
 }
 	*/
 	// Output current time step, max dt and max CFL
-	if (Rank==0 && gid==0) cout << timeStep << "\t" << time_step_current << "\t";
+	if (Rank==0 && gid==0) cout << timeStep;
 	double max_cfl=-1.;
-	for (int gid=0;gid<grid.size();++gid) {
-		if (equations[gid]==NS) {
-			for (int c=0;c<grid[gid].cellCount;++c) {
-				a=ns[gid].material.a(ns[gid].p.cell(c),ns[gid].T.cell(c));
-				max_cfl=max(max_cfl,(fabs(ns[gid].V.cell(c))+a)*time_step_current/grid[gid].cell[c].lengthScale);
-			}
-			MPI_Allreduce(&max_cfl,&max_cfl,1, MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
+	if (equations[gid]==NS) {
+		for (int c=0;c<grid[gid].cellCount;++c) {
+			a=ns[gid].material.a(ns[gid].p.cell(c),ns[gid].T.cell(c));
+			max_cfl=max(max_cfl,(fabs(ns[gid].V.cell(c))+a)*time_step_current/grid[gid].cell[c].lengthScale);
 		}
+		MPI_Allreduce(&max_cfl,&max_cfl,1, MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
 	}
-	if (Rank==0 && max_cfl>0.) cout << max_cfl;
+	if (Rank==0) cout << "\t" << gid+1 << "\t" << time << "\t" << max_cfl ;
 
 	return;
 }

@@ -101,17 +101,18 @@ void NavierStokes::assemble_linear_system(void) {
 			doRightSourceJac=true;
 		}
 	
-		// Integrate boundary fluxes
-		// TODO: Activate this
-		/*
-		if ((timeStep) % integrateBoundaryFreq == 0) {
-			if (face.bc>=0) {
-				bc.region[face.bc].mass+=flux.convective[0];
-				for (int i=0;i<3;++i) bc.region[face.bc].momentum[i]+=(flux.convective[i+1]-flux.diffusive[i+1]);
-				bc.region[face.bc].energy+=(flux.convective[4]-flux.diffusive[4]);
+		// Integrate boundary loads
+		if ((timeStep) % loads[gid].frequency == 0) {
+			Vec3D temp;
+			for (int b=0;b<loads[gid].include_bcs.size();++b) {
+				if (face.bc==loads[gid].include_bcs[b]) {
+					for (int i=0;i<3;++i) temp[i]=flux.convective[i+1]-flux.diffusive[i+1];
+					loads[gid].force[b]+=temp;
+					loads[gid].moment[b]+=(grid[gid].face[face.index].centroid-loads[gid].moment_center).cross(temp);
+					break;
+				}
 			}
 		}
-		*/
 			
 		// Fill in rhs vector
 		for (int i=0;i<5;++i) {

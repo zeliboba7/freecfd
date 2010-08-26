@@ -48,6 +48,7 @@ public:
 	int gid; // Grid id
 	int nVars;
 	int Rank,np; // Current processors index and total number of processors
+	int timeStep;
 	
 	// Inputs
 	double rtol,abstol;
@@ -55,7 +56,8 @@ public:
 	double sqrt_machine_error;
 	
 	// Total residuals
-	double resT;
+	double first_residual;
+
 	
 	// Scalar variables
 	Variable<double> T,update,qdot;

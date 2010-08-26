@@ -35,6 +35,7 @@
 #include "ns_state_cache.h"
 #include "commons.h"
 #include "bc_interface.h"
+#include "loads.h"
 
 #define NONE -1
 // Options for limiter
@@ -53,6 +54,7 @@ extern vector<vector<BCregion> > bc;
 extern vector<Variable<double> > dt;
 extern vector<vector<BC_Interface> > interface; // for each grid
 extern vector<bool> turbulent;
+extern vector<Loads> loads;
 
 // Class for Navier-Stokes equations
 class NavierStokes {
@@ -60,6 +62,7 @@ public:
 	int gid; // Grid id
 	int nVars;
 	int Rank,np; // Current processors index and total number of processors
+	int timeStep;
 	int ps_steps_max;
 	
 	// Inputs
@@ -74,7 +77,7 @@ public:
 	double small_number;
 	
 	// Total residuals
-	double resP,resV,resT;
+	vector<double> first_residuals;
 	
 	// Scalar variables
 	Variable<double> rho,p,T,qdot,mdot,weightL,p_total,T_total;
