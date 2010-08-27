@@ -261,7 +261,7 @@ void NavierStokes::update_variables(void) {
 	} // cell loop
 	
 	MPI_Allreduce(&residuals,&totalResiduals,3, MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
-	if (timeStep==1) for (int i=0;i<3;++i) first_residuals[i]=sqrt(totalResiduals[i]);
+	if (timeStep==1 || first_residuals[0]<0.) for (int i=0;i<3;++i) first_residuals[i]=sqrt(totalResiduals[i]);
 
 	double res=0.;
 	for (int i=0;i<3;++i) res+=sqrt(totalResiduals[i])/first_residuals[i]/3.;
