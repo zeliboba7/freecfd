@@ -222,7 +222,7 @@ void RANS::update_variables(void) {
 	if (counter>0) cout << "[I] Update of k and omega is limited due to viscosityRatioLimit constraint for " << counter << " cells" << endl;
 
 	MPI_Allreduce(&residuals,&totalResiduals,2, MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
-	if (timeStep==1) for (int i=0;i<2;++i) first_residuals[i]=sqrt(totalResiduals[i]);
+	if (timeStep==1 || first_residuals[0]<0.) for (int i=0;i<2;++i) first_residuals[i]=sqrt(totalResiduals[i]);
 	
 	double res=0.;
 	for (int i=0;i<2;++i) res+=0.5*sqrt(totalResiduals[i])/first_residuals[i];

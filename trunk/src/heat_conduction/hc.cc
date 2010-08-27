@@ -146,7 +146,7 @@ void HeatConduction::update_variables(void) {
 	} // cell loop
 	
 	MPI_Allreduce(&residual,&totalResidual,1, MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
-	if (timeStep==1) first_residual=sqrt(totalResidual);
+	if (timeStep==1 || first_residual<0.) first_residual=sqrt(totalResidual);
 
 	if (Rank==0) cout << "\t" << sqrt(totalResidual)/first_residual;
 	
