@@ -112,9 +112,10 @@ void read_inputs(void) {
 	input.section("grid",0).subsection("navierstokes").register_double("relativetolerance",optional,1.e-6);
 	input.section("grid",0).subsection("navierstokes").register_double("absolutetolerance",optional,1.e-12);
 	input.section("grid",0).subsection("navierstokes").register_int("maximumiterations",optional,10);	
-	input.section("grid",0).subsection("navierstokes").register_string("limiter",optional,"none");
-	input.section("grid",0).subsection("navierstokes").register_double("limiter_threshold",optional,1.);
+	input.section("grid",0).subsection("navierstokes").register_string("limiter",optional,"vk");
+	input.section("grid",0).subsection("navierstokes").register_double("limiterthreshold",optional,1.);
 	input.section("grid",0).subsection("navierstokes").register_string("order",optional,"second");
+	input.section("grid",0).subsection("navierstokes").register_string("jacobianorder",optional,"first");
 	input.section("grid",0).subsection("navierstokes").register_string("convectiveflux",optional,"AUSM+up");
 	
 	input.section("grid",0).registerSubsection("transform",numbered,optional);

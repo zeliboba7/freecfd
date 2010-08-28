@@ -52,14 +52,12 @@
 
 class BCregion {
 public:
-	int type; // filled
+	int type;
 	int kind;
 	int specified;
 	int thermalType;
-	double area; // filled
-	Vec3D areaVec; // filled
-	double mass,energy;
-	Vec3D momentum;
+	double area;
+	Vec3D areaVec;
 };
 
 #endif

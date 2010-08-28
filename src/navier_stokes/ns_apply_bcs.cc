@@ -26,7 +26,7 @@ void NavierStokes::apply_bcs(NS_Cell_State &left,NS_Cell_State &right,NS_Face_St
 
 	bool is_slip=false;
 	if (bc[gid][face.bc].kind==SLIP) is_slip=true;
-	
+
 	if (bc[gid][face.bc].type==INLET) {
 		if (bc[gid][face.bc].kind==VELOCITY) velocity_inlet(left,right,face);
 		else if (bc[gid][face.bc].kind==MDOT) mdot_inlet(left,right,face);
