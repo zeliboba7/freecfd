@@ -27,25 +27,246 @@ void NavierStokes::calc_limiter(void) {
 		// Do nothing
 	} else if (limiter_function==VK) {
 		venkatakrishnan_limiter();
+	} else if (limiter_function==BJ) {
+		barth_jespersen_limiter();
 	}
 	return;
 }
 
+void NavierStokes::barth_jespersen_limiter(void) {
+	
+	int neighbor,g;
+	double phi[5];
+	double delta;
+	double max_delta[5], min_delta[5];
+	
+	for (int c=0;c<grid[gid].cellCount;++c) {
+		
+		for (int i=0;i<5;++i) phi[i]=1.;
+		
+		for (int i=0;i<5;++i) {
+			max_delta[i]=0.;
+			min_delta[i]=0.;
+		}
+		
+		// First loop through face neighbors to find max values
+		for (int cf=0;cf<grid[gid].cell[c].faceCount;++cf) {
+			if (grid[gid].cellFace(c,cf).bc<0) { // If not a bouddary face
+				c==grid[gid].cellFace(c,cf).parent ? neighbor=grid[gid].cellFace(c,cf).neighbor : neighbor=grid[gid].cellFace(c,cf).parent;
+				if (neighbor>=0) { // real cell
+					max_delta[0]=max(max_delta[0],p.cell(neighbor)-p.cell(c));
+					max_delta[1]=max(max_delta[1],V.cell(neighbor)[0]-V.cell(c)[0]);
+					max_delta[2]=max(max_delta[2],V.cell(neighbor)[1]-V.cell(c)[1]);	
+					max_delta[3]=max(max_delta[3],V.cell(neighbor)[2]-V.cell(c)[2]);
+					max_delta[4]=max(max_delta[4],T.cell(neighbor)-T.cell(c));
+					
+					min_delta[0]=min(min_delta[0],p.cell(neighbor)-p.cell(c));
+					min_delta[1]=min(min_delta[1],V.cell(neighbor)[0]-V.cell(c)[0]);
+					min_delta[2]=min(min_delta[2],V.cell(neighbor)[1]-V.cell(c)[1]);	
+					min_delta[3]=min(min_delta[3],V.cell(neighbor)[2]-V.cell(c)[2]);
+					min_delta[4]=min(min_delta[4],T.cell(neighbor)-T.cell(c));
+
+				} else { // neighbor cell is a ghost (partition interface)
+					neighbor=-1*neighbor-1;
+					max_delta[0]=max(max_delta[0],p.ghost(neighbor)-p.cell(c));
+					max_delta[1]=max(max_delta[1],V.ghost(neighbor)[0]-V.cell(c)[0]);
+					max_delta[2]=max(max_delta[2],V.ghost(neighbor)[1]-V.cell(c)[1]);	
+					max_delta[3]=max(max_delta[3],V.ghost(neighbor)[2]-V.cell(c)[2]);
+					max_delta[4]=max(max_delta[4],T.ghost(neighbor)-T.cell(c));
+					
+					min_delta[0]=min(min_delta[0],p.ghost(neighbor)-p.cell(c));
+					min_delta[1]=min(min_delta[1],V.ghost(neighbor)[0]-V.cell(c)[0]);
+					min_delta[2]=min(min_delta[2],V.ghost(neighbor)[1]-V.cell(c)[1]);	
+					min_delta[3]=min(min_delta[3],V.ghost(neighbor)[2]-V.cell(c)[2]);
+					min_delta[4]=min(min_delta[4],T.ghost(neighbor)-T.cell(c));
+
+				}
+			}
+		} // end face loop
+				
+		// Second loop through face neigbors to calculate min limiter
+		for (int cf=0;cf<grid[gid].cell[c].faceCount;++cf) {
+			if (grid[gid].cellFace(c,cf).bc<0) { // If not a boundary face
+				for (int var=0;var<5;++var) {
+					if (var==0) {
+						delta=gradp.cell(c).dot(grid[gid].cellFace(c,cf).centroid-grid[gid].cell[c].centroid);
+						if (delta>0.) phi[var]=min(phi[var],min(1.,max_delta[var]/delta));
+						else if (delta<0.) phi[var]=min(phi[var],min(1.,min_delta[var]/delta));
+						//delta>0 ? phi[var]=min(phi[var],min(1.,max_delta[var]/delta)) : phi[var]=min(phi[var],min(1.,min_delta[var]/delta));
+					} else if (var==1) {
+						delta=gradu.cell(c).dot(grid[gid].cellFace(c,cf).centroid-grid[gid].cell[c].centroid);
+						if (delta>0.) phi[var]=min(phi[var],min(1.,max_delta[var]/delta));
+						else if (delta<0.) phi[var]=min(phi[var],min(1.,min_delta[var]/delta));
+					} else if (var==2) {
+						delta=gradv.cell(c).dot(grid[gid].cellFace(c,cf).centroid-grid[gid].cell[c].centroid);
+						if (delta>0.) phi[var]=min(phi[var],min(1.,max_delta[var]/delta));
+						else if (delta<0.) phi[var]=min(phi[var],min(1.,min_delta[var]/delta));
+					} else if (var==3) {
+						delta=gradw.cell(c).dot(grid[gid].cellFace(c,cf).centroid-grid[gid].cell[c].centroid);
+						if (delta>0.) phi[var]=min(phi[var],min(1.,max_delta[var]/delta));
+						else if (delta<0.) phi[var]=min(phi[var],min(1.,min_delta[var]/delta));
+					} else if (var==4) {
+						delta=gradT.cell(c).dot(grid[gid].cellFace(c,cf).centroid-grid[gid].cell[c].centroid);
+						if (delta>0.) phi[var]=min(phi[var],min(1.,max_delta[var]/delta));
+						else if (delta<0.) phi[var]=min(phi[var],min(1.,min_delta[var]/delta));
+					}
+				}
+			}
+		}
+
+		double min_lim=1.;
+		for (int var=0;var<5;++var)	{
+			if ((phi[var]>1)||(phi[var]<0)) cout<<"ERRORphi"<< "\t" << phi[var] << endl; // DEBUG
+			min_lim=min(min_lim,phi[var]);
+			//limiter[var].cell(c)=phi[var];
+			//limiter[var].cell(c)=0.;
+		}
+		for (int var=0;var<5;++var) limiter[var].cell(c)=min_lim;
+		
+	} // end cell loop
+	
+	for (int var=0;var<5;++var) limiter[var].mpi_update();	
+	
+	return;
+}
+
+void NavierStokes::venkatakrishnan_limiter(void) {
+	
+	int neighbor,g;
+	double phi[5];
+	double deltaP,deltaP2,deltaM,deltaM2,eps,eps2;
+	double K=limiter_threshold;
+	double max_delta[5], min_delta[5];
+	
+	double uref,pref,tref;
+	
+	Vec3D maxGrad[5],minGrad[5];
+	for (int c=0;c<grid[gid].cellCount;++c) {
+		
+		for (int i=0;i<5;++i) phi[i]=1.;
+		
+		for (int i=0;i<5;++i) {
+			max_delta[i]=0.;
+			min_delta[i]=0.;
+		}
+		
+		// First loop through face neighbors to find max values
+		for (int cf=0;cf<grid[gid].cell[c].faceCount;++cf) {
+			if (grid[gid].cellFace(c,cf).bc<0) { // If not a boundary face
+				c==grid[gid].cellFace(c,cf).parent ? neighbor=grid[gid].cellFace(c,cf).neighbor : neighbor=grid[gid].cellFace(c,cf).parent;
+				if (neighbor>=0) { // real cell
+					max_delta[0]=max(max_delta[0],p.cell(neighbor)-p.cell(c));
+					max_delta[1]=max(max_delta[1],V.cell(neighbor)[0]-V.cell(c)[0]);
+					max_delta[2]=max(max_delta[2],V.cell(neighbor)[1]-V.cell(c)[1]);	
+					max_delta[3]=max(max_delta[3],V.cell(neighbor)[2]-V.cell(c)[2]);
+					max_delta[4]=max(max_delta[4],T.cell(neighbor)-T.cell(c));
+					
+					min_delta[0]=min(min_delta[0],p.cell(neighbor)-p.cell(c));
+					min_delta[1]=min(min_delta[1],V.cell(neighbor)[0]-V.cell(c)[0]);
+					min_delta[2]=min(min_delta[2],V.cell(neighbor)[1]-V.cell(c)[1]);	
+					min_delta[3]=min(min_delta[3],V.cell(neighbor)[2]-V.cell(c)[2]);
+					min_delta[4]=min(min_delta[4],T.cell(neighbor)-T.cell(c));
+					
+				} else { // neighbor cell is a ghost (partition interface)
+					neighbor=-1*neighbor-1;
+					max_delta[0]=max(max_delta[0],p.ghost(neighbor)-p.cell(c));
+					max_delta[1]=max(max_delta[1],V.ghost(neighbor)[0]-V.cell(c)[0]);
+					max_delta[2]=max(max_delta[2],V.ghost(neighbor)[1]-V.cell(c)[1]);	
+					max_delta[3]=max(max_delta[3],V.ghost(neighbor)[2]-V.cell(c)[2]);
+					max_delta[4]=max(max_delta[4],T.ghost(neighbor)-T.cell(c));
+					
+					min_delta[0]=min(min_delta[0],p.ghost(neighbor)-p.cell(c));
+					min_delta[1]=min(min_delta[1],V.ghost(neighbor)[0]-V.cell(c)[0]);
+					min_delta[2]=min(min_delta[2],V.ghost(neighbor)[1]-V.cell(c)[1]);	
+					min_delta[3]=min(min_delta[3],V.ghost(neighbor)[2]-V.cell(c)[2]);
+					min_delta[4]=min(min_delta[4],T.ghost(neighbor)-T.cell(c));
+					
+				}
+			}
+		} // end face loop		
+	
+		pref=p.cell(c)+material.Pref;
+		tref=T.cell(c)+material.Tref;
+		uref=material.a(p.cell(c),T.cell(c));
+		
+		// Second loop through face neigbors to calculate min limiter		
+		for (int cf=0;cf<grid[gid].cell[c].faceCount;++cf) {
+			if (grid[gid].cellFace(c,cf).bc<0) { // If not a bouddary face
+				eps=pow(K*fabs(grid[gid].cellFace(c,cf).centroid-grid[gid].cell[c].centroid),3);
+				//eps=pow(1.e-3/fabs(grid[gid].cellFace(c,cf).centroid-grid[gid].cell[c].centroid),2);
+				//eps=1.e-6;
+				for (int var=0;var<5;++var) {
+					
+					deltaP=1.;
+					if (var==0) {
+						eps2=eps*pref*pref;
+						deltaM=gradp.cell(c).dot(grid[gid].cellFace(c,cf).centroid-grid[gid].cell[c].centroid);
+						if (deltaM>0.) deltaP=max_delta[var];
+						else if (deltaM<0.) deltaP=min_delta[var];
+						//deltaM>0. ? deltaP=max_delta[var] : deltaP=min_delta[var];
+					} else if (var==1) {
+						eps2=eps*uref*uref;
+						deltaM=gradu.cell(c).dot(grid[gid].cellFace(c,cf).centroid-grid[gid].cell[c].centroid);
+						if (deltaM>0.) deltaP=max_delta[var];
+						else if (deltaM<0.) deltaP=min_delta[var];
+					} else if (var==2) {
+						eps2=eps*uref*uref;
+						deltaM=gradv.cell(c).dot(grid[gid].cellFace(c,cf).centroid-grid[gid].cell[c].centroid);
+						if (deltaM>0.) deltaP=max_delta[var];
+						else if (deltaM<0.) deltaP=min_delta[var];
+					} else if (var==3) {
+						eps2=eps*uref*uref;
+						deltaM=gradw.cell(c).dot(grid[gid].cellFace(c,cf).centroid-grid[gid].cell[c].centroid);
+						if (deltaM>0.) deltaP=max_delta[var];
+						else if (deltaM<0.) deltaP=min_delta[var];
+					} else if (var==4) {
+						eps2=eps*tref*tref;
+						deltaM=gradT.cell(c).dot(grid[gid].cellFace(c,cf).centroid-grid[gid].cell[c].centroid);
+						if (deltaM>0.) deltaP=max_delta[var];
+						else if (deltaM<0.) deltaP=min_delta[var];
+					}
+
+					//deltaM>0. ? deltaM+=1.e-12 : deltaM-=1.e-12;
+					deltaM2=deltaM*deltaM;
+					deltaP2=deltaP*deltaP;
+					
+					//phi[var]=min(phi[var],(1./deltaM)*((deltaP2+eps2)*deltaM+2.*deltaM2*deltaP)/(deltaP2+2.*deltaM2+deltaM*deltaP+eps2)); 
+					phi[var]=min(phi[var],((deltaP2+eps2)+2.*deltaM*deltaP)/(deltaP2+2.*deltaM2+deltaM*deltaP+eps2)); 
+					
+				} // var loop
+			} // if not a boundary face
+		} // end face loop
+		
+		double min_lim=1.;
+		for (int var=0;var<5;++var) {
+			//if ((phi[var]>1)||(phi[var]<0)) cout<<"ERRORphi"<< "\t" << phi[var] << endl; // DEBUG
+			min_lim=min(min_lim,phi[var]);
+			//limiter[var].cell(c)=phi[var];
+		}
+		
+		for (int var=0;var<5;++var) limiter[var].cell(c)=min_lim;
+		
+	} // end cell loop
+	for (int var=0;var<5;++var) limiter[var].mpi_update();
+	
+	return;
+} 
+
+/*
 void NavierStokes::venkatakrishnan_limiter(void) {
 
 	int neighbor,g;
 	double phi[5];
-	double deltaP,deltaP2,deltaM,deltaM2,eps2;
+	double deltaP,deltaP2,deltaM,deltaM2,eps,eps2;
 	double K=limiter_threshold;
 	double max_values[5], min_values[5];
 
-	double Lref,Uref,pref,tref;
+	double Uref,pref,tref;
 
 	Vec3D maxGrad[5],minGrad[5];
 	for (int c=0;c<grid[gid].cellCount;++c) {
 
-		//eps2=pow(K*cell[c].lengthScale,3);
-		// Initialize min and max to current cells values
+		// Initialize min and max to current cell values
 		for (int i=0;i<5;++i) phi[i]=1.;
 
 		max_values[0]=p.cell(c);
@@ -53,8 +274,8 @@ void NavierStokes::venkatakrishnan_limiter(void) {
 		max_values[2]=V.cell(c)[1];
 		max_values[3]=V.cell(c)[2];
 		max_values[4]=T.cell(c);
-
 		for (int i=0;i<5;++i) min_values[i]=max_values[i];
+		
 		// First loop through face neighbors to find max values
 		for (int cf=0;cf<grid[gid].cell[c].faceCount;++cf) {
 			if (grid[gid].cellFace(c,cf).bc<0) { // If not a bouddary face
@@ -85,11 +306,10 @@ void NavierStokes::venkatakrishnan_limiter(void) {
 				}
 			}
 		} // end face loop
+		
 		// Second loop through face neigbors to calculate min limiter
 		for (int cf=0;cf<grid[gid].cell[c].faceCount;++cf) {
-			eps2=pow(K*fabs(grid[gid].cellFace(c,cf).centroid-grid[gid].cell[c].centroid),3);
-			//eps2=pow(K/Lref,3);
-			c==grid[gid].cellFace(c,cf).parent ? neighbor=grid[gid].cellFace(c,cf).neighbor : neighbor=grid[gid].cellFace(c,cf).parent;
+			eps=pow(K*fabs(grid[gid].cellFace(c,cf).centroid-grid[gid].cell[c].centroid),3);
 
 			pref=p.cell(c)+material.Pref;
 			tref=T.cell(c)+material.Tref;
@@ -98,23 +318,23 @@ void NavierStokes::venkatakrishnan_limiter(void) {
 			for (int var=0;var<5;++var) {
 
 				if (var==0) {
-					eps2*=pref*pref;
+					eps2=eps*pref*pref;
 					deltaM=gradp.cell(c).dot(grid[gid].cellFace(c,cf).centroid-grid[gid].cell[c].centroid);
 					deltaM>0 ? deltaP=max_values[var]-p.cell(c) : deltaP=min_values[var]-p.cell(c);
 				} else if (var==1) {
-					eps2*=Uref*Uref;
+					eps2=eps*Uref*Uref;
 					deltaM=gradu.cell(c).dot(grid[gid].cellFace(c,cf).centroid-grid[gid].cell[c].centroid);
 					deltaM>0 ? deltaP=max_values[var]-V.cell(c)[0] : deltaP=min_values[var]-V.cell(c)[0];
 				} else if (var==2) {
-					eps2*=Uref*Uref;
+					eps2=eps*Uref*Uref;
 					deltaM=gradv.cell(c).dot(grid[gid].cellFace(c,cf).centroid-grid[gid].cell[c].centroid);
 					deltaM>0 ? deltaP=max_values[var]-V.cell(c)[1] : deltaP=min_values[var]-V.cell(c)[1];
 				} else if (var==3) {
-					eps2*=Uref*Uref;
+					eps2=eps*Uref*Uref;
 					deltaM=gradw.cell(c).dot(grid[gid].cellFace(c,cf).centroid-grid[gid].cell[c].centroid);
 					deltaM>0 ? deltaP=max_values[var]-V.cell(c)[2] : deltaP=min_values[var]-V.cell(c)[2];
 				} else if (var==4) {
-					eps2*=tref*tref;
+					eps2=eps*tref*tref;
 					deltaM=gradT.cell(c).dot(grid[gid].cellFace(c,cf).centroid-grid[gid].cell[c].centroid);
 					deltaM>0 ? deltaP=max_values[var]-T.cell(c) : deltaP=min_values[var]-T.cell(c);
 				}
@@ -123,18 +343,18 @@ void NavierStokes::venkatakrishnan_limiter(void) {
 				deltaM2=deltaM*deltaM;
 				deltaP2=deltaP*deltaP;
 
-				phi[var]=min(phi[var],(1./deltaM)*((deltaP2+eps2)*deltaM+2.*deltaM2*deltaP)/(deltaP2+2.*deltaM2+deltaM*deltaP+eps2));
+				phi[var]=min(phi[var],(1./deltaM)*((deltaP2+eps2)*deltaM+2.*deltaM2*deltaP)/(deltaP2+2.*deltaM2+deltaM*deltaP+eps2)); // <= CHECK THIS ONE
 
 			}
 
 		} // end face loop
 		double min_lim=1.;
 		for (int var=0;var<5;++var) {
-			if ((phi[var]>1)||(phi[var]<0)) cout<<"ERRORphi"<< "\t" << phi[var] << endl; // DEBUG
+			//if ((phi[var]>1)||(phi[var]<0)) cout<<"ERRORphi"<< "\t" << phi[var] << endl; // DEBUG
 			min_lim=min(min_lim,phi[var]);
 			//limiter[var].cell(c)=phi[var];
 		}
-		//min_lim=0.;
+
 		for (int var=0;var<5;++var) limiter[var].cell(c)=min_lim;
 	
 	} // end cell loop
@@ -142,3 +362,4 @@ void NavierStokes::venkatakrishnan_limiter(void) {
 
 	return;
 } 
+*/

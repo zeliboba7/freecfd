@@ -33,17 +33,25 @@ void NavierStokes::initialize (void) {
 	abstol=input.section("grid",gid).subsection("navierstokes").get_double("absolutetolerance");
 	maxits=input.section("grid",gid).subsection("navierstokes").get_int("maximumiterations");
 
-	if (input.section("grid",gid).subsection("navierstokes").get_string("limiter")=="venkatakrishnan") {
+	if (input.section("grid",gid).subsection("navierstokes").get_string("limiter")=="vk") {
 		limiter_function=VK;
+	} else if (input.section("grid",gid).subsection("navierstokes").get_string("limiter")=="bj") {
+		limiter_function=BJ;
 	} else {
 		limiter_function=NONE;
 	}
-	limiter_threshold=input.section("grid",gid).subsection("navierstokes").get_double("limiter_threshold");
+	limiter_threshold=input.section("grid",gid).subsection("navierstokes").get_double("limiterthreshold");
 	
 	if (input.section("grid",gid).subsection("navierstokes").get_string("order")=="first") {
 		order=FIRST;
 	} else if (input.section("grid",gid).subsection("navierstokes").get_string("order")=="second") {
 		order=SECOND;
+	}
+	
+	if (input.section("grid",gid).subsection("navierstokes").get_string("jacobianorder")=="first") {
+		jac_order=FIRST;
+	} else if (input.section("grid",gid).subsection("navierstokes").get_string("jacobianorder")=="second") {
+		jac_order=SECOND;
 	}
 	
 	if (input.section("grid",gid).subsection("navierstokes").get_string("convectiveflux")=="AUSM+up") {

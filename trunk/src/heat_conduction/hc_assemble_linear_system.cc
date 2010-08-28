@@ -79,16 +79,6 @@ void HeatConduction::assemble_linear_system(void) {
 			cellVisited[neighbor]=true;
 			doRightSourceJac=true;
 		}
-	
-		// Integrate boundary fluxes
-		// TODO: Activate this
-		/*
-		if ((timeStep) % integrateBoundaryFreq == 0) {
-			if (face.bc>=0) {
-				bc.region[face.bc].energy-=flux;
-			}
-		}
-		*/
 			
 		// Fill in rhs vector
 		row=grid[gid].myOffset+parent;

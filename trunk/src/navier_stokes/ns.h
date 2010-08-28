@@ -40,6 +40,7 @@
 #define NONE -1
 // Options for limiter
 #define VK 1
+#define BJ 2
 // Options for order of accuracy
 #define FIRST 1
 #define SECOND 2
@@ -68,7 +69,7 @@ public:
 	// Inputs
 	double rtol,abstol;
 	int maxits;
-	int order;
+	int order,jac_order;
 	int limiter_function;
 	int convective_flux_function;
 	double limiter_threshold;
@@ -113,7 +114,8 @@ public:
 	
 	void calc_limiter(void);
 	void venkatakrishnan_limiter(void); 
-	
+	void barth_jespersen_limiter(void);
+		
 	void solve(int timeStep);
 	
 	void cons2prim(int cid,vector<vector<double> > &P);

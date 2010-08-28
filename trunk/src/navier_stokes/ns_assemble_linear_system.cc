@@ -22,6 +22,8 @@
 *************************************************************************/
 #include "ns.h"
 
+double order_factor;
+
 namespace ns_state {
 	NS_Cell_State left,right,leftPlus,rightPlus;
 	NS_Face_State face;
@@ -36,7 +38,7 @@ void NavierStokes::assemble_linear_system(void) {
 	using namespace ns_state;
 	using ns_state::left;
 	using ns_state::right;
-	
+		
 	int parent,neighbor,f;
 	int row,col;
 	
@@ -71,7 +73,9 @@ void NavierStokes::assemble_linear_system(void) {
 
 	// Loop through faces
 	for (f=0;f<grid[gid].faceCount;++f) {
-
+		
+		order_factor=1.; // This is used to kill gradients during Jacobian calculation if first order options is selected
+		
 		doLeftSourceJac=false; doRightSourceJac=false;
 		for (int m=0;m<5;++m) { 
 			sourceLeft[m]=0.;
@@ -189,7 +193,9 @@ void NavierStokes::get_jacobians(const int var) {
 	using ns_state::right;
 	double epsilon;
 	double factor=0.01;
-
+	
+	if (jac_order==FIRST) order_factor=0.;
+	
 	leftPlus=left;
 	rightPlus=right;
 	
@@ -257,7 +263,7 @@ void NavierStokes::left_state_update(NS_Cell_State &left,NS_Face_State &face) {
 	
 	parent=grid[gid].face[face.index].parent;
 
-	Vec3D cell2face=grid[gid].face[face.index].centroid-grid[gid].cell[parent].centroid;
+	Vec3D cell2face=order_factor*grid[gid].face[face.index].centroid-grid[gid].cell[parent].centroid;
 	Vec3D deltaV;
 	left.p=p.cell(parent)+limiter[0].cell(parent)*cell2face.dot(gradp.cell(parent));
 	deltaV[0]=limiter[1].cell(parent)*cell2face.dot(gradu.cell(parent));
@@ -268,14 +274,10 @@ void NavierStokes::left_state_update(NS_Cell_State &left,NS_Face_State &face) {
 	left.T_center=T.cell(parent);
 	left.T=left.T_center+limiter[4].cell(parent)*cell2face.dot(gradT.cell(parent));
 	left.rho=material.rho(left.p,left.T);
-	if (left.rho<=0) {
-		left.p=p.cell(parent); left.T=left.T_center;
-		left.rho=material.rho(left.p,left.T);
-	}
 	
 	for (int i=0;i<5;++i) left.update[i]=update[i].cell(parent);
 		
-	left.a=sqrt(material.gamma*(left.p+material.Pref)/left.rho);
+	left.a=material.a(left.p,left.T);
 	left.H=left.a*left.a/(material.gamma-1.)+0.5*left.V.dot(left.V);
 	left.Vn[0]=left.V.dot(face.normal);
 	left.Vn[1]=left.V.dot(face.tangent1);
@@ -291,7 +293,7 @@ void NavierStokes::right_state_update(NS_Cell_State &left,NS_Cell_State &right,N
 
 		int neighbor=grid[gid].face[face.index].neighbor;
 		
-		Vec3D cell2face=grid[gid].face[face.index].centroid-grid[gid].cell[neighbor].centroid;
+		Vec3D cell2face=order_factor*grid[gid].face[face.index].centroid-grid[gid].cell[neighbor].centroid;
 		Vec3D deltaV;
 		right.p=p.cell(neighbor)+limiter[0].cell(neighbor)*cell2face.dot(gradp.cell(neighbor));
 		deltaV[0]=limiter[1].cell(neighbor)*cell2face.dot(gradu.cell(neighbor));
@@ -302,10 +304,6 @@ void NavierStokes::right_state_update(NS_Cell_State &left,NS_Cell_State &right,N
 		right.T_center=T.cell(neighbor);
 		right.T=right.T_center+limiter[4].cell(neighbor)*cell2face.dot(gradT.cell(neighbor));
 		right.rho=material.rho(right.p,right.T);
-		if (right.rho<=0) {
-			right.p=p.cell(neighbor); right.T=right.T_center;
-			right.rho=material.rho(right.p,right.T);
-		}
 		right.volume=grid[gid].cell[neighbor].volume;
 		
 		for (int i=0;i<5;++i) right.update[i]=update[i].cell(neighbor);
@@ -319,7 +317,7 @@ void NavierStokes::right_state_update(NS_Cell_State &left,NS_Cell_State &right,N
 
 		int g=-1*grid[gid].face[face.index].neighbor-1; // ghost cell index
 		
-		Vec3D cell2face=grid[gid].face[face.index].centroid-grid[gid].ghost[g].centroid;
+		Vec3D cell2face=order_factor*grid[gid].face[face.index].centroid-grid[gid].ghost[g].centroid;
 		Vec3D deltaV;
 		right.p=p.ghost(g)+limiter[0].ghost(g)*cell2face.dot(gradp.ghost(g));
 		deltaV[0]=limiter[0].ghost(g)*cell2face.dot(gradu.ghost(g));
@@ -330,17 +328,13 @@ void NavierStokes::right_state_update(NS_Cell_State &left,NS_Cell_State &right,N
 		right.T_center=T.ghost(g);
 		right.T=right.T_center+limiter[0].ghost(g)*cell2face.dot(gradT.ghost(g));
 		right.rho=material.rho(right.p,right.T);
-		if (right.rho<=0) {
-			right.p=p.ghost(g); right.T=right.T_center;
-			right.rho=material.rho(right.p,right.T);
-		}
 		right.volume=grid[gid].ghost[g].volume;
 		
 		for (int i=0;i<5;++i) right.update[i]=update[i].ghost(g);
 		
 	}
 	
-	right.a=sqrt(material.gamma*(right.p+material.Pref)/right.rho);
+	right.a=material.a(right.p,right.T);
 	right.H=right.a*right.a/(material.gamma-1.)+0.5*right.V.dot(right.V);
 	right.Vn[0]=right.V.dot(face.normal);
 	right.Vn[1]=right.V.dot(face.tangent1);
