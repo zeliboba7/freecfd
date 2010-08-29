@@ -1,0 +1,64 @@
+
+reference {Mach=1.e-3;p=1.e5;T=273.;}
+
+time marching {
+        step size=1.e-4;
+        number of steps=5000;
+	ramp (initial=1.e-5; growth=1.05;);
+}
+
+grid_1 {
+        file=cylinder.cgns;
+        dimension=2;
+        equations=navier stokes;
+
+        turbulence (
+		relative tolerance=1.e-7;
+		absolute tolerance=1.e-12; 
+		maximum iterations=50;
+		model=sst;
+	);
+
+        navier stokes (
+		limiter=vk;
+		relative tolerance=1.e-7;
+		absolute tolerance=1.e-12;
+		maximum iterations=20;
+        );
+
+        write output (
+                format=vtk;
+		variables=[V,p,T,rho,Mach,mu,k,omega,mu_t];
+                plot frequency = 5;
+                restart frequency = 10;
+		moment center = [0.,0.,0.];
+		load frequency = 1;
+		include bcs=[2];
+        );
+	
+	material=air;
+
+	IC_1(
+		rho=1.; V=[10.,0.,0.]; p=0.; 
+		turbulence intensity=1.e-4;
+		eddy viscosity ratio=0.1;
+	);
+
+	//   bc1 symetry planes
+	//   bc2 wall
+	//   bc3 top&bottom
+	//   bc4 inlet
+	//   bc5 exit
+   
+	BC_1 (type=symmetry;); 
+	BC_2 (type=wall;);
+	BC_3 (type=symmetry;); 
+	BC_4 (type=inlet; rho=1.; V=[10.,0.,0.]; 
+		turbulence intensity=1.e-4;
+		eddy viscosity ratio=0.1;
+	); 
+	BC_5 (type=outlet; p=0.;);
+
+}
+
+

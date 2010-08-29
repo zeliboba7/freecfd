@@ -128,7 +128,7 @@ int main(int argc, char *argv[]) {
 		
 		for (int t=0;t<tcount;++t) {
 			if (input.section("grid",gid).subsection("transform",t).get_string("function")=="translate") {
-				Vec3D begin=input.section("grid",gid).subsection("transform",t).get_Vec3D("begin");
+				Vec3D begin=input.section("grid",gid).subsection("transform",t).get_Vec3D("anchor");
 				Vec3D end=input.section("grid",gid).subsection("transform",t).get_Vec3D("end");
 				grid[gid].translate(begin,end);
 			} else if (input.section("grid",gid).subsection("transform",t).get_string("function")=="scale") {

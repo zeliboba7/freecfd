@@ -466,7 +466,7 @@ void write_vtk(void) {
 void write_vtk_parallel(void) {
 	
 	string filePath="./output/"+int2str(timeStep);
-	string fileName=filePath+"/out"+int2str(timeStep)+".pvtu";
+	string fileName=filePath+"/grid_"+int2str(gid+1)+"_out_"+int2str(timeStep)+".pvtu";
 	
 	mkdir("./output",S_IRWXU);
 	mkdir(filePath.c_str(),S_IRWXU);
