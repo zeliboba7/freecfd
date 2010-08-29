@@ -1,0 +1,43 @@
+// Mach 2.5 oblique shock induced by a 5 degree wedge
+
+reference {Mach=1.; p=1.e5; T=0.;}
+
+time marching {
+        CFLmax=120.;
+	number of steps=500;
+	ramp (initial=5.0; growth=1.1;);
+}
+
+grid_1 {
+	file=ramp.cgns;
+	dimension=2;
+	equations=navier stokes;
+	// You can either use this file
+	// material=air;
+	// Or manually set material properties to constant values
+	material (viscosity=0.;);
+
+	//transform_1 (function=scale; factor=[0.1,0.1,1.e-3;];);
+
+	navier stokes (
+		maximum iterations=40;
+		relative tolerance=1.e-7;
+		limiter=vk;
+		limiter threshold=1.;
+		order=second;
+	);
+        
+	write output (
+		variables=[V,p,T,rho,Mach,dt,resp,resV,resT,limiterp];
+		plot frequency = 50;
+		restart frequency = 50;
+	);
+	
+	IC_1(rho=1.; V=[935.414347,0.,0.]; p=0.;);
+
+	BC_1 (type=inlet; rho=1.; V=[935.414347,0.,0.]; p=0.;);
+	BC_2 (type=outlet;);
+	BC_3 (type=symmetry;);
+	BC_4 (type=wall; kind=slip;);
+}
+

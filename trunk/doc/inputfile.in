@@ -1,0 +1,267 @@
+reference{
+Mach=1.;
+// Reference Mach number is used with the AUSM+-up flux function
+// to correctly scale the dissipation at low speeds. For fully
+// supersonic flows, skip this entry. Otherwise, specify a value
+// representative of the low Mach number regions in the domain.
+// 1.e-3 should be a safe value. Default value is 1.
+p=1.e-5;
+// "p" is the reference pressure. Every other pressure specification is
+// treated as relative to this value.
+// If skipped, 0. is assumed.
+T=273.;
+// "T" is the reference temperature. Every other temperature
+// specification is treated as relative to this value.
+// If skipped, 0. is assumed
+} 
+
+time marching {
+step size=1.e-3;
+// If "step size" is specified, a constant time step value is used
+/* CFLmax=1.e4; */ // Commented out since stepSize is specified
+// If "CFLmax" is specified, time step value is found such as the
+// the maximum CFL number in the domain doesn't exceed the
+// specified value
+ramp (initial=1.e-4; growth=1.1);
+// Whatever method of time stepping is chosen above, there is an
+// option to start with a lower value and ramp up with a growth factor
+// If the "ramp" subsection is skipped, ramping is not used
+number of steps =1000;
+// "number of steps" specifies how many time steps will be marched
+}
+
+// Free CFD 1.0.0 supports multiple grids and allows coupled solution
+// of different equations on each of them.
+// Available choices of equations and interactions are still work
+// in progress. Currently the only working setup is one of Navier-Stokes
+// and a solid heat conduction problem coupled by exchanges of heat and 
+// temperature at the boundaries.
+// The interface boundaries between the grids (if any) currently
+// have to be face matched. 
+grid_1 {
+        file=fluid.cgns;
+	// Grid file name. Required.
+        dimension=2;
+	// Dimension of the grid. Either 2 or 3. Default is 3.
+	// In 1D or 2D runs, you can still use dimension=3. But specifying the
+	// correct value will reduce the node interpolation stencil size.
+
+	transform ( // Transform the grid. Entire section can be ommitted if not needed.
+		function=translate;
+		// Type of transformation. Options are "translate", "scale", "rotate".
+		anchor=[0.,0.,0];
+		// Vector entry "anchor" is the corrdinates of the anchor you are selecting
+		// for transformation. 
+		// For translation, it is beginning point of the vector of translation. 
+		// For rotation, it is the point around which rotation is applied.
+		// For scaling, it is the point that stays fixed in space.
+		// A vector entry has three components listed within square brackets,
+		// separated with commas.
+		end=[1.,0.,0.];
+		// Only used for "translate" as the end point of the vector of translation.
+		factor=[1.5,2.,1.];
+		// Only used for "scale". x,y,z direction factors of scaling.
+		axis=[0.,0.,1.];
+		// Only used for "rotate". Direction vector for the axis of scaling.
+		angle=20.;
+		// Only used for "rotate". Angle of rotation in degrees.
+	);
+
+        equations=navier stokes;
+	// Equation set to solve on this grid.
+	// Options are "navier stokes" and "heat conduction". Required.
+
+        navier stokes ( // Numerical options for the navier-stokes solver.
+		order=second;
+		// Order of accuracy. Options are "first" and "second". Default is "second".
+		jacobian order=first;
+		// Order of the flux Jacobian evaluation. Options are "first" and "second".
+		// Default is "second". Default value is usually fine. If you are having
+		// stability problems, try "first".
+		// Omitted if the "order" options above is set to "first".
+		limiter=vk;
+		// Gradient slope limiter needed for stability in second order
+		// accurate solver. 
+		// Options are "none", "vk" for Venkatakrishnan limiter and
+		// "bj" for Barth-Jespersen limiter.
+		// Default is "vk". This option is not used if first order is selected. 
+		limiter threshold=1.;
+		// The "k" parameter for the Vankatakrishnan limiter. Default is 1.
+		// Not used if any other limiter options is chosen.
+		// A smaller value means stricter enforcement of monotonicity at the 
+		// expense of a possible convergence rate hit. Larger value vice versa.
+		// Default should usually be fine.	
+		relative tolerance=1.e-5;
+		// Target drop in residual before proceeding to the next time step.
+		absolute tolerance=1.e-8;
+		// Target absolute value of the residual before proceeding to the next time step.
+		max iterations=50;
+		// Maximum number of iterations before giving up, a required entry
+		// When one of the above criteria is reached, time is marched.
+        );
+
+        turbulence (
+		// This section is only needed for turbulent flows.
+		// For laminar flows, simply omit this whole section.
+		relative tolerance=1.e-7;
+		// Target drop in residual before proceeding to the next time step (for turbulence equations).
+		absolute tolerance=1.e-12; 
+		// Target absolute value of the residual before proceeding to the next time step.
+		maximum iterations=50;
+		// Maximum number of iterations before giving up, a required entry
+		model=sst;
+		// Turbulence model selection. Options are "k-epsilon", "k-omega" and "sst"
+		// Default is "sst" (Menter's Shear Stress Transport)
+		// *NOTE* Even if you choose k-epsilon, Free CFD will still use
+		// omega as the working variable
+		order=second;
+		// Order of accuracy. Options are "first" and "second". Default is "second".
+		k low limit=1.e-8;
+		k high limit=1.e4;
+		omega low limit=1.;
+		viscosity ratio limit=5.e4;
+		// These limits may help in some problems.Default values are shown.
+		turbulent Pr=0.9;
+		// Turbulent Prandtl number. Default is 0.9.
+	);
+
+        write output (
+                format=vtk;
+		// Options are "vtk" and "tecplot". Default is "vtk"
+		variables=[V,p,T,rho,Mach,mu,k,omega,mu_t];
+		// List of variables to put in the output file. Required.
+		// Available variables (everything in SI units):
+		// p: pressure
+		// V: velocity
+		// T: temperature
+		// rho: density
+		// resp,resV,resT: corresponding pointwise residuals
+		// limiterp,limiterV,limiterT: corresponding gradient limiter values
+		// gradp,gradu,gradv,gradw,gradT,gradrho: gradients
+		// Mach: Mach number
+		// k: turbulent kinetic energy
+		// omega: specific dissipation rate
+		// gradk,gradomega: corresponding gradients
+		// dt: time step
+		// mu: laminar viscosity
+		// mu_t: eddy viscosity
+		// lambda: laminar thermal conductivity
+		// Cp: specific heat at constant pressure
+                plot frequency = 5;
+		// Frequency of time steps at which output file is written
+                restart frequency = 10;
+		// Frequency of time steps at which a restart point is generated
+		// Frequency of zero will crash the code, so if you don't want
+		// output, just set the frequency to a large number
+		load frequency = 1;
+		// Frequency at which integrated forces and moments at boundaries are written.
+		include bcs=[2];
+		// Which booundaries to integrate forces and moments for.
+		moment center = [0.,0.,0.];
+		// Point around which the moments are calculated.
+        );
+
+	material=air;
+	// Material properties
+	// This will try to read "air.mat" file in the same directory as the input file
+	// More on the material file format later.
+	// Alternatively, you can set constant material properties here by:
+	material (
+		gamma=1.4;
+		// Ratio of specific heats
+		molar mass=28.97;
+		// Molar mass in kg/kmol
+		viscosity=0.;
+		// Dynamic laminar viscosity
+		thermal conductivity=0.;
+		Cp=1000.;
+		// Specific heat at constant pressure
+		density=0.;
+		// Density is only needed for solid materials.
+		// Default values for each is shown here.
+	); 
+
+	// List of initial conditions: 
+	// You can have multiple initial conditions for different regions
+	// Each initial condition is a subsection named as IC_#
+	// Conditions are applied sequentially based on the number
+	// "turbulence intensity" and "eddy viscosity ratio" is required only if using a turbulence model
+	IC_1 (rho=1; p=1; V=[0,0,0]; turbulence intensity=1.e-4; eddy viscosity ratio=0.1;);
+	// "IC_1" will initialize the whole domain to the given conditions
+	// You need to specify two of "p", "rho" and "T" to fix the state
+	// "p" and "T" should be thought as relative to the values given in
+	//  the "reference" section
+	// Note that V is the velocity vector. As such it has three components
+	// listed within square brackets, separated with commas
+	IC_2 (region=box; corner_1=[0.5,-1,-1]; corner_2=[1,1,1];
+	    rho=2; p=2; V=[1,0,0]; turbulence intensity=1.e-4; eddy viscosity ratio=0.1;);
+	// "IC_2" selects a box region defined by two corner coordinates
+	// Any cell center of which lies within the defined box is selected
+	IC_3 (region=cylinder; center=[1,1,1]; radius=0.5; height=1;
+	    axis direction=[0,0,1]; rho=2; p=2; V=[0.1,0,0]; turbulence intensity=1.e-4; eddy viscosity ratio=0.1;);
+	// "IC_3" selects a cylindrical region, note that center
+	// and axis direction are vectors. The velocity vector components are
+	// now treated as axial, radial and circumferential velocities
+	IC_4 (region=sphere; center=[1,1,1]; radius=0.5; rho=2; p=2; v=[1.,0,0];
+	      turbulence intensity=1.e-4; eddy viscosity ratio=0.1;);
+	// "IC_4" selects a spherical region. First velocity component is
+	// treated as the radial velocity while the rest is ignored
+
+	// List of boundary conditions: 
+	// Boundary conditions are also a numbered list of subsections
+	BC_1 (type=symmetry;);
+	// "BC_1" is defined as a symmetry boundary condition about which
+	// the variables are reflected. Use this for front and back planes
+	// in 2D simulations
+	BC_2 (type=wall; kind=slip;);
+	// "BC_2" is a slip wall boundary where normal component of the velocity is
+	// killed, tangential component is kept.
+	BC_3 (type=wall;);
+	// "BC_3" is a noslip wall condition (default for wall). Velocity vector is set to zero. 
+	// If "T" is specified, temperature is fixed, else adiabatic assumed
+	BC_4 (type=wall; T=300.;); // Isothermal wall
+	BC_5 (type=wall; qdot=5.;); // Heat flux wall (positive qdot means influx)
+	BC_6 (type=inlet; rho=1; V=[1,0,0]; turbulence intensity=1.e-4; eddy viscosity ratio=0.1;);
+	// "BC_6" is an inlet. There is no separate subsonic and
+	// supersonic inlet types. In subsonic cases, you should generally
+	// only specify one thermodynamic quantity (such as rho) and velocity and mdot. 
+	// In supersonic flows, you need to specify the whole thermodynamic state 
+	// at the inlet by providing two of "rho", "p" and "T"
+	// "turbulence intensity" and "eddy viscosity ratio" is required only if using a turbulence model
+	BC_7 (type=inlet; rho=1; mdot=5.; turbulence intensity=1.e-4; eddy viscosity ratio=0.1;);
+	// Mass flux inlet. Specify either rho,p or T with mdot.
+	BC_8 (type=inlet; p_total=1.5e4; T_total=100.;  turbulence intensity=1.e-4; eddy viscosity ratio=0.1;);
+	// Stagnation inlet. Specify either total pressure and temperature (relative to reference values).
+	BC_9 (type=outlet;);
+	// "BC_9" is an outlet. Every variable is extrapolated from inside
+	BC_10 (type=outlet; p=1;);
+	// "BC_10" is also an outlet but now the pressure value is specified
+	// while the rest is extrapolated. Recommended for subsonic outlets
+
+	/*
+	All of the above boundary condition regions (which are faces on the grid)
+	followed from the grid file in the exact order it was written. Sometimes
+	it is useful to override/split some of those.
+
+	An example below demonstrates this.
+	*/
+
+	BC_11 (
+	region=box;
+	// Define a box region with two corner coordinates
+	corner_1=[-0.5,-1,-1];
+	corner_2=[-0.4,1,1];
+	pick=BC2;
+	type=wall;
+	);
+	// Any face that was originally part of "BC_2" (slip wall) and that falls
+	// within the box specified here, now becomes a noslip wall condition
+	// Only the box method is supported for now
+	// options for "pick": 
+	// override: will override any of the other BC's specified within the box region. This is default.
+	// BC#: Only the BC# faces are picked within the box.
+	// unassigned: Pick only unassigned boundary faces that are within the box.
+}
+
+// grid_2 { ... }
+// Repeat above for other grids

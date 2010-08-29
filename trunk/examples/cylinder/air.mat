@@ -1,0 +1,29 @@
+molar mass=28.97; // in kg/kmol
+gamma=1.4;
+
+equation of state {
+	model=ideal gas;
+}
+
+// Cp is in J/kg*K
+Cp {
+	number of pieces=3;
+	model=schomate;
+	coefficients=[
+		100.,1000.566448,63.99647912,-333.0154988,574.2274767,0.004038661,
+		500.,673.3113566,686.4704867,-296.8082499,47.28284432,18.21197791,
+		2000.,1226.051778,38.96196065,-6.769175009,0.506109769,-157.188816];
+}
+
+viscosity { 
+	model=sutherlands;
+	reference viscosity=1.716e-5;
+	reference temperature=273.15;
+	sutherland temperature=110.4;
+}
+
+thermal conductivity {
+	model=constant Prandtl;
+	Pr=0.7;
+}
+

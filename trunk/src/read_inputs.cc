@@ -44,7 +44,7 @@ void read_inputs(void) {
 	input.section("grid",0).register_string("equations",required);
 	
 	input.section("grid",0).registerSubsection("writeoutput",single,required);
-	input.section("grid",0).subsection("writeoutput").register_string("format",optional,"tecplot");
+	input.section("grid",0).subsection("writeoutput").register_string("format",optional,"vtk");
 	input.section("grid",0).subsection("writeoutput").register_int("plotfrequency",optional,1e10);
 	input.section("grid",0).subsection("writeoutput").register_int("restartfrequency",optional,1e10);
 	input.section("grid",0).subsection("writeoutput").register_int("loadfrequency",optional,1e10);
@@ -121,7 +121,6 @@ void read_inputs(void) {
 	input.section("grid",0).registerSubsection("transform",numbered,optional);
 	input.section("grid",0).subsection("transform",0).register_string("function",optional);
 	input.section("grid",0).subsection("transform",0).register_Vec3D("anchor",optional,0.);
-	input.section("grid",0).subsection("transform",0).register_Vec3D("begin",optional,0.);
 	input.section("grid",0).subsection("transform",0).register_Vec3D("end",optional,0.);
 	input.section("grid",0).subsection("transform",0).register_Vec3D("factor",optional,0.);
 	input.section("grid",0).subsection("transform",0).register_Vec3D("axis",optional,0.);
