@@ -46,8 +46,9 @@
 #define SECOND 2
 // Options for convective_flux_function
 #define ROE 1
-#define AUSM_PLUS_UP 2
-#define SD_SLAU 3
+#define VAN_LEER 2
+#define AUSM_PLUS_UP 3
+#define SD_SLAU 4
 
 extern InputFile input;
 extern vector<Grid> grid;
@@ -85,6 +86,7 @@ public:
 	// Vector variables
 	Variable<Vec3D> V,gradu,gradv,gradw,gradrho,gradp,gradT;
 	vector<Variable<double> > update,limiter;
+	Variable<double> limiter_old;
 
 	MATERIAL material;
 	

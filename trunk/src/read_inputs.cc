@@ -76,6 +76,7 @@ void read_inputs(void) {
 	input.section("grid",0).subsection("IC",0).register_double("rho",optional);
 	input.section("grid",0).subsection("IC",0).register_double("turbulenceintensity",optional,1.e-2);
 	input.section("grid",0).subsection("IC",0).register_double("eddyviscosityratio",optional,0.1);
+	input.section("grid",0).subsection("IC",0).register_double("BLthickness",optional,-1.);
 	
 	input.section("grid",0).registerSubsection("BC",numbered,required);
 	input.section("grid",0).subsection("BC",0).register_string("type",required);

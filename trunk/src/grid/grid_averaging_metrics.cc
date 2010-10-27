@@ -458,38 +458,49 @@ void Grid::interpolate_tri(Node& n) {
 			centroid1= ((*tri).cell[0]>=0) ? cell[(*tri).cell[0]].centroid : ghost[-1*(*tri).cell[0]-1].centroid;
 			centroid2= ((*tri).cell[1]>=0) ? cell[(*tri).cell[1]].centroid : ghost[-1*(*tri).cell[1]-1].centroid;
 			centroid3= ((*tri).cell[2]>=0) ? cell[(*tri).cell[2]].centroid : ghost[-1*(*tri).cell[2]-1].centroid;
-
-			// Let's move to a new origin located at the average centroid in the stencil
-			// This improves accuracy for large domain sizes
-			
-			ave_centroid=1./3.*(centroid1+centroid2+centroid3);
-			centroid1-=ave_centroid;
- 			centroid2-=ave_centroid;
- 			centroid3-=ave_centroid;
-			pp=n-ave_centroid;
-						
-			// Find the best combination for basis orientation
+		
+			// Find out best choice for origin
+			int choice;
 			double metric1,metric2;
-			metric1=fabs((centroid1.norm()).dot(centroid2.norm()));
-			basis1=centroid1.norm();
-			planeNormal=(basis1.cross(centroid2)).norm();
-			basis2=(basis1.cross(planeNormal)).norm();
+			choice=1;
+			// Try centroid 1
+			metric1=fabs(((centroid2-centroid1).norm()).dot((centroid3-centroid1).norm()));
+			// Try centroid 2
+			metric2=fabs(((centroid1-centroid2).norm()).dot((centroid3-centroid2).norm()));
+			if (metric2<metric1) {choice=2; metric1=metric2;}
+			// Try centroid 3
+			metric2=fabs(((centroid1-centroid3).norm()).dot((centroid2-centroid3).norm()));
+			if (metric2<metric1) choice=3;
 			
-			metric2=fabs((centroid1.norm()).dot(centroid3.norm()));
-			if (metric2<metric1) {
-				metric1=metric2;
+			Vec3D origin;
+			if (choice==1) {
+				origin=centroid1;
+				centroid1-=origin;
+				centroid2-=origin;
+				centroid3-=origin;
+				basis1=centroid2;
 				planeNormal=(basis1.cross(centroid3)).norm();
-				basis2=(basis1.cross(planeNormal)).norm();
-			}
-			metric2=fabs((centroid2.norm()).dot(centroid3.norm()));
-			if (metric2<metric1) {
-				basis1=centroid2.norm();
+				basis2=-1.*(basis1.cross(planeNormal)).norm();
+			} else if (choice==2) {
+				origin=centroid2;
+				centroid1-=origin;
+				centroid2-=origin;
+				centroid3-=origin;
+				basis1=centroid1;
 				planeNormal=(basis1.cross(centroid3)).norm();
-				basis2=(basis1.cross(planeNormal)).norm();
+			} else {
+				origin=centroid3;
+				centroid1-=origin;
+				centroid2-=origin;
+				centroid3-=origin;
+				basis1=centroid1;
+				planeNormal=(basis1.cross(centroid2)).norm();
 			}
-						
-			// Project the node point to the plane
+
+			basis2=-1.*(basis1.cross(planeNormal)).norm();
+			pp=n-origin;
 			pp-=pp.dot(planeNormal)*planeNormal;
+			
 			// Form the linear system
 			a3[0][0]=centroid1.dot(basis1);
 			a3[0][1]=centroid2.dot(basis1);
@@ -503,15 +514,15 @@ void Grid::interpolate_tri(Node& n) {
 			b3[0]=pp.dot(basis1);
 			b3[1]=pp.dot(basis2);
 			b3[2]=1.;
- 
+			
  			// Solve the 3x3 linear system by Gaussion Elimination
 			gelimd(a3,b3,weights3);
 			// Let's see if the linear system solution is good
 			weightSum2=0.;
 			for (int i=0;i<3;++i) weightSum2+=weights3[i];
 			if (fabs(weightSum2-1.)>1.e-8) {
-				cerr << "[E Rank=" << Rank << "] Tri interpolation weightSum=" << weightSum2 << " is not unity for node " << n.id  << endl;
-				exit(1);
+				cerr << "[W rank=" << Rank << "] Tri interpolation weightSum=" << setprecision(8) << weightSum2 << " is not unity for node " << n.id  << endl;
+				//exit(1);
 			}
 			
 			for (int i=0;i<3;++i) {

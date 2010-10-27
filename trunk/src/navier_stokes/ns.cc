@@ -58,6 +58,8 @@ void NavierStokes::initialize (void) {
 		convective_flux_function=AUSM_PLUS_UP;
 	} else if (input.section("grid",gid).subsection("navierstokes").get_string("convectiveflux")=="Roe") {
 		convective_flux_function=ROE;
+	} else if (input.section("grid",gid).subsection("navierstokes").get_string("convectiveflux")=="vanLeer") {
+		convective_flux_function=VAN_LEER;
 	} else if (input.section("grid",gid).subsection("navierstokes").get_string("convectiveflux")=="SD-SLAU") {
 		convective_flux_function=SD_SLAU;
 	}
@@ -110,6 +112,7 @@ void NavierStokes::create_vars (void) {
 	gradv.allocate(gid);
 	gradw.allocate(gid);
 	
+	limiter_old.allocate(gid);
 	update.resize(5);
 	limiter.resize(5);
 	for (int i=0; i<5; ++i) {
@@ -203,6 +206,15 @@ void NavierStokes::apply_initial_conditions (void) {
 				}
 			}
 		}
+		
+		for (int c=0;c<grid[gid].cellCount;++c) {
+			double delta=region.get_double("BLthickness");
+			if (delta>0.) {
+				double factor=min(1.,grid[gid].cell[c].closest_wall_distance/delta);
+				V.cell(c)*=factor;
+			}
+		}
+		
 	}
 	
 	// DEBUG

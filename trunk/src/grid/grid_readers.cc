@@ -23,7 +23,7 @@
 #include "grid.h"
 
 GridRawData raw;
-double block_stitch_tolerance=1.e-7;
+double block_stitch_tolerance=1.e-8;
 
 int Grid::readCGNS() {
 	int fileIndex,baseIndex,nBases,nZones,nSections,nBocos;
@@ -109,6 +109,7 @@ int Grid::readCGNS() {
 			// Scan the coordinates of all the other zones before this one for duplicates
 			for (int c=0;c<coordX[zoneIndex-1].size();++c) {
 				bool foundFlag=false;
+				
 				for (int z=0;z<zoneIndex-1;++z) {
 					for (int c2=0;c2<coordX[z].size();++c2) {
 						if (fabs(coordX[zoneIndex-1][c]-coordX[z][c2])<block_stitch_tolerance && fabs(coordY[zoneIndex-1][c]-coordY[z][c2])<block_stitch_tolerance && fabs(coordZ[zoneIndex-1][c]-coordZ[z][c2])<block_stitch_tolerance) {
@@ -119,6 +120,7 @@ int Grid::readCGNS() {
 					}
 					if (foundFlag) break;
 				}
+				 
 				if (!foundFlag) {
 					zoneCoordMap[zoneIndex-1][c]=globalNodeCount;
 					globalNodeCount++;

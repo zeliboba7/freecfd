@@ -121,6 +121,7 @@ void NavierStokes::barth_jespersen_limiter(void) {
 			//limiter[var].cell(c)=phi[var];
 			//limiter[var].cell(c)=0.;
 		}
+		
 		for (int var=0;var<5;++var) limiter[var].cell(c)=min_lim;
 		
 	} // end cell loop
@@ -244,7 +245,11 @@ void NavierStokes::venkatakrishnan_limiter(void) {
 			//limiter[var].cell(c)=phi[var];
 		}
 		
-		for (int var=0;var<5;++var) limiter[var].cell(c)=min_lim;
+		if (timeStep==1) limiter_old.cell(c)=min_lim;
+		
+		//for (int var=0;var<5;++var) limiter[var].cell(c)=min(min_lim,0.5*(limiter_old.cell(c)+min_lim));
+		for (int var=0;var<5;++var) limiter[var].cell(c)=min(min_lim,limiter_old.cell(c));
+		limiter_old.cell(c)=min_lim;
 		
 	} // end cell loop
 	for (int var=0;var<5;++var) limiter[var].mpi_update();
