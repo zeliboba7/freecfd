@@ -23,6 +23,7 @@
 #include "ns.h"
 
 extern void roe_flux(NS_Cell_State &left,NS_Cell_State &right,double fluxNormal[],double Gamma,double &weightL);
+extern void vanLeer_flux(NS_Cell_State &left,NS_Cell_State &right,double fluxNormal[],double Gamma,double Pref,double &weightL);
 extern void AUSMplusUP_flux(NS_Cell_State &left,NS_Cell_State &right,double fluxNormal[],double Gamma,double Pref,double Minf,double &weightL);
 extern void SD_SLAU_flux(NS_Cell_State &left,NS_Cell_State &right,double fluxNormal[],double Pref,double &weightL);
 void flux_from_right(NS_Cell_State &right,double fluxNormal[]);
@@ -49,6 +50,8 @@ void NavierStokes::convective_face_flux(NS_Cell_State &left,NS_Cell_State &right
 	*/
 	if (convective_flux_function==ROE) {
 		roe_flux(left,right,fluxNormal,material.gamma,weightL.face(face.index));
+	} else if (convective_flux_function==VAN_LEER) {
+		vanLeer_flux(left,right,fluxNormal,material.gamma,material.Pref,weightL.face(face.index));
 	} else if (convective_flux_function==AUSM_PLUS_UP) {
 		AUSMplusUP_flux(left,right,fluxNormal,material.gamma,material.Pref,Minf,weightL.face(face.index));
 	} else if (convective_flux_function==SD_SLAU) {

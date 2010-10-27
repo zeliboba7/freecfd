@@ -109,34 +109,51 @@ int Grid::areas_volumes() {
 
 	// Now loop through faces and calculate centroids and areas
 	for (int f=0;f<faceCount;++f) {
+		// Use special form for triangles and quads to improve accuracy
+				
+		// Find an approxiamate centroid (true centroid for triangle and quad)
 		Vec3D centroid=0.;
-		Vec3D areaVec=0.;
-		Vec3D patchCentroid,patchArea;
-		// Find an approxiamate centroid (true centroid for triangle)
 		for (int n=0;n<face[f].nodeCount;++n) {
 			centroid+=faceNode(f,n);
 		}
 		centroid/=double(face[f].nodeCount);
 		
-		// Sum the area as a patch of triangles formed by connecting two nodes and an interior point
-		face[f].centroid=0.;
-		areaVec=0.;
-		int next;
-		// First calculate face normal
-		face[f].normal=(faceNode(f,2)-faceNode(f,1)).cross(faceNode(f,0)-faceNode(f,1));
-		double length=fabs(face[f].normal);
-		if (length<1.e-12) length=1.e-12;
-		face[f].normal/=length;
-		for (int n=0;n<face[f].nodeCount;++n) {
-			next=n+1;
-			if (next==face[f].nodeCount) next=0;
-			patchArea=0.5*(faceNode(f,n)-centroid).cross(faceNode(f,next)-centroid);
-			patchCentroid=1./3.*(faceNode(f,n)+faceNode(f,next)+centroid);
-			face[f].centroid+=patchCentroid*patchArea.dot(face[f].normal);
-			areaVec+=patchArea;
+		if (face[f].nodeCount==3) {
+			
+			face[f].centroid=centroid;
+			face[f].normal=0.5*(faceNode(f,0)-faceNode(f,2)).cross(faceNode(f,1)-faceNode(f,2));
+			face[f].area=fabs(face[f].normal);
+			face[f].normal/=face[f].area;
+			
+		} else if (face[f].nodeCount==4) {
+			
+			face[f].centroid=centroid;
+			face[f].normal=0.5*(faceNode(f,2)-faceNode(f,0)).cross(faceNode(f,3)-faceNode(f,1));
+			face[f].area=fabs(face[f].normal);
+			face[f].normal/=face[f].area;
+			
+		} else {
+
+			Vec3D areaVec=0.;
+			Vec3D patchCentroid,patchArea;
+
+			// Sum the area as a patch of triangles formed by connecting two nodes and an interior point
+			face[f].centroid=0.;
+			areaVec=0.;
+			int next;
+			// First calculate face normal
+			face[f].normal=(faceNode(f,2)-faceNode(f,1)).cross(faceNode(f,0)-faceNode(f,1)).norm();
+			for (int n=0;n<face[f].nodeCount;++n) {
+				next=n+1;
+				if (next==face[f].nodeCount) next=0;
+				patchArea=0.5*(faceNode(f,n)-centroid).cross(faceNode(f,next)-centroid);
+				patchCentroid=1./3.*(faceNode(f,n)+faceNode(f,next)+centroid);
+				face[f].centroid+=patchCentroid*patchArea.dot(face[f].normal);
+				areaVec+=patchArea;
+			}
+			face[f].area=fabs(areaVec);
+			face[f].centroid/=face[f].area;
 		}
-		face[f].area=fabs(areaVec);
-		face[f].centroid/=face[f].area;
 	}
 	
 	cout << "[I Rank=" << Rank << "] Calculated face areas and centroids" << endl;
@@ -161,7 +178,7 @@ int Grid::areas_volumes() {
 		double sign;
 		for (int cf=0;cf<cell[c].faceCount;++cf) {
 			f=cell[c].faces[cf];
-			// Every cell face is broken to triangles
+			// Every cell face is broken into triangles
 			for (int n=0;n<face[f].nodeCount;++n) {
 				next=n+1;
 				if (next==face[f].nodeCount) next=0;
@@ -176,23 +193,23 @@ int Grid::areas_volumes() {
 				patchCentroid=0.25*(face[f].centroid+faceNode(f,n)+faceNode(f,next)+centroid);
 				cell[c].centroid+=patchVolume*patchCentroid;
 				// TODO Keep an eye on this
-				//if (patchVolume<0.) cout << "[E Rank=" << Rank << "] Encountered error when calculating volume of cell " << c << endl;
+				if (patchVolume<0.) cout << "[W Rank=" << Rank << "] Negative volume patch at cell " << c << endl;
 				volume+=patchVolume;
 			}
 		}
 		cell[c].volume=volume;
-		cell[c].centroid/=volume;
+		cell[c].centroid/=volume; //TODO: can it be done without dividing by volume?
 		totalVolume+=volume;
 	}
-	
+
 	cout << "[I Rank=" << Rank << "] Total Volume= " << setw(16) << setprecision(8) << scientific << totalVolume << endl;
 	globalTotalVolume=0.;
 	MPI_Allreduce (&totalVolume,&globalTotalVolume,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
 	if (Rank==0) cout << "[I] Global Total Volume= " << globalTotalVolume << endl;
 	
 	for (int f=0;f<faceCount;++f) {
-		if (face[f].normal.dot(face[f].centroid-cell[face[f].parent].centroid)<=0.) {
-			cout << "[W Rank=" << Rank << "] Face " << f << " normal is pointing in to its parent ... fixing " << endl;
+		if (face[f].normal.dot(face[f].centroid-cell[face[f].parent].centroid)<0.) {
+			cout << "[W Rank=" << Rank << "] Face " << f << " normal is pointing in to its parent cell .. fixing" << endl;
 			// Need to swap the face and reflect the area vector TODO Check if following is right
 			face[f].normal*=-1.;
 			vector<int>::reverse_iterator rit;

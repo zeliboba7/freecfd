@@ -165,6 +165,7 @@ public:
 	void faceAverages();
 	void mpi_handshake(void);
 	void mpi_get_ghost_geometry(void);
+	void write_cas(void);
 
 	Node& cellNode(int c, int n);
 	Face& cellFace(int c, int f);

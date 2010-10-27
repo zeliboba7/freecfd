@@ -105,7 +105,7 @@ int main(int argc, char *argv[]) {
 			equations[gid]=NS;
 		} else if (input.section("grid",gid).get_string("equations")=="heatconduction") {
 			equations[gid]=HEAT;
-		}
+		} 
 		if (input.section("grid",gid).subsection("turbulence").is_found) turbulent[gid]=true;
 	}
 
@@ -145,6 +145,13 @@ int main(int argc, char *argv[]) {
 		// Establish connectivity, area, volume etc... all the needed information
 		grid[gid].setup();
 		set_bcs(gid);
+		
+		if (input.section("grid",gid).get_string("equations")=="writecasfile") {
+			cout << "[I] Writing grid.cas file" << endl;
+			grid[gid].write_cas();
+			exit(1);
+		}
+		
 		set_lengthScales(gid);
 		if (Rank==0) cout << "[I grid=" << gid+1 << " ] Calculating node averaging metrics, this might take a while..." << endl;
 		grid[gid].nodeAverages(); // Linear triangular (tetrahedral) + idw blended mode
