@@ -288,12 +288,6 @@ void NavierStokes::update_variables(void) {
 
 	if (Rank==0) cout << "\t" << res;
 	
-	// TODO: fix normalization
-	/*
-	resP/=resP_norm*double(grid[gid].globalCellCount);
-	resV/=resV_norm*double(grid[gid].globalCellCount);
-	resT/=resT_norm*double(grid[gid].globalCellCount);
-	*/
 	/*
 	if (ps_timeStep==1) {
 		resP_first=resP;

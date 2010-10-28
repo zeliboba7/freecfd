@@ -52,6 +52,7 @@ void NavierStokes::diffusive_face_flux(NS_Cell_State &left,NS_Cell_State &right,
 	flux[2]=(face.mu+turb_visc)*tau_y.dot(areaVec);
 	flux[3]=(face.mu+turb_visc)*tau_z.dot(areaVec);
 	flux[4]=(face.mu+turb_visc)*(tau_x.dot(face.V)*areaVec[0]+tau_y.dot(face.V)*areaVec[1]+tau_z.dot(face.V)*areaVec[2]);
+	
 	qq=(face.lambda+turb_cond)*face.gradT.dot(areaVec);
 	if (face.bc>=0) {
 		if (bc[gid][face.bc].thermalType==FIXED_Q) qq=qdot.bc(face.bc,face.index)*face.area;
