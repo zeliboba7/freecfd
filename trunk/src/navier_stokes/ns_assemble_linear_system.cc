@@ -379,7 +379,7 @@ void NavierStokes::face_state_update(NS_Cell_State &left,NS_Cell_State &right,NS
 	
 	face.gradT-=face.gradT.dot(face.normal)*face.normal;
 	face.gradT+=((right.T_center-left.T_center)/(face.left2right.dot(face.normal)))*face.normal;
-
+	 
 	// Boundary conditions are already taken care of in right state update
 	// TODO: In first order, this won't be a good averaging
 	face.p=0.5*(left.p+right.p);

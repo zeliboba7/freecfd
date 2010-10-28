@@ -113,11 +113,13 @@ int Grid::areas_volumes() {
 				
 		// Find an approxiamate centroid (true centroid for triangle and quad)
 		Vec3D centroid=0.;
+		/*
 		for (int n=0;n<face[f].nodeCount;++n) {
 			centroid+=faceNode(f,n);
 		}
 		centroid/=double(face[f].nodeCount);
-		
+		 */
+		/*
 		if (face[f].nodeCount==3) {
 			
 			face[f].centroid=centroid;
@@ -133,7 +135,7 @@ int Grid::areas_volumes() {
 			face[f].normal/=face[f].area;
 			
 		} else {
-
+*/
 			Vec3D areaVec=0.;
 			Vec3D patchCentroid,patchArea;
 
@@ -141,19 +143,21 @@ int Grid::areas_volumes() {
 			face[f].centroid=0.;
 			areaVec=0.;
 			int next;
+		centroid=faceNode(f,0);
 			// First calculate face normal
 			face[f].normal=(faceNode(f,2)-faceNode(f,1)).cross(faceNode(f,0)-faceNode(f,1)).norm();
-			for (int n=0;n<face[f].nodeCount;++n) {
+			for (int n=1;n<face[f].nodeCount;++n) {
 				next=n+1;
 				if (next==face[f].nodeCount) next=0;
 				patchArea=0.5*(faceNode(f,n)-centroid).cross(faceNode(f,next)-centroid);
 				patchCentroid=1./3.*(faceNode(f,n)+faceNode(f,next)+centroid);
-				face[f].centroid+=patchCentroid*patchArea.dot(face[f].normal);
+				face[f].centroid+=(patchCentroid-centroid)*patchArea.dot(face[f].normal);
 				areaVec+=patchArea;
 			}
 			face[f].area=fabs(areaVec);
-			face[f].centroid/=face[f].area;
-		}
+			face[f].centroid=face[f].centroid/face[f].area+centroid;
+		//cout << "face " << f << "\t" << face[f].normal << "\t" << face[f].area << "\t" << face[f].centroid << endl;
+//		}
 	}
 	
 	cout << "[I Rank=" << Rank << "] Calculated face areas and centroids" << endl;
@@ -163,7 +167,7 @@ int Grid::areas_volumes() {
 	for (int c=0;c<cellCount;++c) {
 		double volume=0.;
 		double patchVolume=0.;
-		Vec3D height,basePatchArea,patchCentroid;
+		Vec3D patchCentroid;
 		int f,next;
 		// Calculate cell centroid
 		// First calculate an approximate one
@@ -176,8 +180,17 @@ int Grid::areas_volumes() {
 		// Calculate the centroid of the cell by taking moments of each tetra
 		cell[c].centroid=0.;
 		double sign;
+		double height; double basePatchArea;
 		for (int cf=0;cf<cell[c].faceCount;++cf) {
 			f=cell[c].faces[cf];
+			height=(face[f].centroid-centroid).dot(face[f].normal);
+			// Fix face orientation issue
+			if (face[f].parent!=c) height*=-1.;
+			patchVolume=face[f].area*height/3.;
+			patchCentroid=(face[f].centroid*double(face[f].nodeCount)+centroid)/(double(face[f].nodeCount)+1.);
+			cell[c].centroid+=patchVolume*(patchCentroid-centroid);
+			volume+=patchVolume;
+			/*
 			// Every cell face is broken into triangles
 			for (int n=0;n<face[f].nodeCount;++n) {
 				next=n+1;
@@ -196,9 +209,11 @@ int Grid::areas_volumes() {
 				if (patchVolume<0.) cout << "[W Rank=" << Rank << "] Negative volume patch at cell " << c << endl;
 				volume+=patchVolume;
 			}
+			 */
 		}
 		cell[c].volume=volume;
-		cell[c].centroid/=volume; //TODO: can it be done without dividing by volume?
+		cell[c].centroid=cell[c].centroid/volume+centroid; //TODO: can it be done without dividing by volume?
+		cell[c].centroid=centroid;
 		totalVolume+=volume;
 	}
 

@@ -155,7 +155,7 @@ TYPE &Variable<TYPE>::face_fetch (int f) {
 
 template <class TYPE>
 TYPE &Variable<TYPE>::face_calculate (int f) { 
-	if ( (grid[gid].face[f].bc>=0 && fixedonBC[grid[gid].face[f].bc]) || !cellStore) {		
+	if ( (grid[gid].face[f].bc>=0 && fixedonBC[grid[gid].face[f].bc]) || !cellStore) {	// TODO: Check this
 		return bc(grid[gid].face[f].bc,f);
 	}
 	// Run the face averaging map from the grid class
@@ -239,18 +239,6 @@ vector<TYPE> Variable<TYPE>::cell_gradient (int c) {
 	vector<TYPE> grad (3,0.);
 	// TODO: Calculate gradient using face average map
 	//       Incorporate BC values (maybe optional)
-	//       Get rid of the gradMap in the grid class
-	
-	/*
-	// Add internal and interpartition face contributions
-	for (it=grid[gid].cell[c].gradMap.begin();it!=grid[gid].cell[c].gradMap.end(); it++ ) {
-		if ((*it).first>=0) { // if contribution is coming from a real cell
-			for (int i=0;i<3;++i) grad[i]+=(*it).second[i]*(this->*get_cell)((*it).first);
-		} else { // if contribution is coming from a ghost cell
-			for (int i=0;i<3;++i) grad[i]+=(*it).second[i]*(this->*get_ghost)(-1*((*it).first+1));
-		}
-	} // end gradMap loop
-	*/
 	
 	// The grad map loop above doesn't count the boundary faces
 	// Add boundary face contributions

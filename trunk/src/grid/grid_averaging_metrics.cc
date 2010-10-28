@@ -21,70 +21,28 @@
 
 *************************************************************************/
 #include "grid.h"
-#define EPS 1e-10
-#define INTERPOLATE_POINT 0
-#define INTERPOLATE_LINE 1
-#define INTERPOLATE_TRI 2
-#define INTERPOLATE_TETRA 3
 
-// Iterators
-//std::vector<Cell>::iterator cit;
-std::vector<Node>::iterator nit;
-std::vector<int>::iterator it;
-std::vector<int>::iterator it2;
-std::vector<double>::iterator dit;
+void Grid::nodeAverages_hexa() {
 
-Grid *currentGrid;
-
-// Names are a bit counter-intutivite here
-// Larger tolerance means more strict quality measures
-double area_tolerance=1.e-3;
-double volume_tolerance=1.e-2;
-
-int gelimd(vector<vector<double> > &a,vector<double> &b,vector<double> &x);
-bool compare_closest (int first,int second);
+	// Loop all the nodes
+	for (int n=0;n<nodeCount;++n) {
+		// Find out if all the cells surrounding the node are hexas
+		bool hexa=true;
+		int count=0;
+		for (int nc=0;nc<node[n].cells.size();++nc) {
+			if (cell[node[n].cells[cn]].nodeCount!=8) {
+				hexa=false;
+				break;
+			}
+			count++;
+		}
+		if (hexa==false) continue;
+		// Now we know all the surrounding cells are hexas
+		
+		
+	}
 	
-struct interpolation_tetra {
-	int cell[4];
-	double weight;
-};
-
-struct interpolation_tri {
-	int cell[3];
-	double weight;
-};
-
-extern GridRawData raw;
-
-// Store the cell stencil surronding a node
-set<int> stencil;
-set<int>::iterator sit,sit1,sit2,sit3;
-// A structure to store data about an individual interpolation tetra
-
-// For each node, store possible formations of interpolation tetras
-vector<interpolation_tetra> tetras; 
-vector<interpolation_tetra>::iterator tet;
-
-vector<interpolation_tri> tris; 
-vector<interpolation_tri>::iterator tri;
-Vec3D centroid1,centroid2,centroid3,centroid4,ave_centroid;
-Vec3D lineDirection,planeNormal;
-Vec3D pp,basis1,basis2;
-int method;
-
-double weightSum,weightSum2;
-double tetra_volume,tri_area,ave_edge,line_distance;
-double closeness,skewness;
-vector<vector<double> > a3,a4;
-vector<double> b3,b4,weights3,weights4;
-
-double distanceMin=1.e20;
-int p1,p2;
-
-Vec3D nodeVec;
-
-void Grid::nodeAverages() {
-
+	
 	a3.resize(3); b3.resize(3); weights3.resize(3);
 	for (int i=0;i<3;++i) a3[i].resize(3);
 	
@@ -153,7 +111,7 @@ void Grid::nodeAverages() {
 				}
 			}
 			
-			if (method==INTERPOLATE_TRI) { // If at least one interpolation triangle can be formed
+			if (method==INTERPOLATE_TRI && dimension==3) { // If at least one interpolation triangle can be formed
 				// Check if a tetra can be formed with the rest of the points in the stencil
 				for (sit3=sit2;sit3!=stencil.end();sit3++) {
 					centroid4=(*sit3>=0) ? cell[*sit3].centroid : ghost[-1*(*sit3)-1].centroid;
