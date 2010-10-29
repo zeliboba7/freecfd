@@ -157,7 +157,6 @@ void NavierStokes::stagnation_inlet(NS_Cell_State &left,NS_Cell_State &right,NS_
 	right.V_center=2.*right.V-left.V_center;
 	// Impose pressure and temperature
 	right.T=T_total.bc(face.bc)-0.5*(material.gamma-1.)/(material.gamma*material.R)*right.V.dot(right.V);
-
 	right.p=(p_total.bc(face.bc)+material.Pref)/(1.+0.5*right.V.dot(right.V)/(material.R*(right.T+material.Tref)))-material.Pref;
 	right.T_center=right.T;
 	right.rho=material.rho(right.p,right.T);

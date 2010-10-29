@@ -46,7 +46,9 @@ int timeStep,gid;
 vector<string> varList;
 vector<bool> var_is_vec3d;
 
-void write_tec_vars(void);
+void write_tec_header(void);
+void write_tec_nodes(int i);
+void write_tec_var(int ov, int i);
 void write_tec_cells(void);
 void write_tec_bcs(int nbc, int nVar);
 void write_vtk(void);
@@ -103,21 +105,38 @@ void write_output(int gridid, int step) {
 	string format=input.section("grid",gid).subsection("writeoutput").get_string("format");
 	if (format=="tecplot") {
 		// Write tecplot output file
-		for (int p=0;p<np;++p) {
-			if(Rank==p) write_tec_vars();
-			MPI_Barrier(MPI_COMM_WORLD);
+		if (Rank==0) write_tec_header();
+		for (int i=0;i<3;++i) {
+			for (int p=0;p<np;++p) {
+				if(Rank==p) write_tec_nodes(i);
+				MPI_Barrier(MPI_COMM_WORLD);
+			}
 		}
+		for (int ov=0;ov<varList.size();++ov) {
+			int nn=1;
+			if (var_is_vec3d[ov]) nn=3;
+			for (int i=0;i<nn;++i) {
+				for (int p=0;p<np;++p) {
+					if(Rank==p) write_tec_var(ov,i);
+					MPI_Barrier(MPI_COMM_WORLD);
+				}
+				
+			}
+		}
+		
 		for (int p=0;p<np;++p) {
 			if(Rank==p) write_tec_cells();
 			MPI_Barrier(MPI_COMM_WORLD);
 		}
+		
 		// Write boundary condition regions
 		for (int nbc=0;nbc<input.section("grid",gid).subsection("BC",0).count;++nbc) {
 			for (int p=0;p<np;++p) {
-				if(Rank==p) write_tec_bcs(nbc,nVar);
+			//	if(Rank==p) write_tec_bcs(nbc,nVar);
 				MPI_Barrier(MPI_COMM_WORLD);
 			}
 		}
+		 
 	} else if (format=="vtk") {
 		// Write vtk output file
 		if (Rank==0) write_vtk_parallel();
@@ -127,139 +146,248 @@ void write_output(int gridid, int step) {
 	return;
 }
 
-void write_tec_vars(void) {
+void write_tec_header(void) {
 	
 	ofstream file;
 	string fileName="./output/out_"+int2str(timeStep)+"_"+int2str(gid+1)+".dat";
 	
 	// Proc 0 creates the output file and writes variable list
 	
-	if (Rank==0) {
-		file.open((fileName).c_str(),ios::out);
-		file << "VARIABLES = \"x\", \"y\", \"z\" ";
-		for (int var=0;var<varList.size();++var) {
-			if (var_is_vec3d[var]) {
-				file << ",\"" << varList[var] << "_x\" "; 
-				file << ",\"" << varList[var] << "_y\" "; 
-				file << ",\"" << varList[var] << "_z\" "; 
-			} else {
-				file << ",\"" << varList[var] << "\" "; 
-			}
+	file.open((fileName).c_str(),ios::out);
+	file << "VARIABLES = \"x\", \"y\", \"z\" ";
+	int nvars=3;
+	for (int var=0;var<varList.size();++var) {
+		if (var_is_vec3d[var]) {
+			file << ",\"" << varList[var] << "_x\" "; 
+			file << ",\"" << varList[var] << "_y\" "; 
+			file << ",\"" << varList[var] << "_z\" "; 
+			nvars+=3;
+		} else {
+			file << ",\"" << varList[var] << "\" "; 
+			nvars++;
 		}
-		file << endl;
-		file << "ZONE, T=\"Grid " << gid+1 << "\", ZONETYPE=FEBRICK, DATAPACKING=POINT" << endl;
-		file << "NODES=" << grid[gid].globalNodeCount << ", ELEMENTS=" << grid[gid].globalCellCount << endl;
-	} else {
-		file.open((fileName).c_str(),ios::app);
 	}
+	file << endl;
+	file << "ZONE, T=\"Grid " << gid+1 << "\", ZONETYPE=FEBRICK, DATAPACKING=BLOCK" << endl;
+	file << "NODES=" << grid[gid].globalNodeCount << ", ELEMENTS=" << grid[gid].globalCellCount << endl;
+	file << "VARLOCATION=([4-" << nvars << "]=CELLCENTERED)" << endl;
 	
+	return;
+}
+	
+void write_tec_nodes(int i) {
+	
+	ofstream file;
+	string fileName="./output/out_"+int2str(timeStep)+"_"+int2str(gid+1)+".dat";
+	
+	file.open((fileName).c_str(),ios::app);
 	file << scientific << setprecision(8);
-	
+
+	int count=0;
 	for (int n=0;n<grid[gid].nodeCount;++n) {
 		// Note that some nodes are repeated in different partitions
 		if (grid[gid].maps.nodeGlobal2Output[grid[gid].node[n].globalId]>=grid[gid].nodeCountOffset) {
-			
 			// Write node coordinates
-			file << grid[gid].node[n][0] << "\t";
-			file << grid[gid].node[n][1] << "\t";
-			file << grid[gid].node[n][2] << "\t";
-			// Write Navier-Stokes variables
+			file << grid[gid].node[n][i];
+			count++;
+			if (count%10==0) file << "\n";
+			else file << "\t";
+		}
+	}
+	file.close();
+	
+	return;
+}
 			
-			// Node temperature and pressure are repeatedly used. Store them first
-			double p_node,T_node;
 			
-			if (equations[gid]==NS)	{p_node=ns[gid].p.node(n); T_node=ns[gid].T.node(n);}
-			else if (equations[gid]==HEAT) T_node=hc[gid].T.node(n);
-			
-			for (int ov=0;ov<varList.size();++ov) {
-				// Scalars
-				if (varList[ov]=="p") file << p_node << "\t";
-				else if (varList[ov]=="T") file << T_node << "\t";
-				else if (varList[ov]=="rho") file << ns[gid].material.rho(p_node,T_node) << "\t";
-				else if (varList[ov]=="dt") file << dt[gid].node(n) << "\t";
-				else if (varList[ov]=="mu") file << ns[gid].material.viscosity(T_node) << "\t";
-				else if (varList[ov]=="lambda") file << ns[gid].material.therm_cond(T_node) << "\t";	
-				else if (varList[ov]=="Cp") file << ns[gid].material.Cp(T_node) << "\t";
-				else if (varList[ov]=="resp") file << ns[gid].update[0].node(n) << "\t";
-				else if (varList[ov]=="resT") file << ns[gid].update[4].node(n) << "\t";
-				else if (varList[ov]=="limiterp") file << ns[gid].limiter[0].node(n) << "\t"; 
-				else if (varList[ov]=="limiterT") file << ns[gid].limiter[4].node(n) << "\t";
-				else if (varList[ov]=="k") file << rans[gid].k.node(n) << "\t";
-				else if (varList[ov]=="omega") file << rans[gid].omega.node(n) << "\t";
-				else if (varList[ov]=="mu_t") file << rans[gid].mu_t.node(n) << "\t";
-				else if (varList[ov]=="Mach") {
-					file << fabs(ns[gid].V.node(n))/ns[gid].material.a(p_node,T_node) << "\t";
-				}
-				// Vectors
-				else if (varList[ov]=="V") {
-					file << ns[gid].V.node(n)[0] << "\t";
-					file << ns[gid].V.node(n)[1] << "\t";
-					file << ns[gid].V.node(n)[2] << "\t";
-				} 
-				else if (varList[ov]=="gradp") {
-					file << ns[gid].gradp.node(n)[0] << "\t";
-					file << ns[gid].gradp.node(n)[1] << "\t";
-					file << ns[gid].gradp.node(n)[2] << "\t";
-				}
-				else if (varList[ov]=="gradu") {
-					file << ns[gid].gradu.node(n)[0] << "\t";
-					file << ns[gid].gradu.node(n)[1] << "\t";
-					file << ns[gid].gradu.node(n)[2] << "\t";
-				}
-				else if (varList[ov]=="gradv") {
-					file << ns[gid].gradv.node(n)[0] << "\t";
-					file << ns[gid].gradv.node(n)[1] << "\t";
-					file << ns[gid].gradv.node(n)[2] << "\t";
-				}
-				else if (varList[ov]=="gradw") {
-					file << ns[gid].gradw.node(n)[0] << "\t";
-					file << ns[gid].gradw.node(n)[1] << "\t";
-					file << ns[gid].gradw.node(n)[2] << "\t";
-				}
-				else if (varList[ov]=="gradT") {
-					if (equations[gid]==NS) {
-						file << ns[gid].gradT.node(n)[0] << "\t";
-						file << ns[gid].gradT.node(n)[1] << "\t";
-						file << ns[gid].gradT.node(n)[2] << "\t";
-					} else if (equations[gid]==HEAT) {
-						file << hc[gid].gradT.node(n)[0] << "\t";
-						file << hc[gid].gradT.node(n)[1] << "\t";
-						file << hc[gid].gradT.node(n)[2] << "\t";
-					}
-				}				
-				else if (varList[ov]=="gradrho") {
-					file << ns[gid].gradrho.node(n)[0] << "\t";
-					file << ns[gid].gradrho.node(n)[1] << "\t";
-					file << ns[gid].gradrho.node(n)[2] << "\t";
-				}
-				else if (varList[ov]=="resV") {
-					file << ns[gid].update[1].node(n) << "\t";
-					file << ns[gid].update[2].node(n) << "\t";
-					file << ns[gid].update[3].node(n) << "\t";
-				}
-				else if (varList[ov]=="limiterV") {
-					file << ns[gid].limiter[1].node(n) << "\t";
-					file << ns[gid].limiter[2].node(n) << "\t";
-					file << ns[gid].limiter[3].node(n) << "\t";
-				}
-				else if (varList[ov]=="gradk") {
-					file << rans[gid].gradk.node(n)[0] << "\t";
-					file << rans[gid].gradk.node(n)[1] << "\t";
-					file << rans[gid].gradk.node(n)[2] << "\t";
-				}
-				else if (varList[ov]=="gradomega") {
-					file << rans[gid].gradomega.node(n)[0] << "\t";
-					file << rans[gid].gradomega.node(n)[1] << "\t";
-					file << rans[gid].gradomega.node(n)[2] << "\t";
-				}				
+void write_tec_var(int ov, int i) {
+
+	ofstream file;
+	string fileName="./output/out_"+int2str(timeStep)+"_"+int2str(gid+1)+".dat";
+	
+	file.open((fileName).c_str(),ios::app);
+	file << scientific << setprecision(8);
+	
+	for (int c=0;c<grid[gid].cellCount;++c) ;
+	if (varList[ov]=="p") {
+		for (int c=0;c<grid[gid].cellCount;++c) {
+			file << ns[gid].p.cell(c);
+			if ((c+1)%10==0) file << "\n";
+			else file << "\t";
+		}
+	} else if (varList[ov]=="T") {
+		if (equations[gid]==NS)	{
+			for (int c=0;c<grid[gid].cellCount;++c) {
+				file << ns[gid].T.cell(c);
+				if ((c+1)%10==0) file << "\n";
+				else file << "\t";
+			}
+		} else if (equations[gid]==HEAT) {
+			for (int c=0;c<grid[gid].cellCount;++c) {
+				file << hc[gid].T.cell(c);
+				if ((c+1)%10==0) file << "\n";
+				else file << "\t";
 			}
 		}
-		file << endl;
+	} else if (varList[ov]=="rho") {
+		for (int c=0;c<grid[gid].cellCount;++c) {
+			file << ns[gid].rho.cell(c);
+			if ((c+1)%10==0) file << "\n";
+			else file << "\t";
+		}
+	} else if (varList[ov]=="dt") {
+		for (int c=0;c<grid[gid].cellCount;++c) {
+			file << dt[gid].cell(c);
+			if ((c+1)%10==0) file << "\n";
+			else file << "\t";
+		}
+	} else if (varList[ov]=="mu") {
+		for (int c=0;c<grid[gid].cellCount;++c) {
+			file << ns[gid].material.viscosity(ns[gid].T.cell(c));
+			if ((c+1)%10==0) file << "\n";
+			else file << "\t";
+		}
+	} else if (varList[ov]=="lambda") {
+		for (int c=0;c<grid[gid].cellCount;++c) {
+			file << ns[gid].material.therm_cond(ns[gid].T.cell(c));
+			if ((c+1)%10==0) file << "\n";
+			else file << "\t";
+		}
+	} else if (varList[ov]=="Cp") {
+		for (int c=0;c<grid[gid].cellCount;++c) {
+			file << ns[gid].material.Cp(ns[gid].T.cell(c));
+			if ((c+1)%10==0) file << "\n";
+			else file << "\t";
+		}
+	} else if (varList[ov]=="resp") {
+		for (int c=0;c<grid[gid].cellCount;++c) {
+			file << ns[gid].update[0].cell(c);
+			if ((c+1)%10==0) file << "\n";
+			else file << "\t";
+		}
+	} else if (varList[ov]=="resT") {
+		for (int c=0;c<grid[gid].cellCount;++c) {
+			file << ns[gid].update[4].cell(c);
+			if ((c+1)%10==0) file << "\n";
+			else file << "\t";
+		}
+	} else if (varList[ov]=="limiterp") {
+		for (int c=0;c<grid[gid].cellCount;++c) {
+			file << ns[gid].limiter[0].cell(c);
+			if ((c+1)%10==0) file << "\n";
+			else file << "\t";
+		}
+	} else if (varList[ov]=="limiterT") {
+		for (int c=0;c<grid[gid].cellCount;++c) {
+			file << ns[gid].limiter[4].cell(c);
+			if ((c+1)%10==0) file << "\n";
+			else file << "\t";
+		}
+	} else if (varList[ov]=="k") {
+		for (int c=0;c<grid[gid].cellCount;++c) {
+			file << rans[gid].k.cell(c);
+			if ((c+1)%10==0) file << "\n";
+			else file << "\t";
+		}
+	} else if (varList[ov]=="omega") {
+		for (int c=0;c<grid[gid].cellCount;++c) {
+			file << rans[gid].omega.cell(c);
+			if ((c+1)%10==0) file << "\n";
+			else file << "\t";
+		}
+	} else if (varList[ov]=="mu_t") {
+		for (int c=0;c<grid[gid].cellCount;++c) {
+			file << rans[gid].mu_t.cell(c);
+			if ((c+1)%10==0) file << "\n";
+			else file << "\t";
+		}
+	} else if (varList[ov]=="Mach") {
+		for (int c=0;c<grid[gid].cellCount;++c) {
+			file << fabs(ns[gid].V.cell(c))/ns[gid].material.a(ns[gid].p.cell(c),ns[gid].T.cell(c));
+			if ((c+1)%10==0) file << "\n";
+			else file << "\t";
+		}
+	} else if (varList[ov]=="V") {
+		for (int c=0;c<grid[gid].cellCount;++c) {
+			file << ns[gid].V.cell(c)[i];
+			if ((c+1)%10==0) file << "\n";
+			else file << "\t";
+		}
+	} else if (varList[ov]=="gradp") {
+		for (int c=0;c<grid[gid].cellCount;++c) {
+			file << ns[gid].gradp.cell(c)[i];
+			if ((c+1)%10==0) file << "\n";
+			else file << "\t";
+		}
+	} else if (varList[ov]=="gradu") {
+		for (int c=0;c<grid[gid].cellCount;++c) {
+			file << ns[gid].gradu.cell(c)[i];
+			if ((c+1)%10==0) file << "\n";
+			else file << "\t";
+		}
+	} else if (varList[ov]=="gradv") {
+		for (int c=0;c<grid[gid].cellCount;++c) {
+			file << ns[gid].gradv.cell(c)[i];
+			if ((c+1)%10==0) file << "\n";
+			else file << "\t";
+		}
+	} else if (varList[ov]=="gradw") {
+		for (int c=0;c<grid[gid].cellCount;++c) {
+			file << ns[gid].gradw.cell(c)[i];
+			if ((c+1)%10==0) file << "\n";
+			else file << "\t";
+		}
+	} else if (varList[ov]=="gradT") {
+		if (equations[gid]==NS) {
+			for (int c=0;c<grid[gid].cellCount;++c) {
+				file << ns[gid].gradT.cell(c)[i];
+				if ((c+1)%10==0) file << "\n";
+				else file << "\t";
+			}
+		} else if (equations[gid]==HEAT) {
+			for (int c=0;c<grid[gid].cellCount;++c) {
+				file << hc[gid].gradT.cell(c)[i];
+				if ((c+1)%10==0) file << "\n";
+				else file << "\t";
+			}
+		}
+	} else if (varList[ov]=="gradrho") {
+		for (int c=0;c<grid[gid].cellCount;++c) {
+			file << ns[gid].gradrho.cell(c)[i];
+			if ((c+1)%10==0) file << "\n";
+			else file << "\t";
+		}
+	} else if (varList[ov]=="resV") {
+		for (int c=0;c<grid[gid].cellCount;++c) {
+			file << ns[gid].update[i+1].cell(c);
+			if ((c+1)%10==0) file << "\n";
+			else file << "\t";
+		}
+	} else if (varList[ov]=="limiterV") {
+		for (int c=0;c<grid[gid].cellCount;++c) {
+			file << ns[gid].limiter[i+1].cell(c);
+			if ((c+1)%10==0) file << "\n";
+			else file << "\t";
+		}
+	} else if (varList[ov]=="gradk") {
+		for (int c=0;c<grid[gid].cellCount;++c) {
+			file << rans[gid].gradk.cell(c)[i];
+			if ((c+1)%10==0) file << "\n";
+			else file << "\t";
+		}
+	} else if (varList[ov]=="gradomega") {
+		for (int c=0;c<grid[gid].cellCount;++c) {
+			file << rans[gid].gradomega.cell(c)[i];
+			if ((c+1)%10==0) file << "\n";
+			else file << "\t";
+		}
 	}
-		 
+	
 	file.close();
-}
-
+		
+	return;
+} 
+			
 void write_tec_cells() {
 	
 	ofstream file;
@@ -344,6 +472,7 @@ void write_tec_bcs(int bcNo,int nVar) {
 
 	return;
 }
+
 
 void write_vtk(void) {
 	
