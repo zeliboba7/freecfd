@@ -154,8 +154,8 @@ int main(int argc, char *argv[]) {
 		
 		set_lengthScales(gid);
 		if (Rank==0) cout << "[I grid=" << gid+1 << " ] Calculating node averaging metrics, this might take a while..." << endl;
-		grid[gid].nodeAverages(); // Linear triangular (tetrahedral) + idw blended mode
         grid[gid].faceAverages();
+		grid[gid].nodeAverages(); // Linear triangular (tetrahedral) + idw blended mode
 	}
 
 	for (int gid=0;gid<grid.size();++gid) {

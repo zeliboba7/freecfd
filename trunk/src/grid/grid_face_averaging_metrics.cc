@@ -28,8 +28,7 @@
 #define INTERPOLATE_TETRA 3
 
 // Iterators
-//std::vector<Cell>::iterator cit;
-std::vector<Node>::iterator nit;
+
 std::vector<int>::iterator it;
 std::vector<int>::iterator it2;
 std::vector<double>::iterator dit;
@@ -38,7 +37,7 @@ Grid *currentGrid;
 
 // Names are a bit counter-intutivite here
 // Larger tolerance means more strict quality measures
-double area_tolerance=1.e-3;
+double area_tolerance=1.e-1;
 double volume_tolerance=1.e-2;
 
 int gelimd(vector<vector<double> > &a,vector<double> &b,vector<double> &x);
@@ -81,9 +80,9 @@ vector<double> b3,b4,weights3,weights4;
 double distanceMin=1.e20;
 int p1,p2;
 
-Vec3D nodeVec;
+Vec3D face_center_Vec;
 
-void Grid::nodeAverages() {
+void Grid::faceAverages() {
 
 	a3.resize(3); b3.resize(3); weights3.resize(3);
 	for (int i=0;i<3;++i) a3[i].resize(3);
@@ -96,33 +95,19 @@ void Grid::nodeAverages() {
 	int tri_node_count=0;		
 	int line_node_count=0;		
 	int point_node_count=0;	
-	int stencil_expand_threshold=4;
-	if (dimension==3) stencil_expand_threshold=8;
 
-	// Loop all the nodes
-	for (nit=node.begin();nit!=node.end();nit++) {
+	// Loop all the faces
+	for (int f=0;f<faceCount;++f) {
 		// Initialize stencil to nearest neighbor cells
-		for (it=(*nit).cells.begin();it!=(*nit).cells.end();it++) stencil.insert(*it);
-		// Include nearest ghost cells in the stencil
-		for (it=(*nit).ghosts.begin();it!=(*nit).ghosts.end();it++) stencil.insert(-1*(*it)-1);
-		// if the stencil doesn't have at least stencil_expand_threshold number of points, expand it to include 2nd nearest (node) neighbor cells
-		// NOTE ideally, second nearest ghosts would also need to be included but it is too much complication
-		if (stencil.size()<stencil_expand_threshold) {
-			//Loop the cells neighboring the current node
-			for (it=(*nit).cells.begin();it!=(*nit).cells.end();it++) {
-				//Loop the cells neighboring the current cell
-				for (it2=cell[*it].neighborCells.begin();it2!=cell[*it].neighborCells.end();it2++) {
-					stencil.insert(*it2);
-				}
-				//Loop the ghost cells neighboring the current cell
-				for (it2=cell[*it].ghosts.begin();it2!=cell[*it].ghosts.end();it2++) {
-					stencil.insert(-1*(*it2)-1);
-				}
-				
-			}
-		}	
+		// Loop face nodes and their neighboring cells
+		for (int fn=0;fn<face[f].nodeCount;++fn) {
+			for (int nc=0;nc<node[face[f].nodes[fn]].cells.size();++nc) stencil.insert(node[face[f].nodes[fn]].cells[nc]);
+			// Include nearest ghost cells in the stencil
+			for (int ng=0;ng<node[face[f].nodes[fn]].ghosts.size();++ng) stencil.insert(-1*node[face[f].nodes[fn]].ghosts[ng]-1);	
+		}
 		
-		sortStencil(*nit);
+		// Sort the stencil based on distance
+		sortStencil(f);
 		
 		if (stencil.size()==1) {
 			method=INTERPOLATE_POINT;
@@ -172,20 +157,21 @@ void Grid::nodeAverages() {
 				}
 			}	
 		}
-		(*nit).average.clear();
+		
+		face[f].average.clear();
 		if (method==INTERPOLATE_TETRA) {
-			interpolate_tetra(*nit); tetra_node_count++;
+			interpolate_tetra(f); tetra_node_count++;
 		}
 		if (method==INTERPOLATE_TRI) {
-			interpolate_tri(*nit); 
+			interpolate_tri(f); 
 			tri_node_count++;
 		}
 		if (method==INTERPOLATE_LINE) {
-			interpolate_line(*nit);
+			interpolate_line(f);
 			line_node_count++;
 		}
 		if (method==INTERPOLATE_POINT) {
-			(*nit).average.insert(pair<int,double>(*(stencil.begin()),1.));
+			face[f].average.insert(pair<int,double>(*(stencil.begin()),1.));
 			point_node_count++;
 		}
 		
@@ -195,10 +181,10 @@ void Grid::nodeAverages() {
 		tris.clear();
 
 	}
-		cout << "[I Rank=" << Rank << "] Nodes for which tetra interpolation method was used = " << tetra_node_count << endl; 
-		cout << "[I Rank=" << Rank << "] Nodes for which tri interpolation method was used = " << tri_node_count << endl; 
-		cout << "[I Rank=" << Rank << "] Nodes for which line interpolation method was used = " << line_node_count << endl; 
-		cout << "[I Rank=" << Rank << "] Nodes for which point interpolation method was used = " << point_node_count << endl;
+		cout << "[I Rank=" << Rank << "] Face centers for which tetra interpolation method was used = " << tetra_node_count << endl; 
+		cout << "[I Rank=" << Rank << "] Face centers for which tri interpolation method was used = " << tri_node_count << endl; 
+		cout << "[I Rank=" << Rank << "] Face centers for which line interpolation method was used = " << line_node_count << endl; 
+		cout << "[I Rank=" << Rank << "] Face centers for which point interpolation method was used = " << point_node_count << endl;
 	
 		a3.clear(); b3.clear(); weights3.clear();
 		a4.clear(); b4.clear(); weights4.clear();
@@ -209,25 +195,25 @@ void Grid::nodeAverages() {
 bool compare_closest (int first, int second) {
 	centroid1= (first>=0) ? currentGrid->cell[first].centroid : currentGrid->ghost[-1*first-1].centroid;
 	centroid2= (second>=0) ? currentGrid->cell[second].centroid : currentGrid->ghost[-1*second-1].centroid;
-	if (fabs(nodeVec-centroid1)<=fabs(nodeVec-centroid2)) return true;
+	if (fabs(face_center_Vec-centroid1)<=fabs(face_center_Vec-centroid2)) return true;
 	else return false;
 }
 
 
-void Grid::sortStencil(Node& n) {
+void Grid::sortStencil(int f) {
 	// Split stencil to 8 quadrants around the node
 	vector<list<int> > quadrant; quadrant.resize(8);
 	list<int>::iterator lit,lit2;
-	Vec3D node2cell;
+	Vec3D face2cell;
 	int stencilSize=stencil.size();
 	
 	// Loop the stencil and start filling in the quadrants
 	for (sit=stencil.begin();sit!=stencil.end();sit++) {
 		centroid1=(*sit>=0) ? cell[*sit].centroid : ghost[-1*(*sit)-1].centroid;
-		node2cell=centroid1-n;
-		if (node2cell[0]>=0.) {
-			if (node2cell[1]>=0.) {
-				if (node2cell[2]>=0.) {
+		face2cell=centroid1-face[f].centroid;
+		if (face2cell[0]>=0.) {
+			if (face2cell[1]>=0.) {
+				if (face2cell[2]>=0.) {
 					// Quadrant 0	
 					quadrant[0].push_back(*sit);
 				} else {
@@ -235,7 +221,7 @@ void Grid::sortStencil(Node& n) {
 					quadrant[1].push_back(*sit);
 				}
 			} else {
-				if (node2cell[2]>=0.) {
+				if (face2cell[2]>=0.) {
 					// Quadrant 2	
 					quadrant[2].push_back(*sit);
 				} else {
@@ -244,8 +230,8 @@ void Grid::sortStencil(Node& n) {
 				}
 			}
 		} else {
-			if (node2cell[1]>=0.) {
-				if (node2cell[2]>=0.) {
+			if (face2cell[1]>=0.) {
+				if (face2cell[2]>=0.) {
 					// Quadrant 4
 					quadrant[4].push_back(*sit);
 				} else {
@@ -253,7 +239,7 @@ void Grid::sortStencil(Node& n) {
 					quadrant[5].push_back(*sit);
 				}
 			} else {
-				if (node2cell[2]>=0.) {
+				if (face2cell[2]>=0.) {
 					// Quadrant 6	
 					quadrant[6].push_back(*sit);
 				} else {
@@ -263,8 +249,8 @@ void Grid::sortStencil(Node& n) {
 			}	
 		}
 	}
-	// Now sort entries in each quadrant according to the distance to the node (closest first)
-	nodeVec=n;
+	// Now sort entries in each quadrant according to the distance to the face center (closest first)
+	face_center_Vec=face[f].centroid;
 	currentGrid=this;
 	for (int q=0;q<8;++q) quadrant[q].sort(compare_closest);
 	
@@ -280,10 +266,9 @@ void Grid::sortStencil(Node& n) {
 	if (dimension==1) {
 		size_cutoff=2;
 	} else if (dimension==2) {
-		size_cutoff=4;
-		if (non_empty_quadrant_count<4) size_cutoff+=2;
+		size_cutoff=6;
 	} else {
-		size_cutoff=8;
+		size_cutoff=12;
 	}
 	size_cutoff=min(size_cutoff,stencilSize);
 	
@@ -296,8 +281,8 @@ void Grid::sortStencil(Node& n) {
 				if (lit2!=quadrant[q].end()) {
 					centroid1=(*lit>=0) ? cell[*lit].centroid : ghost[-1*(*lit)-1].centroid;
 					centroid2=(*lit2>=0) ? cell[*lit2].centroid : ghost[-1*(*lit2)-1].centroid;
-					node2cell=centroid1-n;
-					if (fabs(fabs(node2cell)-fabs(centroid2-n))/fabs(node2cell)<1.e-8) {
+					face2cell=centroid1-face[f].centroid;
+					if (fabs(fabs(face2cell)-fabs(centroid2-face[f].centroid))/fabs(face2cell)<1.e-8) {
 						stencil.insert(*lit2);
 						quadrant[q].pop_front();	
 						if (counter<stencilSize) counter++;
@@ -315,7 +300,7 @@ void Grid::sortStencil(Node& n) {
 	return;
 }
 
-void Grid::interpolate_tetra(Node& n) {
+void Grid::interpolate_tetra(int f) {
 	
 	// Loop through the stencil and construct tetra combinations
 	for (sit=stencil.begin();sit!=stencil.end();sit++) {
@@ -337,13 +322,13 @@ void Grid::interpolate_tetra(Node& n) {
 
 					// How close the tetra center to the node for which we are interpolating
 					// Normalized by average edge length	
-					closeness=fabs(n-ave_centroid)/ave_edge;
+					closeness=fabs(face[f].centroid-ave_centroid)/ave_edge;
 					closeness=max(closeness,1.e-1*ave_edge);
 					closeness=1./closeness;
 					// If it was an equilateral tri,skewness should be 1, thus the multiplier here.
 					skewness=tri_area/(0.433*ave_edge*ave_edge);
 					
-					closeness=fabs(n-ave_centroid)/ave_edge;
+					closeness=fabs(face[f].centroid-ave_centroid)/ave_edge;
 					closeness=max(closeness,1.e-1*ave_edge);
 					closeness=1./closeness;
 					// If it was an equilateral tetra,skewness should be 1, thus the multiplier here.
@@ -361,7 +346,7 @@ void Grid::interpolate_tetra(Node& n) {
 		}
 	} // Loop through stencil 
 	if (tetras.size()==0) { // This really shouldn't happen
-		cerr << "[E Rank=" << Rank << "] An interpolation tetra couldn't be found for node " << n.id << endl;
+		cerr << "[E Rank=" << Rank << "] An interpolation tetra couldn't be found for face " << f << endl;
 		cerr << "[E Rank=" << Rank << "] This really shouldn't happen " << endl;
 		cerr << "[E Rank=" << Rank << "] Please report this bug !! " << endl;
 		exit(1);
@@ -385,22 +370,22 @@ void Grid::interpolate_tetra(Node& n) {
 			}
 
 			a4[3][0]=1.; a4[3][1]=1.; a4[3][2]=1.; a4[3][3]=1.;
-			b4[0]=n[0]-centroid1[0]; b4[1]=n[1]-centroid1[1]; b4[2]=n[2]-centroid1[2]; b4[3]=1.;
+			b4[0]=face[f].centroid[0]-centroid1[0]; b4[1]=face[f].centroid[1]-centroid1[1]; b4[2]=face[f].centroid[2]-centroid1[2]; b4[3]=1.;
 			// Solve the 4x4 linear system by Gaussion Elimination
 			gelimd(a4,b4,weights4);
 			// Let's see if the linear system solution is good
 			weightSum2=0.;
 			for (int i=0;i<4;++i) weightSum2+=weights4[i];
 			if (fabs(weightSum2-1.)>1.e-8) {
-				cerr << "[E Rank=" << Rank << "] Tetra interpolation weightSum=" << weightSum2 << " is not unity for node " << n.id  << endl;
+				cerr << "[E Rank=" << Rank << "] Tetra interpolation weightSum=" << weightSum2 << " is not unity for face " << f  << endl;
 				exit(1);
 			}
 
 			for (int i=0;i<4;++i) {
-				if (n.average.find((*tet).cell[i])!=n.average.end()) { // if the cell contributing to the node average is already contained in the map
-					n.average[(*tet).cell[i]]+=(*tet).weight*weights4[i];
+				if (face[f].average.find((*tet).cell[i])!=face[f].average.end()) { // if the cell contributing to the node average is already contained in the map
+					face[f].average[(*tet).cell[i]]+=(*tet).weight*weights4[i];
 				} else {
-					n.average.insert(pair<int,double>((*tet).cell[i],(*tet).weight*weights4[i]));
+					face[f].average.insert(pair<int,double>((*tet).cell[i],(*tet).weight*weights4[i]));
 				}
 			}
 		}
@@ -409,7 +394,7 @@ void Grid::interpolate_tetra(Node& n) {
 	
 }
 
-void Grid::interpolate_tri(Node& n) {
+void Grid::interpolate_tri(int f) {
 	
 	// Loop through the stencil and construct tri combinations
 	for (sit=stencil.begin();sit!=stencil.end();sit++) {
@@ -427,7 +412,7 @@ void Grid::interpolate_tri(Node& n) {
 				ave_edge=1./3.*(fabs(centroid1-centroid2)+fabs(centroid1-centroid3)+fabs(centroid2-centroid3));
 				// How close the triangle center to the node for which we are interpolating
 				// Normalized by average edge length
-				closeness=fabs((n-n.dot(planeNormal)*planeNormal)-ave_centroid)/ave_edge;
+				closeness=fabs((face[f].centroid-face[f].centroid.dot(planeNormal)*planeNormal)-ave_centroid)/ave_edge;
 				closeness=max(closeness,1.e-1*ave_edge);
 				closeness=1./closeness;
 				// If it was an equilateral tri,skewness should be 1, thus the multiplier here.
@@ -445,7 +430,7 @@ void Grid::interpolate_tri(Node& n) {
 		}
 	} // Loop through stencil 
 	if (tris.size()==0) { // This really shouldn't happen
-		cerr << "[E] An interpolation triangle couldn't be found for node " << n << endl;
+		cerr << "[E] An interpolation triangle couldn't be found for face " << f << endl;
 		cerr << "[E] This really shouldn't happen " << endl;
 		cerr << "[E] Please report this bug !! " << endl;
 		exit(1);
@@ -498,7 +483,7 @@ void Grid::interpolate_tri(Node& n) {
 			}
 
 			basis2=-1.*(basis1.cross(planeNormal)).norm();
-			pp=n-origin;
+			pp=face[f].centroid-origin;
 			pp-=pp.dot(planeNormal)*planeNormal;
 			
 			// Form the linear system
@@ -521,15 +506,15 @@ void Grid::interpolate_tri(Node& n) {
 			weightSum2=0.;
 			for (int i=0;i<3;++i) weightSum2+=weights3[i];
 			if (fabs(weightSum2-1.)>1.e-8) {
-				cerr << "[W rank=" << Rank << "] Tri interpolation weightSum=" << setprecision(8) << weightSum2 << " is not unity for node " << n.id  << endl;
+				cerr << "[W rank=" << Rank << "] Tri interpolation weightSum=" << setprecision(8) << weightSum2 << " is not unity for face " << f  << endl;
 				//exit(1);
 			}
 			
 			for (int i=0;i<3;++i) {
-				if (n.average.find((*tri).cell[i])!=n.average.end()) { // if the cell contributing to the node average is already contained in the map
-					n.average[(*tri).cell[i]]+=(*tri).weight*weights3[i];
+				if (face[f].average.find((*tri).cell[i])!=face[f].average.end()) { // if the cell contributing to the face average is already contained in the map
+					face[f].average[(*tri).cell[i]]+=(*tri).weight*weights3[i];
 				} else {
-					n.average.insert(pair<int,double>((*tri).cell[i],(*tri).weight*weights3[i]));
+					face[f].average.insert(pair<int,double>((*tri).cell[i],(*tri).weight*weights3[i]));
 				}
 			}
 		}
@@ -537,12 +522,12 @@ void Grid::interpolate_tri(Node& n) {
 	return;
 }
 
-void Grid::interpolate_line(Node& n) {
+void Grid::interpolate_line(int f) {
 	distanceMin=1.e20;
 	// Pick the two points in the stencil which are closest to the node
 	for (sit=stencil.begin();sit!=stencil.end();sit++) {
 		centroid3=(*sit>=0) ? cell[*sit].centroid : ghost[-(*sit)-1].centroid;
-		line_distance=fabs(n-centroid3);
+		line_distance=fabs(face[f].centroid-centroid3);
 		if (line_distance<distanceMin) {
 			distanceMin=line_distance;
 			p1=*sit;
@@ -554,7 +539,7 @@ void Grid::interpolate_line(Node& n) {
 	for (sit=stencil.begin();sit!=stencil.end();sit++) {
 		if (*sit!=p1) {
 			centroid3=(*sit>=0) ? cell[*sit].centroid : ghost[-(*sit)-1].centroid;
-			line_distance=fabs(n-centroid3);
+			line_distance=fabs(face[f].centroid-centroid3);
 			if (line_distance<distanceMin) {
 				distanceMin=line_distance;
 				p2=*sit;
@@ -567,61 +552,56 @@ void Grid::interpolate_line(Node& n) {
 	vector<double> weights; weights.resize(2);
 	centroid2-=centroid1;
 	Vec3D pn;
-	pn=n-centroid1;
+	pn=face[f].centroid-centroid1;
 	double signof_pn=pn.dot(lineDirection)/fabs(pn.dot(lineDirection));
 	pn=pn.dot(lineDirection)*lineDirection;
 	
 	weights[1]=fabs(pn)/fabs(centroid2)*signof_pn;
 	weights[0]=1.-weights[1];
 		
-	n.average.insert(pair<int,double>(p1,weights[0]));
-	n.average.insert(pair<int,double>(p2,weights[1]));
+	face[f].average.insert(pair<int,double>(p1,weights[0]));
+	face[f].average.insert(pair<int,double>(p2,weights[1]));
 	
 	weights.clear();
 	
 	return;
 }
 
-void Grid::faceAverages() {
-
-	int n;
+void Grid::nodeAverages() {
 	map<int,double>::iterator it;
-	map<int,double>::iterator fit;
-
-	for (int f=0;f<faceCount;++f) {
-		vector<double> nodeWeights;
-		// Mid point of the face
-		Vec3D patchArea;
-		double patchRatio;
-		for (int fn=0;fn<face[f].nodeCount;++fn) nodeWeights.push_back(0.);
-		
-		// Get node weights
-		int next;
-		for (int fn=0;fn<face[f].nodeCount;++fn) {
-			next=fn+1;
-			if (next==face[f].nodeCount) next=0;
-			patchArea=0.5*(faceNode(f,fn)-face[f].centroid).cross(faceNode(f,next)-face[f].centroid);
-			patchRatio=fabs(patchArea)/face[f].area;
-			nodeWeights[fn]+=0.5*patchRatio;
-			nodeWeights[next]+=0.5*patchRatio;
+	
+	// Get node averaging weights based on the face averaging metrics
+	for (int n=0;n<nodeCount;++n) {
+		node[n].average.clear();
+		vector<double> faceWeights;
+		weightSum=0.;
+		double weight;
+		// Loop faces neighboring the current node
+		for (int nf=0;nf<node[n].faces.size();++nf) {
+			// Use inverse distance square
+			weight=fabs(face[node[n].faces[nf]].centroid-node[n]);
+			weight=1./(weight*weight);
+			faceWeights.push_back(weight);
+			weightSum+=weight;
 		}
-		
-		face[f].average.clear();
-		for (int fn=0;fn<face[f].nodeCount;++fn) {
-			n=face[f].nodes[fn];
-			for ( it=node[n].average.begin() ; it != node[n].average.end(); it++ ) {
-				if (face[f].average.find((*it).first)!=face[f].average.end()) { // if the cell contributing to the node average is already contained in the face average map
-					face[f].average[(*it).first]+=nodeWeights[fn]*(*it).second;
+		// Normalize weights
+		for (int i=0;i<faceWeights.size();++i) faceWeights[i]/=weightSum;
+		// Loop faces neighboring the current node
+		for (int nf=0;nf<node[n].faces.size();++nf) {
+			int f=node[n].faces[nf];
+			for ( it=face[f].average.begin() ; it != face[f].average.end(); it++ ) {
+				
+				if (node[n].average.find((*it).first)!=node[n].average.end()) { // if the cell contributing to the face average is already contained in the node average map
+					node[n].average[(*it).first]+=faceWeights[nf]*(*it).second;
 				} else {
-					face[f].average.insert(pair<int,double>((*it).first,nodeWeights[fn]*(*it).second));
+					node[n].average.insert(pair<int,double>((*it).first,faceWeights[nf]*(*it).second));
 				}
 			}
 		}
-
-	} // end face loop
-
-} // end Grid::faceAverages()
-
+	}
+	
+	return;
+}
 
 int gelimd(vector<vector<double> > &a,vector<double> &b,vector<double> &x) {
 	
@@ -661,10 +641,11 @@ int gelimd(vector<vector<double> > &a,vector<double> &b,vector<double> &x) {
 	return 0;
 }
 
+/*
 void Grid::nodeAverages_idw() {
 	int c,g;
 	double weight=0.;
-	Vec3D node2cell,node2ghost;
+	Vec3D face2cell,node2ghost;
 	map<int,double>::iterator it;
 
 	for (int n=0;n<nodeCount;++n) {
@@ -673,9 +654,9 @@ void Grid::nodeAverages_idw() {
 		weightSum=0.;
 		for (int nc=0;nc<node[n].cells.size();++nc) {
 			c=node[n].cells[nc];
-			node2cell=node[n]-cell[c].centroid;
-			weight=1./(node2cell.dot(node2cell));
-			//weight=1./fabs(node2cell);
+			face2cell=node[n]-cell[c].centroid;
+			weight=1./(face2cell.dot(face2cell));
+			//weight=1./fabs(face2cell);
 			node[n].average.insert(pair<int,double>(c,weight));
 			weightSum+=weight;
 		}
@@ -694,3 +675,4 @@ void Grid::nodeAverages_idw() {
 	}
 } // end Grid::nodeAverages_idw()
 
+*/
