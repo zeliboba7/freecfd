@@ -161,6 +161,10 @@ public:
 	void interpolate_tetra(Node& n);
 	void interpolate_tri(Node& n);
 	void interpolate_line(Node& n);
+	void sortStencil(int f);
+	void interpolate_tetra(int f);
+	void interpolate_tri(int f);
+	void interpolate_line(int f);
 	void nodeAverages_idw();
 	void faceAverages();
 	void mpi_handshake(void);
