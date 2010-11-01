@@ -67,6 +67,14 @@ void set_time_step_options(void) {
 	return;
 }
 
+void update_time_step_options(void) {
+	input.refresh();
+	if (Rank==0) cout << "\n";
+	input.read("timemarching");
+	set_time_step_options();
+	return;
+}
+
 void update_time_step(int timeStep,double &time,int gid) {
 	
 	// TODO: What to do with ramping when restarting
@@ -100,29 +108,38 @@ void update_time_step(int timeStep,double &time,int gid) {
 			time_step_current=min_dt;
 			for (int c=0;c<grid[gid].cellCount;++c) dt[gid].cell(c)=time_step_current;
 		}
+	} else if (time_step_type==CFL_LOCAL) {
+		// Determine time step with CFL condition
+		for (int c=0;c<grid[gid].cellCount;++c) {
+			a=ns[gid].material.a(ns[gid].p.cell(c),ns[gid].T.cell(c));
+			dt[gid].cell(c)=CFLlocal*grid[gid].cell[c].lengthScale/(fabs(ns[gid].V.cell(c))+a);
+			time_step_current=1.;
+		}
 	}
-	time+=time_step_current;
-	
-	// TODO: Work on CFLlocal option
-	/* 
-} else if (time_step_type==CFL_LOCAL) {
-	// Determine time step with CFL condition
-	for (int c=0;c<grid[gid].cellCount;++c) {
-		double a=sqrt(ns[gid].eos.gamma*(ns[gid].p.cell(c)+ns[gid].eos.Pref)/ns[gid].rho.cell(c));
-		dt[gid].cell(c)=CFLlocal*grid[gid].cell[c].lengthScale/(fabs(ns[gid].V.cell(c))+a);
-	}
-}
-	*/
+
 	// Output current time step, max dt and max CFL
 	if (Rank==0 && gid==0) cout << timeStep;
 	double max_cfl=-1.;
+	double min_dt=1.e20;
 	if (equations[gid]==NS) {
 		for (int c=0;c<grid[gid].cellCount;++c) {
 			a=ns[gid].material.a(ns[gid].p.cell(c),ns[gid].T.cell(c));
 			max_cfl=max(max_cfl,(fabs(ns[gid].V.cell(c))+a)*time_step_current/grid[gid].cell[c].lengthScale);
+			if (time_step_type==CFL_LOCAL) min_dt=min(min_dt,dt[gid].cell(c));
 		}
-		MPI_Allreduce(&max_cfl,&max_cfl,1, MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
+		if (time_step_type==CFL_LOCAL) {
+			MPI_Allreduce(&min_dt,&min_dt,1, MPI_DOUBLE,MPI_MIN,MPI_COMM_WORLD);
+		} else {
+			MPI_Allreduce(&max_cfl,&max_cfl,1, MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
+		}
 	}
+	
+	if (time_step_type==CFL_LOCAL) {
+		time_step_current=min_dt;
+		max_cfl=CFLlocal;
+	}
+	time+=time_step_current;
+	
 	if (Rank==0) cout << "\t" << gid+1 << "\t" << time << "\t" << max_cfl ;
 
 	return;

@@ -153,8 +153,13 @@ void NavierStokes::mdot_inlet(NS_Cell_State &left,NS_Cell_State &right,NS_Face_S
 
 void NavierStokes::stagnation_inlet(NS_Cell_State &left,NS_Cell_State &right,NS_Face_State &face) {
 	// Extrapolate velocity from inside
-	right.V=left.V;
-	right.V_center=2.*right.V-left.V_center;
+	if (left.V.dot(face.normal)>0.) { // backflow
+		right.V=0.;
+		right.V_center=0.;
+	} else {
+		right.V=left.V;
+		right.V_center=2.*right.V-left.V_center;
+	}
 	// Impose pressure and temperature
 	right.T=T_total.bc(face.bc)-0.5*(material.gamma-1.)/(material.gamma*material.R)*right.V.dot(right.V);
 	right.p=(p_total.bc(face.bc)+material.Pref)/(1.+0.5*right.V.dot(right.V)/(material.R*(right.T+material.Tref)))-material.Pref;

@@ -121,6 +121,7 @@ class Grid {
 public:
 	int gid;
 	int dimension; // 2 or 3
+	int stencil_size_input;
 	int bcCount;
 	double lengthScale;
 	GridRawData raw;

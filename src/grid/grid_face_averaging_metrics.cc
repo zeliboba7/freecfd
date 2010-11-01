@@ -37,7 +37,7 @@ Grid *currentGrid;
 
 // Names are a bit counter-intutivite here
 // Larger tolerance means more strict quality measures
-double area_tolerance=1.e-1;
+double area_tolerance=0.1;
 double volume_tolerance=1.e-2;
 
 int gelimd(vector<vector<double> > &a,vector<double> &b,vector<double> &x);
@@ -270,7 +270,11 @@ void Grid::sortStencil(int f) {
 	} else {
 		size_cutoff=12;
 	}
-	size_cutoff=min(size_cutoff,stencilSize);
+	if (stencil_size_input<0) {
+		size_cutoff=min(size_cutoff,stencilSize);
+	} else {
+		size_cutoff=min(stencil_size_input,stencilSize);
+	}
 	
 	while (counter<size_cutoff) {
 		for (int q=0;q<8;++q) {

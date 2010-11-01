@@ -58,7 +58,26 @@ void InputFile::setFile(string fName) {
 	stripComments(rawData);
 	// Strip all the white spaces from the rawData
 	strip_white_spaces(rawData);
+	return;
+}
 
+void InputFile::refresh(void) {
+	
+	fstream file;
+	int Rank;
+	MPI_Comm_rank(MPI_COMM_WORLD, &Rank);
+	file.open(fileName.c_str());
+	// Read the whole input file to rawData
+	string line;
+	rawData="";
+	while(getline(file, line)) rawData += line + "\n";
+	file.close();
+	
+	// Strip all the inline or block comments (C++ style) from the rawData
+	stripComments(rawData);
+	// Strip all the white spaces from the rawData
+	strip_white_spaces(rawData);
+	return;
 }
 
 void InputFile::read (string sectionName, int number) {

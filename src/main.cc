@@ -51,6 +51,7 @@ void write_loads(int gid,int timeStep,double time);
 void read_restart(int gid,int restart_step,double &time);
 void set_lengthScales(int gid);
 void set_time_step_options(void);
+void update_time_step_options(void);
 void update_time_step(int timeStep,double &time,int gid);
 void bc_interface_sync(void);
 
@@ -120,6 +121,7 @@ int main(int argc, char *argv[]) {
 	// Read the grid and initialize
 	for (int gid=0;gid<grid.size();++gid) {
 		grid[gid].dimension=input.section("grid",gid).get_int("dimension");
+		grid[gid].stencil_size_input=input.section("grid",gid).get_int("stencilsize");
 		grid[gid].gid=gid;
 		// Read the grid raw data from file
 		grid[gid].read(input.section("grid",gid).get_string("file"));
@@ -153,7 +155,7 @@ int main(int argc, char *argv[]) {
 		}
 		
 		set_lengthScales(gid);
-		if (Rank==0) cout << "[I grid=" << gid+1 << " ] Calculating node averaging metrics, this might take a while..." << endl;
+		if (Rank==0) cout << "[I grid=" << gid+1 << " ] Calculating face averaging metrics, this might take a while..." << endl;
         grid[gid].faceAverages();
 		grid[gid].nodeAverages(); // Linear triangular (tetrahedral) + idw blended mode
 	}
@@ -188,6 +190,7 @@ int main(int argc, char *argv[]) {
 	
 	if (Rank==0) cout << "[I] Beginning time loop\n" << endl; 
 	int timeStepMax=input.section("timemarching").get_int("numberofsteps");
+	int time_step_update_freq=input.section("timemarching").get_int("updatefrequency");
 	// Get the output frequency for each grid
 	vector<int> plotFreq,restartFreq;
 	loads.resize(grid.size());
@@ -239,6 +242,9 @@ int main(int argc, char *argv[]) {
 			} // end if
 			if (timeStep%loads[gid].frequency==0) {
 				write_loads(gid,timeStep,time[gid]);
+			} // end if
+			if (timeStep%time_step_update_freq==0) {
+				update_time_step_options();
 			} // end if
 		} // end grid loop
 		if (Rank==0) cout << endl;

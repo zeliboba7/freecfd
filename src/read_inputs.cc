@@ -40,7 +40,7 @@ void read_inputs(void) {
 	input.registerSection("grid",numbered,required);
 	input.section("grid",0).register_string("file",required);
 	input.section("grid",0).register_int("dimension",optional,3);
-	
+	input.section("grid",0).register_int("stencilsize",optional,-1);
 	input.section("grid",0).register_string("equations",required);
 	
 	input.section("grid",0).registerSubsection("writeoutput",single,required);
@@ -138,6 +138,7 @@ void read_inputs(void) {
 	input.section("timemarching").subsection("ramp").register_double("initial",optional,1.);
 	input.section("timemarching").subsection("ramp").register_double("growth",optional,1.2);
 	input.section("timemarching").register_int("numberofsteps",required);
+	input.section("timemarching").register_int("updatefrequency",optional,1e20);
 	input.read("timemarching");
 
 	input.readEntries();
