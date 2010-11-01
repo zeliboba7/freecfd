@@ -159,6 +159,7 @@ public:
 	
 	InputFile(void);
 	void setFile(string);
+	void refresh(void);
 	void read(string sectionName, int number=-1); // Reads all components of section if numbered
 	void readSection(string sectionName, int number=-1); // Reads a single section
 	void readSubsection(Subsection &sub);
