@@ -37,7 +37,8 @@ Grid *currentGrid;
 
 // Names are a bit counter-intutivite here
 // Larger tolerance means more strict quality measures
-double area_tolerance=0.1;
+double edge_ratio_tolerance=5.e-3;
+double area_tolerance=1.e-6;
 double volume_tolerance=1.e-2;
 
 int gelimd(vector<vector<double> > &a,vector<double> &b,vector<double> &x);
@@ -72,7 +73,8 @@ Vec3D pp,basis1,basis2;
 int method;
 
 double weightSum,weightSum2;
-double tetra_volume,tri_area,ave_edge,line_distance;
+double tetra_volume,tri_area,ave_edge,min_edge,max_edge,line_distance;
+double edge1,edge2,edge3,edge4;
 double closeness,skewness;
 vector<vector<double> > a3,a4;
 vector<double> b3,b4,weights3,weights4;
@@ -100,12 +102,26 @@ void Grid::faceAverages() {
 	for (int f=0;f<faceCount;++f) {
 		// Initialize stencil to nearest neighbor cells
 		// Loop face nodes and their neighboring cells
+		// Add parent cell's neighbors
+		int c=face[f].parent;
+		for (int nc=0;nc<cell[c].neighborCells.size();++nc) stencil.insert(cell[c].neighborCells[nc]);
+		// Add parent cell's ghosts
+		for (int g=0;g<cell[c].ghosts.size();++g) stencil.insert(-1*cell[c].ghosts[g]-1);
+		if (face[f].bc==INTERNAL_FACE) {
+			c=face[f].neighbor;
+			// Add neighbor cell's neighbors
+			for (int nc=0;nc<cell[c].neighborCells.size();++nc) stencil.insert(cell[c].neighborCells[nc]);
+			// Add neighbor cell's ghosts
+			for (int g=0;g<cell[c].ghosts.size();++g) stencil.insert(-1*cell[c].ghosts[g]-1);
+		}
+		
+		/*
 		for (int fn=0;fn<face[f].nodeCount;++fn) {
 			for (int nc=0;nc<node[face[f].nodes[fn]].cells.size();++nc) stencil.insert(node[face[f].nodes[fn]].cells[nc]);
 			// Include nearest ghost cells in the stencil
 			for (int ng=0;ng<node[face[f].nodes[fn]].ghosts.size();++ng) stencil.insert(-1*node[face[f].nodes[fn]].ghosts[ng]-1);	
 		}
-		
+		*/
 		// Sort the stencil based on distance
 		sortStencil(f);
 		
@@ -126,11 +142,19 @@ void Grid::faceAverages() {
 			method=INTERPOLATE_LINE;
 			for (;sit2!=stencil.end();sit2++) {
 				centroid3=(*sit2>=0) ? cell[*sit2].centroid : ghost[-1*(*sit2)-1].centroid;
+				edge1=fabs(centroid2-centroid1);
+				edge2=fabs(centroid3-centroid1);
+				edge3=fabs(centroid3-centroid2);
+				min_edge=edge1; max_edge=edge1;
+				min_edge=min(min_edge,edge2);
+				min_edge=min(min_edge,edge3);
+				max_edge=max(max_edge,edge2);
+				max_edge=max(max_edge,edge3);
 				ave_edge=1./3.*(fabs(centroid2-centroid1)+fabs(centroid3-centroid1)+fabs(centroid3-centroid2));
-                                // Calculate the normal vector of the plane formed by these 3 points
-                                tri_area=0.5*fabs((centroid2-centroid1).cross(centroid3-centroid1));
+				// Calculate the normal vector of the plane formed by these 3 points
+				tri_area=0.5*fabs((centroid2-centroid1).cross(centroid3-centroid1));
 				// Compare triangle area to that of an equilateral one
-				if (tri_area/(0.433*ave_edge*ave_edge)>area_tolerance) {
+				if (tri_area/(0.433*ave_edge*ave_edge)>area_tolerance && (min_edge/max_edge)>edge_ratio_tolerance) {
 					// point 3 doesn't lie on the same line formed by the first 2 points
 					// Then at least one interpolation triangle can be formed
 					method=INTERPOLATE_TRI;
@@ -143,16 +167,16 @@ void Grid::faceAverages() {
 				for (sit3=sit2;sit3!=stencil.end();sit3++) {
 					centroid4=(*sit3>=0) ? cell[*sit3].centroid : ghost[-1*(*sit3)-1].centroid;
 					// Compare tri area with that of an equilateral triangel
-                                        tetra_volume=0.166666667*fabs(((centroid2-centroid1).cross(centroid3-centroid1)).dot(centroid4-centroid1));
-                                        ave_edge=1./6.*(fabs(centroid1-centroid2)+fabs(centroid1-centroid3)+fabs(centroid1-centroid4)
-                                                       +fabs(centroid2-centroid3)+fabs(centroid2-centroid4)+fabs(centroid3-centroid4));
+					tetra_volume=0.166666667*fabs(((centroid2-centroid1).cross(centroid3-centroid1)).dot(centroid4-centroid1));
+					ave_edge=1./6.*(fabs(centroid1-centroid2)+fabs(centroid1-centroid3)+fabs(centroid1-centroid4)
+							+fabs(centroid2-centroid3)+fabs(centroid2-centroid4)+fabs(centroid3-centroid4));
 
 					// Compare volume with that of an equilateral tetra
 					if (tetra_volume/(0.11785113*(pow(ave_edge,3)))>volume_tolerance) {
-                                            // point 4 is not on the same plane
-                                                // Then at least one interpolation tetrahedra can be formed
-                                                method=INTERPOLATE_TETRA;
-                                                break;
+						// point 4 is not on the same plane
+						// Then at least one interpolation tetrahedra can be formed
+						method=INTERPOLATE_TETRA;
+						break;
 					}
 				}
 			}	
@@ -180,6 +204,14 @@ void Grid::faceAverages() {
 		tetras.clear();
 		tris.clear();
 
+		// DEBUG
+		/*
+		if (face[f].bc==0) {
+			face[f].average.clear();
+			face[f].average.insert(pair<int,double>(face[f].parent,1.));
+		}
+		 */
+		
 	}
 		cout << "[I Rank=" << Rank << "] Face centers for which tetra interpolation method was used = " << tetra_node_count << endl; 
 		cout << "[I Rank=" << Rank << "] Face centers for which tri interpolation method was used = " << tri_node_count << endl; 
@@ -414,14 +446,24 @@ void Grid::interpolate_tri(int f) {
 				planeNormal=planeNormal.norm();
 				ave_centroid=1./3.*(centroid1+centroid2+centroid3);
 				ave_edge=1./3.*(fabs(centroid1-centroid2)+fabs(centroid1-centroid3)+fabs(centroid2-centroid3));
-				// How close the triangle center to the node for which we are interpolating
+				edge1=fabs(centroid2-centroid1);
+				edge2=fabs(centroid3-centroid1);
+				edge3=fabs(centroid3-centroid2);
+				min_edge=edge1; max_edge=edge1;
+				min_edge=min(min_edge,edge2);
+				min_edge=min(min_edge,edge3);
+				max_edge=max(max_edge,edge2);
+				max_edge=max(max_edge,edge3);
+				// How close the triangle center to the face center for which we are interpolating
 				// Normalized by average edge length
 				closeness=fabs((face[f].centroid-face[f].centroid.dot(planeNormal)*planeNormal)-ave_centroid)/ave_edge;
-				closeness=max(closeness,1.e-1*ave_edge);
-				closeness=1./closeness;
-				// If it was an equilateral tri,skewness should be 1, thus the multiplier here.
+				closeness=max(closeness,0.5*min_edge);
+				closeness=1./(closeness*closeness);
+				// If it was an equilateral tri,skewness should be 1
 				skewness=tri_area/(0.433*ave_edge*ave_edge);
-				if (skewness>area_tolerance) {
+
+				// Compare triangle area to that of an equilateral one
+				if (skewness>area_tolerance && (min_edge/max_edge)>edge_ratio_tolerance) {
 					// Declare an interpolation tetra
 					interpolation_tri temp;
 					temp.cell[0]=*sit; temp.cell[1]=*sit1; temp.cell[2]=*sit2; 
@@ -429,7 +471,6 @@ void Grid::interpolate_tri(int f) {
 					tris.push_back(temp);
 				}
 					
-				
 			}
 		}
 	} // Loop through stencil 
@@ -528,7 +569,7 @@ void Grid::interpolate_tri(int f) {
 
 void Grid::interpolate_line(int f) {
 	distanceMin=1.e20;
-	// Pick the two points in the stencil which are closest to the node
+	// Pick the two points in the stencil which are closest to the face
 	for (sit=stencil.begin();sit!=stencil.end();sit++) {
 		centroid3=(*sit>=0) ? cell[*sit].centroid : ghost[-(*sit)-1].centroid;
 		line_distance=fabs(face[f].centroid-centroid3);

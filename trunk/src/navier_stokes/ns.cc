@@ -138,6 +138,34 @@ void NavierStokes::apply_initial_conditions (void) {
 	for (int ic=0;ic<count;++ic) {
 		// Store the reference to current IC region
 		Subsection &region=input.section("grid",gid).subsection("IC",ic);
+		
+		// Check if gradient test option is chosen
+		gradient_test=NONE;
+		if (region.get_string("gradienttest")=="linear") {
+			gradient_test=LINEAR;
+			for (int c=0;c<grid[gid].cellCount;++c) rho.cell(c)=grid[gid].cell[c].centroid[0];
+		} if (region.get_string("gradienttest")=="quadratic") {
+			gradient_test=QUADRATIC;
+			// Avoid zero grad points
+			// Find min x-coord
+			min_x=1.e20;
+			max_x=-1.e20;
+			for (int c=0;c<grid[gid].cellCount;++c) {
+				min_x=min(min_x,grid[gid].cell[c].centroid[0]);
+				max_x=max(max_x,grid[gid].cell[c].centroid[0]);
+			}
+			MPI_Allreduce(&min_x,&min_x,1, MPI_DOUBLE,MPI_MIN,MPI_COMM_WORLD);
+			MPI_Allreduce(&max_x,&max_x,1, MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
+			
+			for (int c=0;c<grid[gid].cellCount;++c) {
+				double xc=grid[gid].cell[c].centroid[0];
+				rho.cell(c)=xc*xc+3.*(max_x-min_x)*xc;
+			}
+		}
+		// If in gradient test mode, break the IC loop
+		if (gradient_test!=NONE) break;
+		
+		
 		Vec3D regionV=region.get_Vec3D("V");
 		double regionRho,regionP,regionT;
 		// Assign specified values
@@ -216,12 +244,6 @@ void NavierStokes::apply_initial_conditions (void) {
 		}
 		
 	}
-	
-	// DEBUG
-	//for (int c=0;c<grid[gid].cellCount;++c) {
-	//	rho.cell(c)=grid[gid].cell[c].centroid[0];
-	//	V.cell(c)[0]=grid[gid].cell[c].centroid[0];
-	//}
 	
 	// initialize updates and limiter
 	for (int c=0;c<grid[gid].cellCount;++c) {

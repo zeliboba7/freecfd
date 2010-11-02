@@ -170,7 +170,11 @@ void write_tec_header(void) {
 	file << endl;
 	file << "ZONE, T=\"Grid " << gid+1 << "\", ZONETYPE=FEBRICK, DATAPACKING=BLOCK" << endl;
 	file << "NODES=" << grid[gid].globalNodeCount << ", ELEMENTS=" << grid[gid].globalCellCount << endl;
-	file << "VARLOCATION=([4-" << nvars << "]=CELLCENTERED)" << endl;
+	if (nvars==4) {
+		file << "VARLOCATION=([4]=CELLCENTERED)" << endl;	
+	} else {
+		file << "VARLOCATION=([4-" << nvars << "]=CELLCENTERED)" << endl;
+	}
 	
 	return;
 }
@@ -306,6 +310,32 @@ void write_tec_var(int ov, int i) {
 			file << fabs(ns[gid].V.cell(c))/ns[gid].material.a(ns[gid].p.cell(c),ns[gid].T.cell(c));
 			if ((c+1)%10==0) file << "\n";
 			else file << "\t";
+		}
+	} else if (varList[ov]=="rank") {
+		for (int c=0;c<grid[gid].cellCount;++c) {
+			file << Rank;
+			if ((c+1)%10==0) file << "\n";
+			else file << "\t";
+		}
+	} else if (varList[ov]=="value_grad") {
+		for (int c=0;c<grid[gid].cellCount;++c) {
+			file << ns[gid].gradrho.cell(c)[0];
+			if ((c+1)%10==0) file << "\n";
+			else file << "\t";
+		}
+	} else if (varList[ov]=="percent_grad_error") {
+		if (gradient_test==LINEAR) {
+			for (int c=0;c<grid[gid].cellCount;++c) {
+				file << (ns[gid].gradrho.cell(c)[0]-1.)*100.;
+				if ((c+1)%10==0) file << "\n";
+				else file << "\t";
+			}
+		} else if (gradient_test==QUADRATIC) {
+ 			for (int c=0;c<grid[gid].cellCount;++c) {
+				file << (ns[gid].gradrho.cell(c)[0]-(2.*grid[gid].cell[c].centroid[0]+3.*(max_x-min_x)))*100.;
+				if ((c+1)%10==0) file << "\n";
+				else file << "\t";
+			}
 		}
 	} else if (varList[ov]=="V") {
 		for (int c=0;c<grid[gid].cellCount;++c) {
