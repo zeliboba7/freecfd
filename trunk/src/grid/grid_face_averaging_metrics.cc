@@ -413,8 +413,10 @@ void Grid::interpolate_tetra(int f) {
 			weightSum2=0.;
 			for (int i=0;i<4;++i) weightSum2+=weights4[i];
 			if (fabs(weightSum2-1.)>1.e-8) {
-				cerr << "[E Rank=" << Rank << "] Tetra interpolation weightSum=" << weightSum2 << " is not unity for face " << f  << endl;
-				exit(1);
+				cout << "[W rank=" << Rank << "] Tetra interpolation weightSum=" << weightSum2 << " is not unity for face " << f  << endl;
+				cout << "[W rank=" << Rank << "] Switching to triangular interpolation" << endl;
+				method=INTERPOLATE_TRI;
+				return;
 			}
 
 			for (int i=0;i<4;++i) {
@@ -551,8 +553,10 @@ void Grid::interpolate_tri(int f) {
 			weightSum2=0.;
 			for (int i=0;i<3;++i) weightSum2+=weights3[i];
 			if (fabs(weightSum2-1.)>1.e-8) {
-				cerr << "[W rank=" << Rank << "] Tri interpolation weightSum=" << setprecision(8) << weightSum2 << " is not unity for face " << f  << endl;
-				//exit(1);
+				cout << "[W rank=" << Rank << "] Tri interpolation weightSum=" << setprecision(8) << weightSum2 << " is not unity for face " << f  << endl;
+				cout << "[W rank=" << Rank << "] Switching to line interpolation" << endl;
+				method=INTERPOLATE_LINE;
+				return;
 			}
 			
 			for (int i=0;i<3;++i) {
