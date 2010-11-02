@@ -69,12 +69,10 @@ vector<Variable<double> > dt;
 vector<int> equations;
 vector<vector<BC_Interface> > interface; // for each grid
 vector<Loads> loads;
-int Rank,np;
 
-// Equation options
-#define NONE -1
-#define NS 1
-#define HEAT 2
+int Rank,np;
+int gradient_test;
+double min_x,max_x;
 
 static char help[] = "Free CFD\n - A free general purpose computational fluid dynamics code";
 
@@ -188,7 +186,6 @@ int main(int argc, char *argv[]) {
 		set_time_step_options();
 	}
 	
-	if (Rank==0) cout << "[I] Beginning time loop\n" << endl; 
 	int timeStepMax=input.section("timemarching").get_int("numberofsteps");
 	int time_step_update_freq=input.section("timemarching").get_int("updatefrequency");
 	// Get the output frequency for each grid
@@ -210,6 +207,18 @@ int main(int argc, char *argv[]) {
 		}
 	}
 	
+	if (gradient_test!=NONE) {
+		// Dump gradient errors and exit
+		if (Rank==0) cout << "\n[I] Writing gradient error output" << endl;
+		input.section("grid",0).subsection("writeoutput").stringLists["variables"].value.clear();
+		input.section("grid",0).subsection("writeoutput").stringLists["variables"].value.push_back("rank");
+		input.section("grid",0).subsection("writeoutput").stringLists["variables"].value.push_back("value_grad");
+		input.section("grid",0).subsection("writeoutput").stringLists["variables"].value.push_back("percent_grad_error");
+		write_output(0,0);
+		exit(1);
+	}
+	
+	if (Rank==0) cout << "[I] Beginning time loop\n" << endl; 
 	// Write out label for residuals
 	if (Rank==0) {
 		cout << "=============================================================================================================" << endl;
@@ -222,6 +231,7 @@ int main(int argc, char *argv[]) {
 	
     bool lastTimeStep=false;
 	cout << setprecision(3);
+	
 	for (int timeStep=restart_step+1;timeStep<=timeStepMax+restart_step;++timeStep) {
 		if (timeStep==(timeStepMax+restart_step)) lastTimeStep=true;
 		for (int gid=0;gid<grid.size();++gid) {
@@ -233,11 +243,11 @@ int main(int argc, char *argv[]) {
 			if (equations[gid]==HEAT) hc[gid].solve(timeStep);
 			bc_interface_sync();
 			if (timeStep%plotFreq[gid]==0 || lastTimeStep) {
-				if (Rank==0) cout << "\nwriting output for grid=" << gid+1;
+				if (Rank==0) cout << "\n[I] Writing output for grid=" << gid+1;
 				write_output(gid,timeStep);
 			} // end if
 			if (timeStep%restartFreq[gid]==0 || lastTimeStep) {
-				if (Rank==0) cout << "\nwriting restart for grid=" << gid+1;
+				if (Rank==0) cout << "\n[I] Writing restart for grid=" << gid+1;
 				write_restart(gid,timeStep,restart_step,time[gid]);
 			} // end if
 			if (timeStep%loads[gid].frequency==0) {
@@ -245,6 +255,7 @@ int main(int argc, char *argv[]) {
 			} // end if
 			if (timeStep%time_step_update_freq==0) {
 				update_time_step_options();
+				time_step_update_freq=input.section("timemarching").get_int("updatefrequency");
 			} // end if
 		} // end grid loop
 		if (Rank==0) cout << endl;

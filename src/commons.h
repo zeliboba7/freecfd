@@ -27,7 +27,12 @@
 // Equation options
 #define NS 1
 #define HEAT 2
+// Gradient test options
+#define LINEAR 1
+#define QUADRATIC 2
 
 extern int Rank,np;
+extern int gradient_test;
+extern double min_x,max_x;
 
 #endif

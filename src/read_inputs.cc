@@ -45,9 +45,9 @@ void read_inputs(void) {
 	
 	input.section("grid",0).registerSubsection("writeoutput",single,required);
 	input.section("grid",0).subsection("writeoutput").register_string("format",optional,"vtk");
-	input.section("grid",0).subsection("writeoutput").register_int("plotfrequency",optional,1e10);
-	input.section("grid",0).subsection("writeoutput").register_int("restartfrequency",optional,1e10);
-	input.section("grid",0).subsection("writeoutput").register_int("loadfrequency",optional,1e10);
+	input.section("grid",0).subsection("writeoutput").register_int("plotfrequency",optional,1000000);
+	input.section("grid",0).subsection("writeoutput").register_int("restartfrequency",optional,1000000);
+	input.section("grid",0).subsection("writeoutput").register_int("loadfrequency",optional,1000000);
 	input.section("grid",0).subsection("writeoutput").register_Vec3D("momentcenter",optional,0.);
 	input.section("grid",0).subsection("writeoutput").register_stringList("includebcs",optional);
 	input.section("grid",0).subsection("writeoutput").register_stringList("variables",required);
@@ -77,6 +77,7 @@ void read_inputs(void) {
 	input.section("grid",0).subsection("IC",0).register_double("turbulenceintensity",optional,1.e-2);
 	input.section("grid",0).subsection("IC",0).register_double("eddyviscosityratio",optional,0.1);
 	input.section("grid",0).subsection("IC",0).register_double("BLthickness",optional,-1.);
+	input.section("grid",0).subsection("IC",0).register_string("gradienttest",optional,"none");
 	
 	input.section("grid",0).registerSubsection("BC",numbered,required);
 	input.section("grid",0).subsection("BC",0).register_string("type",required);
@@ -138,7 +139,7 @@ void read_inputs(void) {
 	input.section("timemarching").subsection("ramp").register_double("initial",optional,1.);
 	input.section("timemarching").subsection("ramp").register_double("growth",optional,1.2);
 	input.section("timemarching").register_int("numberofsteps",required);
-	input.section("timemarching").register_int("updatefrequency",optional,1e20);
+	input.section("timemarching").register_int("updatefrequency",optional,1000000);
 	input.read("timemarching");
 
 	input.readEntries();
