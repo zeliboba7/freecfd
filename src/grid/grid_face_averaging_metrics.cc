@@ -37,8 +37,8 @@ Grid *currentGrid;
 
 // Names are a bit counter-intutivite here
 // Larger tolerance means more strict quality measures
-double edge_ratio_tolerance=5.e-3;
-double area_tolerance=1.e-6;
+double edge_ratio_tolerance=5.e-2;
+double area_tolerance=5.e-2;
 double volume_tolerance=1.e-2;
 
 int gelimd(vector<vector<double> > &a,vector<double> &b,vector<double> &x);
@@ -100,10 +100,27 @@ void Grid::faceAverages() {
 
 	// Loop all the faces
 	for (int f=0;f<faceCount;++f) {
+
+		int c=face[f].parent;
+		/*
+		bool flag=false;
+		// If the face belongs to a cell with two symmetry faces, just use the parent cell value
+		if (face[f].symmetry) {
+			for (int cf=0;cf<cell[c].faces.size();++cf) {
+				int face_index=cell[c].faces[cf];
+				if (face_index!=f && face[face_index].symmetry) { flag=true; break;}
+			}
+		}
+		if (flag) {
+			face[f].average.insert(pair<int,double>(c,1.));
+			point_node_count++;
+			continue;
+		}
+		*/
 		// Initialize stencil to nearest neighbor cells
 		// Loop face nodes and their neighboring cells
 		// Add parent cell's neighbors
-		int c=face[f].parent;
+
 		for (int nc=0;nc<cell[c].neighborCells.size();++nc) stencil.insert(cell[c].neighborCells[nc]);
 		// Add parent cell's ghosts
 		for (int g=0;g<cell[c].ghosts.size();++g) stencil.insert(-1*cell[c].ghosts[g]-1);
@@ -203,15 +220,7 @@ void Grid::faceAverages() {
 		stencil.clear();
 		tetras.clear();
 		tris.clear();
-
-		// DEBUG
-		/*
-		if (face[f].bc==0) {
-			face[f].average.clear();
-			face[f].average.insert(pair<int,double>(face[f].parent,1.));
-		}
-		 */
-		
+	
 	}
 		cout << "[I Rank=" << Rank << "] Face centers for which tetra interpolation method was used = " << tetra_node_count << endl; 
 		cout << "[I Rank=" << Rank << "] Face centers for which tri interpolation method was used = " << tri_node_count << endl; 
@@ -239,8 +248,12 @@ void Grid::sortStencil(int f) {
 	Vec3D face2cell;
 	int stencilSize=stencil.size();
 	
+//quadrant.resize(1);
 	// Loop the stencil and start filling in the quadrants
 	for (sit=stencil.begin();sit!=stencil.end();sit++) {
+//quadrant[0].push_back(*sit);
+//continue;
+		
 		centroid1=(*sit>=0) ? cell[*sit].centroid : ghost[-1*(*sit)-1].centroid;
 		face2cell=centroid1-face[f].centroid;
 		if (face2cell[0]>=0.) {
@@ -284,7 +297,8 @@ void Grid::sortStencil(int f) {
 	// Now sort entries in each quadrant according to the distance to the face center (closest first)
 	face_center_Vec=face[f].centroid;
 	currentGrid=this;
-	for (int q=0;q<8;++q) quadrant[q].sort(compare_closest);
+//quadrant[0].sort(compare_closest);	
+//for (int q=0;q<8;++q) quadrant[q].sort(compare_closest);
 	
 	stencil.clear();
 	
@@ -308,6 +322,14 @@ void Grid::sortStencil(int f) {
 		size_cutoff=min(stencil_size_input,stencilSize);
 	}
 	
+	/*
+	counter=0;
+	for (lit=quadrant[0].begin();lit!=quadrant[0].end();lit++) {
+		stencil.insert(*lit); counter++;
+		if (counter==size_cutoff) break;
+	}
+	 */
+
 	while (counter<size_cutoff) {
 		for (int q=0;q<8;++q) {
 			lit=quadrant[q].begin();
@@ -331,6 +353,7 @@ void Grid::sortStencil(int f) {
 			}
 		}
 	}
+
 	quadrant.clear();
 	
 	return;
@@ -459,7 +482,7 @@ void Grid::interpolate_tri(int f) {
 				// How close the triangle center to the face center for which we are interpolating
 				// Normalized by average edge length
 				closeness=fabs((face[f].centroid-face[f].centroid.dot(planeNormal)*planeNormal)-ave_centroid)/ave_edge;
-				closeness=max(closeness,0.5*min_edge);
+				closeness=max(closeness,1.e-3*ave_edge);
 				closeness=1./(closeness*closeness);
 				// If it was an equilateral tri,skewness should be 1
 				skewness=tri_area/(0.433*ave_edge*ave_edge);

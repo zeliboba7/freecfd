@@ -399,7 +399,10 @@ int Grid::create_faces() {
 		cout << "[I Rank=" << Rank << "] Time spent on finding faces= " << timeEnd-timeRef << " sec" << endl;
 	}
 
-	for (int f=0;f<faceCount;++f) for (int n=0;n<face[f].nodes.size();++n) faceNode(f,n).faces.push_back(f);	
+	for (int f=0;f<faceCount;++f) {
+		for (int n=0;n<face[f].nodes.size();++n) faceNode(f,n).faces.push_back(f);	
+		face[f].symmetry=false; // by default
+	}
 	
 	return 0;
 	

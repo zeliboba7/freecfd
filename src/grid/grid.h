@@ -82,6 +82,7 @@ class Face {
 public:
 	int bc; // A face can only be on one bc zone
 	int id;
+	bool symmetry;
 	int parent,neighbor; // parent is the id of the cell owning this face
 	// A cell owns a face if the face normal is pointing outwards from it
 	// The other cell is called the neighbor

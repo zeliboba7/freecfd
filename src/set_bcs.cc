@@ -72,6 +72,15 @@ void set_bcs(int gid) {
 
 		BCregion bcRegion;
 
+		string type=region.get_string("type");
+		string kind=region.get_string("kind");
+		if (type=="wall") bcRegion.type=WALL;
+		if (type=="inlet") bcRegion.type=INLET;
+		if (type=="outlet") bcRegion.type=OUTLET;
+		if (type=="symmetry") bcRegion.type=SYMMETRY;
+		if (kind=="slip") bcRegion.kind=SLIP; // This is needed here to omit this BC in nearest wall distance calculation
+		bc[gid].push_back(bcRegion);
+
 		// Integrate boundary areas
 		for (int f=0;f<grid[gid].faceCount;++f) {
 			if (grid[gid].face[f].bc==b) {
@@ -79,17 +88,9 @@ void set_bcs(int gid) {
 				bc_counter[b]++;
 				bcRegion.area+=grid[gid].face[f].area;
 				bcRegion.areaVec+=grid[gid].face[f].area*grid[gid].face[f].normal;
+				if (bcRegion.type==SYMMETRY) grid[gid].face[f].symmetry=true;
 			}
 		}
-
-		string type=region.get_string("type");
-		string kind=region.get_string("kind");
-		if (type=="wall") bcRegion.type=WALL;
-		if (type=="inlet") bcRegion.type=INLET;
-		if (type=="outlet") bcRegion.type=OUTLET;
-		if (type=="symmetry") bcRegion.type=SYMMETRY;		
-		if (kind=="slip") bcRegion.kind=SLIP; // This is needed here to omit this BC in nearest wall distance calculation
-		bc[gid].push_back(bcRegion);
 		
 		cout << "[I rank=" << Rank << " grid=" << gid+1 << " BC=" << b+1 << "] is assigned as " << type << endl;
 		
