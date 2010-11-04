@@ -256,7 +256,6 @@ vector<TYPE> Variable<TYPE>::cell_gradient (int c) {
 
 template <class TYPE>
 TYPE &Variable<TYPE>::bc (int b,int f) {
-	// TODO: For now
 	if (bcValue[b].size()==1) {
 		return bcValue[b][0];
 	} else if (f>=0) {

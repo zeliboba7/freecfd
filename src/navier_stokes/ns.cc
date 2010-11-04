@@ -21,6 +21,9 @@
  
  *************************************************************************/
 #include "ns.h"
+#include "rans.h"
+
+extern vector<RANS> rans;
 
 NavierStokes::NavierStokes (void) {
 	// Empty constructor
@@ -87,6 +90,7 @@ void NavierStokes::solve (int ts) {
 	int nIter;
 	double rNorm;
 	petsc_solve(nIter,rNorm);
+	if (turbulent[gid]) rans[gid].solve(timeStep);
 	if (Rank==0) cout << "\t" << nIter;
 	update_variables();
 	mpi_update_ghost_primitives();
@@ -120,7 +124,8 @@ void NavierStokes::create_vars (void) {
 		limiter[i].allocate(gid);
 	}
 
-	qdot.cellStore=false;  qdot.allocate(gid);
+	qdot.cellStore=false; qdot.allocate(gid); // is not stored anywhere but the BC
+	tau.cellStore=false; tau.allocate(gid);
 	mdot.cellStore=false; mdot.faceStore=true; mdot.allocate(gid);	
 	
 	// This one is for other solvers to find out contribution from either left or right side

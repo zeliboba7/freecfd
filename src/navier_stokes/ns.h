@@ -84,7 +84,7 @@ public:
 	// Scalar variables
 	Variable<double> rho,p,T,qdot,mdot,weightL,p_total,T_total;
 	// Vector variables
-	Variable<Vec3D> V,gradu,gradv,gradw,gradrho,gradp,gradT;
+	Variable<Vec3D> V,gradu,gradv,gradw,gradrho,gradp,gradT,tau;
 	vector<Variable<double> > update,limiter;
 	Variable<double> limiter_old;
 

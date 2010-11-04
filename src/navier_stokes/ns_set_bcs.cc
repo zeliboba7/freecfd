@@ -82,7 +82,7 @@ void NavierStokes::set_bcs(void) {
 				if (bc[gid][b].type==WALL) bc[gid][b].thermalType=ADIABATIC;
 			}
 			
-		} else if (region.get_double("T").is_found) {
+		} else if (region.get_double("T").is_found) {	
 			T.fixedonBC[b]=true; T.bcValue[b].resize(1);
 			T.bc(b)=region.get_double("T");
 			bc[gid][b].thermalType=FIXED_T;
@@ -93,21 +93,29 @@ void NavierStokes::set_bcs(void) {
 				p.fixedonBC[b]=true; p.bcValue[b].resize(1);
 				p.bc(b)=material.p(rho.bc(b),T.bc(b));
 				bc[gid][b].specified=BC_STATE;
-			}
+			} 
 		} else if (region.get_double("rho").is_found) {
 			rho.fixedonBC[b]=true; rho.bcValue[b].resize(1);
 			rho.bc(b)=region.get_double("rho");
 			bc[gid][b].specified=BC_RHO;
-		} else if (region.get_double("qdot").is_found) {
+		} else {
 			if (bc[gid][b].type==WALL) {
+				bc[gid][b].thermalType=ADIABATIC;
+			}
+		}
+		
+		if (region.get_double("qdot").is_found) {
+			if (bc[gid][b].type==WALL) {
+				if (region.get_double("T").is_found) {
+					if (Rank==0) cerr << "[E] Can't specify both temperature and qdot for bc " << b+1 << endl;
+					exit(1);
+				}
 				bc[gid][b].thermalType=FIXED_Q;
 				qdot.fixedonBC[b]=true; qdot.bcValue[b].resize(1);
 				qdot.bc(b)=region.get_double("qdot");
 			}
 		} else {
-			if (bc[gid][b].type==WALL) {
-				bc[gid][b].thermalType=ADIABATIC;
-			}
+			qdot.bcValue[b].resize(grid[gid].boundaryFaceCount[b][grid[gid].Rank]);
 		}
 		
 		if (bc[gid][b].type==WALL) {
@@ -123,11 +131,20 @@ void NavierStokes::set_bcs(void) {
 			V.bc(b)=region.get_Vec3D("V");
 			bc[gid][b].kind=VELOCITY;
 		}
+		
 		if (region.get_double("mdot").is_found) {
+			if (region.get_double("V").is_found) {
+				if (Rank==0) cerr << "[E] Can't specify both V and mdot for bc " << b+1 << endl;
+				exit(1);
+			}
 			bc[gid][b].kind=MDOT;
 			mdot.fixedonBC[b]=true; mdot.bcValue[b].resize(1);
 			mdot.bc(b)=region.get_double("mdot");
+		} else {
+			mdot.bcValue[b].resize(grid[gid].boundaryFaceCount[b][grid[gid].Rank]);	
 		}
+		
+		tau.bcValue[b].resize(grid[gid].boundaryFaceCount[b][grid[gid].Rank]);
 				
 	}
 	

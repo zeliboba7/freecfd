@@ -58,6 +58,7 @@ public:
 	int thermalType;
 	double area;
 	Vec3D areaVec;
+
 };
 
 #endif

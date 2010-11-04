@@ -45,7 +45,8 @@ using namespace std;
 // Function prototypes
 void read_inputs(void);
 void set_bcs(int gid);
-void write_output(int gid, int step);
+void write_volume_output(int gid, int step);
+void write_surface_output(int gid, int step);
 void write_restart(int gid,int timeStep,int restart_step,double time);
 void write_loads(int gid,int timeStep,double time);
 void read_restart(int gid,int restart_step,double &time);
@@ -189,11 +190,12 @@ int main(int argc, char *argv[]) {
 	int timeStepMax=input.section("timemarching").get_int("numberofsteps");
 	int time_step_update_freq=input.section("timemarching").get_int("updatefrequency");
 	// Get the output frequency for each grid
-	vector<int> plotFreq,restartFreq;
+	vector<int> volume_plot_freq,surface_plot_freq,restart_freq;
 	loads.resize(grid.size());
 	for (int gid=0;gid<grid.size();++gid) {
-		plotFreq.push_back(input.section("grid",gid).subsection("writeoutput").get_int("plotfrequency"));
-		restartFreq.push_back(input.section("grid",gid).subsection("writeoutput").get_int("restartfrequency"));
+		volume_plot_freq.push_back(input.section("grid",gid).subsection("writeoutput").get_int("volumeplotfrequency"));
+		surface_plot_freq.push_back(input.section("grid",gid).subsection("writeoutput").get_int("surfaceplotfrequency"));
+		restart_freq.push_back(input.section("grid",gid).subsection("writeoutput").get_int("restartfrequency"));
 		loads[gid].moment_center=input.section("grid",gid).subsection("writeoutput").get_Vec3D("momentcenter");
 		loads[gid].frequency=input.section("grid",gid).subsection("writeoutput").get_int("loadfrequency");
 		vector<string> temp;
@@ -210,11 +212,11 @@ int main(int argc, char *argv[]) {
 	if (gradient_test!=NONE) {
 		// Dump gradient errors and exit
 		if (Rank==0) cout << "\n[I] Writing gradient error output" << endl;
-		input.section("grid",0).subsection("writeoutput").stringLists["variables"].value.clear();
-		input.section("grid",0).subsection("writeoutput").stringLists["variables"].value.push_back("rank");
-		input.section("grid",0).subsection("writeoutput").stringLists["variables"].value.push_back("value_grad");
-		input.section("grid",0).subsection("writeoutput").stringLists["variables"].value.push_back("percent_grad_error");
-		write_output(0,0);
+		input.section("grid",0).subsection("writeoutput").stringLists["volumevariables"].value.clear();
+		input.section("grid",0).subsection("writeoutput").stringLists["volumevariables"].value.push_back("rank");
+		input.section("grid",0).subsection("writeoutput").stringLists["volumevariables"].value.push_back("value_grad");
+		input.section("grid",0).subsection("writeoutput").stringLists["volumevariables"].value.push_back("percent_grad_error");
+		write_volume_output(0,0);
 		exit(1);
 	}
 	
@@ -236,17 +238,18 @@ int main(int argc, char *argv[]) {
 		if (timeStep==(timeStepMax+restart_step)) lastTimeStep=true;
 		for (int gid=0;gid<grid.size();++gid) {
 			update_time_step(timeStep,time[gid],gid);
-			if (equations[gid]==NS) {
-				ns[gid].solve(timeStep);
-				if (turbulent[gid]) rans[gid].solve(timeStep);
-			}
+			if (equations[gid]==NS) ns[gid].solve(timeStep);
 			if (equations[gid]==HEAT) hc[gid].solve(timeStep);
 			bc_interface_sync();
-			if (timeStep%plotFreq[gid]==0 || lastTimeStep) {
-				if (Rank==0) cout << "\n[I] Writing output for grid=" << gid+1;
-				write_output(gid,timeStep);
+			if (timeStep%volume_plot_freq[gid]==0 || lastTimeStep) {
+				if (Rank==0) cout << "\n[I] Writing volume output for grid=" << gid+1;
+				write_volume_output(gid,timeStep);
 			} // end if
-			if (timeStep%restartFreq[gid]==0 || lastTimeStep) {
+			if (timeStep%surface_plot_freq[gid]==0 || lastTimeStep) {
+				if (Rank==0) cout << "\n[I] Writing surface output for grid=" << gid+1;
+				write_surface_output(gid,timeStep);
+			} // end if
+			if (timeStep%restart_freq[gid]==0 || lastTimeStep) {
 				if (Rank==0) cout << "\n[I] Writing restart for grid=" << gid+1;
 				write_restart(gid,timeStep,restart_step,time[gid]);
 			} // end if

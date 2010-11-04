@@ -555,6 +555,33 @@ int Grid::create_ghosts() {
 
  	if (Rank!=np-1) MPI_Send(&nodeCountOffsetPlus,1,MPI_INT,Rank+1,Rank+1,MPI_COMM_WORLD);
 	if (Rank!=np-1) MPI_Send(&maps.nodeGlobal2Output[0],globalNodeCount,MPI_INT,Rank+1,Rank+1,MPI_COMM_WORLD);
+
+	// First save the number of boundary conditions
+	bcCount=raw.bocoNodes.size();
+	boundaryFaces.resize(bcCount);
+	boundaryNodes.resize(bcCount);
+	maps.bc_nodeLocal2Output.resize(bcCount);
+	vector<set<int> > bcnodeset;
+	set<int>::iterator it;
+	bcnodeset.resize(bcCount);
+	for (int f=0;f<faceCount;++f) {
+		if (face[f].bc>=0) {
+			boundaryFaces[face[f].bc].push_back(f);
+			for (int fn=0;fn<face[f].nodeCount;++fn) {
+				bcnodeset[face[f].bc].insert(face[f].nodes[fn]);
+			}
+		}
+	}
+	
+	for (int b=0;b<bcCount;++b) {
+		int counter=0;
+		for (it=bcnodeset[b].begin();it!=bcnodeset[b].end();++it) {
+			boundaryNodes[b].push_back(*it);
+			maps.bc_nodeLocal2Output[b].insert(pair<int,int>(*it,counter));
+			counter++;
+		}
+	}
+	bcnodeset.clear();
 	
 	return 0;
 	
