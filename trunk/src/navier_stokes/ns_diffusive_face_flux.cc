@@ -22,6 +22,7 @@
 *************************************************************************/
 #include "ns.h"
 #include "rans.h"
+
 extern vector<RANS> rans;
 
 void NavierStokes::diffusive_face_flux(NS_Cell_State &left,NS_Cell_State &right,NS_Face_State &face,double flux[]) {
@@ -56,7 +57,6 @@ void NavierStokes::diffusive_face_flux(NS_Cell_State &left,NS_Cell_State &right,
 	qq=(face.lambda+turb_cond)*face.gradT.dot(areaVec);
 	if (face.bc>=0) {
 		if (bc[gid][face.bc].thermalType==FIXED_Q) qq=qdot.bc(face.bc,face.index)*face.area;
-		else if (qdot.bcValue[face.bc].size()>1) qdot.bc(face.bc,face.index)=-qq;
 	}
 	flux[4]+=qq;
 	

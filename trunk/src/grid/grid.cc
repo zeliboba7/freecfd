@@ -94,8 +94,6 @@ void Grid::trim_memory() {
 	raw.node.clear();
 	raw.cellConnIndex.clear();
 	raw.cellConnectivity.clear();
-	// First save the number of boundary conditions
-	bcCount=raw.bocoNodes.size();
 	raw.bocoNodes.clear();
 	raw.bocoNameMap.clear();
 	

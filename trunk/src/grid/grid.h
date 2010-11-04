@@ -63,6 +63,7 @@ public:
 	std::map<int,int> cellGlobal2Local;
 	std::map<int,int> ghostGlobal2Local;
 	std::vector<int> nodeGlobal2Output;
+	std::vector<map<int,int> > bc_nodeLocal2Output;	
 	std::vector<int> face2bc; // face index to bc array index map
 	idxtype* adjIndex;
 	idxtype* adjacency;
@@ -134,12 +135,13 @@ public:
 	int nodeCount,cellCount,faceCount;
 	int globalNodeCount,globalCellCount,globalFaceCount,ghostCount;
 	double globalTotalVolume;
-	std::vector<std::vector<int> > boundaryFaceCount; // for each bc region in each proc 
+	std::vector<std::vector<int> > boundaryFaceCount; // for each bc region in each proc
 	std::vector<int> globalBoundaryFaceCount;
 	std::vector<Node> node;
 	std::vector<Face> face;
 	std::vector<Cell> cell;
 	std::vector<Ghost> ghost;
+	std::vector<vector<int> > boundaryFaces,boundaryNodes;
 	// Maps for MPI exchanges
 	std::vector< std::vector<int> > sendCells;
 	std::vector< std::vector<int> > recvCells;

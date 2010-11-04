@@ -60,7 +60,8 @@ set (EXTRA_LIBS cgns metis parmetis petsc f2cblas f2clapack)
 #add the executable
 set (SOURCES
 bc_interface.cc      main.cc              read_restart.cc      time_step.cc         write_restart.cc
-bc_interface_sync.cc read_inputs.cc       set_bcs.cc           write_output.cc
+bc_interface_sync.cc read_inputs.cc       set_bcs.cc           write_surface_output.cc
+write_volume_output.cc
 )
 add_executable(freecfd ${SOURCES})
 

@@ -117,7 +117,15 @@ void NavierStokes::assemble_linear_system(void) {
 				}
 			}
 		}
-			
+	
+		// Fill in surface information
+		
+		if (face.bc>=0) {
+			if (!qdot.fixedonBC[face.bc]) qdot.bc(face.bc,face.index)=(flux.convective[4]-flux.diffusive[4])/face.area;
+			if (!mdot.fixedonBC[face.bc]) mdot.bc(face.bc,face.index)=(flux.convective[0]-flux.diffusive[0])/face.area;
+			for (int i=0;i<3;++i) tau.bc(face.bc,face.index)[i]=-flux.diffusive[i+1]/face.area;
+		}
+		
 		// Fill in rhs vector
 		for (int i=0;i<5;++i) {
 			row=(grid[gid].myOffset+parent)*5+i;

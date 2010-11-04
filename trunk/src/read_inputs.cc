@@ -44,14 +44,16 @@ void read_inputs(void) {
 	input.section("grid",0).register_string("equations",required);
 	
 	input.section("grid",0).registerSubsection("writeoutput",single,required);
-	input.section("grid",0).subsection("writeoutput").register_string("format",optional,"vtk");
-	input.section("grid",0).subsection("writeoutput").register_int("plotfrequency",optional,1000000);
+	input.section("grid",0).subsection("writeoutput").register_string("format",optional,"tecplot");
+	input.section("grid",0).subsection("writeoutput").register_int("volumeplotfrequency",optional,1000000);
+	input.section("grid",0).subsection("writeoutput").register_int("surfaceplotfrequency",optional,1000000);
 	input.section("grid",0).subsection("writeoutput").register_int("restartfrequency",optional,1000000);
 	input.section("grid",0).subsection("writeoutput").register_int("loadfrequency",optional,1000000);
 	input.section("grid",0).subsection("writeoutput").register_Vec3D("momentcenter",optional,0.);
 	input.section("grid",0).subsection("writeoutput").register_stringList("includebcs",optional);
-	input.section("grid",0).subsection("writeoutput").register_stringList("variables",required);
-
+	input.section("grid",0).subsection("writeoutput").register_stringList("volumevariables",required);
+	input.section("grid",0).subsection("writeoutput").register_stringList("surfacevariables",required);
+	
 	input.section("grid",0).register_string("material",optional,"none");
 	input.section("grid",0).registerSubsection("material",single,optional);
 	// Default air values assigned

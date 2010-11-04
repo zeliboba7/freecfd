@@ -42,10 +42,13 @@ extern vector<Variable<double> > dt;
 extern vector<int> equations;
 extern vector<Loads> loads;
 
-int timeStep,gid;
-vector<string> varList;
-vector<bool> var_is_vec3d;
-
+namespace volume_output {
+	int timeStep,gid;
+	vector<string> varList;
+	vector<bool> var_is_vec3d;
+}
+using namespace volume_output;
+		
 void write_tec_header(void);
 void write_tec_nodes(int i);
 void write_tec_var(int ov, int i);
@@ -77,7 +80,7 @@ void write_loads(int gid,int step,double time) {
 	return;
 }
 
-void write_output(int gridid, int step) {
+void write_volume_output(int gridid, int step) {
 	mkdir("./output",S_IRWXU);
 	gid=gridid;
 	timeStep=step;
@@ -127,14 +130,6 @@ void write_output(int gridid, int step) {
 		for (int p=0;p<np;++p) {
 			if(Rank==p) write_tec_cells();
 			MPI_Barrier(MPI_COMM_WORLD);
-		}
-		
-		// Write boundary condition regions
-		for (int nbc=0;nbc<input.section("grid",gid).subsection("BC",0).count;++nbc) {
-			for (int p=0;p<np;++p) {
-			//	if(Rank==p) write_tec_bcs(nbc,nVar);
-				MPI_Barrier(MPI_COMM_WORLD);
-			}
 		}
 		 
 	} else if (format=="vtk") {
@@ -212,7 +207,6 @@ void write_tec_var(int ov, int i) {
 	file.open((fileName).c_str(),ios::app);
 	file << scientific << setprecision(8);
 	
-	for (int c=0;c<grid[gid].cellCount;++c) ;
 	if (varList[ov]=="p") {
 		for (int c=0;c<grid[gid].cellCount;++c) {
 			file << ns[gid].p.cell(c);

@@ -79,7 +79,6 @@ void set_bcs(int gid) {
 		if (type=="outlet") bcRegion.type=OUTLET;
 		if (type=="symmetry") bcRegion.type=SYMMETRY;
 		if (kind=="slip") bcRegion.kind=SLIP; // This is needed here to omit this BC in nearest wall distance calculation
-		bc[gid].push_back(bcRegion);
 
 		// Integrate boundary areas
 		for (int f=0;f<grid[gid].faceCount;++f) {
@@ -91,6 +90,8 @@ void set_bcs(int gid) {
 				if (bcRegion.type==SYMMETRY) grid[gid].face[f].symmetry=true;
 			}
 		}
+		bc[gid].push_back(bcRegion);
+
 		
 		cout << "[I rank=" << Rank << " grid=" << gid+1 << " BC=" << b+1 << "] is assigned as " << type << endl;
 		
