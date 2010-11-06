@@ -84,7 +84,7 @@ void write_volume_output(int gridid, int step) {
 	mkdir("./output",S_IRWXU);
 	gid=gridid;
 	timeStep=step;
-	varList=input.section("grid",gid).subsection("writeoutput").get_stringList("variables");
+	varList=input.section("grid",gid).subsection("writeoutput").get_stringList("volumevariables");
 	var_is_vec3d.resize(varList.size());
 	int nVar=0;
 	for (int var=0; var<varList.size(); ++var) {
@@ -144,7 +144,7 @@ void write_volume_output(int gridid, int step) {
 void write_tec_header(void) {
 	
 	ofstream file;
-	string fileName="./output/out_"+int2str(timeStep)+"_"+int2str(gid+1)+".dat";
+	string fileName="./output/volume_"+int2str(timeStep)+"_"+int2str(gid+1)+".dat";
 	
 	// Proc 0 creates the output file and writes variable list
 	
@@ -177,7 +177,7 @@ void write_tec_header(void) {
 void write_tec_nodes(int i) {
 	
 	ofstream file;
-	string fileName="./output/out_"+int2str(timeStep)+"_"+int2str(gid+1)+".dat";
+	string fileName="./output/volume_"+int2str(timeStep)+"_"+int2str(gid+1)+".dat";
 	
 	file.open((fileName).c_str(),ios::app);
 	file << scientific << setprecision(8);
@@ -202,7 +202,7 @@ void write_tec_nodes(int i) {
 void write_tec_var(int ov, int i) {
 
 	ofstream file;
-	string fileName="./output/out_"+int2str(timeStep)+"_"+int2str(gid+1)+".dat";
+	string fileName="./output/volume_"+int2str(timeStep)+"_"+int2str(gid+1)+".dat";
 	
 	file.open((fileName).c_str(),ios::app);
 	file << scientific << setprecision(8);
@@ -415,7 +415,7 @@ void write_tec_var(int ov, int i) {
 void write_tec_cells() {
 	
 	ofstream file;
-	string fileName="./output/out_"+int2str(timeStep)+"_"+int2str(gid+1)+".dat";
+	string fileName="./output/volume_"+int2str(timeStep)+"_"+int2str(gid+1)+".dat";
 	
 	file.open((fileName).c_str(),ios::app);
 	
@@ -467,7 +467,7 @@ void write_tec_cells() {
 void write_tec_bcs(int bcNo,int nVar) {
 	
 	ofstream file;
-	string fileName="./output/out_"+int2str(timeStep)+"_"+int2str(gid+1)+".dat";
+	string fileName="./output/volume_"+int2str(timeStep)+"_"+int2str(gid+1)+".dat";
 
 	file.open((fileName).c_str(),ios::app);
 	if (Rank==0) {
@@ -619,7 +619,7 @@ void write_vtk(void) {
 void write_vtk_parallel(void) {
 	
 	string filePath="./output/"+int2str(timeStep);
-	string fileName=filePath+"/grid_"+int2str(gid+1)+"_out_"+int2str(timeStep)+".pvtu";
+	string fileName=filePath+"/grid_"+int2str(gid+1)+"_volume_"+int2str(timeStep)+".pvtu";
 	
 	mkdir("./output",S_IRWXU);
 	mkdir(filePath.c_str(),S_IRWXU);

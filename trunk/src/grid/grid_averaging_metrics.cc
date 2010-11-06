@@ -41,9 +41,6 @@ Grid *currentGrid;
 double area_tolerance=1.e-3;
 double volume_tolerance=1.e-2;
 
-int gelimd(vector<vector<double> > &a,vector<double> &b,vector<double> &x);
-bool compare_closest (int first,int second);
-	
 struct interpolation_tetra {
 	int cell[4];
 	double weight;
@@ -204,15 +201,6 @@ void Grid::nodeAverages() {
 		a4.clear(); b4.clear(); weights4.clear();
 
 }
-
-// comparison, not case sensitive.
-bool compare_closest (int first, int second) {
-	centroid1= (first>=0) ? currentGrid->cell[first].centroid : currentGrid->ghost[-1*first-1].centroid;
-	centroid2= (second>=0) ? currentGrid->cell[second].centroid : currentGrid->ghost[-1*second-1].centroid;
-	if (fabs(nodeVec-centroid1)<=fabs(nodeVec-centroid2)) return true;
-	else return false;
-}
-
 
 void Grid::sortStencil(Node& n) {
 	// Split stencil to 8 quadrants around the node
@@ -622,44 +610,6 @@ void Grid::faceAverages() {
 
 } // end Grid::faceAverages()
 
-
-int gelimd(vector<vector<double> > &a,vector<double> &b,vector<double> &x) {
-	
-	int n=b.size();
-	double tmp,pvt;
-	int i,j,k;
-
-	for (i=0;i<n;i++) {             // outer loop on rows
-		pvt = a[i][i];              // get pivot value
-		if (fabs(pvt) < EPS) {
-			for (j=i+1;j<n;j++) {
-				if(fabs(pvt = a[j][i]) >= EPS) break;
-			}
-			if (fabs(pvt) < EPS) return 1;     // nowhere to run!
-			a[i].swap(a[j]);	// swap matrix rows...
-			tmp=b[j];               // ...and result vector
-			b[j]=b[i];
-			b[i]=tmp;
-		}
-// (virtual) Gaussian elimination of column
-		for (k=i+1;k<n;k++) {       // alt: for (k=n-1;k>i;k--)
-			tmp = a[k][i]/pvt;
-			for (j=i+1;j<n;j++) {   // alt: for (j=n-1;j>i;j--)
-				a[k][j] -= tmp*a[i][j];
-			}
-			b[k] -= tmp*b[i];
-		}
-	}
-// Do back substitution
-	for (i=n-1;i>=0;i--) {
-		x[i]=b[i];
-		for (j=n-1;j>i;j--) {
-			x[i] -= a[i][j]*x[j];
-		}
-		x[i] /= a[i][i];
-	}
-	return 0;
-}
 
 void Grid::nodeAverages_idw() {
 	int c,g;

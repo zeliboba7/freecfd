@@ -1,12 +1,5 @@
-set (NAME grid)
-set (SOURCES 
-grid.cc
-grid_create_elements.cc
-grid_partition.cc
-grid_readers.cc
-grid_transform.cc
-grid_write_cas.cc
-)
+set (NAME interpolate)
+set (SOURCES interpolate.cc)
 
 add_library(${NAME} STATIC ${SOURCES} )
 

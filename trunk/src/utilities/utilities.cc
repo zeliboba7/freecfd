@@ -55,3 +55,42 @@ bool withinCylinder(Vec3D point,Vec3D center,double radius,Vec3D axisDirection,d
 bool withinSphere(Vec3D point,Vec3D center,double radius) {
 	return (fabs(point-center)<=radius);
 }
+
+// Gaussian elimination
+int gelimd(vector<vector<double> > &a,vector<double> &b,vector<double> &x) {
+	
+	int n=b.size();
+	double tmp,pvt;
+	int i,j,k;
+	
+	for (i=0;i<n;i++) {             // outer loop on rows
+		pvt = a[i][i];              // get pivot value
+		if (fabs(pvt) < EPS) {
+			for (j=i+1;j<n;j++) {
+				if(fabs(pvt = a[j][i]) >= EPS) break;
+			}
+			if (fabs(pvt) < EPS) return 1;     // nowhere to run!
+			a[i].swap(a[j]);	// swap matrix rows...
+			tmp=b[j];               // ...and result vector
+			b[j]=b[i];
+			b[i]=tmp;
+		}
+		// (virtual) Gaussian elimination of column
+		for (k=i+1;k<n;k++) {       // alt: for (k=n-1;k>i;k--)
+			tmp = a[k][i]/pvt;
+			for (j=i+1;j<n;j++) {   // alt: for (j=n-1;j>i;j--)
+				a[k][j] -= tmp*a[i][j];
+			}
+			b[k] -= tmp*b[i];
+		}
+	}
+	// Do back substitution
+	for (i=n-1;i>=0;i--) {
+		x[i]=b[i];
+		for (j=n-1;j>i;j--) {
+			x[i] -= a[i][j]*x[j];
+		}
+		x[i] /= a[i][i];
+	}
+	return 0;
+}

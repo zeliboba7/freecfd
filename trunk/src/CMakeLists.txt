@@ -28,6 +28,7 @@ include_directories("${PROJECT_SOURCE_DIR}")
 include_directories("${PROJECT_SOURCE_DIR}/grid")
 include_directories("${PROJECT_SOURCE_DIR}/heat_conduction")
 include_directories("${PROJECT_SOURCE_DIR}/inputs")
+include_directories("${PROJECT_SOURCE_DIR}/interpolate")
 include_directories("${PROJECT_SOURCE_DIR}/material")
 include_directories("${PROJECT_SOURCE_DIR}/navier_stokes")
 include_directories("${PROJECT_SOURCE_DIR}/polynomial")
@@ -46,6 +47,7 @@ link_directories(${PETSC_LIBRARY_DIRS})
 add_subdirectory(grid)
 add_subdirectory(heat_conduction)
 add_subdirectory(inputs)
+add_subdirectory(interpolate)
 add_subdirectory(material)
 add_subdirectory(navier_stokes)
 add_subdirectory(polynomial)
@@ -54,14 +56,14 @@ add_subdirectory(utilities)
 add_subdirectory(variable)
 add_subdirectory(vec3d)
 
-set (FCFD_LIBS grid hc inputs material ns polynomial rans utilities variable vec3d)
+set (FCFD_LIBS grid hc inputs interpolate material ns polynomial rans utilities variable vec3d)
 set (EXTRA_LIBS cgns metis parmetis petsc f2cblas f2clapack)
 
 #add the executable
 set (SOURCES
-bc_interface.cc      main.cc              read_restart.cc      time_step.cc         write_restart.cc
-bc_interface_sync.cc read_inputs.cc       set_bcs.cc           write_surface_output.cc
-write_volume_output.cc
+bc_interface.cc      face_interpolation_weights.cc	main.cc              read_restart.cc
+time_step.cc         write_restart.cc			bc_interface_sync.cc read_inputs.cc       
+set_bcs.cc           write_surface_output.cc		write_volume_output.cc
 )
 add_executable(freecfd ${SOURCES})
 
