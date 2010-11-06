@@ -23,6 +23,8 @@
 #ifndef UTILITIES_H
 #define UTILITIES_H
 
+#define EPS 1e-10
+
 #include <string>
 #include <sstream>
 #include <limits>
@@ -35,5 +37,7 @@ string int2str(int number);
 bool withinBox(Vec3D point, Vec3D corner_1, Vec3D corner_2);
 bool withinCylinder(Vec3D point, Vec3D center, double radius, Vec3D axisDirection, double height);
 bool withinSphere(Vec3D point, Vec3D center, double radius);
+
+int gelimd(vector<vector<double> > &a,vector<double> &b,vector<double> &x);
 
 #endif

@@ -23,7 +23,6 @@
 #include "rans.h"
 
 extern RANS rans;
-double EPS=1.e-10;
 
 void get_kOmega(void);
 double get_blending(double &k,double &omega,double &rho,double &y,double &visc,Vec3D &gradK,Vec3D &gradOmega);

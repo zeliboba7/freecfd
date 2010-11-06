@@ -200,7 +200,7 @@ void NavierStokes::get_jacobians(const int var) {
 	using ns_state::left;
 	using ns_state::right;
 	double epsilon;
-	double factor=0.01;
+	double factor=0.05;
 	
 	if (jac_order==FIRST) order_factor=0.;
 	

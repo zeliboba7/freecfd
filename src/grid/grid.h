@@ -123,7 +123,6 @@ class Grid {
 public:
 	int gid;
 	int dimension; // 2 or 3
-	int stencil_size_input;
 	int bcCount;
 	double lengthScale;
 	GridRawData raw;
@@ -169,8 +168,8 @@ public:
 	void interpolate_tetra(int f);
 	void interpolate_tri(int f);
 	void interpolate_line(int f);
-	void nodeAverages_idw();
-	void faceAverages();
+	//void nodeAverages_idw();
+	//void faceAverages();
 	void mpi_handshake(void);
 	void mpi_get_ghost_geometry(void);
 	void write_cas(void);
