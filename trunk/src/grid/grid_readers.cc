@@ -56,6 +56,15 @@ int Grid::readCGNS() {
 	if (Rank==0) cout << "[I] Number of Zones= " << nZones << endl;
 	
 	std::vector<double> coordX[nZones],coordY[nZones],coordZ[nZones];
+
+	vector<double> min_x,max_x,min_y,max_y,min_z,max_z;
+	min_x.resize(nZones);
+	min_y.resize(nZones);
+	min_z.resize(nZones);
+	max_x.resize(nZones);
+	max_y.resize(nZones);
+	max_z.resize(nZones);
+	
 	// zoneCoordMap returns the global id of a given node in a given zone
 	std::vector<int> zoneCoordMap[nZones];
 
@@ -64,7 +73,6 @@ int Grid::readCGNS() {
 	for (int zoneIndex=1;zoneIndex<=nZones;++zoneIndex) { // For each zone
 		vector<int> bc_method;
 		vector<set<int> > bc_element_list;
-		
 		// Read the zone
 		cg_zone_read(fileIndex,baseIndex,zoneIndex,zoneName,size);
 		// These are the number of cells and nodes in that zone
@@ -90,11 +98,28 @@ int Grid::readCGNS() {
 		cg_coord_read(fileIndex,baseIndex,zoneIndex,"CoordinateX",RealDouble,nodeStart,nodeEnd,&coordX[zoneIndex-1][0]);
 		cg_coord_read(fileIndex,baseIndex,zoneIndex,"CoordinateY",RealDouble,nodeStart,nodeEnd,&coordY[zoneIndex-1][0]);
 		cg_coord_read(fileIndex,baseIndex,zoneIndex,"CoordinateZ",RealDouble,nodeStart,nodeEnd,&coordZ[zoneIndex-1][0]);
+
 		for (int i=0;i<size[0];++i) {
 			// This map takes in zone index and node number within that zone
 			// Returns the global index of that node
 			// It is initialized to -1 for now
 			zoneCoordMap[zoneIndex-1].push_back(-1);
+		}
+		
+		min_x[zoneIndex-1]=coordX[zoneIndex-1][0];
+		min_y[zoneIndex-1]=coordY[zoneIndex-1][0];
+		min_z[zoneIndex-1]=coordZ[zoneIndex-1][0];
+		max_x[zoneIndex-1]=coordX[zoneIndex-1][0];
+		max_y[zoneIndex-1]=coordY[zoneIndex-1][0];
+		max_z[zoneIndex-1]=coordZ[zoneIndex-1][0];
+
+		for (int c=1;c<coordX[zoneIndex-1].size();++c) {
+			min_x[zoneIndex-1]=min(coordX[zoneIndex-1][c],min_x[zoneIndex-1]);
+			min_y[zoneIndex-1]=min(coordY[zoneIndex-1][c],min_y[zoneIndex-1]);
+			min_z[zoneIndex-1]=min(coordZ[zoneIndex-1][c],min_z[zoneIndex-1]);
+			max_x[zoneIndex-1]=max(coordX[zoneIndex-1][c],max_x[zoneIndex-1]);
+			max_y[zoneIndex-1]=max(coordY[zoneIndex-1][c],max_y[zoneIndex-1]);
+			max_z[zoneIndex-1]=max(coordZ[zoneIndex-1][c],max_z[zoneIndex-1]);
 		}
 
 		// In case there are multiple connected zones, collapse the repeated nodes and fix the node numbering
@@ -109,8 +134,16 @@ int Grid::readCGNS() {
 			// Scan the coordinates of all the other zones before this one for duplicates
 			for (int c=0;c<coordX[zoneIndex-1].size();++c) {
 				bool foundFlag=false;
-				
-				for (int z=0;z<zoneIndex-1;++z) {
+
+				for (int z=0;z<zoneIndex-1;++z) { // Loop other zones
+					if (coordX[zoneIndex-1][c]<(min_x[z]-block_stitch_tolerance)) break;
+					if (coordY[zoneIndex-1][c]<(min_y[z]-block_stitch_tolerance)) break;
+					if (coordZ[zoneIndex-1][c]<(min_z[z]-block_stitch_tolerance)) break;
+					
+					if (coordX[zoneIndex-1][c]>(max_x[z]+block_stitch_tolerance)) break;
+					if (coordY[zoneIndex-1][c]>(max_y[z]+block_stitch_tolerance)) break;
+					if (coordZ[zoneIndex-1][c]>(max_z[z]+block_stitch_tolerance)) break;
+
 					for (int c2=0;c2<coordX[z].size();++c2) {
 						if (fabs(coordX[zoneIndex-1][c]-coordX[z][c2])<block_stitch_tolerance && fabs(coordY[zoneIndex-1][c]-coordY[z][c2])<block_stitch_tolerance && fabs(coordZ[zoneIndex-1][c]-coordZ[z][c2])<block_stitch_tolerance) {
 							zoneCoordMap[zoneIndex-1][c]=zoneCoordMap[z][c2];
@@ -120,12 +153,14 @@ int Grid::readCGNS() {
 					}
 					if (foundFlag) break;
 				}
-				 
+				
 				if (!foundFlag) {
 					zoneCoordMap[zoneIndex-1][c]=globalNodeCount;
 					globalNodeCount++;
 				}
+	
 			}
+
 		}
 
 		// Boundary condition regions may be given as element or point ranges, or element or point lists
@@ -190,17 +225,14 @@ int Grid::readCGNS() {
 			}
 			
 		} // for boco
-		nBocos=raw.bocoNameMap.size();
 		
 		// Loop sections within the zone
 		// These include connectivities of cells and bonudary faces
 		for (int sectionIndex=1;sectionIndex<=nSections;++sectionIndex) {
-			
 			ElementType_t elemType;
 			int elemNodeCount,elemStart,elemEnd,nBndCells,parentFlag;
 			// Read the section
-			cg_section_read(fileIndex,baseIndex,zoneIndex,sectionIndex,sectionName,&elemType,&elemStart,&elemEnd,&nBndCells,&parentFlag);
-			
+			cg_section_read(fileIndex,baseIndex,zoneIndex,sectionIndex,sectionName,&elemType,&elemStart,&elemEnd,&nBndCells,&parentFlag);	
 			switch (elemType) {
 				case TRI_3:
 					elemNodeCount=3; break;
@@ -215,7 +247,6 @@ int Grid::readCGNS() {
 				case HEXA_8:
 					elemNodeCount=8; break;
 			} //switch
-
 			if (elemType==MIXED) {
 				int connDataSize;
 				cg_ElementDataSize(fileIndex,baseIndex,zoneIndex,sectionIndex,&connDataSize);
@@ -271,13 +302,29 @@ int Grid::readCGNS() {
 			} // if
 		} // for section
 	} // for zone
+	nBocos=raw.bocoNameMap.size();
 //} // for base
 
 	if (Rank==0) cout << "[I] Total Node Count= " << globalNodeCount << endl;
 	// Merge coordinates of the zones
-	raw.node.reserve(globalNodeCount);
+
 	// for zone 0
+	raw.node.resize(globalNodeCount);
 	Vec3D temp;
+	for (int z=0;z<nZones;++z) {
+		for (int n=0;n<coordX[z].size();++n) {
+			if (zoneCoordMap[z][n]>=0) {
+				temp[0]=coordX[z][n];
+				temp[1]=coordY[z][n];
+				temp[2]=coordZ[z][n];
+				raw.node[zoneCoordMap[z][n]]=temp;
+			}
+		}
+		
+	}
+	
+	/*
+	raw.node.reserve(globalNodeCount);
 	for (int n=0;n<coordX[0].size();++n) {
 		temp[0]=coordX[0][n];
 		temp[1]=coordY[0][n];
@@ -301,10 +348,14 @@ int Grid::readCGNS() {
 			}
 		}
 	}
+	
 	if (raw.node.size()!=globalNodeCount) {
 		cerr << "[E] raw.node.size() (=" << raw.node.size() << ") is different from globalNodeCount (=" << globalNodeCount << ")" << endl;
 		exit(1);
 	}
+	 
+	 */
+	 
 	if (Rank==0) cout << "[I] Total Cell Count= " << globalCellCount << endl;
 
 	return 0;

@@ -49,6 +49,7 @@ void Grid::read(string fname) {
 void Grid::setup(void) {
 	partition();
 	create_nodes_cells();
+	raw.node.clear();
 	mesh2dual();
 	create_faces();
 	create_ghosts();
