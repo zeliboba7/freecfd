@@ -201,13 +201,12 @@ bool Interpolate::interpolate_line(void) {
 	// Try this ! than fix above if it works properly
 	//cout << edge1 << "\t" << edge1.norm() << "\t" << edge1 << endl;
 	
+	// point moved to new coordinate system
 	p_point=point-stencil[0]; 
-	// where does the point vector point relative to line vector direction
-	double signof=p_point.dot(basis1)/fabs(p_point.dot(basis1));
-	// point vector projected on the line
+	// point projected on the line
 	p_point=p_point.dot(basis1)*basis1;
-	
-	weights[1]=fabs(p_point)/fabs(edge1)*signof;
+
+	weights[1]=p_point.dot(basis1)/fabs(edge1);
 	weights[0]=1.-weights[1];
 	
 	weights.resize(2);
@@ -218,7 +217,9 @@ bool Interpolate::interpolate_line(void) {
 
 bool Interpolate::interpolate_point(void) {
 	
-	weights.resize(1); weights[0]=1.;
+	weights.resize(1); 
+	stencil_indices.resize(1);
+	weights[0]=1.;
 	
 	return true;
 }
