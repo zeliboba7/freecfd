@@ -189,7 +189,7 @@ int Grid::readCGNS() {
 			}
 			
 			// If no match, create new bc
-    		        if (new_bc) {
+			if (new_bc) {
 				bcIndex=raw.bocoNameMap.size();
 				raw.bocoNameMap.insert(pair<string,int>(bcName,bcIndex));
 				raw.bocoNodes.resize(bcIndex+1);
@@ -285,14 +285,16 @@ int Grid::readCGNS() {
 					globalCellCount+=(elemEnd-elemStart+1);
 				} else { // If not a volume element
 					// Scan all the boundary condition regions
-					for (int nbc=0;nbc<nBocos;++nbc) {
-						if (bc_method[nbc]==ELEMENT_LIST) {
-							for (int elem=0;elem<=(elemEnd-elemStart);++elem) {
-								if (bc_element_list[nbc].find(elemStart+elem)!=bc_element_list[nbc].end()) {
-									for (int n=0;n<elemNodeCount;++n) {
-										raw.bocoNodes[nbc].insert(zoneCoordMap[zoneIndex-1][elemNodes[connIndex+n]-1]);
+					if (nBocos!=0) {
+						for (int nbc=0;nbc<raw.bocoNameMap.size();++nbc) {
+							if (bc_method[nbc]==ELEMENT_LIST) {
+								for (int elem=0;elem<=(elemEnd-elemStart);++elem) {
+									if (bc_element_list[nbc].find(elemStart+elem)!=bc_element_list[nbc].end()) {
+										for (int n=0;n<elemNodeCount;++n) {
+											raw.bocoNodes[nbc].insert(zoneCoordMap[zoneIndex-1][elemNodes[connIndex+n]-1]);
+										}
+										connIndex+=elemNodeCount;
 									}
-									connIndex+=elemNodeCount;
 								}
 							}
 						}
@@ -302,7 +304,7 @@ int Grid::readCGNS() {
 			} // if
 		} // for section
 	} // for zone
-	nBocos=raw.bocoNameMap.size();
+
 //} // for base
 
 	if (Rank==0) cout << "[I] Total Node Count= " << globalNodeCount << endl;
