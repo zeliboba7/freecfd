@@ -223,11 +223,13 @@ int Grid::areas_volumes() {
 	
 	for (int f=0;f<faceCount;++f) {
 		if (face[f].normal.dot(face[f].centroid-cell[face[f].parent].centroid)<0.) {
-			cout << "[W Rank=" << Rank << "] Face " << f << " normal is pointing in to its parent cell .. fixing" << endl;
+			cout << "[W Rank=" << Rank << "] Face " << f << " normal is pointing in to its parent cell .." << endl;
 			// Need to swap the face and reflect the area vector TODO Check if following is right
+			/* Never got to verify if the following works
 			face[f].normal*=-1.;
 			vector<int>::reverse_iterator rit;
 			face[f].nodes.assign(face[f].nodes.rbegin(),face[f].nodes.rend());
+			 */
 		}
 	}
 	
