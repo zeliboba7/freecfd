@@ -151,6 +151,40 @@ void NavierStokes::venkatakrishnan_limiter(void) {
 			min_delta[i]=0.;
 		}
 		
+		// Loop the cell neighbors
+		for (int cn=0;cn<grid[gid].cell[c].neighborCells.size();++cn) {
+			neighbor=grid[gid].cell[c].neighborCells[cn];
+			if (neighbor>=0) { // real cell
+				max_delta[0]=max(max_delta[0],p.cell(neighbor)-p.cell(c));
+				max_delta[1]=max(max_delta[1],V.cell(neighbor)[0]-V.cell(c)[0]);
+				max_delta[2]=max(max_delta[2],V.cell(neighbor)[1]-V.cell(c)[1]);	
+				max_delta[3]=max(max_delta[3],V.cell(neighbor)[2]-V.cell(c)[2]);
+				max_delta[4]=max(max_delta[4],T.cell(neighbor)-T.cell(c));
+				
+				min_delta[0]=min(min_delta[0],p.cell(neighbor)-p.cell(c));
+				min_delta[1]=min(min_delta[1],V.cell(neighbor)[0]-V.cell(c)[0]);
+				min_delta[2]=min(min_delta[2],V.cell(neighbor)[1]-V.cell(c)[1]);	
+				min_delta[3]=min(min_delta[3],V.cell(neighbor)[2]-V.cell(c)[2]);
+				min_delta[4]=min(min_delta[4],T.cell(neighbor)-T.cell(c));
+				
+			} else { // neighbor cell is a ghost (partition interface)
+				neighbor=-1*neighbor-1;
+				max_delta[0]=max(max_delta[0],p.ghost(neighbor)-p.cell(c));
+				max_delta[1]=max(max_delta[1],V.ghost(neighbor)[0]-V.cell(c)[0]);
+				max_delta[2]=max(max_delta[2],V.ghost(neighbor)[1]-V.cell(c)[1]);	
+				max_delta[3]=max(max_delta[3],V.ghost(neighbor)[2]-V.cell(c)[2]);
+				max_delta[4]=max(max_delta[4],T.ghost(neighbor)-T.cell(c));
+				
+				min_delta[0]=min(min_delta[0],p.ghost(neighbor)-p.cell(c));
+				min_delta[1]=min(min_delta[1],V.ghost(neighbor)[0]-V.cell(c)[0]);
+				min_delta[2]=min(min_delta[2],V.ghost(neighbor)[1]-V.cell(c)[1]);	
+				min_delta[3]=min(min_delta[3],V.ghost(neighbor)[2]-V.cell(c)[2]);
+				min_delta[4]=min(min_delta[4],T.ghost(neighbor)-T.cell(c));
+				
+			}
+		}
+		
+		/*
 		// First loop through face neighbors to find max values
 		for (int cf=0;cf<grid[gid].cell[c].faceCount;++cf) {
 			if (grid[gid].cellFace(c,cf).bc<0) { // If not a boundary face
@@ -185,7 +219,8 @@ void NavierStokes::venkatakrishnan_limiter(void) {
 				}
 			}
 		} // end face loop		
-	
+		 */
+		
 		pref=p.cell(c)+material.Pref;
 		tref=T.cell(c)+material.Tref;
 		uref=material.a(p.cell(c),T.cell(c));
