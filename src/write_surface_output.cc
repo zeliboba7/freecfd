@@ -278,6 +278,12 @@ void write_surface_tec_var(int ov,int i,int b) {
 			if ((bf+1)%10==0) file << "\n";
 			else file << "\t";
 		}
+	} else if (varList[ov]=="yplus") {
+		for (int bf=0;bf<grid[gid].boundaryFaces[b].size();++bf) {
+			file << rans[gid].yplus.face(grid[gid].boundaryFaces[b][bf]);
+			if ((bf+1)%10==0) file << "\n";
+			else file << "\t";
+		}
 	} else if (varList[ov]=="k") {
 		for (int bf=0;bf<grid[gid].boundaryFaces[b].size();++bf) {
 			file << rans[gid].k.face(grid[gid].boundaryFaces[b][bf]);

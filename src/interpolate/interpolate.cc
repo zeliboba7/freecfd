@@ -102,6 +102,7 @@ void Interpolate::sort_stencil(void) {
 
 bool Interpolate::interpolate_tetra(void) {
 	
+	return false; // disable until implemented
 	if (dimension!=3) return false;
 	if (stencil.size()<4) return false;
 

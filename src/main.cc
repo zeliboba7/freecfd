@@ -124,6 +124,7 @@ int main(int argc, char *argv[]) {
 		grid[gid].gid=gid;
 		// Read the grid raw data from file
 		grid[gid].read(input.section("grid",gid).get_string("file"));
+
 		// Do the transformations
 		int tcount=input.section("grid",gid).subsection("transform",0).count;
 		
@@ -143,6 +144,7 @@ int main(int argc, char *argv[]) {
 				grid[gid].rotate(anchor,axis,angle);
 			} 
 		}
+
 		// Establish connectivity, area, volume etc... all the needed information
 		grid[gid].setup();
 		set_bcs(gid);

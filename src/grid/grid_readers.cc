@@ -121,7 +121,7 @@ int Grid::readCGNS() {
 			max_y[zoneIndex-1]=max(coordY[zoneIndex-1][c],max_y[zoneIndex-1]);
 			max_z[zoneIndex-1]=max(coordZ[zoneIndex-1][c],max_z[zoneIndex-1]);
 		}
-
+		
 		// In case there are multiple connected zones, collapse the repeated nodes and fix the node numbering
 		if (zoneIndex==1) { // If the first zone
 			for (int c=0;c<coordX[0].size();++c) {
@@ -136,13 +136,13 @@ int Grid::readCGNS() {
 				bool foundFlag=false;
 
 				for (int z=0;z<zoneIndex-1;++z) { // Loop other zones
-					if (coordX[zoneIndex-1][c]<(min_x[z]-block_stitch_tolerance)) break;
-					if (coordY[zoneIndex-1][c]<(min_y[z]-block_stitch_tolerance)) break;
-					if (coordZ[zoneIndex-1][c]<(min_z[z]-block_stitch_tolerance)) break;
+					if (coordX[zoneIndex-1][c]<(min_x[z]-block_stitch_tolerance)) continue;
+					if (coordY[zoneIndex-1][c]<(min_y[z]-block_stitch_tolerance)) continue;
+					if (coordZ[zoneIndex-1][c]<(min_z[z]-block_stitch_tolerance)) continue;
 					
-					if (coordX[zoneIndex-1][c]>(max_x[z]+block_stitch_tolerance)) break;
-					if (coordY[zoneIndex-1][c]>(max_y[z]+block_stitch_tolerance)) break;
-					if (coordZ[zoneIndex-1][c]>(max_z[z]+block_stitch_tolerance)) break;
+					if (coordX[zoneIndex-1][c]>(max_x[z]+block_stitch_tolerance)) continue;
+					if (coordY[zoneIndex-1][c]>(max_y[z]+block_stitch_tolerance)) continue;
+					if (coordZ[zoneIndex-1][c]>(max_z[z]+block_stitch_tolerance)) continue;
 
 					for (int c2=0;c2<coordX[z].size();++c2) {
 						if (fabs(coordX[zoneIndex-1][c]-coordX[z][c2])<block_stitch_tolerance && fabs(coordY[zoneIndex-1][c]-coordY[z][c2])<block_stitch_tolerance && fabs(coordZ[zoneIndex-1][c]-coordZ[z][c2])<block_stitch_tolerance) {
@@ -357,7 +357,7 @@ int Grid::readCGNS() {
 	}
 	 
 	 */
-	 
+
 	if (Rank==0) cout << "[I] Total Cell Count= " << globalCellCount << endl;
 
 	return 0;

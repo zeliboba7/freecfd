@@ -76,7 +76,6 @@ void Grid::write_cas(void) {
 		file << "(13 (" << zone << " 1 " << hex << indices.size() << " " << hex << 2 << " 0)(" << endl;
 		for (int i=0;i<indices.size();++i) {
 				file << hex << face[indices[i]].nodeCount << "\t";
-			if (face[indices[i]].nodeCount==3) cout << faceNode(indices[i],0) << endl;
 			for (int fn=face[indices[i]].nodeCount-1;fn>=0;--fn) {
 				file << hex << face[indices[i]].nodes[fn]+1 << "\t";
 			}

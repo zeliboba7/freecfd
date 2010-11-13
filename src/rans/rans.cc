@@ -111,7 +111,10 @@ void RANS::create_vars (void) {
 	gradk.allocate(gid);
 	gradomega.allocate(gid);
 	update.resize(2);
+
 	for (int i=0; i<2; ++i) update[i].allocate(gid);
+	
+	yplus.cellStore=false; yplus.allocate(gid);
 	
 	return;
 }

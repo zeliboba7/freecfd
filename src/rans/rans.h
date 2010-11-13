@@ -64,7 +64,7 @@ public:
 	int order,model;
 	int Rank,np;
 	int nVars;
-	Variable<double> k,omega,mu_t,strainRate;
+	Variable<double> k,omega,mu_t,strainRate,yplus;
 	Variable<Vec3D> gradk,gradomega;
 	vector<Variable<double> > update;
 	RANS_Model komega,kepsilon;

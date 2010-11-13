@@ -106,12 +106,16 @@ int Grid::areas_volumes() {
 	// i.e Even though volume/centroid of tetrahedra is easy enough, we still break it down to
 	// smaller tetrahedras
 
+	Vec3D centroid;
+	Vec3D areaVec;
+	Vec3D patchCentroid,patchArea;
 	// Now loop through faces and calculate centroids and areas
 	for (int f=0;f<faceCount;++f) {
 		// Use special form for triangles and quads to improve accuracy
 				
 		// Find an approxiamate centroid (true centroid for triangle and quad)
-		Vec3D centroid=0.;
+		centroid=0.;
+		areaVec=0.;
 		/*
 		for (int n=0;n<face[f].nodeCount;++n) {
 			centroid+=faceNode(f,n);
@@ -135,26 +139,24 @@ int Grid::areas_volumes() {
 			
 		} else {
 */
-			Vec3D areaVec=0.;
-			Vec3D patchCentroid,patchArea;
 
-			// Sum the area as a patch of triangles formed by connecting two nodes and an interior point
-			face[f].centroid=0.;
-			areaVec=0.;
-			int next;
+		// Sum the area as a patch of triangles formed by connecting two nodes and an interior point
+		face[f].centroid=0.;
+		areaVec=0.;
+		int next;
 		centroid=faceNode(f,0);
-			// First calculate face normal
-			face[f].normal=(faceNode(f,2)-faceNode(f,1)).cross(faceNode(f,0)-faceNode(f,1)).norm();
-			for (int n=1;n<face[f].nodeCount;++n) {
-				next=n+1;
-				if (next==face[f].nodeCount) next=0;
-				patchArea=0.5*(faceNode(f,n)-centroid).cross(faceNode(f,next)-centroid);
-				patchCentroid=1./3.*(faceNode(f,n)+faceNode(f,next)+centroid);
-				face[f].centroid+=(patchCentroid-centroid)*patchArea.dot(face[f].normal);
-				areaVec+=patchArea;
-			}
-			face[f].area=fabs(areaVec);
-			face[f].centroid=face[f].centroid/face[f].area+centroid;
+		// First calculate face normal
+		face[f].normal=(faceNode(f,2)-faceNode(f,1)).cross(faceNode(f,0)-faceNode(f,1)).norm();
+		for (int n=1;n<face[f].nodeCount;++n) {
+			next=n+1;
+			if (next==face[f].nodeCount) next=0;
+			patchArea=0.5*(faceNode(f,n)-centroid).cross(faceNode(f,next)-centroid);
+			patchCentroid=1./3.*(faceNode(f,n)+faceNode(f,next)+centroid);
+			face[f].centroid+=(patchCentroid-centroid)*patchArea.dot(face[f].normal);
+			areaVec+=patchArea;
+		}
+		face[f].area=fabs(areaVec);
+		face[f].centroid=face[f].centroid/face[f].area+centroid;
 		//cout << "face " << f << "\t" << face[f].normal << "\t" << face[f].area << "\t" << face[f].centroid << endl;
 //		}
 	}
