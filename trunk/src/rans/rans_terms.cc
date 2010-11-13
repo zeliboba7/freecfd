@@ -62,6 +62,16 @@ void RANS::terms(void) {
 		lam_visc=ns[gid].material.viscosity(ns[gid].T.face(f));
 		turb_visc=mu_t.face(f);
 		
+		// Fill in the yplus info for output
+		int bcno=grid[gid].face[f].bc;
+		if (bcno>=0) {
+			Vec3D tau=ns[gid].tau.bc(bcno,f);
+			double tau_w=fabs((tau-tau.dot(grid[gid].face[f].normal)*grid[gid].face[f].normal));
+			double u_star=sqrt(tau_w/ns[gid].rho.face(f));
+			double height=(grid[gid].face[f].centroid-grid[gid].cell[parent].centroid).dot(grid[gid].face[f].normal);
+			yplus.bc(bcno,f)=ns[gid].rho.face(f)*u_star*height/lam_visc;
+		}
+		
 		// Convective flux is based on mdot calculated through the Riemann solver right after
 		// main flow was updated
 		

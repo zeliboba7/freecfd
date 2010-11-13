@@ -71,6 +71,9 @@ void RANS::set_bcs(void) {
 				mu_t.bc(b)=0.;		
 			}
 		}
+		
+		 yplus.bcValue[b].resize(grid[gid].boundaryFaceCount[b][grid[gid].Rank]);
+		
 	}
 		
 	return;
