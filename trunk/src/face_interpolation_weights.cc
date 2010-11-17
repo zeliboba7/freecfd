@@ -57,6 +57,22 @@ void face_interpolation_weights(int gid) {
 	for (int f=0;f<grid[gid].faceCount;++f) {
 		interpolation.point=grid[gid].face[f].centroid;
 		int c=grid[gid].face[f].parent;
+		int n=grid[gid].face[f].neighbor;
+		bool is_internal=false;
+		// Insert the parent and the neighbor cells directly to the interpolation stencil
+		if (grid[gid].face[f].bc==INTERNAL_FACE) {
+			interpolation.stencil.push_back(grid[gid].cell[c].centroid);
+			interpolation.stencil_indices.push_back(c);			
+			interpolation.stencil.push_back(grid[gid].cell[n].centroid);
+			interpolation.stencil_indices.push_back(n);
+			is_internal=true;
+		} else if (grid[gid].face[f].bc==GHOST_FACE) {
+			interpolation.stencil.push_back(grid[gid].cell[c].centroid);
+			interpolation.stencil_indices.push_back(c);			
+			interpolation.stencil.push_back(grid[gid].ghost[-n-1].centroid);
+			interpolation.stencil_indices.push_back(n);	
+			is_internal=true;
+		}
 		// Initialize stencil to nearest neighbor cells
 		// Loop face nodes and their neighboring cells
 		for (int nc=0;nc<grid[gid].cell[c].neighborCells.size();++nc) stencil.insert(grid[gid].cell[c].neighborCells[nc]);
@@ -69,12 +85,16 @@ void face_interpolation_weights(int gid) {
 			// Add neighbor cell's ghosts
 			for (int g=0;g<grid[gid].cell[c].ghosts.size();++g) stencil.insert(-1*grid[gid].cell[c].ghosts[g]-1);
 		}
+		// Eliminate parent and neighbor from stencil set (those were directly inserted into interpolation class stencil)
+		stencil.erase(grid[gid].face[f].parent);
+		stencil.erase(grid[gid].face[f].neighbor);
+
 		for (sit=stencil.begin();sit!=stencil.end();sit++) {
 			interpolation.stencil_indices.push_back(*sit);
 			if (*sit>=0) interpolation.stencil.push_back(grid[gid].cell[*sit].centroid);
 			else interpolation.stencil.push_back(grid[gid].ghost[-1*(*sit)-1].centroid);
 		}
-		interpolation.calculate_weights();
+		interpolation.calculate_weights(is_internal);
 		double weightSum=0.;
 		for (int i=0;i<interpolation.weights.size();++i) {
 			grid[gid].face[f].average.insert(pair<int,double>(interpolation.stencil_indices[i],interpolation.weights[i]));
