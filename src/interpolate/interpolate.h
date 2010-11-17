@@ -52,7 +52,7 @@ private:
 	bool interpolate_tri(void);
 	bool interpolate_line(void);
 	bool interpolate_point(void);
-	void sort_stencil(void);
+	void sort_stencil(bool is_internal);
 	
 public:
 	// Inputs
@@ -69,7 +69,7 @@ public:
 
 	
 	void init(void);
-	void calculate_weights(void);
+	void calculate_weights(bool is_internal);
 	void flush(void);
 	
 };

@@ -33,11 +33,11 @@ void Interpolate::init(void) {
 	return;
 }
 
-void Interpolate::calculate_weights(void) {
+void Interpolate::calculate_weights(bool is_internal) {
 	
 	// Sort the stencil based on closest distance
 	// and truncate based on max_stencil_size
-	sort_stencil();
+	sort_stencil(is_internal);
 	
 	weights.resize(stencil.size());
 	for (int i=0;i<weights.size();++i) weights[i]=0.;
@@ -59,7 +59,7 @@ void Interpolate::flush(void) {
 	return;
 }
 
-void Interpolate::sort_stencil(void) {
+void Interpolate::sort_stencil(bool is_internal) {
 
 	int stencil_size=stencil.size();
 	vector<double> distances;
@@ -69,26 +69,47 @@ void Interpolate::sort_stencil(void) {
 	// Store distances to the point
 	for (vit=stencil.begin();vit!=stencil.end();vit++) distances.push_back(fabs(*vit-point));
 	
-	// Sort distances
-	for (int d=0;d<distances.size();++d) {
-		for (int m=0;m<min_distances.size();++m) {
-			if (distances[d]<=min_distances[m]) {
-				for (int i=order.size()-1;i>m;--i) order[i]=order[i-1];
-				for (int i=order.size()-1;i>m;--i) min_distances[i]=min_distances[i-1];
-				order[m]=d;
-				min_distances[m]=distances[d];
-				break;
-			}
-		}
-	}
-	
 	vector<Vec3D> new_stencil (order.size(),0.);
 	vector<int> new_stencil_indices (order.size(),0.);
-	for (int i=0;i<order.size();++i) {
-		new_stencil[i]=stencil[order[i]];
-		new_stencil_indices[i]=stencil_indices[order[i]];
-	}
 	
+	// Sort distances
+	if (is_internal) { // Keep the first 2 (parent and neighbor) in the stencil unchanged
+		for (int d=2;d<distances.size();++d) {
+			for (int m=2;m<min_distances.size();++m) {
+				if (distances[d]<=min_distances[m]) {
+					for (int i=order.size()-1;i>m;--i) order[i]=order[i-1];
+					for (int i=order.size()-1;i>m;--i) min_distances[i]=min_distances[i-1];
+					order[m]=d;
+					min_distances[m]=distances[d];
+					break;
+				}
+			}
+		}
+		new_stencil[0]=stencil[0];
+		new_stencil[1]=stencil[1];
+		for (int i=2;i<order.size();++i) {
+			new_stencil[i]=stencil[order[i]];
+			new_stencil_indices[i]=stencil_indices[order[i]];
+		}
+	} else {
+		for (int d=0;d<distances.size();++d) {
+			for (int m=0;m<min_distances.size();++m) {
+				if (distances[d]<=min_distances[m]) {
+					for (int i=order.size()-1;i>m;--i) order[i]=order[i-1];
+					for (int i=order.size()-1;i>m;--i) min_distances[i]=min_distances[i-1];
+					order[m]=d;
+					min_distances[m]=distances[d];
+					break;
+				}
+			}
+		}
+
+		for (int i=0;i<order.size();++i) {
+			new_stencil[i]=stencil[order[i]];
+			new_stencil_indices[i]=stencil_indices[order[i]];
+		}
+	}
+
 	stencil=new_stencil;
 	stencil_indices=new_stencil_indices;
 	
