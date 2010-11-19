@@ -71,9 +71,13 @@ void Interpolate::sort_stencil(bool is_internal) {
 	
 	vector<Vec3D> new_stencil (order.size(),0.);
 	vector<int> new_stencil_indices (order.size(),0.);
+
+	//is_internal=false;
 	
 	// Sort distances
 	if (is_internal) { // Keep the first 2 (parent and neighbor) in the stencil unchanged
+		order[0]=0;
+		order[1]=1;
 		for (int d=2;d<distances.size();++d) {
 			for (int m=2;m<min_distances.size();++m) {
 				if (distances[d]<=min_distances[m]) {
@@ -84,12 +88,6 @@ void Interpolate::sort_stencil(bool is_internal) {
 					break;
 				}
 			}
-		}
-		new_stencil[0]=stencil[0];
-		new_stencil[1]=stencil[1];
-		for (int i=2;i<order.size();++i) {
-			new_stencil[i]=stencil[order[i]];
-			new_stencil_indices[i]=stencil_indices[order[i]];
 		}
 	} else {
 		for (int d=0;d<distances.size();++d) {
@@ -104,10 +102,11 @@ void Interpolate::sort_stencil(bool is_internal) {
 			}
 		}
 
-		for (int i=0;i<order.size();++i) {
-			new_stencil[i]=stencil[order[i]];
-			new_stencil_indices[i]=stencil_indices[order[i]];
-		}
+	}
+
+	for (int i=0;i<order.size();++i) {
+		new_stencil[i]=stencil[order[i]];
+		new_stencil_indices[i]=stencil_indices[order[i]];
 	}
 
 	stencil=new_stencil;

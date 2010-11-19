@@ -86,8 +86,10 @@ void face_interpolation_weights(int gid) {
 			for (int g=0;g<grid[gid].cell[c].ghosts.size();++g) stencil.insert(-1*grid[gid].cell[c].ghosts[g]-1);
 		}
 		// Eliminate parent and neighbor from stencil set (those were directly inserted into interpolation class stencil)
-		stencil.erase(grid[gid].face[f].parent);
-		stencil.erase(grid[gid].face[f].neighbor);
+		if (is_internal) {
+			stencil.erase(grid[gid].face[f].parent);
+			stencil.erase(grid[gid].face[f].neighbor);
+		}
 
 		for (sit=stencil.begin();sit!=stencil.end();sit++) {
 			interpolation.stencil_indices.push_back(*sit);
@@ -105,6 +107,18 @@ void face_interpolation_weights(int gid) {
 		else if (interpolation.method==3) tri_intp_count++; 
 		else if (interpolation.method==2) line_intp_count++;
 		else if (interpolation.method==1) point_intp_count++;
+
+		/*	
+		if (grid[gid].face[f].parent==114918) {
+			cout << endl;
+			cout << f << "\t" << interpolation.method << "\t" << grid[gid].face[f].centroid <<  endl;
+			cout << grid[gid].face[f].normal << endl;
+			for (int i=0;i<interpolation.stencil.size();++i) cout << interpolation.stencil_indices[i] << "\t";
+			cout << endl;
+			for (int i=0;i<interpolation.stencil.size();++i) cout << interpolation.weights[i] << "\t";
+			cout << endl;
+		}
+		*/
 		
 		interpolation.flush();
 		stencil.clear();
