@@ -129,9 +129,5 @@ void face_interpolation_weights(int gid) {
 	cout << "[I rank=" << Rank << "] Face centers for which line interpolation method was used = " << line_intp_count << endl; 
 	cout << "[I rank=" << Rank << "] Face centers for which point interpolation method was used = " << point_intp_count << endl;
 
-	/*
-		a3.clear(); b3.clear(); weights3.clear();
-		a4.clear(); b4.clear(); weights4.clear();
-	 */
 	return;
 }

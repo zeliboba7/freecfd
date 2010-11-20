@@ -104,6 +104,7 @@ public:
 	std::vector<int> faces;
 	std::vector<int> neighborCells;
 	std::vector<int> ghosts;
+	std::map<int,Vec3D> gradMap;
 	Cell(void);
 	bool HaveNodes(int &nodelistsize, int nodelist[]) ;
 };
