@@ -30,6 +30,7 @@
 #define IDW 1 
 
 #include <iomanip>
+#include <cmath>
 using namespace std;
 
 #include "vec3d.h"
@@ -42,11 +43,12 @@ private:
 	vector<vector<double> > a3,a4;
 	vector<double> b3,b4,weights3,weights4;
 	
-	Vec3D planeNormal,edge1,edge2,edge3,edge4,p_point,centroid;
+	Vec3D planeNormal,edge1,edge2,edge3,edge4,edge5,edge6,p_point,centroid;
 	Vec3D basis1,basis2,basis3;
 	double area,equilateral_area,ave_edge,skewness;
+	double volume,equilateral_volume;
 	double tri_weight,tetra_weight,distance;
-	double weightSum,tri_weight_sum,tetra_weight_sum;
+	double weightSum;
 
 	bool interpolate_tetra(void);
 	bool interpolate_tri(void);

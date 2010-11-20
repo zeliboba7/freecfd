@@ -1,11 +1,11 @@
 set (CMAKE_CXX_COMPILER mpic++)
 set (CMAKE_CXX_FLAGS "-O3")
-set (CGNS_INCLUDE_DIRS /sde1-fs/esozer/codes/cgnslib_2.5)
-set (CGNS_LIBRARY_DIRS /sde1-fs/esozer/codes/cgnslib_2.5/LINUX)
-set (PARMETIS_INCLUDE_DIRS /sde1-fs/esozer/codes/ParMetis-3.1.1)
-set (PARMETIS_LIBRARY_DIRS /sde1-fs/esozer/codes/ParMetis-3.1.1)
-set (PETSC_INCLUDE_DIRS /sde1-fs/esozer/codes/petsc-3.1p2-install/include)
-set (PETSC_LIBRARY_DIRS /sde1-fs/esozer/codes/petsc-3.1p2-install/lib)
+set (CGNS_INCLUDE_DIRS /Users/esozer/fcfd/deps/cgnslib_2.5/include)
+set (CGNS_LIBRARY_DIRS /Users/esozer/fcfd/deps/cgnslib_2.5/lib)
+set (PARMETIS_INCLUDE_DIRS /Users/esozer/fcfd/deps/ParMetis-3.1.1)
+set (PARMETIS_LIBRARY_DIRS /Users/esozer/fcfd/deps/ParMetis-3.1.1)
+set (PETSC_INCLUDE_DIRS /Users/esozer/fcfd/deps/petsc-3.1-p2/include /Users/esozer/fcfd/deps/petsc-3.1-p2/darwin9.8.0-c-debug/include)
+set (PETSC_LIBRARY_DIRS /Users/esozer/fcfd/deps/petsc-3.1-p2/darwin9.8.0-c-debug/lib)
 
 cmake_minimum_required(VERSION 2.6)
 
@@ -61,10 +61,20 @@ set (EXTRA_LIBS parmetis metis cgns petsc f2cblas f2clapack)
 
 #add the executable
 set (SOURCES
-bc_interface.cc      face_interpolation_weights.cc	main.cc              read_restart.cc
-time_step.cc         write_restart.cc			bc_interface_sync.cc read_inputs.cc       
-set_bcs.cc           write_surface_output.cc		write_volume_output.cc
+bc_interface.cc
+face_interpolation_weights.cc
+hexa_gradient_maps.cc
+main.cc
+read_restart.cc
+time_step.cc
+write_restart.cc			
+bc_interface_sync.cc	
+read_inputs.cc       
+set_bcs.cc 
+write_surface_output.cc	
+write_volume_output.cc
 )
+
 add_executable(freecfd ${SOURCES})
 
 target_link_libraries (freecfd ${FCFD_LIBS} ${EXTRA_LIBS})

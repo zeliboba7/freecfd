@@ -231,26 +231,30 @@ TYPE &Variable<TYPE>::node_calculate (int n) {
 
 template <class TYPE>
 vector<TYPE> Variable<TYPE>::cell_gradient (int c) {
-	
-	map<int,Vec3D>::iterator it;
-	map<int,double>::iterator fit;
-	int f;
-	Vec3D areaVec;
+
 	vector<TYPE> grad (3,0.);
-	// TODO: Calculate gradient using face average map
-	//       Incorporate BC values (maybe optional)
-	
-	// The grad map loop above doesn't count the boundary faces
-	// Add boundary face contributions
-	for (int cf=0;cf<grid[gid].cell[c].faceCount;++cf) {
-		f=grid[gid].cell[c].faces[cf];		
-		//if (grid[gid].face[f].bc>=0) { // if a boundary face
+
+	if (grid[gid].cell[c].gradMap.size()!=0) {
+		map<int,Vec3D>::iterator it;
+		for (it=grid[gid].cell[c].gradMap.begin();it!=grid[gid].cell[c].gradMap.end(); it++ ) {
+			if ((*it).first>=0) { // if contribution is coming from a real cell
+				for (int i=0;i<3;++i) grad[i]+=(*it).second[i]*(this->*get_cell)((*it).first);
+			} else { // if contribution is coming from a ghost cell
+				for (int i=0;i<3;++i) grad[i]+=(*it).second[i]*(this->*get_ghost)(-1*((*it).first+1));
+			}
+		} // end gradMap loop
+	} else {
+		int f;
+		Vec3D areaVec;
+		// The grad map loop above doesn't count the boundary faces
+		// Add boundary face contributions
+		for (int cf=0;cf<grid[gid].cell[c].faceCount;++cf) {
+			f=grid[gid].cell[c].faces[cf];		
 			areaVec=grid[gid].face[f].normal*grid[gid].face[f].area/grid[gid].cell[c].volume;
 			if (grid[gid].face[f].parent!=c) areaVec*=-1.;
 			for (int i=0;i<3;++i) grad[i]+=(this->*get_face)(f)*areaVec[i];				
-		//} // end if a boundary face
-	} // end cell face loop
-	
+		} // end cell face loop
+	}
 	return grad;
 }
 

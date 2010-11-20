@@ -56,6 +56,7 @@ void update_time_step_options(void);
 void update_time_step(int timeStep,double &time,int gid);
 void bc_interface_sync(void);
 void face_interpolation_weights(int gid);
+void hexa_gradient_maps(int gid);
 	
 // Global declerations
 InputFile input;
@@ -159,8 +160,7 @@ int main(int argc, char *argv[]) {
 		if (Rank==0) cout << "[I grid=" << gid+1 << " ] Calculating face averaging metrics, this might take a while..." << endl;
 
 		face_interpolation_weights(gid);
-        //grid[gid].faceAverages();
-		//grid[gid].nodeAverages(); // Linear triangular (tetrahedral) + idw blended mode
+		hexa_gradient_maps(gid);
 	}
 
 	for (int gid=0;gid<grid.size();++gid) {
