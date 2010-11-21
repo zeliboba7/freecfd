@@ -375,20 +375,13 @@ void NavierStokes::face_state_update(NS_Cell_State &left,NS_Cell_State &right,NS
 	face.gradv=gradv.face(face.index);
 	face.gradw=gradw.face(face.index);
 	face.gradT=gradT.face(face.index);
-	
+
+	//  The old way of doing deferred correction (REMOVE after enough testing)
 	//face.gradu-=face.gradu.dot(face.normal)*face.normal;
 	//face.gradu+=((right.V_center[0]-left.V_center[0])/(face.left2right.dot(face.normal)))*face.normal;
-	
-	//face.gradv-=face.gradv.dot(face.normal)*face.normal;
-	//face.gradv+=((right.V_center[1]-left.V_center[1])/(face.left2right.dot(face.normal)))*face.normal;
 
-	//face.gradw-=face.gradw.dot(face.normal)*face.normal;
-	//face.gradw+=((right.V_center[2]-left.V_center[2])/(face.left2right.dot(face.normal)))*face.normal;
-	
-	//face.gradT-=face.gradT.dot(face.normal)*face.normal;
-	//face.gradT+=((right.T_center-left.T_center)/(face.left2right.dot(face.normal)))*face.normal;
-
-	Vec3D l2rnormal=face.left2right.norm();
+	Vec3D l2rnormal=face.left2right;
+	l2rnormal=l2rnormal.norm();
 	double l2rmag=fabs(face.left2right);
 
 	face.gradu-=face.gradu.dot(l2rnormal)*l2rnormal;
@@ -404,6 +397,7 @@ void NavierStokes::face_state_update(NS_Cell_State &left,NS_Cell_State &right,NS
 	face.gradT+=((right.T_center-left.T_center)/(l2rmag))*l2rnormal;
 	 
 	// Boundary conditions are already taken care of in right state update
+
 	// TODO: In first order, this won't be a good averaging
 	
 	//if (face.bc>=0) {
@@ -467,8 +461,9 @@ void NavierStokes::state_perturb(NS_Cell_State &state,NS_Face_State &face,int va
 void NavierStokes::face_state_adjust(NS_Cell_State &left,NS_Cell_State &right,NS_Face_State &face,int var) {
 
 
-        Vec3D l2rnormal=face.left2right.norm();
-        double l2rmag=fabs(face.left2right);
+	Vec3D l2rnormal=face.left2right;
+	l2rnormal=l2rnormal.norm();
+	double l2rmag=fabs(face.left2right);
 
 	switch (var)
 	{
@@ -479,25 +474,25 @@ void NavierStokes::face_state_adjust(NS_Cell_State &left,NS_Cell_State &right,NS
 		case 1 : // u
 			face.V[0]=0.5*(left.V[0]+right.V[0]);
 			//if (face.bc<0) face.V[0]=V.face(face.index)[0];
-		        face.gradu-=face.gradu.dot(l2rnormal)*l2rnormal;
-		        face.gradu+=((right.V_center[0]-left.V_center[0])/(l2rmag))*l2rnormal;
+			face.gradu-=face.gradu.dot(l2rnormal)*l2rnormal;
+			face.gradu+=((right.V_center[0]-left.V_center[0])/(l2rmag))*l2rnormal;
 		case 2 : // v
 			face.V[1]=0.5*(left.V[1]+right.V[1]);
 			//if (face.bc<0) face.V[1]=V.face(face.index)[1];
-		        face.gradv-=face.gradv.dot(l2rnormal)*l2rnormal;
-		        face.gradv+=((right.V_center[1]-left.V_center[1])/(l2rmag))*l2rnormal;
+			face.gradv-=face.gradv.dot(l2rnormal)*l2rnormal;
+			face.gradv+=((right.V_center[1]-left.V_center[1])/(l2rmag))*l2rnormal;
 			break;
 		case 3 : // w
 			face.V[2]=0.5*(left.V[2]+right.V[2]);
 			//if (face.bc<0) face.V[2]=V.face(face.index)[2];
-		        face.gradw-=face.gradw.dot(l2rnormal)*l2rnormal;
-		        face.gradw+=((right.V_center[2]-left.V_center[2])/(l2rmag))*l2rnormal;
+			face.gradw-=face.gradw.dot(l2rnormal)*l2rnormal;
+			face.gradw+=((right.V_center[2]-left.V_center[2])/(l2rmag))*l2rnormal;
 			break;
 		case 4 : // T
 			face.T=0.5*(left.T+right.T);
 			//if (face.bc<0) face.T=T.face(face.index);
-		        face.gradT-=face.gradT.dot(l2rnormal)*l2rnormal;
-		        face.gradT+=((right.T_center-left.T_center)/(l2rmag))*l2rnormal;
+			face.gradT-=face.gradT.dot(l2rnormal)*l2rnormal;
+			face.gradT+=((right.T_center-left.T_center)/(l2rmag))*l2rnormal;
 			face.mu=material.viscosity(face.T);
 			face.lambda=material.therm_cond(face.T);
 			break;

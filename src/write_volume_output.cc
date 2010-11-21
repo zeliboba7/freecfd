@@ -22,6 +22,7 @@
 *************************************************************************/
 #include <iostream>
 #include <fstream>
+#include <iomanip>
 using namespace std;
 
 #include "utilities.h"
@@ -70,6 +71,7 @@ void write_loads(int gid,int step,double time) {
 		if (Rank==0) {
 			string fileName="./output/loads_grid_"+int2str(gid+1)+"_BC_"+int2str(loads[gid].include_bcs[b]+1)+".dat";
 			file.open((fileName).c_str(),ios::app);
+			file << scientific << setprecision(8);
 			file << step << "\t" << time << "\t";
 			file << force_x << "\t" << force_y << "\t" << force_z << "\t" << moment_x << "\t" << moment_y << "\t" << moment_z << endl;
 			file.close();
@@ -311,12 +313,6 @@ void write_tec_var(int ov, int i) {
 			if ((c+1)%10==0) file << "\n";
 			else file << "\t";
 		}
-	} else if (varList[ov]=="value_grad") {
-		for (int c=0;c<grid[gid].cellCount;++c) {
-			file << ns[gid].gradrho.cell(c)[0];
-			if ((c+1)%10==0) file << "\n";
-			else file << "\t";
-		}
 	} else if (varList[ov]=="percent_grad_error") {
 		if (gradient_test==LINEAR) {
 			for (int c=0;c<grid[gid].cellCount;++c) {
@@ -402,6 +398,12 @@ void write_tec_var(int ov, int i) {
 	} else if (varList[ov]=="gradomega") {
 		for (int c=0;c<grid[gid].cellCount;++c) {
 			file << rans[gid].gradomega.cell(c)[i];
+			if ((c+1)%10==0) file << "\n";
+			else file << "\t";
+		}
+	} else if (varList[ov]=="grad") {
+		for (int c=0;c<grid[gid].cellCount;++c) {
+			file << ns[gid].gradrho.cell(c)[i];
 			if ((c+1)%10==0) file << "\n";
 			else file << "\t";
 		}

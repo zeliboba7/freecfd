@@ -44,7 +44,7 @@ void read_inputs(void) {
 	
 	input.section("grid",0).registerSubsection("interpolation",single,optional);
 	input.section("grid",0).subsection("interpolation").register_int("stencilsize",optional,-1); // Decides default based on grid dimension
-	input.section("grid",0).subsection("interpolation").register_double("skewnesstolerance",optional,0.9);
+	input.section("grid",0).subsection("interpolation").register_double("skewnesstolerance",optional,0.99);
 	
 	input.section("grid",0).registerSubsection("writeoutput",single,required);
 	input.section("grid",0).subsection("writeoutput").register_string("format",optional,"tecplot");
