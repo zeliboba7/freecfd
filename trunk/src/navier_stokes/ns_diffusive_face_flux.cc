@@ -48,7 +48,7 @@ void NavierStokes::diffusive_face_flux(NS_Cell_State &left,NS_Cell_State &right,
 	tau_z[0]=tau_x[2];
 	tau_z[1]=tau_y[2];
 	tau_z[2]=2./3.*(2.*face.gradw[2]-face.gradu[0]-face.gradv[1]);
-
+	
 	flux[1]=(face.mu+turb_visc)*tau_x.dot(areaVec);
 	flux[2]=(face.mu+turb_visc)*tau_y.dot(areaVec);
 	flux[3]=(face.mu+turb_visc)*tau_z.dot(areaVec);
