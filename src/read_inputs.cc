@@ -108,7 +108,7 @@ void read_inputs(void) {
 	input.section("grid",0).subsection("turbulence").register_double("absolutetolerance",optional,1.e-12);
 	input.section("grid",0).subsection("turbulence").register_int("maximumiterations",optional,10);	
 	input.section("grid",0).subsection("turbulence").register_string("model",optional,"sst");
-	input.section("grid",0).subsection("turbulence").register_string("order",optional,"second");
+	input.section("grid",0).subsection("turbulence").register_string("order",optional,"first");
 	input.section("grid",0).subsection("turbulence").register_double("klowlimit",optional,1.e-8);
 	input.section("grid",0).subsection("turbulence").register_double("khighlimit",optional,1.e4);
 	input.section("grid",0).subsection("turbulence").register_double("omegalowlimit",optional,1.);
@@ -121,8 +121,8 @@ void read_inputs(void) {
 	input.section("grid",0).subsection("navierstokes").register_int("maximumiterations",optional,10);	
 	input.section("grid",0).subsection("navierstokes").register_string("limiter",optional,"vk");
 	input.section("grid",0).subsection("navierstokes").register_double("limiterthreshold",optional,1.);
-	input.section("grid",0).subsection("navierstokes").register_string("order",optional,"second");
-	input.section("grid",0).subsection("navierstokes").register_string("jacobianorder",optional,"first");
+	input.section("grid",0).subsection("navierstokes").register_string("order",optional,"first");
+	input.section("grid",0).subsection("navierstokes").register_string("jacobianorder",optional,"second");
 	input.section("grid",0).subsection("navierstokes").register_string("convectiveflux",optional,"AUSM+up");
 	
 	input.section("grid",0).registerSubsection("transform",numbered,optional);

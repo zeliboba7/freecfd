@@ -267,10 +267,7 @@ void NavierStokes::get_jacobians(const int var) {
 
 void NavierStokes::left_state_update(NS_Cell_State &left,NS_Face_State &face) {
 	
-	int parent;
-	
-	parent=grid[gid].face[face.index].parent;
-
+	int parent=grid[gid].face[face.index].parent;
 	Vec3D cell2face=order_factor*grid[gid].face[face.index].centroid-grid[gid].cell[parent].centroid;
 	Vec3D deltaV;
 	left.p=p.cell(parent)+limiter[0].cell(parent)*cell2face.dot(gradp.cell(parent));
@@ -300,7 +297,6 @@ void NavierStokes::right_state_update(NS_Cell_State &left,NS_Cell_State &right,N
 	if (face.bc==INTERNAL_FACE) {// internal face
 
 		int neighbor=grid[gid].face[face.index].neighbor;
-		
 		Vec3D cell2face=order_factor*grid[gid].face[face.index].centroid-grid[gid].cell[neighbor].centroid;
 		Vec3D deltaV;
 		right.p=p.cell(neighbor)+limiter[0].cell(neighbor)*cell2face.dot(gradp.cell(neighbor));
@@ -375,7 +371,7 @@ void NavierStokes::face_state_update(NS_Cell_State &left,NS_Cell_State &right,NS
 	face.gradv=gradv.face(face.index);
 	face.gradw=gradw.face(face.index);
 	face.gradT=gradT.face(face.index);
-
+	
 	//  The old way of doing deferred correction (REMOVE after enough testing)
 	//face.gradu-=face.gradu.dot(face.normal)*face.normal;
 	//face.gradu+=((right.V_center[0]-left.V_center[0])/(face.left2right.dot(face.normal)))*face.normal;

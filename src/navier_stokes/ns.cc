@@ -54,7 +54,7 @@ void NavierStokes::initialize (void) {
 	if (input.section("grid",gid).subsection("navierstokes").get_string("jacobianorder")=="first") {
 		jac_order=FIRST;
 	} else if (input.section("grid",gid).subsection("navierstokes").get_string("jacobianorder")=="second") {
-		jac_order=SECOND;
+		jac_order=order;
 	}
 	
 	if (input.section("grid",gid).subsection("navierstokes").get_string("convectiveflux")=="AUSM+up") {
@@ -274,10 +274,18 @@ void NavierStokes::calc_cell_grads (void) {
 		gradrho.cell(c)=rho.cell_gradient(c);
 		gradp.cell(c)=p.cell_gradient(c);
 		gradT.cell(c)=T.cell_gradient(c);
+
 		grad=V.cell_gradient(c);
-		gradu.cell(c)=grad[0];
-		gradv.cell(c)=grad[1];
-		gradw.cell(c)=grad[2];
+		gradu.cell(c)[0]=grad[0][0];
+		gradu.cell(c)[1]=grad[1][0];
+		gradu.cell(c)[2]=grad[2][0];
+		gradv.cell(c)[0]=grad[0][1];
+		gradv.cell(c)[1]=grad[1][1];
+		gradv.cell(c)[2]=grad[2][1];
+		gradw.cell(c)[0]=grad[0][2];
+		gradw.cell(c)[1]=grad[1][2];
+		gradw.cell(c)[2]=grad[2][2];
+		
 	 }
 	return;
 }
