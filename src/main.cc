@@ -150,12 +150,6 @@ int main(int argc, char *argv[]) {
 		grid[gid].setup();
 		set_bcs(gid);
 		
-		if (input.section("grid",gid).get_string("equations")=="writecasfile") {
-			cout << "[I] Writing grid.cas file" << endl;
-			grid[gid].write_cas();
-			exit(1);
-		}
-		
 		set_lengthScales(gid);
 		if (Rank==0) cout << "[I grid=" << gid+1 << " ] Calculating face averaging metrics, this might take a while..." << endl;
 

@@ -309,7 +309,7 @@ void RANS::get_kOmega() {
 	} else { rightCentroid=grid[gid].ghost[-1*grid[gid].face[f].neighbor-1].centroid;}
 	
 	left2right=rightCentroid-leftCentroid;
-		
+	
 	// Get right k and omega
 	if (grid[gid].face[f].bc==INTERNAL_FACE) {// internal face
 
@@ -356,8 +356,8 @@ void RANS::get_kOmega() {
 			rightK_center=2.*rightK-leftK_center;
 			rightOmega_center=2.*rightOmega-leftOmega_center;
 		} else if (bc[gid][bcno].type==OUTLET) {
-			rightK_center=leftK_center; 
-			rightOmega_center=leftOmega_center;
+			rightK_center=2.*rightK-leftK_center; 
+			rightOmega_center=2.*rightOmega-leftOmega_center;
 			extrapolated=true;
 		}
 		
@@ -383,12 +383,15 @@ void RANS::get_kOmega() {
 		rightOmega=max(rightOmega,omegaLowLimit);
 	}
 	
-
-	faceGradK-=faceGradK.dot(grid[gid].face[f].normal)*grid[gid].face[f].normal;
-	faceGradK+=(rightK_center-leftK_center)/(left2right.dot(grid[gid].face[f].normal))*grid[gid].face[f].normal;
+	Vec3D l2rnormal=left2right;
+	l2rnormal=l2rnormal.norm();
+	double l2rmag=fabs(left2right);
 	
-	faceGradOmega-=faceGradOmega.dot(grid[gid].face[f].normal)*grid[gid].face[f].normal;
-	faceGradOmega+=(rightOmega_center-leftOmega_center)/(left2right.dot(grid[gid].face[f].normal))*grid[gid].face[f].normal;
+	faceGradK-=faceGradK.dot(l2rnormal)*l2rnormal;
+	faceGradK+=((rightK_center-leftK_center)/(l2rmag))*l2rnormal;
+	
+	faceGradOmega-=faceGradOmega.dot(l2rnormal)*l2rnormal;
+	faceGradOmega+=((rightOmega_center-leftOmega_center)/(l2rmag))*l2rnormal;
 
 	faceK=0.5*(leftK+rightK);
 	faceOmega=0.5*(leftOmega+rightOmega);

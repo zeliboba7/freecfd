@@ -35,7 +35,7 @@ void NavierStokes::diffusive_face_flux(NS_Cell_State &left,NS_Cell_State &right,
 	
 	if (turbulent[gid]) {
 		turb_visc=rans[gid].mu_t.face(face.index);
-		turb_cond=material.Cp(face.T)*turb_visc/material.Pr;
+		turb_cond=material.Cp(face.T)*turb_visc/rans[gid].Pr_t;
 	}
 	
 	areaVec=face.normal*face.area;

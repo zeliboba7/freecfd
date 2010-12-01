@@ -584,6 +584,7 @@ void write_vtk(void) {
 			else if (varList[ov]=="Mach") {
 				for (int n=0;n<grid[gid].nodeCount;++n) file << fabs(ns[gid].V.node(n))/ns[gid].material.a(ns[gid].p.node(n),ns[gid].T.node(n)) << endl;
 			}
+			else if (varList[ov]=="rank") for (int n=0;n<grid[gid].nodeCount;++n) file << Rank << endl;
 			// Vectors
 			else if (varList[ov]=="V") for (int n=0;n<grid[gid].nodeCount;++n) file << ns[gid].V.node(n)[i] << endl; 
 			else if (varList[ov]=="gradp") for (int n=0;n<grid[gid].nodeCount;++n) file << ns[gid].gradp.node(n)[i] << endl;
