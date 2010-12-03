@@ -329,31 +329,30 @@ void NavierStokes::update_variables(void) {
 		}
 		
 		// If the last pseudo time step
-		if (ps_step==ps_step_max) {
-			if (ps_step_max>1) { // If pseudo time iterations are active
-				for (int i=0;i<5;++i) {
-					row=(grid[gid].myOffset+c)*5+i;
-					VecGetValues(pseudo_delta,1,&row,&update[i].cell(c));
-				}
+		if (ps_step_max>1) { // If pseudo time iterations are active
+			for (int i=0;i<5;++i) {
+				row=(grid[gid].myOffset+c)*5+i;
+				VecGetValues(pseudo_delta,1,&row,&update[i].cell(c));
 			}
-			dt2=dt[gid].cell(c)*dt[gid].cell(c);
-			residuals[0]+=update[0].cell(c)*update[0].cell(c)/dt2;
-			residuals[1]+=update[1].cell(c)*update[1].cell(c)/dt2+update[2].cell(c)*update[2].cell(c)/dt2+update[3].cell(c)*update[3].cell(c)/dt2;
-			residuals[2]+=update[4].cell(c)*update[4].cell(c)/dt2;
-		} 
+		}
+		dt2=dt[gid].cell(c)*dt[gid].cell(c);
+		residuals[0]+=update[0].cell(c)*update[0].cell(c)/dt2;
+		residuals[1]+=update[1].cell(c)*update[1].cell(c)/dt2+update[2].cell(c)*update[2].cell(c)/dt2+update[3].cell(c)*update[3].cell(c)/dt2;
+		residuals[2]+=update[4].cell(c)*update[4].cell(c)/dt2;
+
 
 		
 	} // cell loop
 	
-	if (ps_step==ps_step_max) MPI_Allreduce(&residuals,&totalResiduals,3, MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+	MPI_Allreduce(&residuals,&totalResiduals,3, MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
 	if (ps_step_max>1) MPI_Allreduce(&ps_residuals,&total_ps_residuals,3, MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
 		
-	if (timeStep==1 && ps_step==ps_step_max) for (int i=0;i<3;++i) first_residuals[i]=sqrt(totalResiduals[i]);
+	if (timeStep==1) for (int i=0;i<3;++i) first_residuals[i]=sqrt(totalResiduals[i]);
 	if (ps_step_max>1 && ps_step==1) for (int i=0;i<3;++i) first_ps_residuals[i]=sqrt(total_ps_residuals[i]);
 	
 	res=0.;
 	ps_res=0.;
-	if (ps_step==ps_step_max) for (int i=0;i<3;++i) res+=sqrt(totalResiduals[i])/first_residuals[i]/3.;
+	for (int i=0;i<3;++i) res+=sqrt(totalResiduals[i])/first_residuals[i]/3.;
 	if (ps_step_max>1) for (int i=0;i<3;++i) ps_res+=sqrt(total_ps_residuals[i])/first_ps_residuals[i]/3.;
 	
 	return;

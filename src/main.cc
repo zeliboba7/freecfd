@@ -202,6 +202,7 @@ int main(int argc, char *argv[]) {
 	int timeStepMax=input.section("timemarching").get_int("numberofsteps");
 	int time_step_update_freq=input.section("timemarching").get_int("updatefrequency");
 	int pseudo_time_step_update_freq=input.section("pseudotime").get_int("updatefrequency");
+	double ps_tolerance=input.section("pseudotime").get_double("residualtolerance");
 	
 	// Get the output frequency for each grid
 	vector<int> volume_plot_freq,surface_plot_freq,restart_freq;
@@ -262,6 +263,12 @@ int main(int argc, char *argv[]) {
 						if (turbulent[gid]) cout << "\t" << rans[gid].nIter << "\t" << rans[gid].ps_res;
 						cout << endl;
 					}
+					if (ps_step_max>1) {
+						if (ns[gid].ps_res < ps_tolerance) {
+							if (!turbulent[gid]) break;
+							else if (rans[gid].ps_res < ps_tolerance) break;
+						}
+					}
 				}
 			}
 			if (equations[gid]==HEAT) hc[gid].solve(timeStep);
@@ -277,15 +284,15 @@ int main(int argc, char *argv[]) {
 				cout << endl;
 			}
 			if (timeStep%volume_plot_freq[gid]==0 || lastTimeStep) {
-				if (Rank==0) cout << "\n[I] Writing volume output for grid=" << gid+1;
+				if (Rank==0) cout << "[I] Writing volume output for grid=" << gid+1 << endl;
 				write_volume_output(gid,timeStep);
 			} // end if
 			if (timeStep%surface_plot_freq[gid]==0 || lastTimeStep) {
-				if (Rank==0) cout << "\n[I] Writing surface output for grid=" << gid+1;
+				if (Rank==0) cout << "[I] Writing surface output for grid=" << gid+1 << endl;
 				write_surface_output(gid,timeStep);
 			} // end if
 			if (timeStep%restart_freq[gid]==0 || lastTimeStep) {
-				if (Rank==0) cout << "\n[I] Writing restart for grid=" << gid+1;
+				if (Rank==0) cout << "[I] Writing restart for grid=" << gid+1 << endl;
 				write_restart(gid,timeStep,restart_step,time[gid]);
 			} // end if
 			if (timeStep%loads[gid].frequency==0) {
@@ -294,10 +301,20 @@ int main(int argc, char *argv[]) {
 			if (timeStep%time_step_update_freq==0) {
 				update_time_step_options();
 				time_step_update_freq=input.section("timemarching").get_int("updatefrequency");
+				timeStepMax=input.section("timemarching").get_int("numberofsteps");
 			} // end if
 			if (timeStep%pseudo_time_step_update_freq==0) {
 				update_pseudo_time_step_options();
+				ps_tolerance=input.section("pseudotime").get_double("residualtolerance");
+				ps_step_max=input.section("pseudotime").get_int("numberofsteps");
 				pseudo_time_step_update_freq=input.section("pseudotime").get_int("updatefrequency");
+				if (equations[gid]==NS) {
+					if (input.section("pseudotime").get_string("preconditioner")=="none") {
+						ns[gid].preconditioner=NONE;
+					} else if (input.section("pseudotime").get_string("preconditioner")=="ws95") {
+						ns[gid].preconditioner=WS95;
+					}
+				}
 			} // end if
 			
 		} // end grid loop
