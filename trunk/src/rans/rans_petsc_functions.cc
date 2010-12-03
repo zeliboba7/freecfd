@@ -33,7 +33,11 @@ void RANS::petsc_init(void) {
 	VecCreateMPI(PETSC_COMM_WORLD,grid[gid].cellCount*nVars,grid[gid].globalCellCount*nVars,&rhs);
 	VecSetFromOptions(rhs);
 	VecDuplicate(rhs,&deltaU);
-	VecDuplicate(rhs,&pseudo_right);
+	if (ps_step_max>1) {
+		VecDuplicate(rhs,&soln_n);
+		VecDuplicate(rhs,&pseudo_delta);
+		VecDuplicate(rhs,&pseudo_right);
+	}
 	VecSet(rhs,0.);
 	VecSet(deltaU,0.);
 	
@@ -99,7 +103,7 @@ void RANS::petsc_solve(int &nIter,double &rNorm) {
 	}
 	
 	VecSet(rhs,0.);
-	
+		
 	return;
 } 
 
@@ -108,6 +112,9 @@ void RANS::petsc_destroy(void) {
 	MatDestroy(impOP);
 	VecDestroy(rhs);
 	VecDestroy(deltaU);
+	VecDestroy(soln_n);
+	VecDestroy(pseudo_delta);
+	VecDestroy(pseudo_right);
 	return;
 } 
 

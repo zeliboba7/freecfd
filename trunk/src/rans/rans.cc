@@ -43,8 +43,9 @@ RANS::RANS(void) {
 	return; 
 } // end RANS::RANS
 
-void RANS::initialize (void) {
+void RANS::initialize (int ps_max) {
 	
+	ps_step_max=ps_max;
 	nVars=2;
 	rtol=input.section("grid",gid).subsection("turbulence").get_double("relativetolerance");
 	abstol=input.section("grid",gid).subsection("turbulence").get_double("absolutetolerance");
@@ -84,10 +85,12 @@ void RANS::initialize (void) {
 	return;
 }
 
-void RANS::solve (int ts) {
+void RANS::solve  (int ts,int pts) {
 
 	timeStep=ts;
+	ps_step=pts;
 	terms();
+	time_terms();
 	int nIter;
 	double rNorm;
 	petsc_solve(nIter,rNorm);
@@ -225,7 +228,7 @@ void RANS::update_variables(void) {
 	if (counter>0) cout << "\n[W] Update of k and omega is limited due to viscosityRatioLimit constraint for " << counter << " cells" << endl;
 
 	MPI_Allreduce(&residuals,&totalResiduals,2, MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
-	if (timeStep==1 || first_residuals[0]<0.) for (int i=0;i<2;++i) first_residuals[i]=sqrt(totalResiduals[i]);
+	if ((timeStep==1 && ps_step==1) || first_residuals[0]<0.) for (int i=0;i<2;++i) first_residuals[i]=sqrt(totalResiduals[i]);
 	
 	double res=0.;
 	for (int i=0;i<2;++i) res+=0.5*sqrt(totalResiduals[i])/first_residuals[i];

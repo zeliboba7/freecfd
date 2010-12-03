@@ -175,12 +175,14 @@ void RANS::terms(void) {
 	double divU,Prod_k,Dest_k;
 	for (int c=0;c<grid[gid].cellCount;++c) {
 		
+		/*
 		// Insert unsteady term
 		row=(grid[gid].myOffset+c)*2;
 		value=ns[gid].rho.cell(c)*grid[gid].cell[c].volume/dt[gid].cell(c);
 		MatSetValues(impOP,1,&row,1,&row,&value,ADD_VALUES);
 		row++;
 		MatSetValues(impOP,1,&row,1,&row,&value,ADD_VALUES);
+		*/
 		
 		if (model==BSL || model==SST) {
 			blending=get_blending(k.cell(c),omega.cell(c),ns[gid].rho.cell(c),grid[gid].cell[c].closest_wall_distance,lam_visc,gradk.cell(c),gradomega.cell(c));
