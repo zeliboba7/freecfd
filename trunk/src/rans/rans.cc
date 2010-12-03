@@ -250,31 +250,30 @@ void RANS::update_variables(void) {
 		}
 		
 		// If the last pseudo time step
-		if (ps_step==ps_step_max) {
-			if (ps_step_max>1) { // If pseudo time iterations are active
-				for (int i=0;i<2;++i) {
-					row=(grid[gid].myOffset+c)*2+i;
-					VecGetValues(pseudo_delta,1,&row,&update[i].cell(c));
-				}
+		if (ps_step_max>1) { // If pseudo time iterations are active
+			for (int i=0;i<2;++i) {
+				row=(grid[gid].myOffset+c)*2+i;
+				VecGetValues(pseudo_delta,1,&row,&update[i].cell(c));
 			}
-			dt2=dt[gid].cell(c)*dt[gid].cell(c);
-			residuals[0]+=update[0].cell(c)*update[0].cell(c)/dt2;
-			residuals[1]+=update[1].cell(c)*update[1].cell(c)/dt2;
-		} 
+		}
+		dt2=dt[gid].cell(c)*dt[gid].cell(c);
+		residuals[0]+=update[0].cell(c)*update[0].cell(c)/dt2;
+		residuals[1]+=update[1].cell(c)*update[1].cell(c)/dt2;
+
 		
 		
 	} // cell loop
 	if (counter>0) cout << "\n[W] Update of k and omega is limited due to viscosityRatioLimit constraint for " << counter << " cells" << endl;
 
-	if (ps_step==ps_step_max) MPI_Allreduce(&residuals,&totalResiduals,2, MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+	MPI_Allreduce(&residuals,&totalResiduals,2, MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
 	if (ps_step_max>1) MPI_Allreduce(&ps_residuals,&total_ps_residuals,2, MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
 	
-	if (timeStep==1 && ps_step==ps_step_max) for (int i=0;i<2;++i) first_residuals[i]=sqrt(totalResiduals[i]);
+	if (timeStep==1) for (int i=0;i<2;++i) first_residuals[i]=sqrt(totalResiduals[i]);
 	if (ps_step_max>1 && ps_step==1) for (int i=0;i<2;++i) first_ps_residuals[i]=sqrt(total_ps_residuals[i]);
 	
 	res=0.;
 	ps_res=0.;
-	if (ps_step==ps_step_max) for (int i=0;i<2;++i) res+=sqrt(totalResiduals[i])/first_residuals[i]/2.;
+	for (int i=0;i<2;++i) res+=sqrt(totalResiduals[i])/first_residuals[i]/2.;
 	if (ps_step_max>1) for (int i=0;i<2;++i) ps_res+=sqrt(total_ps_residuals[i])/first_ps_residuals[i]/2.;
 	
 	return;

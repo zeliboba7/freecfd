@@ -149,6 +149,7 @@ void read_inputs(void) {
 	
 	input.registerSection("pseudotime",single,optional);
 	input.section("pseudotime").register_string("preconditioner",optional,"none");
+	input.section("pseudotime").register_double("residualtolerance",optional,1.e-8);
 	input.section("pseudotime").register_double("stepsize",optional,1.);
 	input.section("pseudotime").register_double("CFLmax",optional,1000.);
 	input.section("pseudotime").register_double("CFLlocal",optional,1000.);
