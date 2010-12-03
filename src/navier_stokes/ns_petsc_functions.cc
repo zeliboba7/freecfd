@@ -33,7 +33,11 @@ void NavierStokes::petsc_init(void) {
 	VecCreateMPI(PETSC_COMM_WORLD,grid[gid].cellCount*nVars,grid[gid].globalCellCount*nVars,&rhs);
 	VecSetFromOptions(rhs);
 	VecDuplicate(rhs,&deltaU);
-	VecDuplicate(rhs,&pseudo_right);
+	if (ps_step_max>1) {
+		VecDuplicate(rhs,&soln_n);
+		VecDuplicate(rhs,&pseudo_delta);
+		VecDuplicate(rhs,&pseudo_right);
+	}
 	VecSet(rhs,0.);
 	VecSet(deltaU,0.);
 
@@ -63,27 +67,7 @@ void NavierStokes::petsc_init(void) {
    			0,&diagonal_nonzeros[0],
    			0,&off_diagonal_nonzeros[0],
    			&impOP);
-	
-	
-	// Calculate space necessary for pseudo time step terms matrix memory allocation
-	diagonal_nonzeros.clear(); off_diagonal_nonzeros.clear();
-	for (cit=grid[gid].cell.begin();cit!=grid[gid].cell.end();cit++) {
-		for (int i=0;i<nVars;++i) {
-			diagonal_nonzeros.push_back(nVars);
-			off_diagonal_nonzeros.push_back(0);
-		}
-	}
-	
-	MatCreateMPIAIJ(
-			PETSC_COMM_WORLD,
-   			grid[gid].cellCount*nVars,
-   			grid[gid].cellCount*nVars,
-   			grid[gid].globalCellCount*nVars,
-   			grid[gid].globalCellCount*nVars,
-   			0,&diagonal_nonzeros[0],
-   			0,&off_diagonal_nonzeros[0],
-      			&pseudo_time);
-	
+
 	KSPSetOperators(ksp,impOP,impOP,SAME_NONZERO_PATTERN);
 	KSPSetTolerances(ksp,rtol,abstol,1.e15,maxits);
 	KSPSetInitialGuessKnoll(ksp,PETSC_TRUE);
@@ -105,7 +89,7 @@ void NavierStokes::petsc_solve(int &nIter,double &rNorm) {
 	VecAssemblyEnd(rhs);
 	
 	/*
-	if (ps_steps_max>1) {
+	if (ps_step_max>1) {
 		MatAssemblyBegin(pseudo_time,MAT_FINAL_ASSEMBLY);
 		MatAssemblyEnd(pseudo_time,MAT_FINAL_ASSEMBLY);
 		
@@ -141,10 +125,11 @@ void NavierStokes::petsc_solve(int &nIter,double &rNorm) {
 void NavierStokes::petsc_destroy(void) {
 	KSPDestroy(ksp);
 	MatDestroy(impOP);
-	MatDestroy(pseudo_time);
 	VecDestroy(rhs);
 	VecDestroy(deltaU);
-	VecDestroy(pseudo_right);
+	VecDestroy(soln_n);
+	VecDestroy(pseudo_delta);
+	VecDestroy(pseudo_right);	
 	PCDestroy(pc);
 	return;
 } 

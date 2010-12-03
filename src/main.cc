@@ -51,9 +51,15 @@ void write_restart(int gid,int timeStep,int restart_step,double time);
 void write_loads(int gid,int timeStep,double time);
 void read_restart(int gid,int restart_step,double &time);
 void set_lengthScales(int gid);
+
 void set_time_step_options(void);
 void update_time_step_options(void);
 void update_time_step(int timeStep,double &time,int gid);
+
+void set_pseudo_time_step_options(void);
+void update_pseudo_time_step_options(void);
+void update_pseudo_time_step(int ps_tep,int gid);
+
 void bc_interface_sync(void);
 void face_interpolation_weights(int gid);
 void hexa_gradient_maps(int gid);
@@ -69,6 +75,7 @@ vector<RANS> rans;
 vector<bool> turbulent;
 // Time step for each grid
 vector<Variable<double> > dt;
+vector<Variable<double> > dtau;
 vector<int> equations;
 vector<vector<BC_Interface> > interface; // for each grid
 vector<Loads> loads;
@@ -76,6 +83,7 @@ vector<Loads> loads;
 int Rank,np;
 int gradient_test;
 double min_x,max_x;
+bool pseudo_time_active;
 
 static char help[] = "Free CFD\n - A free general purpose computational fluid dynamics code";
 
@@ -164,12 +172,15 @@ int main(int argc, char *argv[]) {
 	}
 
 	vector<double> time (grid.size(),0.);
-
+	
+	int ps_step_max=input.section("pseudotime").get_int("numberofsteps");
+	int ps_step;
+	
 	for (int gid=0;gid<grid.size();++gid) {
 		if (equations[gid]==NS) {
 			if (Rank==0) cout << "[I grid=" << gid+1 << " ] Initializing Navier Stokes solver" << endl; 
 			ns[gid].gid=gid;
-			ns[gid].initialize();
+			ns[gid].initialize(ps_step_max);
 			if (turbulent[gid]) {
 				if (Rank==0) cout << "[I grid=" << gid+1 << " ] Initializing RANS solver" << endl; 
 				rans[gid].gid=gid;
@@ -182,11 +193,14 @@ int main(int argc, char *argv[]) {
 			hc[gid].initialize();
 		}
 		if (restart_step>0) read_restart(gid,restart_step,time[gid]);
-		set_time_step_options();
 	}
-	
+
+	set_time_step_options();
+	set_pseudo_time_step_options();
 	int timeStepMax=input.section("timemarching").get_int("numberofsteps");
 	int time_step_update_freq=input.section("timemarching").get_int("updatefrequency");
+	int pseudo_time_step_update_freq=input.section("pseudotime").get_int("updatefrequency");
+	
 	// Get the output frequency for each grid
 	vector<int> volume_plot_freq,surface_plot_freq,restart_freq;
 	loads.resize(grid.size());
@@ -236,7 +250,10 @@ int main(int argc, char *argv[]) {
 		if (timeStep==(timeStepMax+restart_step)) lastTimeStep=true;
 		for (int gid=0;gid<grid.size();++gid) {
 			update_time_step(timeStep,time[gid],gid);
-			if (equations[gid]==NS) ns[gid].solve(timeStep);
+			for (ps_step=1;ps_step<=ps_step_max;++ps_step) {
+				if (ps_step_max>1) update_pseudo_time_step(ps_step,gid);
+				if (equations[gid]==NS) ns[gid].solve(timeStep,ps_step);
+			}
 			if (equations[gid]==HEAT) hc[gid].solve(timeStep);
 			bc_interface_sync();
 			if (timeStep%volume_plot_freq[gid]==0 || lastTimeStep) {
@@ -258,6 +275,11 @@ int main(int argc, char *argv[]) {
 				update_time_step_options();
 				time_step_update_freq=input.section("timemarching").get_int("updatefrequency");
 			} // end if
+			if (timeStep%pseudo_time_step_update_freq==0) {
+				update_pseudo_time_step_options();
+				pseudo_time_step_update_freq=input.section("pseudotime").get_int("updatefrequency");
+			} // end if
+			
 		} // end grid loop
 		if (Rank==0) cout << endl;
 	}

@@ -49,11 +49,14 @@
 #define VAN_LEER 2
 #define AUSM_PLUS_UP 3
 #define SD_SLAU 4
+// Options for preconditioner
+#define WS95 1
 
 extern InputFile input;
 extern vector<Grid> grid;
 extern vector<vector<BCregion> > bc;
 extern vector<Variable<double> > dt;
+extern vector<Variable<double> > dtau;
 extern vector<vector<BC_Interface> > interface; // for each grid
 extern vector<bool> turbulent;
 extern vector<Loads> loads;
@@ -65,7 +68,8 @@ public:
 	int nVars;
 	int Rank,np; // Current processors index and total number of processors
 	int timeStep;
-	int ps_steps_max;
+	int ps_step_max;
+	int ps_step;
 	
 	// Inputs
 	double rtol,abstol;
@@ -75,6 +79,7 @@ public:
 	int convective_flux_function;
 	double limiter_threshold;
 	double Minf;
+	int preconditioner;
 	
 	double small_number;
 	
@@ -95,12 +100,13 @@ public:
 	PC pc; // preconditioner context
 	Vec deltaU,rhs; // solution, residual vectors
 	Mat impOP; // implicit operator matrix
-	Vec pseudo_right; // Contribution to rhs due to pseudo time stepping
-	Mat pseudo_time; // Pseudo time stepping terms
+	Vec soln_n; // Solution at n level
+	Vec pseudo_delta; // u^k-u^n
+	Vec pseudo_right;
 	
 	NavierStokes (void); // Empty constructor
 	// TODO: sort the following list of functions in the proper order of application
-	void initialize(void);
+	void initialize(int ps_step_max);
 	void create_vars(void);
 	void apply_initial_conditions(void);
 	void mpi_init(void);
@@ -118,11 +124,12 @@ public:
 	void venkatakrishnan_limiter(void); 
 	void barth_jespersen_limiter(void);
 		
-	void solve(int timeStep);
+	void solve(int timeStep,int ps_step);
 	
 	void cons2prim(int cid,vector<vector<double> > &P);
-	void initialize_linear_system();
+	void preconditioner_ws95(int c,vector<vector<double> > &P);
 	void assemble_linear_system(void);
+	void time_terms(void);
 	void left_state_update(NS_Cell_State &left,NS_Face_State &face);
 	void right_state_update(NS_Cell_State &left,NS_Cell_State &right,NS_Face_State &face);
 	void face_geom_update(NS_Face_State &face,int f);

@@ -30,6 +30,7 @@ extern vector<Grid> grid;
 extern vector<NavierStokes> ns;
 // Time step for each grid
 extern vector<Variable<double> > dt;
+extern vector<Variable<double> > dtau;
 
 #define NONE -1
 // Options for time_integrator
@@ -45,3 +46,9 @@ double time_step_current,time_step_target;
 double CFLmax,CFLmaxTarget,CFLlocal,CFLlocalTarget;
 bool time_step_ramp;
 double time_step_ramp_initial,time_step_ramp_growth;
+
+int ps_time_step_type;
+double ps_time_step_current,ps_time_step_target;
+double ps_CFLmax,ps_CFLmaxTarget,ps_CFLlocal,ps_CFLlocalTarget;
+bool ps_time_step_ramp;
+double ps_time_step_ramp_initial,ps_time_step_ramp_growth;
