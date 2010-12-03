@@ -73,6 +73,8 @@ public:
 	double rtol,abstol;
 	int maxits;
 	int timeStep;
+	int ps_step_max;
+	int ps_step;	
 	
 	// Total residuals
 	vector<double> first_residuals;
@@ -82,13 +84,14 @@ public:
 	PC pc; // preconditioner context
 	Vec deltaU,rhs; // solution, residual vectors
 	Mat impOP; // implicit operator matrix
-	Vec pseudo_right; // Contribution to rhs due to pseudo time stepping
-	Mat pseudo_time; // Pseudo time stepping terms
+	Vec soln_n; // Solution at n level
+	Vec pseudo_delta; // u^k-u^n
+	Vec pseudo_right;
 	
 	MATERIAL material;
 	
 	RANS (void); 
-	void initialize(void);
+	void initialize(int ps_step_max);
 	void mpi_init(void);
 	void create_vars (void);
 	void apply_initial_conditions (void);
@@ -99,10 +102,11 @@ public:
 	void petsc_init();
 	void petsc_solve(int &nIter,double &rNorm);
 	void petsc_destroy(void);
-	void solve (int timeStep);
+	void solve (int timeStep,int ps_step);
 	void initialize_linear_system(void);
 	void get_kOmega(void);
 	void terms(void);
+	void time_terms(void);
 	void update_eddy_viscosity(void);
 	void update_variables(void);
 	void write_restart(int timeStep);

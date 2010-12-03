@@ -184,7 +184,7 @@ int main(int argc, char *argv[]) {
 			if (turbulent[gid]) {
 				if (Rank==0) cout << "[I grid=" << gid+1 << " ] Initializing RANS solver" << endl; 
 				rans[gid].gid=gid;
-				rans[gid].initialize();
+				rans[gid].initialize(ps_step_max);
 			}
 		}
 		if (equations[gid]==HEAT) {

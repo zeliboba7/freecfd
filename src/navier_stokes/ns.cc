@@ -99,7 +99,7 @@ void NavierStokes::solve (int ts,int pts) {
 	int nIter;
 	double rNorm;
 	petsc_solve(nIter,rNorm);
-	if (turbulent[gid]) rans[gid].solve(timeStep);
+	if (turbulent[gid]) rans[gid].solve(timeStep,ps_step);
 	if (Rank==0) cout << "\t" << nIter;
 	update_variables();
 	mpi_update_ghost_primitives();
@@ -331,14 +331,6 @@ void NavierStokes::update_variables(void) {
 	for (int i=0;i<3;++i) res+=sqrt(totalResiduals[i])/first_residuals[i]/3.;
 
 	if (Rank==0) cout << "\t" << res;
-	
-	/*
-	if (ps_timeStep==1) {
-		resP_first=resP;
-		resV_first=resV;
-		resT_first=resT;
-	}
-	 */
 	
 	return;
 }

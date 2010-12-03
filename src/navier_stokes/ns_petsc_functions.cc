@@ -88,26 +88,11 @@ void NavierStokes::petsc_solve(int &nIter,double &rNorm) {
 	VecAssemblyBegin(rhs);
 	VecAssemblyEnd(rhs);
 	
-	/*
-	if (ps_step_max>1) {
-		MatAssemblyBegin(pseudo_time,MAT_FINAL_ASSEMBLY);
-		MatAssemblyEnd(pseudo_time,MAT_FINAL_ASSEMBLY);
-		
-		VecAssemblyBegin(pseudo_right);
-		VecAssemblyEnd(pseudo_right);
-		
-		VecAXPY(rhs,-1.,pseudo_right); // rhs-=pseudo_right
-		MatAXPY(impOP,1.,pseudo_time,DIFFERENT_NONZERO_PATTERN); // impOP+=pseudo_time
-	}
-	*/
-	
 	KSPSetOperators(ksp,impOP,impOP,SAME_NONZERO_PATTERN);
 	KSPSolve(ksp,rhs,deltaU);
 	
 	KSPGetIterationNumber(ksp,&nIter);
 	KSPGetResidualNorm(ksp,&rNorm); 
-		
-	//if (ps_steps_max>1) MatAXPY(impOP,-1.,pseudo_time,DIFFERENT_NONZERO_PATTERN); // impOP-=pseudo_time
 	
 	int index;
 	for (int c=0;c<grid[gid].cellCount;++c) {
