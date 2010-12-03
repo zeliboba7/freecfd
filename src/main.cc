@@ -54,11 +54,11 @@ void set_lengthScales(int gid);
 
 void set_time_step_options(void);
 void update_time_step_options(void);
-void update_time_step(int timeStep,double &time,int gid);
+void update_time_step(int timeStep,double &time,double &max_cfl,int gid);
 
 void set_pseudo_time_step_options(void);
 void update_pseudo_time_step_options(void);
-void update_pseudo_time_step(int ps_tep,int gid);
+void update_pseudo_time_step(int ps_tep,double &max_cfl,int gid);
 
 void bc_interface_sync(void);
 void face_interpolation_weights(int gid);
@@ -172,6 +172,8 @@ int main(int argc, char *argv[]) {
 	}
 
 	vector<double> time (grid.size(),0.);
+	vector<double> max_cfl (grid.size(),0.);
+	vector<double> ps_max_cfl (grid.size(),0.);
 	
 	int ps_step_max=input.section("pseudotime").get_int("numberofsteps");
 	int ps_step;
@@ -249,13 +251,31 @@ int main(int argc, char *argv[]) {
 	for (int timeStep=restart_step+1;timeStep<=timeStepMax+restart_step;++timeStep) {
 		if (timeStep==(timeStepMax+restart_step)) lastTimeStep=true;
 		for (int gid=0;gid<grid.size();++gid) {
-			update_time_step(timeStep,time[gid],gid);
-			for (ps_step=1;ps_step<=ps_step_max;++ps_step) {
-				if (ps_step_max>1) update_pseudo_time_step(ps_step,gid);
-				if (equations[gid]==NS) ns[gid].solve(timeStep,ps_step);
+			update_time_step(timeStep,time[gid],max_cfl[gid],gid);
+			if (equations[gid]==NS) {
+				for (ps_step=1;ps_step<=ps_step_max;++ps_step) {
+					if (ps_step_max>1) update_pseudo_time_step(ps_step,ps_max_cfl[gid],gid);
+					 ns[gid].solve(timeStep,ps_step);
+					// Write screen output for pseudo time iteration
+					if (Rank==0 && ps_step_max>1) {
+						cout << "\t" << ps_step << "\t" << ps_max_cfl[gid] << "\t" << ns[gid].nIter << "\t" << ns[gid].ps_res;
+						if (turbulent[gid]) cout << "\t" << rans[gid].nIter << "\t" << rans[gid].ps_res;
+						cout << endl;
+					}
+				}
 			}
 			if (equations[gid]==HEAT) hc[gid].solve(timeStep);
 			bc_interface_sync();
+			// Screen output
+			if (Rank==0) {
+				cout << timeStep << "\t" << gid+1 << "\t" << time[gid];
+				if (equations[gid]==NS) {
+					cout << "\t" << max_cfl[gid] << "\t" << ns[gid].nIter << "\t" << ns[gid].res;
+					if (turbulent[gid]) cout << "\t" << rans[gid].nIter << "\t" << rans[gid].res;
+				}
+				if (equations[gid]==HEAT) cout << "\t" << hc[gid].nIter << "\t" << hc[gid].res;
+				cout << endl;
+			}
 			if (timeStep%volume_plot_freq[gid]==0 || lastTimeStep) {
 				if (Rank==0) cout << "\n[I] Writing volume output for grid=" << gid+1;
 				write_volume_output(gid,timeStep);
@@ -281,7 +301,6 @@ int main(int argc, char *argv[]) {
 			} // end if
 			
 		} // end grid loop
-		if (Rank==0) cout << endl;
 	}
 	/*****************************************************************************************/
 	// End time loop

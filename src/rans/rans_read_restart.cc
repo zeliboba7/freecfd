@@ -29,14 +29,14 @@ void RANS::read_restart(int restart_step,vector<vector<int> > &partitionMap) {
 	
 	k.read_cell_data(dirname+"k"+gs,partitionMap);
 	omega.read_cell_data(dirname+"omega"+gs,partitionMap);
-
-	update_eddy_viscosity();
+	mu_t.read_cell_data(dirname+"mu_t"+gs,partitionMap);
+	
 	mpi_update_ghost_primitives();
 	calc_cell_grads();
 	mpi_update_ghost_gradients();
-	petsc_init();
+	calc_limiter();
 
-
+	return;
 }
 
 

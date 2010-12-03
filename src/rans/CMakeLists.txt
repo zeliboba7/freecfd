@@ -4,6 +4,7 @@ rans.cc
 rans_petsc_functions.cc       
 rans_set_bcs.cc 
 rans_update_eddy_viscosity.cc
+rans_limiters.cc
 rans_mpi.cc
 rans_read_restart.cc 
 rans_terms.cc

@@ -88,6 +88,7 @@ void NavierStokes::initialize (int ps_max) {
 	calc_limiter();
 	petsc_init();
 	first_residuals.resize(3);
+	first_ps_residuals.resize(3);
 	return;
 }
 
@@ -96,11 +97,8 @@ void NavierStokes::solve (int ts,int pts) {
 	ps_step=pts;
 	assemble_linear_system();
 	time_terms();
-	int nIter;
-	double rNorm;
-	petsc_solve(nIter,rNorm);
+	petsc_solve();
 	if (turbulent[gid]) rans[gid].solve(timeStep,ps_step);
-	if (Rank==0) cout << "\t" << nIter;
 	update_variables();
 	mpi_update_ghost_primitives();
 	calc_cell_grads();
@@ -125,7 +123,6 @@ void NavierStokes::create_vars (void) {
 	gradv.allocate(gid);
 	gradw.allocate(gid);
 	
-	limiter_old.allocate(gid);
 	update.resize(5);
 	limiter.resize(5);
 	for (int i=0; i<5; ++i) {
@@ -301,9 +298,15 @@ void NavierStokes::calc_cell_grads (void) {
 
 void NavierStokes::update_variables(void) {
 	
-	double residuals[3],totalResiduals[3];
-	for (int i=0;i<3;++i) residuals[i]=0.;
+	double residuals[3],ps_residuals[3],totalResiduals[3],total_ps_residuals[3];
+	for (int i=0;i<3;++i) {
+		residuals[i]=0.;
+		ps_residuals[i]=0.;
+	}
 
+	PetscInt row;
+	
+	double dt2,dtau2;
 	for (int c=0;c<grid[gid].cellCount;++c) {
 		for (int i=0;i<5;++i) {
 			if (isnan(update[i].cell(c)) || isinf(update[i].cell(c))) {
@@ -318,19 +321,40 @@ void NavierStokes::update_variables(void) {
 		V.cell(c)[1]+=update[2].cell(c);
 		V.cell(c)[2]+=update[3].cell(c);
 		
-		residuals[0]+=update[0].cell(c)*update[0].cell(c);
-		residuals[1]+=update[1].cell(c)*update[1].cell(c)+update[2].cell(c)*update[2].cell(c)+update[3].cell(c)*update[3].cell(c);
-		residuals[2]+=update[4].cell(c)*update[4].cell(c);
+		if (ps_step_max>1) {
+			dtau2=dtau[gid].cell(c)*dtau[gid].cell(c);
+			ps_residuals[0]+=update[0].cell(c)*update[0].cell(c)/dtau2;
+			ps_residuals[1]+=update[1].cell(c)*update[1].cell(c)/dtau2+update[2].cell(c)*update[2].cell(c)/dtau2+update[3].cell(c)*update[3].cell(c)/dtau2;
+			ps_residuals[2]+=update[4].cell(c)*update[4].cell(c)/dtau2;
+		}
+		
+		// If the last pseudo time step
+		if (ps_step==ps_step_max) {
+			if (ps_step_max>1) { // If pseudo time iterations are active
+				for (int i=0;i<5;++i) {
+					row=(grid[gid].myOffset+c)*5+i;
+					VecGetValues(pseudo_delta,1,&row,&update[i].cell(c));
+				}
+			}
+			dt2=dt[gid].cell(c)*dt[gid].cell(c);
+			residuals[0]+=update[0].cell(c)*update[0].cell(c)/dt2;
+			residuals[1]+=update[1].cell(c)*update[1].cell(c)/dt2+update[2].cell(c)*update[2].cell(c)/dt2+update[3].cell(c)*update[3].cell(c)/dt2;
+			residuals[2]+=update[4].cell(c)*update[4].cell(c)/dt2;
+		} 
+
 		
 	} // cell loop
 	
-	MPI_Allreduce(&residuals,&totalResiduals,3, MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
-	if ((timeStep==1 && ps_step==1) || first_residuals[0]<0.) for (int i=0;i<3;++i) first_residuals[i]=sqrt(totalResiduals[i]);
-
-	double res=0.;
-	for (int i=0;i<3;++i) res+=sqrt(totalResiduals[i])/first_residuals[i]/3.;
-
-	if (Rank==0) cout << "\t" << res;
+	if (ps_step==ps_step_max) MPI_Allreduce(&residuals,&totalResiduals,3, MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+	if (ps_step_max>1) MPI_Allreduce(&ps_residuals,&total_ps_residuals,3, MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+		
+	if (timeStep==1 && ps_step==ps_step_max) for (int i=0;i<3;++i) first_residuals[i]=sqrt(totalResiduals[i]);
+	if (ps_step_max>1 && ps_step==1) for (int i=0;i<3;++i) first_ps_residuals[i]=sqrt(total_ps_residuals[i]);
+	
+	res=0.;
+	ps_res=0.;
+	if (ps_step==ps_step_max) for (int i=0;i<3;++i) res+=sqrt(totalResiduals[i])/first_residuals[i]/3.;
+	if (ps_step_max>1) for (int i=0;i<3;++i) ps_res+=sqrt(total_ps_residuals[i])/first_ps_residuals[i]/3.;
 	
 	return;
 }

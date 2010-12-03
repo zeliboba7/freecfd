@@ -112,7 +112,6 @@ void set_pseudo_time_step_options(void) {
 
 void update_time_step_options(void) {
 	input.refresh();
-	if (Rank==0) cout << "\n";
 	input.read("timemarching");
 	set_time_step_options();
 	return;
@@ -120,13 +119,12 @@ void update_time_step_options(void) {
 
 void update_pseudo_time_step_options(void) {
 	input.refresh();
-	if (Rank==0) cout << "\n";
 	input.read("pseudotime");
 	set_pseudo_time_step_options();
 	return;
 }
 
-void update_time_step(int timeStep,double &time,int gid) {
+void update_time_step(int timeStep,double &time,double &max_cfl,int gid) {
 	
 	// TODO: What to do with ramping when restarting
 	if (time_step_ramp) {
@@ -168,9 +166,7 @@ void update_time_step(int timeStep,double &time,int gid) {
 		}
 	}
 
-	// Output current time step, max dt and max CFL
-	if (Rank==0 && gid==0) cout << timeStep;
-	double max_cfl=-1.;
+	max_cfl=-1.;
 	double min_dt=1.e20;
 	if (equations[gid]==NS) {
 		for (int c=0;c<grid[gid].cellCount;++c) {
@@ -190,13 +186,11 @@ void update_time_step(int timeStep,double &time,int gid) {
 		max_cfl=CFLlocal;
 	}
 	time+=time_step_current;
-	
-	if (Rank==0) cout << "\t" << gid+1 << "\t" << time << "\t" << max_cfl ;
 
 	return;
 }
 
-void update_pseudo_time_step(int ps_step,int gid) {
+void update_pseudo_time_step(int ps_step,double &max_cfl,int gid) {
 	
 	if (ps_time_step_ramp) {
 		if (ps_step==1) {
@@ -238,7 +232,7 @@ void update_pseudo_time_step(int ps_step,int gid) {
 	}
 	
 	// Output current ps_time step, max dt and max CFL
-	double max_cfl=-1.;
+	max_cfl=-1.;
 	double min_dt=1.e20;
 	if (equations[gid]==NS) {
 		for (int c=0;c<grid[gid].cellCount;++c) {
@@ -257,8 +251,6 @@ void update_pseudo_time_step(int ps_step,int gid) {
 		ps_time_step_current=min_dt;
 		max_cfl=ps_CFLlocal;
 	}
-	
-	if (Rank==0) cout << "\n\t" << ps_step << "\t" << max_cfl ;
 	
 	return;
 }

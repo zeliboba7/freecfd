@@ -30,13 +30,13 @@ void NavierStokes::read_restart(int restart_step,vector<vector<int> > &partition
 	p.read_cell_data(dirname+"p"+gs,partitionMap);
 	V.read_cell_data(dirname+"V"+gs,partitionMap);
 	T.read_cell_data(dirname+"T"+gs,partitionMap);
-	limiter_old.read_cell_data(dirname+"limiter"+gs,partitionMap);
 	for (int c=0;c<grid[gid].cellCount;++c) rho.cell(c)=material.rho(p.cell(c),T.cell(c));
 	mpi_update_ghost_primitives();
 	calc_cell_grads();
 	mpi_update_ghost_gradients();
 	calc_limiter();
-	mpi_update_ghost_gradients(); // Needs to be updated again after grads are limited
+
+	return;
 }
 
 

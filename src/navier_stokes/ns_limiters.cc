@@ -22,13 +22,6 @@
 *************************************************************************/
 #include "ns.h"
 
-double minmod(double a, double b);
-double maxmod(double a, double b);
-double doubleMinmod(double a, double b);
-double harmonic(double a, double b);
-double superbee(double a, double b);
-inline double signof(double a) { return (a == 0.) ? 0. : (a<0. ? -1. : 1.); }
-
 void NavierStokes::calc_limiter(void) {
 	if(limiter_function==NONE || order==FIRST) {
 		// Do nothing

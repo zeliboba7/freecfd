@@ -49,6 +49,8 @@ public:
 	int nVars;
 	int Rank,np; // Current processors index and total number of processors
 	int timeStep;
+	int nIter;
+	double rNorm,res;
 	
 	// Inputs
 	double rtol,abstol;
@@ -83,7 +85,7 @@ public:
 	void set_bcs(void);
 	
 	void petsc_init(void);
-	void petsc_solve(int &nIter,double &rNorm);
+	void petsc_solve(void);
 	void petsc_destroy(void);
 	
 	void solve(int timeStep);

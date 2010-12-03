@@ -80,7 +80,7 @@ void NavierStokes::petsc_init(void) {
 	return;
 } 
 
-void NavierStokes::petsc_solve(int &nIter,double &rNorm) {
+void NavierStokes::petsc_solve(void) {
 
 	MatAssemblyBegin(impOP,MAT_FINAL_ASSEMBLY);
 	MatAssemblyEnd(impOP,MAT_FINAL_ASSEMBLY);

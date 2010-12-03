@@ -80,6 +80,7 @@ void RANS::initialize (int ps_max) {
 	mpi_update_ghost_primitives();
 	calc_cell_grads();
 	mpi_update_ghost_gradients();
+	calc_limiter();
 	petsc_init();
 	first_residuals.resize(2);
 	return;
@@ -91,16 +92,13 @@ void RANS::solve  (int ts,int pts) {
 	ps_step=pts;
 	terms();
 	time_terms();
-	int nIter;
-	double rNorm;
-	petsc_solve(nIter,rNorm);
-	if (Rank==0) cout << "\t" << nIter;
+	petsc_solve();
 	update_variables();
 	update_eddy_viscosity();
 	mpi_update_ghost_primitives();
 	calc_cell_grads();
 	mpi_update_ghost_gradients();
-
+	calc_limiter();
 	return;
 }
 
@@ -113,9 +111,13 @@ void RANS::create_vars (void) {
 	strainRate.allocate(gid);
 	gradk.allocate(gid);
 	gradomega.allocate(gid);
-	update.resize(2);
 
-	for (int i=0; i<2; ++i) update[i].allocate(gid);
+	update.resize(2);
+	limiter.resize(2);
+	for (int i=0; i<2; ++i) {
+		update[i].allocate(gid);
+		limiter[i].allocate(gid);
+	}
 	
 	yplus.cellStore=false; yplus.allocate(gid);
 	
@@ -171,10 +173,22 @@ void RANS::apply_initial_conditions (void) {
 	}
 
 	// initialize updates and limiter
-	for (int c=0;c<grid[gid].cellCount;++c) for (int i=0;i<2;++i) update[i].cell(c)=0.;
 
-	for (int g=0;g<grid[gid].ghostCount;++g) for (int i=0;i<2;++i) update[i].ghost(g)=0.;
-
+	for (int c=0;c<grid[gid].cellCount;++c) {
+		for (int i=0;i<2;++i) {
+			update[i].cell(c)=0.;
+			if (order==FIRST) limiter[i].cell(c)=0.;
+			else limiter[i].cell(c)=1.;
+		}
+	}
+	for (int g=0;g<grid[gid].ghostCount;++g) {
+		for (int i=0;i<2;++i) {
+			update[i].ghost(g)=0.;
+			if (order==FIRST) limiter[i].ghost(g)=0.;
+			else limiter[i].ghost(g)=1.;
+		}
+	}
+	
 	return;
 }
 
@@ -188,8 +202,15 @@ void RANS::calc_cell_grads (void) {
 
 void RANS::update_variables(void) {
 	
-	double residuals[2],totalResiduals[2];
-	for (int i=0;i<2;++i) residuals[i]=0.;
+	double residuals[2],ps_residuals[2],totalResiduals[2],total_ps_residuals[2];
+	for (int i=0;i<2;++i) {
+		residuals[i]=0.;
+		ps_residuals[i]=0.;
+	}
+	
+	PetscInt row;
+	
+	double dt2,dtau2;
 	
 	int counter=0;
 	double mu,new_mu_t;
@@ -221,19 +242,40 @@ void RANS::update_variables(void) {
 		k.cell(c) += update[0].cell(c);
 		omega.cell(c)+= update[1].cell(c);
 		
-		residuals[0]+=update[0].cell(c)*update[0].cell(c);
-		residuals[1]+=update[1].cell(c)*update[1].cell(c);
+		
+		if (ps_step_max>1) {
+			dtau2=dtau[gid].cell(c)*dtau[gid].cell(c);
+			ps_residuals[0]+=update[0].cell(c)*update[0].cell(c)/dtau2;
+			ps_residuals[1]+=update[1].cell(c)*update[1].cell(c)/dtau2;
+		}
+		
+		// If the last pseudo time step
+		if (ps_step==ps_step_max) {
+			if (ps_step_max>1) { // If pseudo time iterations are active
+				for (int i=0;i<2;++i) {
+					row=(grid[gid].myOffset+c)*2+i;
+					VecGetValues(pseudo_delta,1,&row,&update[i].cell(c));
+				}
+			}
+			dt2=dt[gid].cell(c)*dt[gid].cell(c);
+			residuals[0]+=update[0].cell(c)*update[0].cell(c)/dt2;
+			residuals[1]+=update[1].cell(c)*update[1].cell(c)/dt2;
+		} 
+		
 		
 	} // cell loop
 	if (counter>0) cout << "\n[W] Update of k and omega is limited due to viscosityRatioLimit constraint for " << counter << " cells" << endl;
 
-	MPI_Allreduce(&residuals,&totalResiduals,2, MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
-	if ((timeStep==1 && ps_step==1) || first_residuals[0]<0.) for (int i=0;i<2;++i) first_residuals[i]=sqrt(totalResiduals[i]);
+	if (ps_step==ps_step_max) MPI_Allreduce(&residuals,&totalResiduals,2, MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+	if (ps_step_max>1) MPI_Allreduce(&ps_residuals,&total_ps_residuals,2, MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
 	
-	double res=0.;
-	for (int i=0;i<2;++i) res+=0.5*sqrt(totalResiduals[i])/first_residuals[i];
+	if (timeStep==1 && ps_step==ps_step_max) for (int i=0;i<2;++i) first_residuals[i]=sqrt(totalResiduals[i]);
+	if (ps_step_max>1 && ps_step==1) for (int i=0;i<2;++i) first_ps_residuals[i]=sqrt(total_ps_residuals[i]);
 	
-	if (Rank==0) cout << "\t" << res;
+	res=0.;
+	ps_res=0.;
+	if (ps_step==ps_step_max) for (int i=0;i<2;++i) res+=sqrt(totalResiduals[i])/first_residuals[i]/2.;
+	if (ps_step_max>1) for (int i=0;i<2;++i) ps_res+=sqrt(total_ps_residuals[i])/first_ps_residuals[i]/2.;
 	
 	return;
 }

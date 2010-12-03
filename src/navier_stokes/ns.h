@@ -70,6 +70,8 @@ public:
 	int timeStep;
 	int ps_step_max;
 	int ps_step;
+	int nIter;
+	double rNorm,res,ps_res;
 	
 	// Inputs
 	double rtol,abstol;
@@ -84,14 +86,13 @@ public:
 	double small_number;
 	
 	// Total residuals
-	vector<double> first_residuals;
+	vector<double> first_residuals,first_ps_residuals;
 	
 	// Scalar variables
 	Variable<double> rho,p,T,qdot,mdot,weightL,p_total,T_total;
 	// Vector variables
 	Variable<Vec3D> V,gradu,gradv,gradw,gradrho,gradp,gradT,tau;
 	vector<Variable<double> > update,limiter;
-	Variable<double> limiter_old;
 
 	MATERIAL material;
 	
@@ -117,7 +118,7 @@ public:
 	void set_interfaces(void);
 	
 	void petsc_init(void);
-	void petsc_solve(int &nIter,double &rNorm);
+	void petsc_solve(void);
 	void petsc_destroy(void);
 	
 	void calc_limiter(void);

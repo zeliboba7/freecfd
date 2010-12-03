@@ -30,7 +30,8 @@ void NavierStokes::write_restart(int timeStep) {
 	p.dump_cell_data(dirname+"p"+gs);
 	V.dump_cell_data(dirname+"V"+gs);
 	T.dump_cell_data(dirname+"T"+gs);
-	limiter_old.dump_cell_data(dirname+"limiter"+gs);	
+
+	return;
 }
 
 
