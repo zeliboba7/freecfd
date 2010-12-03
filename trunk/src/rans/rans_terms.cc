@@ -283,8 +283,8 @@ void RANS::get_kOmega() {
 	Vec3D cell2face=grid[gid].face[f].centroid-grid[gid].cell[parent].centroid;
 	
 	if (order==SECOND) {
-		delta[0]=cell2face.dot(gradk.cell(parent));
-		delta[1]=cell2face.dot(gradomega.cell(parent));
+		delta[0]=cell2face.dot(limiter[0].cell(parent)*gradk.cell(parent));
+		delta[1]=cell2face.dot(limiter[1].cell(parent)*gradomega.cell(parent));
 	} else {
 		for (int i=0;i<2;++i) delta[i]=0.;
 	}
@@ -318,8 +318,8 @@ void RANS::get_kOmega() {
 		cell2face=grid[gid].face[f].centroid-grid[gid].cell[neighbor].centroid;
 		
 		if (order==SECOND) {
-			delta[0]=cell2face.dot(gradk.cell(neighbor));
-			delta[1]=cell2face.dot(gradomega.cell(neighbor));
+			delta[0]=cell2face.dot(limiter[0].cell(neighbor)*gradk.cell(neighbor));
+			delta[1]=cell2face.dot(limiter[1].cell(neighbor)*gradomega.cell(neighbor));
 		} else {
 			for (int i=0;i<2;++i) delta[i]=0.;
 		}
@@ -369,8 +369,8 @@ void RANS::get_kOmega() {
 		cell2face=grid[gid].face[f].centroid-grid[gid].ghost[g].centroid;
 		
 		if (order==SECOND) {
-			delta[0]=cell2face.dot(gradk.ghost(g));
-			delta[1]=cell2face.dot(gradomega.ghost(g));
+			delta[0]=cell2face.dot(limiter[0].ghost(g)*gradk.ghost(g));
+			delta[1]=cell2face.dot(limiter[1].ghost(g)*gradomega.ghost(g));
 		} else {
 			for (int i=0;i<2;++i) delta[i]=0.;
 		}

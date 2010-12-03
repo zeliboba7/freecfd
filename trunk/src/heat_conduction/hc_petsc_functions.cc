@@ -75,7 +75,7 @@ void HeatConduction::petsc_init(void) {
 	return;
 } 
 
-void HeatConduction::petsc_solve(int &nIter,double &rNorm) {
+void HeatConduction::petsc_solve(void) {
 
 	MatAssemblyBegin(impOP,MAT_FINAL_ASSEMBLY);
 	MatAssemblyEnd(impOP,MAT_FINAL_ASSEMBLY);

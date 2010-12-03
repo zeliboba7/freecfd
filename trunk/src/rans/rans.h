@@ -66,7 +66,7 @@ public:
 	int nVars;
 	Variable<double> k,omega,mu_t,strainRate,yplus;
 	Variable<Vec3D> gradk,gradomega;
-	vector<Variable<double> > update;
+	vector<Variable<double> > update,limiter;
 	RANS_Model komega,kepsilon;
 	double kLowLimit,kHighLimit,omegaLowLimit,viscosityRatioLimit;
 	double Pr_t;
@@ -75,9 +75,10 @@ public:
 	int timeStep;
 	int ps_step_max;
 	int ps_step;	
-	
+	int nIter;
+	double rNorm,res,ps_res;
 	// Total residuals
-	vector<double> first_residuals;
+	vector<double> first_residuals,first_ps_residuals;
 
 	// PETSC variables
 	KSP ksp; // linear solver context
@@ -99,9 +100,11 @@ public:
 	void mpi_update_ghost_primitives(void);
 	void calc_cell_grads(void);
 	void mpi_update_ghost_gradients(void);
-	void petsc_init();
-	void petsc_solve(int &nIter,double &rNorm);
+	void petsc_init(void);
+	void petsc_solve(void);
 	void petsc_destroy(void);
+	void calc_limiter(void);
+	void barth_jespersen_limiter(void);
 	void solve (int timeStep,int ps_step);
 	void initialize_linear_system(void);
 	void get_kOmega(void);

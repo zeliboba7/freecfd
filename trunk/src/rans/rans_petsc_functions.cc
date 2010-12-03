@@ -80,7 +80,7 @@ void RANS::petsc_init(void) {
 	return;
 } 
 
-void RANS::petsc_solve(int &nIter,double &rNorm) {
+void RANS::petsc_solve(void) {
 	
 	MatAssemblyBegin(impOP,MAT_FINAL_ASSEMBLY);
 	MatAssemblyEnd(impOP,MAT_FINAL_ASSEMBLY);

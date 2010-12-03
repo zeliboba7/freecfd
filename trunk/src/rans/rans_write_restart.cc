@@ -29,6 +29,7 @@ void RANS::write_restart(int timeStep) {
 	
 	k.dump_cell_data(dirname+"k"+gs);
 	omega.dump_cell_data(dirname+"omega"+gs);
+	mu_t.dump_cell_data(dirname+"mu_t"+gs);
 	
 }
 

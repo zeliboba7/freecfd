@@ -54,10 +54,7 @@ void HeatConduction::solve (int ts) {
 	timeStep=ts;
 	initialize_linear_system();
 	assemble_linear_system();
-	int nIter;
-	double rNorm;
-	petsc_solve(nIter,rNorm);
-	if (Rank==0) cout << "\t" << nIter;
+	petsc_solve();
 	update_variables();
 	mpi_update_ghost_primitives();
 	calc_cell_grads();
@@ -141,14 +138,14 @@ void HeatConduction::update_variables(void) {
 
 	for (int c=0;c<grid[gid].cellCount;++c) {
 		T.cell(c)+=update.cell(c);
-		residual+=update.cell(c)*update.cell(c);
+		residual+=update.cell(c)*update.cell(c)/(dt[gid].cell(c)*dt[gid].cell(c));
 		
 	} // cell loop
 	
 	MPI_Allreduce(&residual,&totalResidual,1, MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
 	if (timeStep==1 || first_residual<0.) first_residual=sqrt(totalResidual);
 
-	if (Rank==0) cout << "\t" << sqrt(totalResidual)/first_residual;
+	res=sqrt(totalResidual)/first_residual;
 	
 	return;
 }
