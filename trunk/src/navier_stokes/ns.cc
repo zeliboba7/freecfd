@@ -30,7 +30,9 @@ NavierStokes::NavierStokes (void) {
 	return;
 }
 
-void NavierStokes::initialize (void) {
+void NavierStokes::initialize (int ps_max) {
+	
+	ps_step_max=ps_max;
 	nVars=5;
 	rtol=input.section("grid",gid).subsection("navierstokes").get_double("relativetolerance");
 	abstol=input.section("grid",gid).subsection("navierstokes").get_double("absolutetolerance");
@@ -69,6 +71,12 @@ void NavierStokes::initialize (void) {
 	
 	Minf=input.section("reference").get_double("Mach");
 	
+	if (input.section("pseudotime").get_string("preconditioner")=="none") {
+		preconditioner=NONE;
+	} else if (input.section("pseudotime").get_string("preconditioner")=="ws95") {
+		preconditioner=WS95;
+	}
+	
 	mpi_init();
 	material.set(gid);
 	create_vars();
@@ -83,10 +91,11 @@ void NavierStokes::initialize (void) {
 	return;
 }
 
-void NavierStokes::solve (int ts) {
+void NavierStokes::solve (int ts,int pts) {
 	timeStep=ts;
-	initialize_linear_system();
+	ps_step=pts;
 	assemble_linear_system();
+	time_terms();
 	int nIter;
 	double rNorm;
 	petsc_solve(nIter,rNorm);
@@ -316,7 +325,7 @@ void NavierStokes::update_variables(void) {
 	} // cell loop
 	
 	MPI_Allreduce(&residuals,&totalResiduals,3, MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
-	if (timeStep==1 || first_residuals[0]<0.) for (int i=0;i<3;++i) first_residuals[i]=sqrt(totalResiduals[i]);
+	if ((timeStep==1 && ps_step==1) || first_residuals[0]<0.) for (int i=0;i<3;++i) first_residuals[i]=sqrt(totalResiduals[i]);
 
 	double res=0.;
 	for (int i=0;i<3;++i) res+=sqrt(totalResiduals[i])/first_residuals[i]/3.;

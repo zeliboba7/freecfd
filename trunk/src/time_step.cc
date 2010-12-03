@@ -23,7 +23,7 @@
 #include "time_step.h"
 
 void set_time_step_options(void) {
-
+	
 	if(input.section("timemarching").get_string("integrator")=="backwardEuler") {
 		time_integrator=BACKWARD_EULER;
 	}
@@ -67,11 +67,62 @@ void set_time_step_options(void) {
 	return;
 }
 
+void set_pseudo_time_step_options(void) {
+
+	// Set pseudo time step options
+	ps_time_step_ramp=input.section("pseudotime").subsection("ramp").is_found;
+	ps_time_step_ramp_initial=input.section("pseudotime").subsection("ramp").get_double("initial");
+	ps_time_step_ramp_growth=input.section("pseudotime").subsection("ramp").get_double("growth");
+	
+	ps_time_step_type=NONE;
+	ps_time_step_current=input.section("pseudotime").get_double("stepsize");
+	ps_time_step_target=ps_time_step_current;
+	
+	if (input.section("pseudotime").get_double("stepsize").is_found) {
+		ps_time_step_type=FIXED;
+	}
+	if (input.section("pseudotime").get_double("CFLmax").is_found) {
+		if (ps_time_step_type==FIXED) {
+			cerr << "[E] Input entry pseudotime -> CFLmax can't be specified together with stepsize!!" << endl;
+			exit(1);
+		}
+		ps_time_step_type=CFL_MAX; ps_CFLmax=input.section("pseudotime").get_double("CFLmax");
+		ps_CFLmaxTarget=ps_CFLmax;
+	}
+	else if (input.section("pseudotime").get_double("CFLlocal").is_found) {
+		if (ps_time_step_type==FIXED) {
+			cerr << "[E] Input entry pseudotime -> CFLlocal can't be specified together with stepsize!!" << endl;
+			exit(1);
+		}
+		if (ps_time_step_type==CFL_MAX) {
+			cerr << "[E] Input entry pseudotime -> CFLlocal can't be specified together with CFLmax!!" << endl;
+			exit(1);
+		}
+		ps_time_step_type=CFL_LOCAL; ps_CFLlocal=input.section("pseudotime").get_double("CFLlocal");
+		ps_CFLlocalTarget=ps_CFLlocal;
+	}
+	
+	// Allocate the pseudo time step variable
+	dtau.resize(grid.size());
+	for (int gid=0;gid<grid.size();++gid) dtau[gid].allocate(gid);
+		
+	
+	return;
+}
+
 void update_time_step_options(void) {
 	input.refresh();
 	if (Rank==0) cout << "\n";
 	input.read("timemarching");
 	set_time_step_options();
+	return;
+}
+
+void update_pseudo_time_step_options(void) {
+	input.refresh();
+	if (Rank==0) cout << "\n";
+	input.read("pseudotime");
+	set_pseudo_time_step_options();
 	return;
 }
 
@@ -144,3 +195,71 @@ void update_time_step(int timeStep,double &time,int gid) {
 
 	return;
 }
+
+void update_pseudo_time_step(int ps_step,int gid) {
+	
+	if (ps_time_step_ramp) {
+		if (ps_step==1) {
+			if (ps_time_step_type==FIXED) ps_time_step_current=ps_time_step_ramp_initial;
+			if (ps_time_step_type==CFL_MAX) ps_CFLmax=ps_time_step_ramp_initial;
+			if (ps_time_step_type==CFL_LOCAL) ps_CFLlocal=ps_time_step_ramp_initial;
+		} else {
+			if (ps_time_step_type==FIXED) ps_time_step_current=min(ps_time_step_current*ps_time_step_ramp_growth,ps_time_step_target);
+			if (ps_time_step_type==CFL_MAX) ps_CFLmax=min(ps_CFLmax*ps_time_step_ramp_growth,ps_CFLmaxTarget);
+			if (ps_time_step_type==CFL_LOCAL) ps_CFLlocal=min(ps_CFLlocal*ps_time_step_ramp_growth,ps_CFLlocalTarget);
+		}
+	}
+	
+	double a;
+	if (ps_time_step_type==FIXED) {
+		for (int gid=0;gid<grid.size();++gid) for (int c=0;c<grid[gid].cellCount;++c) dtau[gid].cell(c)=ps_time_step_current;
+	} else if (ps_time_step_type==CFL_MAX) {
+		double min_dt=1.e20;
+		for (int gid=0;gid<grid.size();++gid) {
+			if (equations[gid]==NS) {
+				ps_time_step_current=1.e20;
+				for (int c=0;c<grid[gid].cellCount;++c) {
+					a=ns[gid].material.a(ns[gid].p.cell(c),ns[gid].T.cell(c));
+					ps_time_step_current=min(ps_time_step_current,ps_CFLmax*grid[gid].cell[c].lengthScale/(fabs(ns[gid].V.cell(c))+a));
+				}
+				MPI_Allreduce(&ps_time_step_current,&ps_time_step_current,1, MPI_DOUBLE,MPI_MIN,MPI_COMM_WORLD);
+				if (min_dt>ps_time_step_current) min_dt=ps_time_step_current;
+			}
+			ps_time_step_current=min_dt;
+			for (int c=0;c<grid[gid].cellCount;++c) dtau[gid].cell(c)=ps_time_step_current;
+		}
+	} else if (ps_time_step_type==CFL_LOCAL) {
+		// Determine ps_time step with CFL condition
+		for (int c=0;c<grid[gid].cellCount;++c) {
+			a=ns[gid].material.a(ns[gid].p.cell(c),ns[gid].T.cell(c));
+			dtau[gid].cell(c)=ps_CFLlocal*grid[gid].cell[c].lengthScale/(fabs(ns[gid].V.cell(c))+a);
+			ps_time_step_current=1.;
+		}
+	}
+	
+	// Output current ps_time step, max dt and max CFL
+	double max_cfl=-1.;
+	double min_dt=1.e20;
+	if (equations[gid]==NS) {
+		for (int c=0;c<grid[gid].cellCount;++c) {
+			a=ns[gid].material.a(ns[gid].p.cell(c),ns[gid].T.cell(c));
+			max_cfl=max(max_cfl,(fabs(ns[gid].V.cell(c))+a)*ps_time_step_current/grid[gid].cell[c].lengthScale);
+			if (ps_time_step_type==CFL_LOCAL) min_dt=min(min_dt,dtau[gid].cell(c));
+		}
+		if (ps_time_step_type==CFL_LOCAL) {
+			MPI_Allreduce(&min_dt,&min_dt,1, MPI_DOUBLE,MPI_MIN,MPI_COMM_WORLD);
+		} else {
+			MPI_Allreduce(&max_cfl,&max_cfl,1, MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
+		}
+	}
+	
+	if (ps_time_step_type==CFL_LOCAL) {
+		ps_time_step_current=min_dt;
+		max_cfl=ps_CFLlocal;
+	}
+	
+	if (Rank==0) cout << "\n\t" << ps_step << "\t" << max_cfl ;
+	
+	return;
+}
+

@@ -146,7 +146,19 @@ void read_inputs(void) {
 	input.section("timemarching").register_int("numberofsteps",required);
 	input.section("timemarching").register_int("updatefrequency",optional,1000000);
 	input.read("timemarching");
-
+	
+	input.registerSection("pseudotime",single,optional);
+	input.section("pseudotime").register_string("preconditioner",optional,"none");
+	input.section("pseudotime").register_double("stepsize",optional,1.);
+	input.section("pseudotime").register_double("CFLmax",optional,1000.);
+	input.section("pseudotime").register_double("CFLlocal",optional,1000.);
+	input.section("pseudotime").registerSubsection("ramp",single,optional);
+	input.section("pseudotime").subsection("ramp").register_double("initial",optional,1.);
+	input.section("pseudotime").subsection("ramp").register_double("growth",optional,1.2);
+	input.section("pseudotime").register_int("numberofsteps",optional,1);
+	input.section("pseudotime").register_int("updatefrequency",optional,1000000);
+	input.read("pseudotime");
+	
 	input.readEntries();
 	
 	// Read the material file for each grid

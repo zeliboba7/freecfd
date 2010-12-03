@@ -35,6 +35,8 @@ namespace ns_state {
 
 void NavierStokes::assemble_linear_system(void) {
 
+	MatZeroEntries(impOP);
+	
 	using namespace ns_state;
 	using ns_state::left;
 	using ns_state::right;
