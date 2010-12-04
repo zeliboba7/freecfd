@@ -255,6 +255,10 @@ int main(int argc, char *argv[]) {
 			update_time_step(timeStep,time[gid],max_cfl[gid],gid);
 			if (equations[gid]==NS) {
 				for (ps_step=1;ps_step<=ps_step_max;++ps_step) {
+					for (int b=0;b<loads[gid].include_bcs.size();++b) {
+						loads[gid].force[b]=0.;
+						loads[gid].moment[b]=0.;
+					}
 					if (ps_step_max>1) update_pseudo_time_step(ps_step,ps_max_cfl[gid],gid);
 					 ns[gid].solve(timeStep,ps_step);
 					// Write screen output for pseudo time iteration

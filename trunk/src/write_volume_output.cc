@@ -76,8 +76,6 @@ void write_loads(int gid,int step,double time) {
 			file << force_x << "\t" << force_y << "\t" << force_z << "\t" << moment_x << "\t" << moment_y << "\t" << moment_z << endl;
 			file.close();
 		}
-		loads[gid].force[b]=0.;
-		loads[gid].moment[b]=0.;
 	}
 	return;
 }
