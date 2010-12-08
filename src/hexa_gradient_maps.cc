@@ -34,11 +34,10 @@ void hexa_gradient_maps(int gid) {
 	bool DEBUG=false;
 	
 	set<int> stencil;
-	set<int>::iterator sit;
-	set<int>::iterator sit2;
+	set<int>::iterator sit,sit1,sit2,sit3;
 	Vec3D my_normal,other_normal,cell2face;
 	int opposite_face;
-	double product,min_product;
+	double product,min_product,max_product;
 	vector<int> face_pairs (6,-1);
 	vector<int> cell_pairs (6,-1);
 	vector<Vec3D> Jac; // Changes in othogonal system and curvilinear system
@@ -57,35 +56,144 @@ void hexa_gradient_maps(int gid) {
 	// Loop all the cells
 	for (int c=0;c<grid[gid].cellCount;++c) {
 		
-		// If not hexa, don't bother
-		if (grid[gid].cell[c].nodeCount!=8) break;
-		// Put the faces of the cell into a set (except the first one)
 		for (int cf=0;cf<grid[gid].cell[c].faceCount;++cf) stencil.insert(cf); // Note that these are not actual face indices
 		
-		// Loop the stencil
-		int counter=0;
-
-		for (sit=stencil.begin();sit!=stencil.end();sit++) {
-			// For each face, find the corresponding opposite
+		if (grid[gid].cell[c].nodeCount==8) { //If hexa cell
+			 // Put the faces of the cell into a set (except the first one)
+			 for (int cf=0;cf<grid[gid].cell[c].faceCount;++cf) stencil.insert(cf); // Note that these are not actual face indices	 
+			 // Loop the stencil
+			 int counter=0;
+			 for (sit1=stencil.begin();sit1!=stencil.end();sit1++) {
+				 // For each face, find the corresponding opposite
+				 min_product=1.e20;
+				 my_normal=grid[gid].cellFace(c,*sit1).normal;
+				 if (grid[gid].cellFace(c,*sit1).parent!=c) my_normal*=-1.;
+				 face_pairs[2*counter+1]=*sit1;
+				 sit2=sit1; sit2++;
+				 for (sit2=sit2;sit2!=stencil.end();sit2++) {
+				 other_normal=grid[gid].cellFace(c,*sit2).normal;
+				 // Make sure these normals are pointing outward
+				 if (grid[gid].cellFace(c,*sit2).parent!=c) other_normal*=-1.;
+				 // Pick the face with the normal in the most opposite direction to the current normal
+				 product=my_normal.dot(other_normal);
+				 if (product<min_product) {
+				 min_product=product;
+				 face_pairs[2*counter]=*sit2;
+				 }
+				 }
+				 stencil.erase(face_pairs[2*counter]); 
+				 stencil.erase(face_pairs[2*counter+1]);
+				 counter++;
+			 }
+		} else {
+			//First internal face will define the first direction
+			sit1=stencil.begin();
+			for (sit=stencil.begin();sit!=stencil.end();sit++) {
+				if (grid[gid].cellFace(c,*sit).bc==INTERNAL_FACE) {
+					sit1=sit;
+					break;
+				}
+			}
+			my_normal=grid[gid].cellFace(c,*sit1).normal;
+			// Find the most perpendicular face to the first one
+			// First restrict the search to non-boundary faces
+			sit2=sit1;
+			min_product=1.;
+			for (sit=stencil.begin();sit!=stencil.end();sit++) {
+				if (sit!=sit1) {
+					if (grid[gid].cellFace(c,*sit).bc==INTERNAL_FACE) {
+						other_normal=grid[gid].cellFace(c,*sit).normal;
+						product=fabs(my_normal.dot(other_normal));
+						if (product<min_product) {
+							min_product=product;
+							sit2=sit;
+						}
+					}
+				}
+			}
+			// Check if an internal face is picked, if not remove the restriction
 			min_product=1.e20;
-			my_normal=grid[gid].cellFace(c,*sit).normal;
-			if (grid[gid].cellFace(c,*sit).parent!=c) my_normal*=-1.;
-			face_pairs[2*counter+1]=*sit;
-			sit2=sit; sit2++;
-			for (sit2=sit2;sit2!=stencil.end();sit2++) {
-				other_normal=grid[gid].cellFace(c,*sit2).normal;
+			if (sit2==sit1) { // Means no selection made in the previous loop
+				for (sit=stencil.begin();sit!=stencil.end();sit++) {
+					if (sit!=sit1) {
+						other_normal=grid[gid].cellFace(c,*sit).normal;
+						product=fabs(my_normal.dot(other_normal));
+						if (product<min_product) {
+							min_product=product;
+							sit2=sit;
+						}
+					}
+				}
+			}
+			// Find the face with the normal most parallel to cross product of the first two
+			max_product=0.;
+			my_normal=grid[gid].cellFace(c,*sit1).normal.cross(grid[gid].cellFace(c,*sit2).normal);
+			for (sit=stencil.begin();sit!=stencil.end();sit++) {
+				if (sit!=sit1 && sit!=sit2) {
+					other_normal=grid[gid].cellFace(c,*sit).normal;
+					product=fabs(my_normal.dot(other_normal));
+					if (product>max_product) {
+						max_product=product;
+						sit3=sit;
+					}
+				}
+			}		
+			face_pairs[1]=*sit1;
+			face_pairs[3]=*sit2;
+			face_pairs[5]=*sit3;
+			
+			// Now find the pairs of the 3 faces (most opposing faces)
+			min_product=1.e20;
+			my_normal=grid[gid].cellFace(c,*sit1).normal;
+			if (grid[gid].cellFace(c,*sit1).parent!=c) my_normal*=-1.;
+			for (sit=stencil.begin();sit!=stencil.end();sit++) {
+				other_normal=grid[gid].cellFace(c,*sit).normal;
 				// Make sure these normals are pointing outward
-				if (grid[gid].cellFace(c,*sit2).parent!=c) other_normal*=-1.;
+				if (grid[gid].cellFace(c,*sit).parent!=c) other_normal*=-1.;
 				// Pick the face with the normal in the most opposite direction to the current normal
 				product=my_normal.dot(other_normal);
 				if (product<min_product) {
 					min_product=product;
-					face_pairs[2*counter]=*sit2;
+					face_pairs[0]=*sit;
 				}
 			}
-			stencil.erase(face_pairs[2*counter]); stencil.erase(face_pairs[2*counter+1]);
-			counter++;
+			min_product=1.e20;
+			my_normal=grid[gid].cellFace(c,*sit2).normal;
+			if (grid[gid].cellFace(c,*sit2).parent!=c) my_normal*=-1.;
+			for (sit=stencil.begin();sit!=stencil.end();sit++) {
+				other_normal=grid[gid].cellFace(c,*sit).normal;
+				// Make sure these normals are pointing outward
+				if (grid[gid].cellFace(c,*sit).parent!=c) other_normal*=-1.;
+				// Pick the face with the normal in the most opposite direction to the current normal
+				product=my_normal.dot(other_normal);
+				if (product<min_product) {
+					if (!(*sit==face_pairs[1] && face_pairs[3]==face_pairs[0])) { // Avoid the same but reverse direction pick
+						min_product=product;
+						face_pairs[2]=*sit;
+					}
+				}
+			}		
+			min_product=1.e20;
+			my_normal=grid[gid].cellFace(c,*sit3).normal;
+			if (grid[gid].cellFace(c,*sit3).parent!=c) my_normal*=-1.;
+			for (sit=stencil.begin();sit!=stencil.end();sit++) {
+				other_normal=grid[gid].cellFace(c,*sit).normal;
+				// Make sure these normals are pointing outward
+				if (grid[gid].cellFace(c,*sit).parent!=c) other_normal*=-1.;
+				// Pick the face with the normal in the most opposite direction to the current normal
+				product=my_normal.dot(other_normal);
+				if (product<min_product) {
+					if (!(*sit==face_pairs[1] && face_pairs[5]==face_pairs[0])) { // Avoid the same but reverse direction pick
+						if (!(*sit==face_pairs[3] && face_pairs[5]==face_pairs[2])) {
+							min_product=product;
+							face_pairs[4]=*sit;
+						}
+					}
+				}
+			}
 		}
+		
+		stencil.clear();
 		
 		// Now we know the three directions
 		for (int i=0;i<3;++i) {
