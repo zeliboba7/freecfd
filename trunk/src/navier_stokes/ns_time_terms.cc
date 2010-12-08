@@ -133,8 +133,6 @@ void NavierStokes::time_terms() {
 			} // pseudo_delta=soln_k
 			VecAXPY(pseudo_delta,-1.,soln_n); // pseudo_delta-=soln_n
 			VecAssemblyBegin(pseudo_delta); VecAssemblyEnd(pseudo_delta);
-			//MatAssemblyBegin(impOP,MAT_FINAL_ASSEMBLY); MatAssemblyEnd(impOP,MAT_FINAL_ASSEMBLY);
-			//MatMult(impOP,deltaU,pseudo_right); // pseudo_right=impOP x deltaU (Jacx(u^{k+1}-u^k)
 			VecSet(pseudo_right,0.);
 		}
 	}
