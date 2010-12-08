@@ -162,9 +162,8 @@ void NavierStokes::time_terms() {
 			}
 		}
 	
-		if (preconditioner==WS95) preconditioner_ws95(c,P);
-
 		if (ps_step_max>1) {
+			if (preconditioner==WS95) preconditioner_ws95(c,P);	
 			for (int i=0;i<5;++i) {
 				row=(grid[gid].myOffset+c)*5+i;
 				for (int j=0;j<5;++j) {

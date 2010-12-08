@@ -28,7 +28,7 @@ using namespace std;
 extern vector<Grid> grid;
 extern InputFile input;
 
-void hexa_gradient_maps(int gid) {
+void gradient_maps(int gid) {
 
 	
 	bool DEBUG=false;
@@ -55,7 +55,7 @@ void hexa_gradient_maps(int gid) {
 	
 	// Loop all the cells
 	for (int c=0;c<grid[gid].cellCount;++c) {
-		
+			
 		for (int cf=0;cf<grid[gid].cell[c].faceCount;++cf) stencil.insert(cf); // Note that these are not actual face indices
 		
 		if (grid[gid].cell[c].nodeCount==8) { //If hexa cell
@@ -98,7 +98,7 @@ void hexa_gradient_maps(int gid) {
 			// Find the most perpendicular face to the first one
 			// First restrict the search to non-boundary faces
 			sit2=sit1;
-			min_product=1.;
+			min_product=1.e20;
 			for (sit=stencil.begin();sit!=stencil.end();sit++) {
 				if (sit!=sit1) {
 					if (grid[gid].cellFace(c,*sit).bc==INTERNAL_FACE) {
@@ -141,6 +141,11 @@ void hexa_gradient_maps(int gid) {
 			face_pairs[1]=*sit1;
 			face_pairs[3]=*sit2;
 			face_pairs[5]=*sit3;
+
+			// Just initialize these
+			face_pairs[0]=*sit2;
+			face_pairs[2]=*sit3;
+			face_pairs[4]=*sit1;
 			
 			// Now find the pairs of the 3 faces (most opposing faces)
 			min_product=1.e20;
@@ -198,37 +203,24 @@ void hexa_gradient_maps(int gid) {
 		// Now we know the three directions
 		for (int i=0;i<3;++i) {
 			
-			bool plus_is_bc=false;
 			cell_plus=grid[gid].cellFace(c,face_pairs[2*i+1]).neighbor;
 			if (cell_plus==c) cell_plus=grid[gid].cellFace(c,face_pairs[2*i+1]).parent;
-			if (DEBUG && i==0) cout << cell_plus << endl;
 			cell_pairs[2*i+1]=cell_plus;
 			if (grid[gid].cellFace(c,face_pairs[2*i+1]).bc>=0) { // Face is at a boundary
 				cell_pairs[2*i+1]=c;
-				Jac[i]=grid[gid].cell[c].centroid;
-				plus_is_bc=true;
+				Jac[i]=grid[gid].cellFace(c,face_pairs[2*i+1]).centroid;
 			} else if (cell_plus<0) { // An inter-partition ghost cell
 				Jac[i]=grid[gid].ghost[-cell_plus-1].centroid;
 			} else {
 				Jac[i]=grid[gid].cell[cell_plus].centroid;
 			}
 			
-			bool minus_is_bc=false;
 			cell_minus=grid[gid].cellFace(c,face_pairs[2*i]).neighbor;
 			if (cell_minus==c) cell_minus=grid[gid].cellFace(c,face_pairs[2*i]).parent;
 			cell_pairs[2*i]=cell_minus;
 			if (grid[gid].cellFace(c,face_pairs[2*i]).bc>=0) { // Face is at a boundary
-				if (plus_is_bc) {
-					// Consider an imaginary cell
-					cell2face=grid[gid].cellFace(c,face_pairs[2*i]).centroid-grid[gid].cell[c].centroid;
-					my_normal=grid[gid].cellFace(c,face_pairs[2*i]).normal;
-					if (grid[gid].cellFace(c,face_pairs[2*i]).parent!=c) my_normal*=-1.;
-					Jac[i]-=(grid[gid].cell[c].centroid+2.*cell2face.dot(my_normal)*my_normal);
-				} else {
-					Jac[i]-=grid[gid].cell[c].centroid;
-				}
 				cell_pairs[2*i]=c;
-				minus_is_bc=true;
+				Jac[i]-=grid[gid].cellFace(c,face_pairs[2*i]).centroid;
 			} else if (cell_minus<0) { // An inter-partition ghost cell
 				Jac[i]-=grid[gid].ghost[-cell_minus-1].centroid;
 			} else {

@@ -62,7 +62,7 @@ void update_pseudo_time_step(int ps_tep,double &max_cfl,int gid);
 
 void bc_interface_sync(void);
 void face_interpolation_weights(int gid);
-void hexa_gradient_maps(int gid);
+void gradient_maps(int gid);
 	
 // Global declerations
 InputFile input;
@@ -162,7 +162,7 @@ int main(int argc, char *argv[]) {
 		if (Rank==0) cout << "[I grid=" << gid+1 << " ] Calculating face averaging metrics, this might take a while..." << endl;
 
 		face_interpolation_weights(gid);
-		hexa_gradient_maps(gid);
+		gradient_maps(gid);
 	}
 
 	for (int gid=0;gid<grid.size();++gid) {

@@ -63,7 +63,7 @@ set (EXTRA_LIBS parmetis metis cgns petsc f2cblas f2clapack)
 set (SOURCES
 bc_interface.cc
 face_interpolation_weights.cc
-hexa_gradient_maps.cc
+gradient_maps.cc
 main.cc
 read_restart.cc
 time_step.cc
