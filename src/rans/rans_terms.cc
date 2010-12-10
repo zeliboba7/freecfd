@@ -22,7 +22,7 @@
 *************************************************************************/
 #include "rans.h"
 
-extern RANS rans;
+extern RANS_Model komega,kepsilon;
 
 void get_kOmega(void);
 double get_blending(double &k,double &omega,double &rho,double &y,double &visc,Vec3D &gradK,Vec3D &gradOmega);
@@ -396,10 +396,10 @@ double get_blending(double &k,double &omega,double &rho,double &y,double &visc,V
 	double arg,arg1,arg2,arg3,CD,cross_diff,F1;
 	
 	cross_diff=gradK[0]*gradOmega[0]+gradK[1]*gradOmega[1]+gradK[2]*gradOmega[2];
-	CD=max(2.*rho*rans.komega.sigma_omega*cross_diff/omega,1.e-10);
-	arg1=sqrt(k)/(rans.kepsilon.beta_star*omega*y);
+	CD=max(2.*rho*kepsilon.sigma_omega*cross_diff/omega,1.e-10);
+	arg1=2.*sqrt(k)/(kepsilon.beta_star*omega*y);
 	arg2=500.*visc/(rho*y*y*omega);
-	arg3=4.*rho*rans.komega.sigma_omega*k/(CD*y*y);
+	arg3=4.*rho*kepsilon.sigma_omega*k/(CD*y*y);
 	arg=min(max(arg1,arg2),arg3);
 	F1=tanh(pow(arg,4.));
 	return F1;

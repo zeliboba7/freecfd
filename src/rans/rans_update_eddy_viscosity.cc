@@ -21,6 +21,7 @@
 
 *************************************************************************/
 #include "rans.h"
+extern RANS_Model komega,kepsilon;
 
 void RANS::update_eddy_viscosity(void) {
 	
@@ -38,12 +39,14 @@ void RANS::update_eddy_viscosity(void) {
 			arg3=max(arg1,arg2);
 			F2=tanh(arg3*arg3);
 			mu_t.cell(c)=a1*ns[gid].rho.cell(c)*k.cell(c)/max(a1*omega.cell(c),strainRate.cell(c)*F2);
-			turbulent_length_scale=sqrt((k.cell(c)+1.e-15))/max(omega.cell(c),strainRate.cell(c)*F2/a1);
-			turbulent_length_scale/=0.083;
+			mu_t.cell(c)=min(viscosityRatioLimit*mu,mu_t.cell(c));
+			//turbulent_length_scale=sqrt((k.cell(c)+1.e-15))/max(omega.cell(c),strainRate.cell(c)*F2/a1);
+			//turbulent_length_scale/=0.083;
 		} else {
 			mu_t.cell(c)=ns[gid].rho.cell(c)*k.cell(c)/omega.cell(c);
-			turbulent_length_scale=sqrt(k.cell(c)+1.e-15)/omega.cell(c);
-			turbulent_length_scale/=0.083;
+			mu_t.cell(c)=min(viscosityRatioLimit*mu,mu_t.cell(c));
+			//turbulent_length_scale=sqrt(k.cell(c)+1.e-15)/omega.cell(c);
+			//turbulent_length_scale/=0.083;
 		}
 	}
 	
@@ -51,43 +54,5 @@ void RANS::update_eddy_viscosity(void) {
 	
 } 
 
-/*
-// Updates the eddy viscosity stores at the faces
-void RANS::update_face_eddy_viscosity(void) {
-	
-	// Update face center values
-	map<int,double>::iterator fit;
-	int parent;
-	
-	for (int f=0;f<grid.faceCount;++f) {
-		parent=grid.face[f].parent;
-		// Find face averaged value
-		face[f].mu_t=0.;
-		for (fit=grid.face[f].average.begin();fit!=grid.face[f].average.end();fit++) {
-			if ((*fit).first>=0) { // if contribution is coming from a real cell
-				face[f].mu_t+=(*fit).second*cell[(*fit).first].mu_t;
-			} else { // if contribution is coming from a ghost cell
-				face[f].mu_t+=(*fit).second*ghost[-1*((*fit).first+1)].mu_t;
-			}
-		}
-		
-		face[f].mu_t=max(0.,face[f].mu_t);
-		
-		// Correct for boundaries
-		if (grid.face[f].bc>=0) { // boundary face
-			if (bc.region[grid.face[f].bc].type==NOSLIP) {
-				face[f].mu_t=0.;
-			} else if (bc.region[grid.face[f].bc].type==SYMMETRY) {
-				face[f].mu_t=cell[parent].mu_t;
-			}
-		}
-		
-	}
-	
-	return;
-	
-} // end RANS::update_face_eddy_viscosity
-
-*/
 
 

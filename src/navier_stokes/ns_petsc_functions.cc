@@ -74,7 +74,7 @@ void NavierStokes::petsc_init(void) {
 	//KSPSetType(ksp,KSPGMRES);
 	KSPSetType(ksp,KSPFGMRES);
 	//KSPGMRESSetOrthogonalization(ksp,KSPGMRESModifiedGramSchmidtOrthogonalization);
-	KSPGMRESSetRestart(ksp,100);
+	KSPGMRESSetRestart(ksp,300);
 	KSPSetFromOptions(ksp);
 	
 	return;

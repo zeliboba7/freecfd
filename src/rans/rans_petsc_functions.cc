@@ -74,7 +74,7 @@ void RANS::petsc_init(void) {
 	KSPSetTolerances(ksp,rtol,abstol,1.e15,maxits);
 	KSPSetInitialGuessKnoll(ksp,PETSC_TRUE);
 	KSPSetType(ksp,KSPFGMRES);
-	KSPGMRESSetRestart(ksp,100);
+	KSPGMRESSetRestart(ksp,300);
 	KSPSetFromOptions(ksp);
 	
 	return;

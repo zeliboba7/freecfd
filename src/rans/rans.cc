@@ -22,6 +22,8 @@
 *************************************************************************/
 #include "rans.h"
 
+RANS_Model komega,kepsilon;
+
 RANS::RANS(void) {
 	kepsilon.sigma_k=1.;
 	kepsilon.sigma_omega=0.856;
@@ -212,8 +214,6 @@ void RANS::update_variables(void) {
 	
 	double dt2,dtau2;
 	
-	int counter=0;
-	double mu,new_mu_t;
 	for (int c=0;c<grid[gid].cellCount;++c) {
 		for (int i=0;i<2;++i) {
 			if (isnan(update[i].cell(c)) || isinf(update[i].cell(c))) {
@@ -221,27 +221,20 @@ void RANS::update_variables(void) {
 				MPI_Abort(MPI_COMM_WORLD,1);
 			}
 		}
+		
 		// Limit the update so that k and omega doesn't end up out of limits
 		update[0].cell(c)=max(-1.*(k.cell(c)-kLowLimit),update[0].cell(c));
 		update[0].cell(c)=min((kHighLimit-k.cell(c)),update[0].cell(c));
-		
 		update[1].cell(c)=max(-1.*(omega.cell(c)-omegaLowLimit),update[1].cell(c));
-		
-		new_mu_t=ns[gid].rho.cell(c)*(k.cell(c)+update[0].cell(c))/(omega.cell(c)+update[1].cell(c));
-		mu=material.viscosity(ns[gid].T.cell(c));
-		if (new_mu_t/mu>viscosityRatioLimit) {
-			counter++; 
-			double under_relax;
-			double limit_nu=viscosityRatioLimit*mu/ns[gid].rho.cell(c);
-			under_relax=(limit_nu*omega.cell(c)-k.cell(c))/(update[0].cell(c)-limit_nu*update[1].cell(c)+1.E-8);
-			under_relax=0.9*max(1.,under_relax);
-			update[0].cell(c)*=under_relax;
-			update[1].cell(c)*=under_relax;
-		}
 		
 		k.cell(c) += update[0].cell(c);
 		omega.cell(c)+= update[1].cell(c);
 		
+		/*
+		k.cell(c)=max(kLowLimit,k.cell(c));
+		k.cell(c)=min(kHighLimit,k.cell(c));
+		omega.cell(c)=max(omegaLowLimit,omega.cell(c));
+		*/
 		
 		if (ps_step_max>1) {
 			dtau2=dtau[gid].cell(c)*dtau[gid].cell(c);
@@ -259,11 +252,8 @@ void RANS::update_variables(void) {
 		dt2=dt[gid].cell(c)*dt[gid].cell(c);
 		residuals[0]+=update[0].cell(c)*update[0].cell(c)/dt2;
 		residuals[1]+=update[1].cell(c)*update[1].cell(c)/dt2;
-
-		
 		
 	} // cell loop
-	if (counter>0) cout << "\n[W] Update of k and omega is limited due to viscosityRatioLimit constraint for " << counter << " cells" << endl;
 
 	MPI_Allreduce(&residuals,&totalResiduals,2, MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
 	if (ps_step_max>1) MPI_Allreduce(&ps_residuals,&total_ps_residuals,2, MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
