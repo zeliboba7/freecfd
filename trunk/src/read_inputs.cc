@@ -43,7 +43,7 @@ void read_inputs(void) {
 	input.section("grid",0).register_string("equations",required);
 	
 	input.section("grid",0).registerSubsection("interpolation",single,optional);
-	input.section("grid",0).subsection("interpolation").register_int("stencilsize",optional,-1); // Decides default based on grid dimension
+	input.section("grid",0).subsection("interpolation").register_int("stencilsize",optional,2);
 	input.section("grid",0).subsection("interpolation").register_double("skewnesstolerance",optional,0.99);
 	
 	input.section("grid",0).registerSubsection("writeoutput",single,required);
@@ -109,10 +109,10 @@ void read_inputs(void) {
 	input.section("grid",0).subsection("turbulence").register_int("maximumiterations",optional,10);	
 	input.section("grid",0).subsection("turbulence").register_string("model",optional,"sst");
 	input.section("grid",0).subsection("turbulence").register_string("order",optional,"second");
-	input.section("grid",0).subsection("turbulence").register_double("klowlimit",optional,1.e-8);
-	input.section("grid",0).subsection("turbulence").register_double("khighlimit",optional,1.e4);
-	input.section("grid",0).subsection("turbulence").register_double("omegalowlimit",optional,1.);
-	input.section("grid",0).subsection("turbulence").register_double("viscosityratiolimit",optional,5.e4);
+	input.section("grid",0).subsection("turbulence").register_double("klowlimit",optional,1.e-10);
+	input.section("grid",0).subsection("turbulence").register_double("khighlimit",optional,1.e8);
+	input.section("grid",0).subsection("turbulence").register_double("omegalowlimit",optional,1.e-2);
+	input.section("grid",0).subsection("turbulence").register_double("viscosityratiolimit",optional,1.e8);
 	input.section("grid",0).subsection("turbulence").register_double("turbulentPr",optional,0.9);
 	
 	input.section("grid",0).registerSubsection("navierstokes",single,optional);

@@ -67,7 +67,6 @@ public:
 	Variable<double> k,omega,mu_t,strainRate,yplus;
 	Variable<Vec3D> gradk,gradomega;
 	vector<Variable<double> > update,limiter;
-	RANS_Model komega,kepsilon;
 	double kLowLimit,kHighLimit,omegaLowLimit,viscosityRatioLimit;
 	double Pr_t;
 	double rtol,abstol;
