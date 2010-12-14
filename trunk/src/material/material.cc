@@ -1,6 +1,6 @@
 /************************************************************************
 	
-	Copyright 2007-2010 Emre Sozer & Patrick Clark Trizila
+	Copyright 2007-2010 Emre Sozer
 
 	Contact: emresozer@freecfd.com
 
@@ -135,9 +135,13 @@ double MATERIAL::therm_cond (double T) {
 }
 
 double MATERIAL::Cp (double T) {
-	if (Cp_model==CONSTANT) {
-		return Cp_value;
-	} else if (Cp_model=POLY) {
-		return Cp_poly.eval(T+Tref);
+	if (eos_model==IDEAL_GAS) {
+		return gamma*R/(gamma-1.);
+	} else {
+		if (Cp_model==CONSTANT) {
+			return Cp_value;
+		} else if (Cp_model=POLY) {
+			return Cp_poly.eval(T+Tref);
+		}
 	}
 }
