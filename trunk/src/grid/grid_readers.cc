@@ -21,7 +21,6 @@
 
 *************************************************************************/
 #include "grid.h"
-#include "kdtree.h"
 
 GridRawData raw;
 double block_stitch_tolerance=1.e-8;
@@ -31,11 +30,6 @@ int Grid::readCGNS() {
 	char zoneName[20],sectionName[20]; //baseName[20]
 	//  int nBases,cellDim,physDim;
 	int size[3];
-	vector<kdtree*> kd; // kdtree object
-	kdres *kd_results; // kdtree query result object
-	double kd_nearest_x,kd_nearest_y,kd_nearest_z;
-	int * kd_nearest_index;
-	vector<vector<int> > kd_data;
 	
 	int POINT_LIST=1;
 	int ELEMENT_LIST=2;
@@ -73,19 +67,14 @@ int Grid::readCGNS() {
 	
 	// zoneCoordMap returns the global id of a given node in a given zone
 	std::vector<int> zoneCoordMap[nZones];
+	// This holds all the nodes not internal to each specific zone. Those still can be internal to the whole grid
+	vector<set<int> > zone_boundary_nodes; 
+	zone_boundary_nodes.resize(nZones);
 
+	set<int>::iterator sit;
 	map<string,int>::iterator mit;
-	kd.resize(nZones);
-	kd_data.resize(nZones);
-	for (int zoneIndex=1;zoneIndex<=nZones;++zoneIndex) { 
-		cg_zone_read(fileIndex,baseIndex,zoneIndex,zoneName,size);
-		kd_data[zoneIndex-1].resize(size[0]);
-	}	
 	
 	for (int zoneIndex=1;zoneIndex<=nZones;++zoneIndex) { // For each zone
-		
-		kd[zoneIndex-1]=kd_create(3); // Initialize kdtree
-		
 		vector<int> bc_method;
 		vector<set<int> > bc_element_list;
 		// Read the zone
@@ -135,11 +124,8 @@ int Grid::readCGNS() {
 			max_x[zoneIndex-1]=max(coordX[zoneIndex-1][c],max_x[zoneIndex-1]);
 			max_y[zoneIndex-1]=max(coordY[zoneIndex-1][c],max_y[zoneIndex-1]);
 			max_z[zoneIndex-1]=max(coordZ[zoneIndex-1][c],max_z[zoneIndex-1]);
-			// Insert coordinates into kdtree of this zone
-			kd_data[zoneIndex-1][c]=c;
-			kd_insert3(kd[zoneIndex-1],coordX[zoneIndex-1][c],coordY[zoneIndex-1][c],coordZ[zoneIndex-1][c],&kd_data[zoneIndex-1][c]);
 		}
-		
+				
 		// In case there are multiple connected zones, collapse the repeated nodes and fix the node numbering
 		if (zoneIndex==1) { // If the first zone
 			for (int c=0;c<coordX[0].size();++c) {
@@ -149,11 +135,15 @@ int Grid::readCGNS() {
 				globalNodeCount++;
 			}
 		} else {
+			int counter=0;
+			int c2;
+			
 			// Scan the coordinates of all the other zones before this one for duplicates
 			for (int c=0;c<coordX[zoneIndex-1].size();++c) {
 				bool foundFlag=false;
 
 				for (int z=0;z<zoneIndex-1;++z) { // Loop other zones
+
 					if (coordX[zoneIndex-1][c]<(min_x[z]-block_stitch_tolerance)) continue;
 					if (coordY[zoneIndex-1][c]<(min_y[z]-block_stitch_tolerance)) continue;
 					if (coordZ[zoneIndex-1][c]<(min_z[z]-block_stitch_tolerance)) continue;
@@ -161,21 +151,16 @@ int Grid::readCGNS() {
 					if (coordX[zoneIndex-1][c]>(max_x[z]+block_stitch_tolerance)) continue;
 					if (coordY[zoneIndex-1][c]>(max_y[z]+block_stitch_tolerance)) continue;
 					if (coordZ[zoneIndex-1][c]>(max_z[z]+block_stitch_tolerance)) continue;
-
-					// Possible duplicate in the other zone
-					// Check nearest neigbor in the other zone kdtree
-					kd_results=kd_nearest3(kd[z],coordX[zoneIndex-1][c],coordY[zoneIndex-1][c],coordZ[zoneIndex-1][c]);
-					kd_res_item3(kd_results,&kd_nearest_x,&kd_nearest_y,&kd_nearest_z);
-					kd_nearest_index = (int *) kd_res_item_data(kd_results);
 					
-					int c2=*kd_nearest_index;
-					if (fabs(coordX[zoneIndex-1][c]-coordX[z][c2])<block_stitch_tolerance && fabs(coordY[zoneIndex-1][c]-coordY[z][c2])<block_stitch_tolerance && fabs(coordZ[zoneIndex-1][c]-coordZ[z][c2])<block_stitch_tolerance) {
-						zoneCoordMap[zoneIndex-1][c]=zoneCoordMap[z][c2];
-						foundFlag=true;
-					}
+					for (sit=zone_boundary_nodes[z].begin();sit!=zone_boundary_nodes[z].end();sit++) {
+						c2=*sit;						
+						if (fabs(coordX[zoneIndex-1][c]-coordX[z][c2])<block_stitch_tolerance && fabs(coordY[zoneIndex-1][c]-coordY[z][c2])<block_stitch_tolerance && fabs(coordZ[zoneIndex-1][c]-coordZ[z][c2])<block_stitch_tolerance) {
+							zoneCoordMap[zoneIndex-1][c]=zoneCoordMap[z][c2];
+							foundFlag=true;
+						}
 
-					kd_res_free(kd_results);
-					if (foundFlag) break;
+						if (foundFlag) break;
+					}
 				}
 				
 				if (!foundFlag) {
@@ -251,7 +236,7 @@ int Grid::readCGNS() {
 		} // for boco
 		
 		// Loop sections within the zone
-		// These include connectivities of cells and bonudary faces
+		// These include connectivities of cells and boundary faces
 		for (int sectionIndex=1;sectionIndex<=nSections;++sectionIndex) {
 			ElementType_t elemType;
 			int elemNodeCount,elemStart,elemEnd,nBndCells,parentFlag;
@@ -308,6 +293,13 @@ int Grid::readCGNS() {
 					}
 					globalCellCount+=(elemEnd-elemStart+1);
 				} else { // If not a volume element
+					// Save all the non-interior nodes (non-interior to that block)
+					for (int elem=0;elem<=(elemEnd-elemStart);++elem) {
+						for (int n=0;n<elemNodeCount;++n) {
+							zone_boundary_nodes[zoneIndex-1].insert(elemNodes[elem*elemNodeCount+n]-1);
+						}
+					}
+					
 					// Scan all the boundary condition regions
 					if (nBocos!=0) {
 						for (int nbc=0;nbc<raw.bocoNameMap.size();++nbc) {
@@ -349,10 +341,6 @@ int Grid::readCGNS() {
 		
 	}
 	
-	for (int zoneIndex=1;zoneIndex<=nZones;++zoneIndex) kd_free(kd[zoneIndex-1]);
-	kd.clear();
-	kd_data.clear();
-
 	if (Rank==0) cout << "[I] Total Cell Count= " << globalCellCount << endl;
 
 	return 0;
