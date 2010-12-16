@@ -171,7 +171,9 @@ int Grid::readCGNS() {
 		cg_coord_read(fileIndex,baseIndex,zoneIndex,"CoordinateX",RealDouble,nodeStart,nodeEnd,&coordX[zoneIndex-1][0]);
 		cg_coord_read(fileIndex,baseIndex,zoneIndex,"CoordinateY",RealDouble,nodeStart,nodeEnd,&coordY[zoneIndex-1][0]);
 		cg_coord_read(fileIndex,baseIndex,zoneIndex,"CoordinateZ",RealDouble,nodeStart,nodeEnd,&coordZ[zoneIndex-1][0]);
-
+		
+		if (Rank==0) cout << "[I] ...Read node coordinates" << endl;
+		
 		for (int i=0;i<size[0];++i) {
 			// This map takes in zone index and node number within that zone
 			// Returns the global index of that node
@@ -213,6 +215,8 @@ int Grid::readCGNS() {
 				}	
 			}
 		}
+		
+		if (Rank==0) cout << "[I] ...Merged duplicate nodes" << endl;
 
 		// Boundary condition regions may be given as element or point ranges, or element or point lists
 		// For each zone and each boundary condition region, store a point list, convert if another method is used
