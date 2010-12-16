@@ -5,7 +5,6 @@ grid_create_elements.cc
 grid_partition.cc
 grid_readers.cc
 grid_transform.cc
-kdtree.c
 )
 
 add_library(${NAME} STATIC ${SOURCES} )

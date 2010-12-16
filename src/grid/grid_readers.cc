@@ -56,8 +56,8 @@ int Grid::readCGNS() {
 	if (Rank==0) cout << "[I] Number of Zones= " << nZones << endl;
 	
 	// This holds all the nodes not internal to each specific zone. Those still can be internal to the whole grid
-	vector<set<int> > zone_boundary_nodes; 
-	zone_boundary_nodes.resize(nZones);
+	vector<set<int> > zonal_boundary_nodes; 
+	zonal_boundary_nodes.resize(nZones);
 	
 	set<int>::iterator sit,sit2;
 	map<string,int>::iterator mit;
@@ -125,10 +125,10 @@ int Grid::readCGNS() {
 				// Save all the non-interior nodes (non-interior to that block)
 				for (int elem=0;elem<=(elemEnd-elemStart);++elem) {
 					for (int n=0;n<elemNodeCount;++n) {
-						zone_boundary_nodes[zoneIndex-1].insert(elemNodes[elem*elemNodeCount+n]-1);
+						zonal_boundary_nodes[zoneIndex-1].insert(elemNodes[elem*elemNodeCount+n]-1);
 					}
 				}
-			elemNodes.clear();
+				elemNodes.clear();
 			}// if
 		} // for section
 	} // end zone loop
@@ -217,7 +217,7 @@ int Grid::readCGNS() {
 			
 			bool foundFlag;
 			// Scan the coordinates of all the non-internal nodes of other zones before this one for duplicates
-			for (sit=zone_boundary_nodes[zoneIndex-1].begin();sit!=zone_boundary_nodes[zoneIndex-1].end();sit++) {
+			for (sit=zonal_boundary_nodes[zoneIndex-1].begin();sit!=zonal_boundary_nodes[zoneIndex-1].end();sit++) {
 				foundFlag=false;
 				for (int z=0;z<zoneIndex-1;++z) { // Loop other zones
 					
@@ -229,7 +229,7 @@ int Grid::readCGNS() {
 					if (coordY[zoneIndex-1][*sit]>(max_y[z]+block_stitch_tolerance)) continue;
 					if (coordZ[zoneIndex-1][*sit]>(max_z[z]+block_stitch_tolerance)) continue;
 					
-					for (sit2=zone_boundary_nodes[z].begin();sit2!=zone_boundary_nodes[z].end();sit2++) {
+					for (sit2=zonal_boundary_nodes[z].begin();sit2!=zonal_boundary_nodes[z].end();sit2++) {
 						if (fabs(coordX[zoneIndex-1][*sit]-coordX[z][*sit2])>block_stitch_tolerance) continue;
 						if (fabs(coordY[zoneIndex-1][*sit]-coordY[z][*sit2])>block_stitch_tolerance) continue;
 						if (fabs(coordZ[zoneIndex-1][*sit]-coordZ[z][*sit2])>block_stitch_tolerance) continue;

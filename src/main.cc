@@ -87,6 +87,13 @@ bool pseudo_time_active;
 
 static char help[] = "Free CFD\n - A free general purpose computational fluid dynamics code";
 
+// This is to suppress PETSc's error output
+int PetscPrintError(const char error[],...){
+	if (Rank==0) cerr << "PETSc Error ... exiting" << endl;
+	exit(1);
+	return 0;
+}
+
 int main(int argc, char *argv[]) {
 
     // Initialize mpi
@@ -96,6 +103,7 @@ int main(int argc, char *argv[]) {
 	
 	// Initialize petsc
 	PetscInitialize(&argc,&argv,(char *)0,help);
+	PetscErrorPrintf = PetscPrintError;
 	
 	string inputFileName;
 	inputFileName.assign(argv[1]);
