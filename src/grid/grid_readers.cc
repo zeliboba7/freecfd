@@ -238,10 +238,9 @@ int Grid::readCGNS() {
 						break;
 					}
 					if (foundFlag) break;
-				}
-				
+				}	
 			}
-
+			
 			for (int c=0;c<coordX[zoneIndex-1].size();++c) {
 				// Not found on the search above
 				if (zoneCoordMap[zoneIndex-1][c]==-1) {
@@ -276,12 +275,10 @@ int Grid::readCGNS() {
 				}
 			}
 			
-			if (Rank==0) cout << "[I] ...Reading boundary condition BC_" << bcIndex+1 << " : " << bcName << endl;
+			bc_method.resize(raw.bocoNameMap.size());
+			bc_element_list.resize(raw.bocoNameMap.size());
 			
-			if (bc_method.size()<bcIndex+1) {
-				bc_method.resize(bcIndex+1);
-				bc_element_list.resize(bcIndex+1);
-			}
+			if (Rank==0) cout << "[I] ...Reading boundary condition BC_" << bcIndex+1 << " : " << bcName << endl;
 			
 			vector<int> list; list.resize(npnts);
 			cg_boco_read(fileIndex,baseIndex,zoneIndex,bocoIndex,&list[0],&dummy);
@@ -362,7 +359,7 @@ int Grid::readCGNS() {
 						}
 						connIndex+=elemNodeCount;
 					}
-				} else { // If not a volume element					
+				} else { // If not a volume element	
 					// Scan all the boundary condition regions
 					if (nBocos!=0) {
 						for (int nbc=0;nbc<raw.bocoNameMap.size();++nbc) {
