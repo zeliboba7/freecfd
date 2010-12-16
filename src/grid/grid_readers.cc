@@ -21,6 +21,7 @@
 
 *************************************************************************/
 #include "grid.h"
+#include "kdtree.h"
 
 GridRawData raw;
 double block_stitch_tolerance=1.e-8;
@@ -30,6 +31,11 @@ int Grid::readCGNS() {
 	char zoneName[20],sectionName[20]; //baseName[20]
 	//  int nBases,cellDim,physDim;
 	int size[3];
+	vector<kdtree*> kd; // kdtree object
+	kdres *kd_results; // kdtree query result object
+	double kd_nearest_x,kd_nearest_y,kd_nearest_z;
+	int * kd_nearest_index;
+	vector<vector<int> > kd_data;
 	
 	int POINT_LIST=1;
 	int ELEMENT_LIST=2;
@@ -69,8 +75,17 @@ int Grid::readCGNS() {
 	std::vector<int> zoneCoordMap[nZones];
 
 	map<string,int>::iterator mit;
+	kd.resize(nZones);
+	kd_data.resize(nZones);
+	for (int zoneIndex=1;zoneIndex<=nZones;++zoneIndex) { 
+		cg_zone_read(fileIndex,baseIndex,zoneIndex,zoneName,size);
+		kd_data[zoneIndex-1].resize(size[0]);
+	}	
 	
 	for (int zoneIndex=1;zoneIndex<=nZones;++zoneIndex) { // For each zone
+		
+		kd[zoneIndex-1]=kd_create(3); // Initialize kdtree
+		
 		vector<int> bc_method;
 		vector<set<int> > bc_element_list;
 		// Read the zone
@@ -120,6 +135,9 @@ int Grid::readCGNS() {
 			max_x[zoneIndex-1]=max(coordX[zoneIndex-1][c],max_x[zoneIndex-1]);
 			max_y[zoneIndex-1]=max(coordY[zoneIndex-1][c],max_y[zoneIndex-1]);
 			max_z[zoneIndex-1]=max(coordZ[zoneIndex-1][c],max_z[zoneIndex-1]);
+			// Insert coordinates into kdtree of this zone
+			kd_data[zoneIndex-1][c]=c;
+			kd_insert3(kd[zoneIndex-1],coordX[zoneIndex-1][c],coordY[zoneIndex-1][c],coordZ[zoneIndex-1][c],&kd_data[zoneIndex-1][c]);
 		}
 		
 		// In case there are multiple connected zones, collapse the repeated nodes and fix the node numbering
@@ -144,13 +162,19 @@ int Grid::readCGNS() {
 					if (coordY[zoneIndex-1][c]>(max_y[z]+block_stitch_tolerance)) continue;
 					if (coordZ[zoneIndex-1][c]>(max_z[z]+block_stitch_tolerance)) continue;
 
-					for (int c2=0;c2<coordX[z].size();++c2) {
-						if (fabs(coordX[zoneIndex-1][c]-coordX[z][c2])<block_stitch_tolerance && fabs(coordY[zoneIndex-1][c]-coordY[z][c2])<block_stitch_tolerance && fabs(coordZ[zoneIndex-1][c]-coordZ[z][c2])<block_stitch_tolerance) {
-							zoneCoordMap[zoneIndex-1][c]=zoneCoordMap[z][c2];
-							foundFlag=true;
-							break;
-						}
+					// Possible duplicate in the other zone
+					// Check nearest neigbor in the other zone kdtree
+					kd_results=kd_nearest3(kd[z],coordX[zoneIndex-1][c],coordY[zoneIndex-1][c],coordZ[zoneIndex-1][c]);
+					kd_res_item3(kd_results,&kd_nearest_x,&kd_nearest_y,&kd_nearest_z);
+					kd_nearest_index = (int *) kd_res_item_data(kd_results);
+					
+					int c2=*kd_nearest_index;
+					if (fabs(coordX[zoneIndex-1][c]-coordX[z][c2])<block_stitch_tolerance && fabs(coordY[zoneIndex-1][c]-coordY[z][c2])<block_stitch_tolerance && fabs(coordZ[zoneIndex-1][c]-coordZ[z][c2])<block_stitch_tolerance) {
+						zoneCoordMap[zoneIndex-1][c]=zoneCoordMap[z][c2];
+						foundFlag=true;
 					}
+
+					kd_res_free(kd_results);
 					if (foundFlag) break;
 				}
 				
@@ -325,38 +349,9 @@ int Grid::readCGNS() {
 		
 	}
 	
-	/*
-	raw.node.reserve(globalNodeCount);
-	for (int n=0;n<coordX[0].size();++n) {
-		temp[0]=coordX[0][n];
-		temp[1]=coordY[0][n];
-		temp[2]=coordZ[0][n];
-		raw.node.push_back(temp);
-	}
-	for (int zone=1;zone<nZones;++zone) {
-		for (int n=0;n<coordX[zone].size();++n) {
-			bool unique=true;
-			for (int i=0;i<zoneCoordMap[zone-1].size();++i) {
-				if (zoneCoordMap[zone][n]<=zoneCoordMap[zone-1][i]) {
-					unique=false;
-					break;
-				}
-			}
-			if (unique) {
-				temp[0]=coordX[zone][n];
-				temp[1]=coordY[zone][n];
-				temp[2]=coordZ[zone][n];
-				raw.node.push_back(temp);
-			}
-		}
-	}
-	
-	if (raw.node.size()!=globalNodeCount) {
-		cerr << "[E] raw.node.size() (=" << raw.node.size() << ") is different from globalNodeCount (=" << globalNodeCount << ")" << endl;
-		exit(1);
-	}
-	 
-	 */
+	for (int zoneIndex=1;zoneIndex<=nZones;++zoneIndex) kd_free(kd[zoneIndex-1]);
+	kd.clear();
+	kd_data.clear();
 
 	if (Rank==0) cout << "[I] Total Cell Count= " << globalCellCount << endl;
 
