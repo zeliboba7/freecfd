@@ -55,24 +55,93 @@ int Grid::readCGNS() {
 	int zoneNodeCount[nZones],zoneCellCount[nZones];
 	if (Rank==0) cout << "[I] Number of Zones= " << nZones << endl;
 	
-	std::vector<double> coordX[nZones],coordY[nZones],coordZ[nZones];
-
-	vector<double> min_x,max_x,min_y,max_y,min_z,max_z;
-	min_x.resize(nZones);
-	min_y.resize(nZones);
-	min_z.resize(nZones);
-	max_x.resize(nZones);
-	max_y.resize(nZones);
-	max_z.resize(nZones);
-	
-	// zoneCoordMap returns the global id of a given node in a given zone
-	std::vector<int> zoneCoordMap[nZones];
 	// This holds all the nodes not internal to each specific zone. Those still can be internal to the whole grid
 	vector<set<int> > zone_boundary_nodes; 
 	zone_boundary_nodes.resize(nZones);
-
+	
 	set<int>::iterator sit;
 	map<string,int>::iterator mit;
+	
+	// A dry run of the zone loop to collect and output information about the grid
+	for (int zoneIndex=1;zoneIndex<=nZones;++zoneIndex) { // For each zone
+		// Read the zone
+		cg_zone_read(fileIndex,baseIndex,zoneIndex,zoneName,size);
+		globalCellCount+=size[1];
+		// Read number of sections
+		cg_nsections(fileIndex,baseIndex,zoneIndex,&nSections);
+		cg_nbocos(fileIndex,baseIndex,zoneIndex,&nBocos);
+
+		for (int bocoIndex=1;bocoIndex<=nBocos;++bocoIndex) {
+			int dummy;
+			// Find out the bc name and specification method 
+			char bocoName[20];
+			BCType_t bocotype;
+			PointSetType_t ptset_type;
+			int npnts;
+			DataType_t NormalDataType;
+ 			cg_boco_info(fileIndex,baseIndex,zoneIndex,bocoIndex,bocoName,
+						 &bocotype,&ptset_type,&npnts,&dummy,&dummy,&NormalDataType,&dummy);
+			
+			// Check if this bc name matches to those found before
+			bool new_bc=true;
+			int bcIndex=-1;
+			string bcName(bocoName);
+			for (mit=raw.bocoNameMap.begin();mit!=raw.bocoNameMap.end();mit++) {
+				if( (*mit).first == bcName) {
+					new_bc=false;
+					bcIndex=(*mit).second;
+					break;
+				}
+			}
+			
+			// If no match, create new bc
+			if (new_bc) {
+				bcIndex=raw.bocoNameMap.size();
+				raw.bocoNameMap.insert(pair<string,int>(bcName,bcIndex));
+				raw.bocoNodes.resize(bcIndex+1);
+			}
+			
+
+		} // End boco loop
+		
+		// Loop each section to save the list of non-internal nodes for each zone
+		for (int sectionIndex=1;sectionIndex<=nSections;++sectionIndex) {
+			ElementType_t elemType;
+			int elemNodeCount,elemStart,elemEnd,nBndCells,parentFlag;
+			// Read the section
+			cg_section_read(fileIndex,baseIndex,zoneIndex,sectionIndex,sectionName,&elemType,&elemStart,&elemEnd,&nBndCells,&parentFlag);	
+			switch (elemType) {
+				case TRI_3:
+					elemNodeCount=3; break;
+				case QUAD_4:
+					elemNodeCount=4; break;
+			} //switch
+			if (elemType==TRI_3 || elemType==QUAD_4) { // If not a volume element
+				int connDataSize;
+				cg_ElementDataSize(fileIndex,baseIndex,zoneIndex,sectionIndex,&connDataSize);
+				vector<int> elemNodes;
+				elemNodes.resize(connDataSize);
+				cg_elements_read(fileIndex,baseIndex,zoneIndex,sectionIndex,&elemNodes[0],0);				
+				// Save all the non-interior nodes (non-interior to that block)
+				for (int elem=0;elem<=(elemEnd-elemStart);++elem) {
+					for (int n=0;n<elemNodeCount;++n) {
+						zone_boundary_nodes[zoneIndex-1].insert(elemNodes[elem*elemNodeCount+n]-1);
+					}
+				}
+			elemNodes.clear();
+			}// if
+		} // for section
+	} // end zone loop
+	if (Rank==0) {
+		cout << "[I] Total Cell Count= " << globalCellCount << endl;
+		cout << "[I] Boundary condition summary:" << endl;
+		for (mit=raw.bocoNameMap.begin();mit!=raw.bocoNameMap.end();mit++) cout << "[I]\t" << (*mit).first << " -> BC_" << (*mit).second+1 << endl;
+	}
+	
+	std::vector<double> coordX[nZones],coordY[nZones],coordZ[nZones];	
+	// zoneCoordMap returns the global id of a given node in a given zone
+	std::vector<int> zoneCoordMap[nZones];
+
 	
 	for (int zoneIndex=1;zoneIndex<=nZones;++zoneIndex) { // For each zone
 		vector<int> bc_method;
@@ -109,22 +178,6 @@ int Grid::readCGNS() {
 			// It is initialized to -1 for now
 			zoneCoordMap[zoneIndex-1].push_back(-1);
 		}
-		
-		min_x[zoneIndex-1]=coordX[zoneIndex-1][0];
-		min_y[zoneIndex-1]=coordY[zoneIndex-1][0];
-		min_z[zoneIndex-1]=coordZ[zoneIndex-1][0];
-		max_x[zoneIndex-1]=coordX[zoneIndex-1][0];
-		max_y[zoneIndex-1]=coordY[zoneIndex-1][0];
-		max_z[zoneIndex-1]=coordZ[zoneIndex-1][0];
-
-		for (int c=1;c<coordX[zoneIndex-1].size();++c) {
-			min_x[zoneIndex-1]=min(coordX[zoneIndex-1][c],min_x[zoneIndex-1]);
-			min_y[zoneIndex-1]=min(coordY[zoneIndex-1][c],min_y[zoneIndex-1]);
-			min_z[zoneIndex-1]=min(coordZ[zoneIndex-1][c],min_z[zoneIndex-1]);
-			max_x[zoneIndex-1]=max(coordX[zoneIndex-1][c],max_x[zoneIndex-1]);
-			max_y[zoneIndex-1]=max(coordY[zoneIndex-1][c],max_y[zoneIndex-1]);
-			max_z[zoneIndex-1]=max(coordZ[zoneIndex-1][c],max_z[zoneIndex-1]);
-		}
 				
 		// In case there are multiple connected zones, collapse the repeated nodes and fix the node numbering
 		if (zoneIndex==1) { // If the first zone
@@ -135,41 +188,30 @@ int Grid::readCGNS() {
 				globalNodeCount++;
 			}
 		} else {
-			int counter=0;
 			int c2;
 			
-			// Scan the coordinates of all the other zones before this one for duplicates
+			// Scan the coordinates of all the non-internal nodes of other zones before this one for duplicates
 			for (int c=0;c<coordX[zoneIndex-1].size();++c) {
 				bool foundFlag=false;
 
-				for (int z=0;z<zoneIndex-1;++z) { // Loop other zones
+				if (zone_boundary_nodes[zoneIndex-1].find(c)!=zone_boundary_nodes[zoneIndex-1].end()) { // Current node is at zonal boundary
+					for (int z=0;z<zoneIndex-1;++z) { // Loop other zones
+						for (sit=zone_boundary_nodes[z].begin();sit!=zone_boundary_nodes[z].end();sit++) {
+							c2=*sit;						
+							if (fabs(coordX[zoneIndex-1][c]-coordX[z][c2])<block_stitch_tolerance && fabs(coordY[zoneIndex-1][c]-coordY[z][c2])<block_stitch_tolerance && fabs(coordZ[zoneIndex-1][c]-coordZ[z][c2])<block_stitch_tolerance) {
+								zoneCoordMap[zoneIndex-1][c]=zoneCoordMap[z][c2];
+								foundFlag=true;
+							}
 
-					if (coordX[zoneIndex-1][c]<(min_x[z]-block_stitch_tolerance)) continue;
-					if (coordY[zoneIndex-1][c]<(min_y[z]-block_stitch_tolerance)) continue;
-					if (coordZ[zoneIndex-1][c]<(min_z[z]-block_stitch_tolerance)) continue;
-					
-					if (coordX[zoneIndex-1][c]>(max_x[z]+block_stitch_tolerance)) continue;
-					if (coordY[zoneIndex-1][c]>(max_y[z]+block_stitch_tolerance)) continue;
-					if (coordZ[zoneIndex-1][c]>(max_z[z]+block_stitch_tolerance)) continue;
-					
-					for (sit=zone_boundary_nodes[z].begin();sit!=zone_boundary_nodes[z].end();sit++) {
-						c2=*sit;						
-						if (fabs(coordX[zoneIndex-1][c]-coordX[z][c2])<block_stitch_tolerance && fabs(coordY[zoneIndex-1][c]-coordY[z][c2])<block_stitch_tolerance && fabs(coordZ[zoneIndex-1][c]-coordZ[z][c2])<block_stitch_tolerance) {
-							zoneCoordMap[zoneIndex-1][c]=zoneCoordMap[z][c2];
-							foundFlag=true;
+							if (foundFlag) break;
 						}
-
-						if (foundFlag) break;
 					}
 				}
-				
 				if (!foundFlag) {
 					zoneCoordMap[zoneIndex-1][c]=globalNodeCount;
 					globalNodeCount++;
-				}
-	
+				}	
 			}
-
 		}
 
 		// Boundary condition regions may be given as element or point ranges, or element or point lists
@@ -185,26 +227,17 @@ int Grid::readCGNS() {
  			cg_boco_info(fileIndex,baseIndex,zoneIndex,bocoIndex,bocoName,
  				      &bocotype,&ptset_type,&npnts,&dummy,&dummy,&NormalDataType,&dummy);
 
-			// Check if this bc name matches to those found before
-			bool new_bc=true;
+			// Get the BC index
 			int bcIndex=-1;
 			string bcName(bocoName);
 			for (mit=raw.bocoNameMap.begin();mit!=raw.bocoNameMap.end();mit++) {
 				if( (*mit).first == bcName) {
-					new_bc=false;
 					bcIndex=(*mit).second;
 					break;
 				}
 			}
 			
-			// If no match, create new bc
-			if (new_bc) {
-				bcIndex=raw.bocoNameMap.size();
-				raw.bocoNameMap.insert(pair<string,int>(bcName,bcIndex));
-				raw.bocoNodes.resize(bcIndex+1);
-			}
-			
-			if (Rank==0) cout << "[I] ...Found boundary condition BC_" << bcIndex+1 << " : " << bcName << endl;
+			if (Rank==0) cout << "[I] ...Reading boundary condition BC_" << bcIndex+1 << " : " << bcName << endl;
 			
 			if (bc_method.size()<bcIndex+1) {
 				bc_method.resize(bcIndex+1);
@@ -272,7 +305,6 @@ int Grid::readCGNS() {
 					connIndex+=(elemNodeCount+1);
 				}
 				elemNodes.clear();
- 				globalCellCount+=(elemEnd-elemStart+1);
 				if (Rank==0) cout << "[I]    ...Found Mixed Section " << sectionName << endl;
 			} else {
 				int connDataSize;
@@ -291,15 +323,7 @@ int Grid::readCGNS() {
 						}
 						connIndex+=elemNodeCount;
 					}
-					globalCellCount+=(elemEnd-elemStart+1);
-				} else { // If not a volume element
-					// Save all the non-interior nodes (non-interior to that block)
-					for (int elem=0;elem<=(elemEnd-elemStart);++elem) {
-						for (int n=0;n<elemNodeCount;++n) {
-							zone_boundary_nodes[zoneIndex-1].insert(elemNodes[elem*elemNodeCount+n]-1);
-						}
-					}
-					
+				} else { // If not a volume element					
 					// Scan all the boundary condition regions
 					if (nBocos!=0) {
 						for (int nbc=0;nbc<raw.bocoNameMap.size();++nbc) {
@@ -323,7 +347,7 @@ int Grid::readCGNS() {
 
 //} // for base
 
-	if (Rank==0) cout << "[I] Total Node Count= " << globalNodeCount << endl;
+
 	// Merge coordinates of the zones
 
 	// for zone 0
@@ -341,7 +365,7 @@ int Grid::readCGNS() {
 		
 	}
 	
-	if (Rank==0) cout << "[I] Total Cell Count= " << globalCellCount << endl;
+	if (Rank==0) cout << "[I] Total Node Count= " << globalNodeCount << endl;
 
 	return 0;
 	
