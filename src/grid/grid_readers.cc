@@ -229,11 +229,6 @@ int Grid::readCGNS() {
 					if (coordZ[zoneIndex-1][*sit]>(max_z[z]+block_stitch_tolerance)) continue;
 					
 					for (sit2=zonal_boundary_nodes[z].begin();sit2!=zonal_boundary_nodes[z].end();sit2++) {
-						/*
-						if (fabs(coordX[zoneIndex-1][*sit]-coordX[z][*sit2])>block_stitch_tolerance) continue;
-						if (fabs(coordY[zoneIndex-1][*sit]-coordY[z][*sit2])>block_stitch_tolerance) continue;
-						if (fabs(coordZ[zoneIndex-1][*sit]-coordZ[z][*sit2])>block_stitch_tolerance) continue;
-						 */
 						if (fabs(coordX[zoneIndex-1][*sit]-coordX[z][*sit2])<block_stitch_tolerance && fabs(coordY[zoneIndex-1][*sit]-coordY[z][*sit2])<block_stitch_tolerance && fabs(coordZ[zoneIndex-1][*sit]-coordZ[z][*sit2])<block_stitch_tolerance) {						
 							zoneCoordMap[zoneIndex-1][*sit]=zoneCoordMap[z][*sit2];
 							foundFlag=true;
@@ -286,15 +281,14 @@ int Grid::readCGNS() {
 			vector<int> list; list.resize(npnts);
 			cg_boco_read(fileIndex,baseIndex,zoneIndex,bocoIndex,&list[0],&dummy);
 			
+			bc_method[bcIndex]=POINT_LIST;
 			// Check the bc specification method
 			if (ptset_type==PointList) {
-				bc_method[bcIndex]=POINT_LIST;
 				for (int i=0;i<list.size();++i) raw.bocoNodes[bcIndex].insert(zoneCoordMap[zoneIndex-1][list[i]-1]);
 			} else if (ptset_type==ElementList) {
 				bc_method[bcIndex]=ELEMENT_LIST;
 				for (int i=0;i<list.size();++i) bc_element_list[bcIndex].insert(list[i]);
 			} else if (ptset_type==PointRange) {
-				bc_method[bcIndex]=POINT_LIST;
 				for (int i=list[0];i<=list[1];++i) raw.bocoNodes[bcIndex].insert(zoneCoordMap[zoneIndex-1][i-1]);
 			} else if (ptset_type==ElementRange) {
 				// Convert element range to element list
@@ -363,8 +357,9 @@ int Grid::readCGNS() {
 						connIndex+=elemNodeCount;
 					}
 				} else { // If not a volume element	
+					
 					// Scan all the boundary condition regions
-					if (nBocos!=0) {
+//					if (nBocos!=0) {
 						for (int nbc=0;nbc<raw.bocoNameMap.size();++nbc) {
 							if (bc_method[nbc]==ELEMENT_LIST) {
 								for (int elem=0;elem<=(elemEnd-elemStart);++elem) {
@@ -377,7 +372,8 @@ int Grid::readCGNS() {
 								}
 							}
 						}
-					}
+//					}
+					
 					// Zonal boundary nodes populated before has nodes at BC's too. Those are not necessary. Regenerate the list for the current zone
 					zonal_boundary_nodes[zoneIndex-1].clear();
 					bool at_bc;
@@ -391,7 +387,7 @@ int Grid::readCGNS() {
 								}
 							}
 						}
-						for (int n=0;n<elemNodeCount;++n) zonal_boundary_nodes[zoneIndex-1].insert(elemNodes[elem*elemNodeCount+n]-1);
+						if (!at_bc) for (int n=0;n<elemNodeCount;++n) zonal_boundary_nodes[zoneIndex-1].insert(elemNodes[elem*elemNodeCount+n]-1);
 					}
 				}// if
 				elemNodes.clear();
