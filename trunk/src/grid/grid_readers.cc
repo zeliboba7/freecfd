@@ -84,19 +84,17 @@ int Grid::readCGNS() {
 			
 			// Check if this bc name matches to those found before
 			bool new_bc=true;
-			int bcIndex=-1;
 			string bcName(bocoName);
 			for (mit=raw.bocoNameMap.begin();mit!=raw.bocoNameMap.end();mit++) {
 				if( (*mit).first == bcName) {
 					new_bc=false;
-					bcIndex=(*mit).second;
 					break;
 				}
 			}
 			
 			// If no match, create new bc
 			if (new_bc) {
-				bcIndex=raw.bocoNameMap.size();
+				int bcIndex=raw.bocoNameMap.size();
 				raw.bocoNameMap.insert(pair<string,int>(bcName,bcIndex));
 				raw.bocoNodes.resize(bcIndex+1);
 			}
@@ -122,7 +120,7 @@ int Grid::readCGNS() {
 				vector<int> elemNodes;
 				elemNodes.resize(connDataSize);
 				cg_elements_read(fileIndex,baseIndex,zoneIndex,sectionIndex,&elemNodes[0],0);				
-				// Save all the non-interior nodes (non-interior to that block)
+				// Save all the zonal boundary nodes
 				for (int elem=0;elem<=(elemEnd-elemStart);++elem) {
 					for (int n=0;n<elemNodeCount;++n) {
 						zonal_boundary_nodes[zoneIndex-1].insert(elemNodes[elem*elemNodeCount+n]-1);
@@ -132,6 +130,7 @@ int Grid::readCGNS() {
 			}// if
 		} // for section
 	} // end zone loop
+	
 	if (Rank==0) {
 		cout << "[I] Total Cell Count= " << globalCellCount << endl;
 		cout << "[I] Boundary condition summary:" << endl;
@@ -230,15 +229,19 @@ int Grid::readCGNS() {
 					if (coordZ[zoneIndex-1][*sit]>(max_z[z]+block_stitch_tolerance)) continue;
 					
 					for (sit2=zonal_boundary_nodes[z].begin();sit2!=zonal_boundary_nodes[z].end();sit2++) {
+						/*
 						if (fabs(coordX[zoneIndex-1][*sit]-coordX[z][*sit2])>block_stitch_tolerance) continue;
 						if (fabs(coordY[zoneIndex-1][*sit]-coordY[z][*sit2])>block_stitch_tolerance) continue;
 						if (fabs(coordZ[zoneIndex-1][*sit]-coordZ[z][*sit2])>block_stitch_tolerance) continue;
-						zoneCoordMap[zoneIndex-1][*sit]=zoneCoordMap[z][*sit2];
-						foundFlag=true;
-						break;
+						 */
+						if (fabs(coordX[zoneIndex-1][*sit]-coordX[z][*sit2])<block_stitch_tolerance && fabs(coordY[zoneIndex-1][*sit]-coordY[z][*sit2])<block_stitch_tolerance && fabs(coordZ[zoneIndex-1][*sit]-coordZ[z][*sit2])<block_stitch_tolerance) {						
+							zoneCoordMap[zoneIndex-1][*sit]=zoneCoordMap[z][*sit2];
+							foundFlag=true;
+							break;
+						}
 					}
 					if (foundFlag) break;
-				}	
+				}
 			}
 			
 			for (int c=0;c<coordX[zoneIndex-1].size();++c) {
@@ -374,6 +377,21 @@ int Grid::readCGNS() {
 								}
 							}
 						}
+					}
+					// Zonal boundary nodes populated before has nodes at BC's too. Those are not necessary. Regenerate the list for the current zone
+					zonal_boundary_nodes[zoneIndex-1].clear();
+					bool at_bc;
+					for (int elem=0;elem<=(elemEnd-elemStart);++elem) {
+						at_bc=false;
+						for (int nbc=0;nbc<raw.bocoNameMap.size();++nbc) {
+							if (bc_method[nbc]==ELEMENT_LIST) {
+								if (bc_element_list[nbc].find(elemStart+elem)!=bc_element_list[nbc].end()) {
+									at_bc=true;
+									break;
+								}
+							}
+						}
+						for (int n=0;n<elemNodeCount;++n) zonal_boundary_nodes[zoneIndex-1].insert(elemNodes[elem*elemNodeCount+n]-1);
 					}
 				}// if
 				elemNodes.clear();
