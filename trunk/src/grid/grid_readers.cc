@@ -59,7 +59,7 @@ int Grid::readCGNS() {
 	vector<set<int> > zone_boundary_nodes; 
 	zone_boundary_nodes.resize(nZones);
 	
-	set<int>::iterator sit;
+	set<int>::iterator sit,sit2;
 	map<string,int>::iterator mit;
 	
 	// A dry run of the zone loop to collect and output information about the grid
@@ -141,7 +141,13 @@ int Grid::readCGNS() {
 	std::vector<double> coordX[nZones],coordY[nZones],coordZ[nZones];	
 	// zoneCoordMap returns the global id of a given node in a given zone
 	std::vector<int> zoneCoordMap[nZones];
-
+	vector<double> min_x,max_x,min_y,max_y,min_z,max_z;
+	min_x.resize(nZones);
+	min_y.resize(nZones);
+	min_z.resize(nZones);
+	max_x.resize(nZones);
+	max_y.resize(nZones);
+	max_z.resize(nZones);
 	
 	for (int zoneIndex=1;zoneIndex<=nZones;++zoneIndex) { // For each zone
 		vector<int> bc_method;
@@ -174,13 +180,31 @@ int Grid::readCGNS() {
 		
 		if (Rank==0) cout << "[I] ...Read node coordinates" << endl;
 		
+		zoneCoordMap[zoneIndex-1].resize(size[0]);
 		for (int i=0;i<size[0];++i) {
 			// This map takes in zone index and node number within that zone
 			// Returns the global index of that node
 			// It is initialized to -1 for now
-			zoneCoordMap[zoneIndex-1].push_back(-1);
+			zoneCoordMap[zoneIndex-1][i]=-1;
 		}
 				
+		min_x[zoneIndex-1]=coordX[zoneIndex-1][0];
+		min_y[zoneIndex-1]=coordY[zoneIndex-1][0];
+		min_z[zoneIndex-1]=coordZ[zoneIndex-1][0];
+		max_x[zoneIndex-1]=coordX[zoneIndex-1][0];
+		max_y[zoneIndex-1]=coordY[zoneIndex-1][0];
+		max_z[zoneIndex-1]=coordZ[zoneIndex-1][0];
+		
+		for (int c=1;c<coordX[zoneIndex-1].size();++c) {
+			min_x[zoneIndex-1]=min(coordX[zoneIndex-1][c],min_x[zoneIndex-1]);
+			min_y[zoneIndex-1]=min(coordY[zoneIndex-1][c],min_y[zoneIndex-1]);
+			min_z[zoneIndex-1]=min(coordZ[zoneIndex-1][c],min_z[zoneIndex-1]);
+			max_x[zoneIndex-1]=max(coordX[zoneIndex-1][c],max_x[zoneIndex-1]);
+			max_y[zoneIndex-1]=max(coordY[zoneIndex-1][c],max_y[zoneIndex-1]);
+			max_z[zoneIndex-1]=max(coordZ[zoneIndex-1][c],max_z[zoneIndex-1]);
+		}
+		if (Rank==0) cout << "[I] ...Determined coordinate ranges" << endl;
+		
 		// In case there are multiple connected zones, collapse the repeated nodes and fix the node numbering
 		if (zoneIndex==1) { // If the first zone
 			for (int c=0;c<coordX[0].size();++c) {
@@ -190,26 +214,37 @@ int Grid::readCGNS() {
 				globalNodeCount++;
 			}
 		} else {
-			int c2;
 			
+			bool foundFlag;
 			// Scan the coordinates of all the non-internal nodes of other zones before this one for duplicates
-			for (int c=0;c<coordX[zoneIndex-1].size();++c) {
-				bool foundFlag=false;
-
-				if (zone_boundary_nodes[zoneIndex-1].find(c)!=zone_boundary_nodes[zoneIndex-1].end()) { // Current node is at zonal boundary
-					for (int z=0;z<zoneIndex-1;++z) { // Loop other zones
-						for (sit=zone_boundary_nodes[z].begin();sit!=zone_boundary_nodes[z].end();sit++) {
-							c2=*sit;						
-							if (fabs(coordX[zoneIndex-1][c]-coordX[z][c2])<block_stitch_tolerance && fabs(coordY[zoneIndex-1][c]-coordY[z][c2])<block_stitch_tolerance && fabs(coordZ[zoneIndex-1][c]-coordZ[z][c2])<block_stitch_tolerance) {
-								zoneCoordMap[zoneIndex-1][c]=zoneCoordMap[z][c2];
-								foundFlag=true;
-							}
-
-							if (foundFlag) break;
-						}
+			for (sit=zone_boundary_nodes[zoneIndex-1].begin();sit!=zone_boundary_nodes[zoneIndex-1].end();sit++) {
+				foundFlag=false;
+				for (int z=0;z<zoneIndex-1;++z) { // Loop other zones
+					
+					if (coordX[zoneIndex-1][*sit]<(min_x[z]-block_stitch_tolerance)) continue;
+					if (coordY[zoneIndex-1][*sit]<(min_y[z]-block_stitch_tolerance)) continue;
+					if (coordZ[zoneIndex-1][*sit]<(min_z[z]-block_stitch_tolerance)) continue;
+					
+					if (coordX[zoneIndex-1][*sit]>(max_x[z]+block_stitch_tolerance)) continue;
+					if (coordY[zoneIndex-1][*sit]>(max_y[z]+block_stitch_tolerance)) continue;
+					if (coordZ[zoneIndex-1][*sit]>(max_z[z]+block_stitch_tolerance)) continue;
+					
+					for (sit2=zone_boundary_nodes[z].begin();sit2!=zone_boundary_nodes[z].end();sit2++) {
+						if (fabs(coordX[zoneIndex-1][*sit]-coordX[z][*sit2])>block_stitch_tolerance) continue;
+						if (fabs(coordY[zoneIndex-1][*sit]-coordY[z][*sit2])>block_stitch_tolerance) continue;
+						if (fabs(coordZ[zoneIndex-1][*sit]-coordZ[z][*sit2])>block_stitch_tolerance) continue;
+						zoneCoordMap[zoneIndex-1][*sit]=zoneCoordMap[z][*sit2];
+						foundFlag=true;
+						break;
 					}
+					if (foundFlag) break;
 				}
-				if (!foundFlag) {
+				
+			}
+
+			for (int c=0;c<coordX[zoneIndex-1].size();++c) {
+				// Not found on the search above
+				if (zoneCoordMap[zoneIndex-1][c]==-1) {
 					zoneCoordMap[zoneIndex-1][c]=globalNodeCount;
 					globalNodeCount++;
 				}	
