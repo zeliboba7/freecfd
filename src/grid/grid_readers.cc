@@ -252,6 +252,12 @@ int Grid::readCGNS() {
 
 		// Boundary condition regions may be given as element or point ranges, or element or point lists
 		// For each zone and each boundary condition region, store a point list, convert if another method is used
+		
+		bc_method.resize(raw.bocoNameMap.size());
+		bc_element_list.resize(raw.bocoNameMap.size());
+		
+		for (int b=0;b<raw.bocoNameMap.size();++b) bc_method[b]=POINT_LIST; // default value
+		
 		for (int bocoIndex=1;bocoIndex<=nBocos;++bocoIndex) {
 			int dummy;
 			// Find out the bc name and specification method 
@@ -273,20 +279,16 @@ int Grid::readCGNS() {
 				}
 			}
 			
-			bc_method.resize(raw.bocoNameMap.size());
-			bc_element_list.resize(raw.bocoNameMap.size());
-			
 			if (Rank==0) cout << "[I] ...Reading boundary condition BC_" << bcIndex+1 << " : " << bcName << endl;
 			
 			vector<int> list; list.resize(npnts);
 			cg_boco_read(fileIndex,baseIndex,zoneIndex,bocoIndex,&list[0],&dummy);
 			
-			bc_method[bcIndex]=POINT_LIST;
 			// Check the bc specification method
 			if (ptset_type==PointList) {
 				for (int i=0;i<list.size();++i) raw.bocoNodes[bcIndex].insert(zoneCoordMap[zoneIndex-1][list[i]-1]);
 			} else if (ptset_type==ElementList) {
-				bc_method[bcIndex]=ELEMENT_LIST;
+				bc_method[bcIndex]=ELEMENT_LIST; // default value is POINT_LIST
 				for (int i=0;i<list.size();++i) bc_element_list[bcIndex].insert(list[i]);
 			} else if (ptset_type==PointRange) {
 				for (int i=list[0];i<=list[1];++i) raw.bocoNodes[bcIndex].insert(zoneCoordMap[zoneIndex-1][i-1]);
@@ -300,6 +302,10 @@ int Grid::readCGNS() {
 			}
 			
 		} // for boco
+		
+		// Zonal boundary nodes populated before has nodes at BC's too. Those are not necessary. 
+		// The list will be regenerated with BC's excluded (given that BC's are given as element list)
+		zonal_boundary_nodes[zoneIndex-1].clear();
 		
 		// Loop sections within the zone
 		// These include connectivities of cells and boundary faces
@@ -359,23 +365,19 @@ int Grid::readCGNS() {
 				} else { // If not a volume element	
 					
 					// Scan all the boundary condition regions
-//					if (nBocos!=0) {
-						for (int nbc=0;nbc<raw.bocoNameMap.size();++nbc) {
-							if (bc_method[nbc]==ELEMENT_LIST) {
-								for (int elem=0;elem<=(elemEnd-elemStart);++elem) {
-									if (bc_element_list[nbc].find(elemStart+elem)!=bc_element_list[nbc].end()) {
-										for (int n=0;n<elemNodeCount;++n) {
-											raw.bocoNodes[nbc].insert(zoneCoordMap[zoneIndex-1][elemNodes[connIndex+n]-1]);
-										}
-										connIndex+=elemNodeCount;
+					for (int nbc=0;nbc<raw.bocoNameMap.size();++nbc) {
+						if (bc_method[nbc]==ELEMENT_LIST) {
+							for (int elem=0;elem<=(elemEnd-elemStart);++elem) {
+								if (bc_element_list[nbc].find(elemStart+elem)!=bc_element_list[nbc].end()) {
+									for (int n=0;n<elemNodeCount;++n) {
+										raw.bocoNodes[nbc].insert(zoneCoordMap[zoneIndex-1][elemNodes[connIndex+n]-1]);
 									}
+									connIndex+=elemNodeCount;
 								}
 							}
 						}
-//					}
+					}
 					
-					// Zonal boundary nodes populated before has nodes at BC's too. Those are not necessary. Regenerate the list for the current zone
-					zonal_boundary_nodes[zoneIndex-1].clear();
 					bool at_bc;
 					for (int elem=0;elem<=(elemEnd-elemStart);++elem) {
 						at_bc=false;
@@ -387,7 +389,7 @@ int Grid::readCGNS() {
 								}
 							}
 						}
-						if (!at_bc) for (int n=0;n<elemNodeCount;++n) zonal_boundary_nodes[zoneIndex-1].insert(elemNodes[elem*elemNodeCount+n]-1);
+						for (int n=0;n<elemNodeCount;++n) zonal_boundary_nodes[zoneIndex-1].insert(elemNodes[elem*elemNodeCount+n]-1);
 					}
 				}// if
 				elemNodes.clear();
