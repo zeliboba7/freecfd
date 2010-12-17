@@ -49,7 +49,7 @@ Vec3D Vec3D::cross(const Vec3D &right) {
 }
 
 Vec3D Vec3D::norm(void) {
-	return (*this)/=fabs(*this);
+	return (*this)/fabs(*this);
 }
 
 Vec3D &Vec3D::operator= (const Vec3D &right) {
