@@ -218,6 +218,8 @@ int Grid::readCGNS() {
 			// Scan the coordinates of all the non-internal nodes of other zones before this one for duplicates
 			for (sit=zonal_boundary_nodes[zoneIndex-1].begin();sit!=zonal_boundary_nodes[zoneIndex-1].end();sit++) {
 				foundFlag=false;
+				
+				//TODO: Use previous z first (will likely be the same for the next node)
 				for (int z=0;z<zoneIndex-1;++z) { // Loop other zones
 					
 					if (coordX[zoneIndex-1][*sit]<(min_x[z]-block_stitch_tolerance)) continue;
@@ -360,6 +362,7 @@ int Grid::readCGNS() {
 						for (int n=0;n<elemNodeCount;++n) {
 							raw.cellConnectivity.push_back(zoneCoordMap[zoneIndex-1][elemNodes[connIndex+n]-1]);
 						}
+
 						connIndex+=elemNodeCount;
 					}
 				} else { // If not a volume element	
@@ -395,6 +398,7 @@ int Grid::readCGNS() {
 				elemNodes.clear();
 			} // if
 		} // for section
+ 
 	} // for zone
 
 //} // for base

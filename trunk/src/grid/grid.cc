@@ -116,49 +116,24 @@ int Grid::areas_volumes() {
 		// Find an approxiamate centroid (true centroid for triangle and quad)
 		centroid=0.;
 		areaVec=0.;
-		/*
-		for (int n=0;n<face[f].nodeCount;++n) {
-			centroid+=faceNode(f,n);
-		}
-		centroid/=double(face[f].nodeCount);
-		 */
-		/*
-		if (face[f].nodeCount==3) {
-			
-			face[f].centroid=centroid;
-			face[f].normal=0.5*(faceNode(f,0)-faceNode(f,2)).cross(faceNode(f,1)-faceNode(f,2));
-			face[f].area=fabs(face[f].normal);
-			face[f].normal/=face[f].area;
-			
-		} else if (face[f].nodeCount==4) {
-			
-			face[f].centroid=centroid;
-			face[f].normal=0.5*(faceNode(f,2)-faceNode(f,0)).cross(faceNode(f,3)-faceNode(f,1));
-			face[f].area=fabs(face[f].normal);
-			face[f].normal/=face[f].area;
-			
-		} else {
-*/
 
 		// Sum the area as a patch of triangles formed by connecting two nodes and an interior point
-		face[f].centroid=0.;
 		areaVec=0.;
 		int next;
 		centroid=faceNode(f,0);
-		// First calculate face normal
-		face[f].normal=(faceNode(f,2)-faceNode(f,1)).cross(faceNode(f,0)-faceNode(f,1)).norm();
 		for (int n=1;n<face[f].nodeCount;++n) {
 			next=n+1;
 			if (next==face[f].nodeCount) next=0;
 			patchArea=0.5*(faceNode(f,n)-centroid).cross(faceNode(f,next)-centroid);
-			patchCentroid=1./3.*(faceNode(f,n)+faceNode(f,next)+centroid);
-			face[f].centroid+=(patchCentroid-centroid)*patchArea.dot(face[f].normal);
+			//patchCentroid=1./3.*(faceNode(f,n)+faceNode(f,next)+centroid);
+			//face[f].centroid+=(patchCentroid-centroid)*fabs(patchArea); // Doesn't work well on curved (non-planar faces)
 			areaVec+=patchArea;
 		}
 		face[f].area=fabs(areaVec);
-		face[f].centroid=face[f].centroid/face[f].area+centroid;
-		//cout << "face " << f << "\t" << face[f].normal << "\t" << face[f].area << "\t" << face[f].centroid << endl;
-//		}
+		face[f].normal=areaVec.norm();
+		face[f].centroid=0.;
+		for (int n=0;n<face[f].nodeCount;++n) face[f].centroid+=faceNode(f,n);
+		face[f].centroid/=double(face[f].nodeCount);
 	}
 	
 	cout << "[I Rank=" << Rank << "] Calculated face areas and centroids" << endl;
@@ -181,40 +156,57 @@ int Grid::areas_volumes() {
 		// Calculate the centroid of the cell by taking moments of each tetra
 		cell[c].centroid=0.;
 		double sign;
-		double height; double basePatchArea;
+		Vec3D height; 
+		Vec3D base_area;
+		Vec3D base_area_norm;
+		Vec3D base_area_center;
 		for (int cf=0;cf<cell[c].faceCount;++cf) {
 			f=cell[c].faces[cf];
-			height=(face[f].centroid-centroid).dot(face[f].normal);
-			// Fix face orientation issue
-			if (face[f].parent!=c) height*=-1.;
-			patchVolume=face[f].area*height/3.;
-			patchCentroid=(face[f].centroid*double(face[f].nodeCount)+centroid)/(double(face[f].nodeCount)+1.);
-			cell[c].centroid+=patchVolume*(patchCentroid-centroid);
+			// Calculate the contribution from the triangle of first 3 nodes
+			base_area=0.5*(faceNode(f,2)-faceNode(f,0)).cross(faceNode(f,1)-faceNode(f,0));
+			if (face[f].parent!=c) base_area*=-1.;
+			base_area_norm=base_area.norm();
+			base_area_center=1./3.*(faceNode(f,0)+faceNode(f,1)+faceNode(f,2));
+			height=(centroid-base_area_center).dot(base_area_norm)*base_area_norm;
+			patchVolume=base_area.dot(height)/3.;
+			
+			// Negative patch volumes can happen when there are non-planar quad faces
+			//if (patchVolume<0.) {
+				//cout << "[W rank=" << Rank << "] Negative volume patch at cell " << c << endl;
+				//cout << c << "\t" << f << "\t" << face[f].parent << endl;
+				//cout << face[f].normal << "\t" << base_area_norm << endl;
+				//cout << base_area_center << "\t" << centroid << endl;
+				//cout << centroid-base_area_center << endl;
+				//cout << patchVolume << endl;
+				//exit(1);
+			//}
+			
+			//patchCentroid=0.25*(3.*base_area_center+centroid);
+			//cell[c].centroid+=patchVolume*patchCentroid;
 			volume+=patchVolume;
-			/*
-			// Every cell face is broken into triangles
-			for (int n=0;n<face[f].nodeCount;++n) {
-				next=n+1;
-				if (next==face[f].nodeCount) next=0;
-				// Triangle area
-				basePatchArea=0.5*(faceNode(f,n)-face[f].centroid).cross(faceNode(f,next)-face[f].centroid);
-				// Height of the tetrahedra
-				height=(face[f].centroid-centroid).dot(face[f].normal)*face[f].normal;
-				// Fix face orientation issue
-				sign=-1.;
-				if (face[f].parent==c) sign=1.;
-				patchVolume=sign*basePatchArea.dot(height)/3.;
-				patchCentroid=0.25*(face[f].centroid+faceNode(f,n)+faceNode(f,next)+centroid);
-				cell[c].centroid+=patchVolume*patchCentroid;
-				// TODO Keep an eye on this
-				if (patchVolume<0.) cout << "[W Rank=" << Rank << "] Negative volume patch at cell " << c << endl;
+			
+			if (face[f].nodeCount==4) { // quad face
+				base_area=0.5*(faceNode(f,0)-faceNode(f,2)).cross(faceNode(f,3)-faceNode(f,2));
+				if (face[f].parent!=c) base_area*=-1.;
+				base_area_norm=base_area.norm();
+				base_area_center=1./3.*(faceNode(f,0)+faceNode(f,2)+faceNode(f,3));
+				height=(centroid-base_area_center).dot(base_area_norm)*base_area_norm;
+				patchVolume=base_area.dot(height)/3.;
+				//if (patchVolume<0.) cout << "[W rank=" << Rank << "] Negative volume patch at cell " << c << endl;
+				//patchCentroid=0.25*(3.*base_area_center+centroid);
+				//cell[c].centroid+=patchVolume*patchCentroid;
 				volume+=patchVolume;
 			}
-			 */
+			
+			if (face[f].nodeCount>4) {
+				if (Rank==0) cerr << "Face type with " << face[f].nodeCount << " nodes is not supported" << endl;
+				exit(1);
+			}
+			 
 		}
 		cell[c].volume=volume;
-		cell[c].centroid=cell[c].centroid/volume+centroid; //TODO: can it be done without dividing by volume?
-		cell[c].centroid=centroid;
+		//cell[c].centroid=cell[c].centroid/volume; 
+		cell[c].centroid=centroid; // TODO: Is this exact?
 		totalVolume+=volume;
 	}
 
@@ -224,15 +216,54 @@ int Grid::areas_volumes() {
 	if (Rank==0) cout << "[I] Global Total Volume= " << globalTotalVolume << endl;
 	
 	for (int f=0;f<faceCount;++f) {
-		if (face[f].normal.dot(face[f].centroid-cell[face[f].parent].centroid)<0.) {
-			cout << "[W Rank=" << Rank << "] Face " << f << " normal is pointing in to its parent cell .." << endl;
+		if (face[f].normal.dot(face[f].centroid-cell[face[f].parent].centroid)<0.) cout << "[W Rank=" << Rank << "] Face " << f << " normal is pointing in to its parent cell ..." << endl;
+
+		/*
+		if (face[f].parent==27 && f==111) {
+			int c=face[f].parent;
+			cout << c << endl;
+			
+			ofstream file;
+			file.open("debug.dat",ios::out);
+			file << "VARIABLES = \"x\", \"y\", \"z\" " << endl;
+			file << "ZONE, T=\"Grid\", ZONETYPE=FEBRICK, DATAPACKING=POINT" << endl;
+			file << "NODES=" << 8 << ", ELEMENTS=" << 1 << endl;
+			for (int n=0;n<cell[c].nodeCount;++n) {
+				for (int i=0;i<3;++i) file << cellNode(c,n)[i] << endl;
+			}
+			for (int i=0;i<8;++i) {
+				file << i+1 << "\t" ;
+			}				
+			file << endl;
+			file.close();
+			
+			file.open("face_center.dat",ios::out);
+			file << "VARIABLES = \"x\", \"y\", \"z\" " << endl;
+			for (int i=0;i<3;++i) file << face[f].centroid[i] << endl;
+			file.close();
+			
+			file.open("cell_center.dat",ios::out);
+			file << "VARIABLES = \"x\", \"y\", \"z\" " << endl;
+			for (int i=0;i<3;++i) file << cell[c].centroid[i] << endl;
+			file.close();
+			
+			cout << face[f].centroid << "\t" << cell[face[f].parent].centroid << endl;
+			cout << (face[f].centroid-cell[face[f].parent].centroid).norm() << "\t" << face[f].normal << endl;
+			cout << face[f].parent << "\t" << face[f].neighbor << endl;
+			for (int i=0;i<4;++i) cout << face[f].nodes[i] << "\t";
+			cout << endl;
+			for (int i=0;i<4;++i) cout << faceNode(f,i) << endl;
+			cout << face[f].area << "\t" << cell[face[f].parent].volume << endl;
+			
+
 			// Need to swap the face and reflect the area vector TODO Check if following is right
-			/* Never got to verify if the following works
-			face[f].normal*=-1.;
-			vector<int>::reverse_iterator rit;
-			face[f].nodes.assign(face[f].nodes.rbegin(),face[f].nodes.rend());
-			 */
-		}
+			// Never got to verify if the following works
+			//face[f].normal*=-1.;
+			//vector<int>::reverse_iterator rit;
+			//face[f].nodes.assign(face[f].nodes.rbegin(),face[f].nodes.rend());
+			 
+		}*/
+	    
 	}
 	
 	return 0;

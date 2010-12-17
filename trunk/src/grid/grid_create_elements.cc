@@ -33,6 +33,7 @@ int Grid::create_nodes_cells() {
 	nodeCount=0;
 	
 	for (int c=0;c<globalCellCount;++c) {
+//	for (int c=27;c<28;++c) {
 		if (maps.cellOwner[c]==Rank) { // If the cell belongs to current proc
 			int cellNodeCount; // Find the number of nodes of the cell from raw grid data
 			if (c<globalCellCount-1) {
@@ -42,12 +43,12 @@ int Grid::create_nodes_cells() {
 			}
 			int cellNodes[cellNodeCount];
 			for (int n=0;n<cellNodeCount;++n) { // Loop the cell  nodes
-				int gid=raw.cellConnectivity[raw.cellConnIndex[c]+n]; // node globalId
-				if (maps.nodeGlobal2Local.find(gid)==maps.nodeGlobal2Local.end() ) { // If the node is not already found
+				int ngid=raw.cellConnectivity[raw.cellConnIndex[c]+n]; // node globalId
+				if (maps.nodeGlobal2Local.find(ngid)==maps.nodeGlobal2Local.end() ) { // If the node is not already found
 					// Create the node
 					Node temp;
 					temp.id=nodeCount;
-					temp.globalId=gid;
+					temp.globalId=ngid;
 					temp.comp[0]=raw.node[temp.globalId][0];
 					temp.comp[1]=raw.node[temp.globalId][1];
 					temp.comp[2]=raw.node[temp.globalId][2];
@@ -56,7 +57,7 @@ int Grid::create_nodes_cells() {
 					++nodeCount;
 				}
 				// Fill in cell nodes temp array with local node id's
-				cellNodes[n]=maps.nodeGlobal2Local[gid];
+				cellNodes[n]=maps.nodeGlobal2Local[ngid];
 			} // end for each cell node
 			// Create the cell
 			Cell temp;
