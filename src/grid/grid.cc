@@ -32,6 +32,7 @@ Grid::Grid() {
 }
 
 void Grid::read(string fname) {
+	if (read_raw()) return;
 	fstream file;
 	fileName=fname;
 	file.open(fileName.c_str());
@@ -367,3 +368,54 @@ void Grid::mpi_get_ghost_geometry(void) {
 	MPI_Barrier(MPI_COMM_WORLD);
 	return;
 } 
+
+void Grid::write_raw(void) {
+	
+	ofstream file;
+	int int_size=sizeof(int);
+	int vec3d_size=sizeof(Vec3D);
+	int bc_count=raw.bocoNameMap.size();
+	int bc_no,conn_size,bocoNodes_size,string_size;
+	string bc_name;
+	char * bc_name_c;
+	set<int>::iterator sit;
+	map<string,int>::iterator mit;
+	int boco_node;
+
+	file.open("grid.raw",ios::out | ios::binary);
+	
+	file.write((char*) &globalNodeCount,int_size);
+	file.write((char*) &raw.node[0],globalNodeCount*vec3d_size);
+	
+	file.write((char*) &globalCellCount,int_size);
+	file.write((char*) &raw.cellConnIndex[0], raw.cellConnIndex.size()*int_size);
+	
+	conn_size=raw.cellConnectivity.size();
+	file.write((char*) &conn_size,int_size);
+	file.write((char*) &raw.cellConnectivity[0], raw.cellConnectivity.size()*int_size);
+	
+	bc_count=raw.bocoNameMap.size();
+	file.write((char*) &bc_count,int_size);
+	for (int b=0;b<bc_count;++b) {
+		bocoNodes_size=raw.bocoNodes[b].size();
+		file.write((char *) &bocoNodes_size,int_size);
+		for (sit=raw.bocoNodes[b].begin();sit!=raw.bocoNodes[b].end();sit++) {
+			boco_node=*sit;
+			file.write((char*) &boco_node,int_size);
+		}
+	}
+	for (mit=raw.bocoNameMap.begin();mit!=raw.bocoNameMap.end();mit++) {
+		bc_name=(*mit).first;
+		bc_no=(*mit).second;
+		
+		string_size=sizeof(char)*bc_name.size();
+		// Write the size of the string
+		file.write((char*) &string_size,int_size);
+		file.write(bc_name.c_str(),string_size);
+		file.write((char*) &bc_no,int_size);
+	}
+	
+	file.close();
+	
+	return;
+}
