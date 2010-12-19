@@ -127,7 +127,7 @@ int Grid::partition() {
 		otherCellCounts[maps.cellOwner[c]]+=1;
 		if (maps.cellOwner[c]==Rank) ++cellCount;
 	}
-	cout << "[I Rank=" << Rank << "] Number of Cells= " << cellCount << endl;
+	//cout << "[I Rank=" << Rank << "] Number of Cells= " << cellCount << endl;
 	
 	myOffset=0;
 	partitionOffset[0]=0;

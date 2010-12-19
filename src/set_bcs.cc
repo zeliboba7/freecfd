@@ -92,8 +92,7 @@ void set_bcs(int gid) {
 		}
 		bc[gid].push_back(bcRegion);
 
-		
-		cout << "[I rank=" << Rank << " grid=" << gid+1 << " BC=" << b+1 << "] is assigned as " << type << endl;
+		//cout << "[I rank=" << Rank << " grid=" << gid+1 << " BC=" << b+1 << "] is assigned as " << type << endl;
 		
 		string inter=region.get_string("interface");
 		if (inter!="none") {
@@ -135,7 +134,7 @@ void set_bcs(int gid) {
 		grid[gid].boundaryFaceCount[b][Rank]=0;
 		for (int f=0;f<grid[gid].faceCount;++f) if(grid[gid].face[f].bc==b) grid[gid].boundaryFaceCount[b][Rank]++; 
 		MPI_Allgather(&grid[gid].boundaryFaceCount[b][Rank],1,MPI_INT,&grid[gid].boundaryFaceCount[b][0],1,MPI_INT,MPI_COMM_WORLD);
-		cout << "[I rank=" << Rank << " grid=" << gid+1 << " BC=" << b+1 << "] Number of Faces=" << grid[gid].boundaryFaceCount[b][Rank] << endl;
+		//cout << "[I rank=" << Rank << " grid=" << gid+1 << " BC=" << b+1 << "] Number of Faces=" << grid[gid].boundaryFaceCount[b][Rank] << endl;
 		for (int p=0;p<np;++p) grid[gid].globalBoundaryFaceCount[b]+=grid[gid].boundaryFaceCount[b][p];
 	}
 		

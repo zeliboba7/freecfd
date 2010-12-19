@@ -137,7 +137,7 @@ int Grid::areas_volumes() {
 		face[f].centroid/=double(face[f].nodeCount);
 	}
 	
-	cout << "[I Rank=" << Rank << "] Calculated face areas and centroids" << endl;
+	if (Rank==0) cout << "[I] Calculated face areas and centroids" << endl;
 	
 	// Loop through the cells and calculate the volumes
 	double totalVolume=0.;
@@ -211,10 +211,9 @@ int Grid::areas_volumes() {
 		totalVolume+=volume;
 	}
 
-	cout << "[I Rank=" << Rank << "] Total Volume= " << setw(16) << setprecision(8) << scientific << totalVolume << endl;
 	globalTotalVolume=0.;
 	MPI_Allreduce (&totalVolume,&globalTotalVolume,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
-	if (Rank==0) cout << "[I] Global Total Volume= " << globalTotalVolume << endl;
+	if (Rank==0) cout << "[I] Total Volume= " << globalTotalVolume << endl;
 	
 	for (int f=0;f<faceCount;++f) {
 		if (face[f].normal.dot(face[f].centroid-cell[face[f].parent].centroid)<0.) cout << "[W Rank=" << Rank << "] Face " << f << " normal is pointing in to its parent cell ..." << endl;
