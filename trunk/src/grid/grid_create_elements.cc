@@ -91,7 +91,7 @@ int Grid::create_nodes_cells() {
 
 	} // end loop global cell count
 	
-	cout << "[I Rank=" << Rank << "] Created cells and nodes" << endl;
+	if (Rank==0) cout << "[I] Created cells and nodes" << endl;
 
 	// Construct the list of cells for each node
 	bool flag;
@@ -112,7 +112,7 @@ int Grid::create_nodes_cells() {
 		}
 	}
 
-	cout << "[I Rank=" << Rank << "] Computed node-cell connectivity" << endl;
+	if (Rank==0) cout << "[I] Computed node-cell connectivity" << endl;
 	
 	// Construct the list of neighboring cells (node neighbors) for each cell
 	int c2;
@@ -135,7 +135,7 @@ int Grid::create_nodes_cells() {
 		cell[c].neighborCellCount=cell[c].neighborCells.size();
 	} // end cell loop
 
-	cout << "[I Rank=" << Rank << "] Computed cell-cell connectivity" << endl;
+	if (Rank==0) cout << "[I] Computed cell-cell connectivity" << endl;
 	
 	for (int nbc=0;nbc<raw.bocoNodes.size();++nbc) {
 		set<int> temp;
@@ -397,7 +397,7 @@ int Grid::create_faces() {
 	
 	if (Rank==0) {
 		timeEnd=MPI_Wtime();
-		cout << "[I Rank=" << Rank << "] Time spent on finding faces= " << timeEnd-timeRef << " sec" << endl;
+		cout << "[I] Time spent on finding faces= " << timeEnd-timeRef << " sec" << endl;
 	}
 
 	for (int f=0;f<faceCount;++f) {
@@ -535,7 +535,7 @@ int Grid::create_ghosts() {
 			cell[c].ghostCount=cell[c].ghosts.size();
 		} // end cell loop
 	} // if (np!=1)
-	cout << "[I Rank=" << Rank << "] Number of Inter-Partition Ghost Cells= " << ghostCount << endl;
+	//cout << "[I Rank=" << Rank << "] Number of Inter-Partition Ghost Cells= " << ghostCount << endl;
 	
 	maps.nodeGlobal2Output.resize(globalNodeCount);
 	for (int ng=0;ng<globalNodeCount;++ng) maps.nodeGlobal2Output[ng]=-1;
