@@ -426,3 +426,63 @@ int Grid::readCGNS() {
 	return 0;
 	
 } // end Grid::ReadCGNS
+
+bool Grid::read_raw(void) {
+	
+	ifstream file;
+	file.open("grid.raw",ios::in | ios::binary);
+	if (file.is_open()) {
+		if (Rank==0) cout << "[I] Found raw grid file " << fileName  << endl;
+	} else {
+		return false;
+	}
+
+	int int_size=sizeof(int);
+	int vec3d_size=sizeof(Vec3D);
+	int bc_count=raw.bocoNameMap.size();
+	int bc_no,conn_size,bocoNodes_size,string_size;
+	string bc_name;
+	char* bc_name_c;
+	int boco_node;
+	
+	file.read( (char*) &globalNodeCount,int_size);
+	raw.node.resize(globalNodeCount);
+	file.read((char*) &raw.node[0],globalNodeCount*vec3d_size);
+
+	file.read( (char*) &globalCellCount,int_size);
+	raw.cellConnIndex.resize(globalCellCount);
+	file.read((char*) &raw.cellConnIndex[0], raw.cellConnIndex.size()*int_size);
+	
+	file.read((char*) &conn_size,int_size);
+	raw.cellConnectivity.resize(conn_size);
+	file.read((char*) &raw.cellConnectivity[0], raw.cellConnectivity.size()*int_size);
+	
+	file.read( (char*) &bc_count,int_size);
+
+	raw.bocoNodes.resize(bc_count);
+	for (int b=0;b<bc_count;++b) {
+		file.read((char *) &bocoNodes_size,int_size);
+		for (int bn=0;bn<bocoNodes_size;++bn) {
+			file.read((char*) &boco_node,int_size);
+			raw.bocoNodes[b].insert(boco_node);
+		}
+	}
+	
+	for (int b=0;b<bc_count;++b) {
+		bc_name.clear();
+		file.read((char*) &string_size,int_size);
+		bc_name_c=new char[string_size/sizeof(char)];
+		file.read(bc_name_c,string_size);
+		bc_name=bc_name_c;
+		delete[] bc_name_c;
+		bc_name.resize(string_size/sizeof(char));
+		file.read((char*) &bc_no,int_size);
+		raw.bocoNameMap.insert(pair<string,int>(bc_name,bc_no));
+		if (Rank==0) cout << "[I] Boundary condition " << bc_name << " -> BC_" << bc_no+1 << endl;
+	}
+
+	file.close();
+	
+	return true;
+}
+

@@ -109,9 +109,18 @@ int main(int argc, char *argv[]) {
 	inputFileName.assign(argv[1]);
 	inputFileName+=".in";
 
-	int restart_step=0;
-	if (argc>2) restart_step=atoi(argv[2]);
-	
+	int restart_step=0;	
+	bool PREP=false;
+	if (argc>2) {
+		string str_arg;
+		str_arg=argv[2];
+		if (str_arg=="restart") {
+			restart_step=atoi(argv[3]);
+		} else if (str_arg=="prep") {
+			PREP=true;
+			remove("grid.raw");
+		}
+	}
 	// Read the input file
 	input.setFile(inputFileName);
 	read_inputs();
@@ -141,7 +150,7 @@ int main(int argc, char *argv[]) {
 		grid[gid].gid=gid;
 		// Read the grid raw data from file
 		grid[gid].read(input.section("grid",gid).get_string("file"));
-
+		if (PREP && Rank==0) {grid[gid].write_raw(); continue;}
 		// Do the transformations
 		int tcount=input.section("grid",gid).subsection("transform",0).count;
 		
@@ -173,6 +182,8 @@ int main(int argc, char *argv[]) {
 		gradient_maps(gid);
 	}
 
+	if (PREP) return 0;
+	
 	for (int gid=0;gid<grid.size();++gid) {
 		for (int i=0;i<interface[gid].size();++i) {
 			interface[gid][i].setup();
