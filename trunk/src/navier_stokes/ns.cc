@@ -154,7 +154,7 @@ void NavierStokes::apply_initial_conditions (void) {
 		gradient_test=NONE;
 		if (region.get_string("gradienttest")=="linear") {
 			gradient_test=LINEAR;
-			for (int c=0;c<grid[gid].cellCount;++c) rho.cell(c)=grid[gid].cell[c].centroid[0];
+			for (int c=0;c<grid[gid].cellCount;++c) p.cell(c)=grid[gid].cell[c].centroid[0];
 		} if (region.get_string("gradienttest")=="quadratic") {
 			gradient_test=QUADRATIC;
 			// Avoid zero grad points
@@ -170,7 +170,7 @@ void NavierStokes::apply_initial_conditions (void) {
 			
 			for (int c=0;c<grid[gid].cellCount;++c) {
 				double xc=grid[gid].cell[c].centroid[0];
-				rho.cell(c)=xc*xc+3.*(max_x-min_x)*xc;
+				p.cell(c)=xc*xc+3.*(max_x-min_x)*xc;
 			}
 		}
 		// If in gradient test mode, break the IC loop
