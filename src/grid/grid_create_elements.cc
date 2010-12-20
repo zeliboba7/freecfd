@@ -33,7 +33,6 @@ int Grid::create_nodes_cells() {
 	nodeCount=0;
 	
 	for (int c=0;c<globalCellCount;++c) {
-//	for (int c=27;c<28;++c) {
 		if (maps.cellOwner[c]==Rank) { // If the cell belongs to current proc
 			int cellNodeCount; // Find the number of nodes of the cell from raw grid data
 			if (c<globalCellCount-1) {

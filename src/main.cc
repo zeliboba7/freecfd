@@ -261,12 +261,12 @@ int main(int argc, char *argv[]) {
 		cout << "step -- for each grid -> [grid-no  time  -- for each equation -> {cfl-max linear-iterations total-residual} ]" << endl;
 		cout << "=============================================================================================================" << endl;
 	}
+	cout << setprecision(3) << scientific;
 	/*****************************************************************************************/
 	// Begin time loop
 	/*****************************************************************************************/
 	
     bool lastTimeStep=false;
-	cout << setprecision(3);
 	
 	for (int timeStep=restart_step+1;timeStep<=timeStepMax+restart_step;++timeStep) {
 		if (timeStep==(timeStepMax+restart_step)) lastTimeStep=true;

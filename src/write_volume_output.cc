@@ -102,7 +102,7 @@ void write_volume_output(int gridid, int step) {
 		if  (varList[var]=="limiterp") ns[gid].limiter[0].mpi_update(); 
 		if  (varList[var]=="limiterT") ns[gid].limiter[4].mpi_update();
 		if  (varList[var]=="limiterV") for (int i=1;i<4;++i) ns[gid].limiter[i].mpi_update();
-
+		if  (varList[var]=="gradrho") ns[gid].gradrho.mpi_update();
 	}
 	
 	string format=input.section("grid",gid).subsection("writeoutput").get_string("format");
