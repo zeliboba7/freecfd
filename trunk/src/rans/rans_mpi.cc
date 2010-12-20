@@ -37,9 +37,50 @@ void RANS::mpi_update_ghost_primitives(void) {
 		update[1].ghost(g)=omega.ghost(g);
 	}
 	
+	/*
 	k.mpi_update();
 	omega.mpi_update();
 	mu_t.mpi_update();
+	*/
+	
+	int id;
+	vector<double> sendBuffer;
+	vector<double> recvBuffer;
+	
+	long unsigned int max_send_size=0;
+	long unsigned int max_recv_size=0;
+	
+	for (int proc=0;proc<np;++proc) {
+		if (Rank!=proc) {
+			max_send_size=max(max_send_size,3*grid[gid].sendCells[proc].size());
+			max_recv_size=max(max_recv_size,3*grid[gid].recvCells[proc].size());
+		}
+	}
+	sendBuffer.reserve(max_send_size); recvBuffer.reserve(max_recv_size);
+	
+	for (int proc=0;proc<np;++proc) {
+		if (Rank!=proc) {
+			sendBuffer.resize(3*grid[gid].sendCells[proc].size());
+			recvBuffer.resize(3*grid[gid].recvCells[proc].size());
+			
+			for (int g=0;g<grid[gid].sendCells[proc].size();++g) {
+				id=grid[gid].maps.cellGlobal2Local[grid[gid].sendCells[proc][g]];
+				sendBuffer[g*3]=k.cell(id);
+				sendBuffer[g*3+1]=omega.cell(id);
+				sendBuffer[g*3+2]=mu_t.cell(id);
+			}
+			
+			MPI_Sendrecv(&sendBuffer[0],sendBuffer.size(),MPI_DOUBLE,proc,0,&recvBuffer[0],recvBuffer.size(),MPI_DOUBLE,proc,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+			
+			for (int g=0;g<grid[gid].recvCells[proc].size();++g) {
+				id=grid[gid].maps.ghostGlobal2Local[grid[gid].recvCells[proc][g]];
+				k.ghost(id)=recvBuffer[g*3];
+				omega.ghost(id)=recvBuffer[g*3+1];
+				mu_t.ghost(id)=recvBuffer[g*3+2];			
+			}
+		}
+	}
+	
 
 	for (int g=0;g<grid[gid].ghostCount;++g) {
 		update[0].ghost(g)=k.ghost(g)-update[0].ghost(g);
@@ -51,8 +92,52 @@ void RANS::mpi_update_ghost_primitives(void) {
 
 void RANS::mpi_update_ghost_gradients(void) {
 	
+	/*
 	gradk.mpi_update();
 	gradomega.mpi_update();
+	*/
+	
+	int id;
+	vector<double> sendBuffer;
+	vector<double> recvBuffer;
+	
+	long unsigned int max_send_size=0;
+	long unsigned int max_recv_size=0;
+	
+	for (int proc=0;proc<np;++proc) {
+		if (Rank!=proc) {
+			max_send_size=max(max_send_size,6*grid[gid].sendCells[proc].size());
+			max_recv_size=max(max_recv_size,6*grid[gid].recvCells[proc].size());
+		}
+	}
+	sendBuffer.reserve(max_send_size); recvBuffer.reserve(max_recv_size);
+	
+	for (int proc=0;proc<np;++proc) {
+		if (Rank!=proc) {
+			sendBuffer.resize(6*grid[gid].sendCells[proc].size());
+			recvBuffer.resize(6*grid[gid].recvCells[proc].size());
+			
+			for (int g=0;g<grid[gid].sendCells[proc].size();++g) {
+				id=grid[gid].maps.cellGlobal2Local[grid[gid].sendCells[proc][g]];
+				for (int i=0;i<3;++i) {
+					sendBuffer[g*6+i]=gradk.cell(id)[i];
+					sendBuffer[g*6+3+i]=gradomega.cell(id)[i];
+				}
+			}
+			
+			MPI_Sendrecv(&sendBuffer[0],sendBuffer.size(),MPI_DOUBLE,proc,0,&recvBuffer[0],recvBuffer.size(),MPI_DOUBLE,proc,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+			
+			for (int g=0;g<grid[gid].recvCells[proc].size();++g) {
+				id=grid[gid].maps.ghostGlobal2Local[grid[gid].recvCells[proc][g]];
+				for (int i=0;i<3;++i) {
+					gradk.ghost(id)[i]=recvBuffer[g*6+i];
+					gradomega.ghost(id)[i]=recvBuffer[g*6+3+i];
+				}				
+			}
+		}
+	}
+	
+	sendBuffer.clear(); recvBuffer.clear();
 
 	return;
 } 
