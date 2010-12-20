@@ -30,6 +30,7 @@ extern vector<Grid> grid;
 extern vector<vector<BCregion> > bc;
 extern vector<vector<BC_Interface> > interface;
 extern vector<int> equations;
+extern vector<bool> turbulent;
 
 void set_bcs(int gid) {
 	
@@ -150,6 +151,8 @@ void set_bcs(int gid) {
 		}
 	}
 
+	if (Rank==0) cout << "[I] Finding closest wall distances" << endl;
+	
 	MPI_Allgather(&number_of_nsf[Rank],1,MPI_INT,&number_of_nsf[0],1,MPI_INT,MPI_COMM_WORLD);
 
 	int nsf_sum=0;
