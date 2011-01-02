@@ -536,31 +536,93 @@ int Grid::create_ghosts() {
 	} // if (np!=1)
 	//cout << "[I Rank=" << Rank << "] Number of Inter-Partition Ghost Cells= " << ghostCount << endl;
 	
-	maps.nodeGlobal2Output.resize(globalNodeCount);
-	for (int ng=0;ng<globalNodeCount;++ng) maps.nodeGlobal2Output[ng]=-1;
-	nodeCountOffset=0;
-	int nodeCountOffsetPlus=0;
-	// Receive my nodeCountOffset from processor Rank-1
+	return 0;
+	
+} // end int Grid::create_ghosts
 
-	// Set tag to destination
-	if (Rank!=0) MPI_Recv(&nodeCountOffset,1,MPI_INT,Rank-1,Rank,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-	if (Rank!=0) MPI_Recv(&maps.nodeGlobal2Output[0],globalNodeCount,MPI_INT,Rank-1,Rank,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+int Grid::get_volume_output_ids() {
+	
+	vector<int> output_node_counts;
+	output_node_counts.resize(np);
+	int count=0;
 	for (int n=0;n<nodeCount;++n) {
-		if (maps.nodeGlobal2Output[node[n].globalId]==-1) {
-			maps.nodeGlobal2Output[node[n].globalId]=nodeCountOffset+nodeCountOffsetPlus;
-			nodeCountOffsetPlus++;
+		node[n].output_id=0;
+		for (int ng=0;ng<node[n].ghosts.size();++ng) {
+			int g=node[n].ghosts[ng];
+			if (ghost[g].partition<Rank) {
+				node[n].output_id=-1;
+				break;
+			}
+		}
+		if (node[n].output_id==0) {
+			node[n].output_id=count;
+			count++;
 		}
 	}
-	nodeCountOffsetPlus+=nodeCountOffset;
-
- 	if (Rank!=np-1) MPI_Send(&nodeCountOffsetPlus,1,MPI_INT,Rank+1,Rank+1,MPI_COMM_WORLD);
-	if (Rank!=np-1) MPI_Send(&maps.nodeGlobal2Output[0],globalNodeCount,MPI_INT,Rank+1,Rank+1,MPI_COMM_WORLD);
-
-	// First save the number of boundary conditions
+	
+	output_node_counts[Rank]=count;
+	MPI_Allgather(MPI_IN_PLACE,0,MPI_INT, 
+				  &output_node_counts[0],1,MPI_INT, 
+				  MPI_COMM_WORLD);
+	
+	// A sanity check here:
+	int sum=0;
+	for (int p=0;p<np;++p) sum+=output_node_counts[p];
+	if (sum!=globalNodeCount) {
+		cerr << "[E] Output node counts sum doesn't match global node count" << endl;
+		exit(1);
+	}
+	
+	node_output_offset=0;
+	for (int p=0;p<Rank;++p) node_output_offset+=output_node_counts[p];
+	for (int n=0;n<nodeCount;++n) if (node[n].output_id>=0) node[n].output_id+=node_output_offset;
+	
+	for (int p=1;p<np;++p) {
+		int size;
+		for (int pr=0;pr<p;++pr) {
+			if (Rank==p) {
+				vector<int> exchange_nodes;
+				for (int n=0;n<nodeCount;++n) if (node[n].output_id==-1) exchange_nodes.push_back(node[n].globalId);
+				// Send the size of the list
+				size=exchange_nodes.size();
+				MPI_Send(&size,1,MPI_INT,pr,p,MPI_COMM_WORLD);
+				// Send the list
+				MPI_Send(&exchange_nodes[0],size,MPI_INT,pr,p,MPI_COMM_WORLD);
+				MPI_Recv(&exchange_nodes[0],size,MPI_INT,pr,p,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+				// Fill in the node output id's
+				int count=0;
+				for (int n=0;n<nodeCount;++n) {
+					if (node[n].output_id==-1) {
+						node[n].output_id=exchange_nodes[count];
+						count++;
+					}
+				}
+				exchange_nodes.clear();
+			}
+			if (Rank==pr) {
+				// Receive the list size
+				MPI_Recv(&size,1,MPI_INT,p,p,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+				vector<int> exchange_nodes;
+				exchange_nodes.resize(size);
+				// Receive the list
+				MPI_Recv(&exchange_nodes[0],size,MPI_INT,p,p,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+				// Fill in the output_id's of exchange nodes
+				for (int i=0;i<size;++i) {
+					if (maps.nodeGlobal2Local.find(exchange_nodes[i])!=maps.nodeGlobal2Local.end()) {
+						exchange_nodes[i]=node[maps.nodeGlobal2Local[exchange_nodes[i]]].output_id;	
+					} else { exchange_nodes[i]=-1; }
+				}
+				// Send back the list
+				MPI_Send(&exchange_nodes[0],size,MPI_INT,p,p,MPI_COMM_WORLD);
+				exchange_nodes.clear();
+			}
+		}
+	}
+	
+	// Populate face and node lists for each boundary condition region
 	bcCount=raw.bocoNodes.size();
 	boundaryFaces.resize(bcCount);
 	boundaryNodes.resize(bcCount);
-	maps.bc_nodeLocal2Output.resize(bcCount);
 	vector<set<int> > bcnodeset;
 	set<int>::iterator it;
 	bcnodeset.resize(bcCount);
@@ -577,16 +639,108 @@ int Grid::create_ghosts() {
 		int counter=0;
 		for (it=bcnodeset[b].begin();it!=bcnodeset[b].end();++it) {
 			boundaryNodes[b].push_back(*it);
-			maps.bc_nodeLocal2Output[b].insert(pair<int,int>(*it,counter));
 			counter++;
 		}
 	}
 	bcnodeset.clear();
+
+	return 0;
+}
+
+int Grid::get_bc_output_ids() {
+	
+	// Collect all the nodes lying on any bc region into one set
+	set<int> bc_nodes;
+	set<int>::iterator sit;
+	int n;
+	
+	for (int f=0;f<faceCount;++f) {
+		if (face[f].bc>=0) {
+			for (int fn=0;fn<face[f].nodeCount;++fn) {
+				bc_nodes.insert(face[f].nodes[fn]);
+			}
+		}
+	}
+	
+	for (n=0;n<nodeCount;++n) node[n].bc_output_id=-2;
+	
+	vector<int> output_node_counts;
+	output_node_counts.resize(np);
+	int count=0;
+	for (sit=bc_nodes.begin();sit!=bc_nodes.end();sit++) {
+		n=*sit;
+		node[n].bc_output_id=0;
+		for (int ng=0;ng<node[n].ghosts.size();++ng) {
+			int g=node[n].ghosts[ng];
+			if (ghost[g].partition<Rank) {
+				node[n].bc_output_id=-1;
+				break;
+			}
+		}
+		if (node[n].bc_output_id==0) {
+			node[n].bc_output_id=count;
+			count++;
+		}
+	}
+	
+	output_node_counts[Rank]=count;
+	MPI_Allgather(MPI_IN_PLACE,0,MPI_INT, 
+				  &output_node_counts[0],1,MPI_INT, 
+				  MPI_COMM_WORLD);
+	
+	node_bc_output_offset=0;
+	for (int p=0;p<Rank;++p) node_bc_output_offset+=output_node_counts[p];
+
+	global_bc_nodeCount=0;
+	for (int p=0;p<np;++p) global_bc_nodeCount+=output_node_counts[p];
+
+	for (sit=bc_nodes.begin();sit!=bc_nodes.end();sit++) if (node[*sit].bc_output_id>=0) node[*sit].bc_output_id+=node_bc_output_offset;
+	
+	for (int p=1;p<np;++p) {
+		int size;
+		for (int pr=0;pr<p;++pr) {
+			if (Rank==p) {
+				vector<int> exchange_nodes;
+				for (sit=bc_nodes.begin();sit!=bc_nodes.end();sit++) if (node[*sit].bc_output_id==-1) exchange_nodes.push_back(node[*sit].globalId);
+				// Send the size of the list
+				size=exchange_nodes.size();
+				MPI_Send(&size,1,MPI_INT,pr,p,MPI_COMM_WORLD);
+				// Send the list
+				MPI_Send(&exchange_nodes[0],size,MPI_INT,pr,p,MPI_COMM_WORLD);
+				MPI_Recv(&exchange_nodes[0],size,MPI_INT,pr,p,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+				// Fill in the node output id's
+				int count=0;
+				for (sit=bc_nodes.begin();sit!=bc_nodes.end();sit++) {
+					if (node[*sit].bc_output_id==-1) {
+						node[*sit].bc_output_id=exchange_nodes[count];
+						count++;
+					}
+				}
+				exchange_nodes.clear();
+			}
+			if (Rank==pr) {
+				// Receive the list size
+				MPI_Recv(&size,1,MPI_INT,p,p,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+				vector<int> exchange_nodes;
+				exchange_nodes.resize(size);
+				// Receive the list
+				MPI_Recv(&exchange_nodes[0],size,MPI_INT,p,p,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+				// Fill in the bc_output_id's of exchange nodes
+				for (int i=0;i<size;++i) {
+					if (maps.nodeGlobal2Local.find(exchange_nodes[i])!=maps.nodeGlobal2Local.end()) {
+						exchange_nodes[i]=node[maps.nodeGlobal2Local[exchange_nodes[i]]].bc_output_id;	
+					} else { exchange_nodes[i]=-1; }
+				}
+				// Send back the list
+				MPI_Send(&exchange_nodes[0],size,MPI_INT,p,p,MPI_COMM_WORLD);
+				exchange_nodes.clear();
+			}
+		}
+	}
 	
 	return 0;
+}
 	
-} // end int Grid::create_ghosts
-
 bool Cell::HaveNodes(int &nodelistsize, int nodelist []) {	
 	bool match;
 	for (int i=0;i<nodelistsize;++i) {

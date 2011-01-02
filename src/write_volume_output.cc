@@ -54,7 +54,6 @@ void write_tec_header(void);
 void write_tec_nodes(int i);
 void write_tec_var(int ov, int i);
 void write_tec_cells(void);
-void write_tec_bcs(int nbc, int nVar);
 void write_vtk(void);
 void write_vtk_parallel(void);
 
@@ -185,7 +184,7 @@ void write_tec_nodes(int i) {
 	int count=0;
 	for (int n=0;n<grid[gid].nodeCount;++n) {
 		// Note that some nodes are repeated in different partitions
-		if (grid[gid].maps.nodeGlobal2Output[grid[gid].node[n].globalId]>=grid[gid].nodeCountOffset) {
+		if (grid[gid].node[n].output_id>=grid[gid].node_output_offset) {
 			// Write node coordinates
 			file << grid[gid].node[n][i];
 			count++;
@@ -193,6 +192,7 @@ void write_tec_nodes(int i) {
 			else file << "\t";
 		}
 	}
+	file << endl;
 	file.close();
 	
 	return;
@@ -401,7 +401,7 @@ void write_tec_var(int ov, int i) {
 		}
 	} else if (varList[ov]=="grad") {
 		for (int c=0;c<grid[gid].cellCount;++c) {
-			file << ns[gid].gradrho.cell(c)[i];
+			file << ns[gid].gradp.cell(c)[i];
 			if ((c+1)%10==0) file << "\n";
 			else file << "\t";
 		}
@@ -422,37 +422,37 @@ void write_tec_cells() {
 	// Write connectivity
 	for (int c=0;c<grid[gid].cellCount;++c) {
 		if (grid[gid].cell[c].nodeCount==4) {
-			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,0).globalId]+1 << "\t" ;
-			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,2).globalId]+1 << "\t" ;
-			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,1).globalId]+1 << "\t" ;
-			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,1).globalId]+1 << "\t" ;
-			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,3).globalId]+1 << "\t" ;
-			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,3).globalId]+1 << "\t" ;
-			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,3).globalId]+1 << "\t" ;
-			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,3).globalId]+1 << "\t" ;
+			file << grid[gid].cellNode(c,0).output_id+1 << "\t" ;
+			file << grid[gid].cellNode(c,2).output_id+1 << "\t" ;
+			file << grid[gid].cellNode(c,1).output_id+1 << "\t" ;
+			file << grid[gid].cellNode(c,1).output_id+1 << "\t" ;
+			file << grid[gid].cellNode(c,3).output_id+1 << "\t" ;
+			file << grid[gid].cellNode(c,3).output_id+1 << "\t" ;
+			file << grid[gid].cellNode(c,3).output_id+1 << "\t" ;
+			file << grid[gid].cellNode(c,3).output_id+1 << "\t" ;
 		}
 		else if (grid[gid].cell[c].nodeCount==5) {
-			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,0).globalId]+1 << "\t" ;
-			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,1).globalId]+1 << "\t" ;
-			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,2).globalId]+1 << "\t" ;
-			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,3).globalId]+1 << "\t" ;
-			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,4).globalId]+1 << "\t" ;
-			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,4).globalId]+1 << "\t" ;
-			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,4).globalId]+1 << "\t" ;
-			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,4).globalId]+1 << "\t" ;
+			file << grid[gid].cellNode(c,0).output_id+1 << "\t" ;
+			file << grid[gid].cellNode(c,1).output_id+1 << "\t" ;
+			file << grid[gid].cellNode(c,2).output_id+1 << "\t" ;
+			file << grid[gid].cellNode(c,3).output_id+1 << "\t" ;
+			file << grid[gid].cellNode(c,4).output_id+1 << "\t" ;
+			file << grid[gid].cellNode(c,4).output_id+1 << "\t" ;
+			file << grid[gid].cellNode(c,4).output_id+1 << "\t" ;
+			file << grid[gid].cellNode(c,4).output_id+1 << "\t" ;
 		}
 		else if (grid[gid].cell[c].nodeCount==6) {
-			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,0).globalId]+1 << "\t" ;
-			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,1).globalId]+1 << "\t" ;
-			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,2).globalId]+1 << "\t" ;
-			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,2).globalId]+1 << "\t" ;
-			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,3).globalId]+1 << "\t" ;
-			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,4).globalId]+1 << "\t" ;
-			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,5).globalId]+1 << "\t" ;
-			file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,5).globalId]+1 << "\t" ;
+			file << grid[gid].cellNode(c,0).output_id+1 << "\t" ;
+			file << grid[gid].cellNode(c,1).output_id+1 << "\t" ;
+			file << grid[gid].cellNode(c,2).output_id+1 << "\t" ;
+			file << grid[gid].cellNode(c,2).output_id+1 << "\t" ;
+			file << grid[gid].cellNode(c,3).output_id+1 << "\t" ;
+			file << grid[gid].cellNode(c,4).output_id+1 << "\t" ;
+			file << grid[gid].cellNode(c,5).output_id+1 << "\t" ;
+			file << grid[gid].cellNode(c,5).output_id+1 << "\t" ;
 		} else if (grid[gid].cell[c].nodeCount==8) {
 			for (int i=0;i<8;++i) {
-				file << grid[gid].maps.nodeGlobal2Output[grid[gid].cellNode(c,i).globalId]+1 << "\t" ;
+				file << grid[gid].cellNode(c,i).output_id+1 << "\t" ;
 			}
 		}
 		file << endl;
@@ -463,40 +463,6 @@ void write_tec_cells() {
 	return;
 	
 }
-
-void write_tec_bcs(int bcNo,int nVar) {
-	
-	ofstream file;
-	string fileName="./output/volume_"+int2str(timeStep)+"_"+int2str(gid+1)+".dat";
-
-	file.open((fileName).c_str(),ios::app);
-	if (Rank==0) {
-		file << "ZONE T=\"Grid " << gid+1 << " BC_" << bcNo+1 << "\" " << ", ZONETYPE=FEQUADRILATERAL, VARSHARELIST=([1-" << nVar+3 << "]=1)" << endl;
-		file << "NODES=" << grid[gid].globalNodeCount << ", ELEMENTS=" << grid[gid].globalBoundaryFaceCount[bcNo] << endl;
-	}
-	
-	// Write connectivity
-	for (int f=0;f<grid[gid].faceCount;++f) {
-	   if (grid[gid].face[f].bc==bcNo) {
-		   if (grid[gid].face[f].nodeCount==3) {
-			   file << grid[gid].maps.nodeGlobal2Output[grid[gid].faceNode(f,0).globalId]+1 << "\t" ;
-			   file << grid[gid].maps.nodeGlobal2Output[grid[gid].faceNode(f,1).globalId]+1 << "\t" ;
-			   file << grid[gid].maps.nodeGlobal2Output[grid[gid].faceNode(f,2).globalId]+1 << "\t" ;
-			   file << grid[gid].maps.nodeGlobal2Output[grid[gid].faceNode(f,2).globalId]+1 << "\t" ;
-		   } else if (grid[gid].face[f].nodeCount==4) {
-			   for (int i=0;i<4;++i) {
-				   file << grid[gid].maps.nodeGlobal2Output[grid[gid].faceNode(f,i).globalId]+1 << "\t" ;
-			   }
-		   }
-		   file << endl;
-	   }
-	}
-
-	file.close();
-
-	return;
-}
-
 
 void write_vtk(void) {
 	
