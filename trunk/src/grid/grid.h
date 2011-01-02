@@ -56,14 +56,12 @@ public:
 	std::map<string,int> bocoNameMap;
 };
 
-class IndexMaps { // This data will be destroyed after processing
+class IndexMaps {
 public:
 	std::vector<int> cellOwner; // takes cell global id and returns the owner rank
 	std::map<int,int> nodeGlobal2Local;
 	std::map<int,int> cellGlobal2Local;
 	std::map<int,int> ghostGlobal2Local;
-	std::vector<int> nodeGlobal2Output;
-	std::vector<map<int,int> > bc_nodeLocal2Output;	
 	std::vector<int> face2bc; // face index to bc array index map
 	idxtype* adjIndex;
 	idxtype* adjacency;
@@ -71,7 +69,9 @@ public:
 
 class Node : public Vec3D {
 public:
-	int id, globalId; // id is the local index in the current processor
+	int id; // TODO: Eliminate this?
+	int globalId; // id is the local index in the current processor
+	int output_id,bc_output_id;
 	std::vector<int> cells; // list of cells (ids) sharing this node
 	std::vector<int> ghosts; // list of ghosts (inter-partition cells) sharing this node 
 	std::vector<int> faces; // list of faces touching this node
@@ -131,9 +131,9 @@ public:
 	string fileName;
 	int myOffset,Rank,np;
 	vector<int> partitionOffset;
-	int nodeCountOffset;
+	int node_output_offset,node_bc_output_offset;
 	int nodeCount,cellCount,faceCount;
-	int globalNodeCount,globalCellCount,globalFaceCount,ghostCount;
+	int globalNodeCount,global_bc_nodeCount,globalCellCount,globalFaceCount,ghostCount;
 	double globalTotalVolume;
 	std::vector<std::vector<int> > boundaryFaceCount; // for each bc region in each proc
 	std::vector<int> globalBoundaryFaceCount;
@@ -158,6 +158,8 @@ public:
 	int create_nodes_cells();
 	int create_faces();
 	int create_ghosts();
+	int get_volume_output_ids();
+	int get_bc_output_ids();
 	void trim_memory();
 	int areas_volumes();
 	void nodeAverages();

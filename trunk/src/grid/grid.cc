@@ -54,6 +54,8 @@ void Grid::setup(void) {
 	mesh2dual();
 	create_faces();
 	create_ghosts();
+	get_volume_output_ids();
+	get_bc_output_ids();
 	trim_memory();
 	areas_volumes();
 	mpi_handshake();
@@ -352,7 +354,7 @@ void Grid::write_raw(void) {
 	
 	file.close();
 	
-	cout << "\n[I] Write grid.raw file" << endl;
+	cout << "\n[I] Wrote grid.raw file" << endl;
 	
 	return;
 }

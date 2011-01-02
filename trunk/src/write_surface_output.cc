@@ -46,13 +46,11 @@ namespace surface_output {
 	int timeStep,gid;
 	vector<string> varList;
 	vector<bool> var_is_vec3d;
-	vector<int> totalBoundaryNodeCount;
-	vector<int> myOffset;
 }
 using namespace surface_output;
 
 void write_surface_tec_header(int b);
-void write_surface_tec_nodes(int i,int b);
+void write_surface_tec_nodes(int i);
 void write_surface_tec_var(int ov,int i,int b);
 void write_surface_tec_cells(int b);
 
@@ -71,20 +69,7 @@ void write_surface_output(int gridid, int step) {
 			nVar+=2;
 		}
 	}
-	
-	totalBoundaryNodeCount.resize(grid[gid].bcCount);
-	myOffset.resize(grid[gid].bcCount);
-	for (int b=0;b<grid[gid].bcCount;++b) {
-		vector<int> bcnodecounts;
-		bcnodecounts.resize(np);
-		bcnodecounts[Rank]=grid[gid].boundaryNodes[b].size();
-		MPI_Allgather(&bcnodecounts[Rank],1,MPI_INT,&bcnodecounts[0],1,MPI_INT,MPI_COMM_WORLD);
-		totalBoundaryNodeCount[b]=0;
-		for (int p=0;p<np;++p) totalBoundaryNodeCount[b]+=bcnodecounts[p];
-		myOffset[b]=0;
-		for (int p=0;p<Rank;++p) myOffset[b]+=bcnodecounts[p];
-	}
-	
+
 	string format=input.section("grid",gid).subsection("writeoutput").get_string("format");
 
 	if (format=="tecplot") {
@@ -93,12 +78,15 @@ void write_surface_output(int gridid, int step) {
 			// Write tecplot output file
 			if (Rank==0) write_surface_tec_header(b);
 			
-			for (int i=0;i<3;++i) {
-				for (int p=0;p<np;++p) {
-					if(Rank==p) write_surface_tec_nodes(i,b);
-					MPI_Barrier(MPI_COMM_WORLD);
+			if (b==0) {
+				for (int i=0;i<3;++i) {
+					for (int p=0;p<np;++p) {
+						if(Rank==p) write_surface_tec_nodes(i);
+						MPI_Barrier(MPI_COMM_WORLD);
+					}
 				}
 			}
+			
 			for (int ov=0;ov<varList.size();++ov) {
 				int nn=1;
 				if (var_is_vec3d[ov]) nn=3;
@@ -132,6 +120,7 @@ void write_surface_tec_header(int b) {
 		file.open((fileName).c_str(),ios::out);
 		file << "VARIABLES = \"x\", \"y\", \"z\" ";
 	}
+	
 	for (int var=0;var<varList.size();++var) {
 		if (var_is_vec3d[var]) {
 			if (b==0) {
@@ -145,39 +134,43 @@ void write_surface_tec_header(int b) {
 			nvars++;
 		}
 	}
-	if (b==0) file << endl;
+	file << endl;
+	
 
 	if (b!=0) file.open((fileName).c_str(),ios::app);
-
 	
 	file << "ZONE, T=\"BC_" << b+1 << "\", ZONETYPE=FEQUADRILATERAL, DATAPACKING=BLOCK" << endl;
-	file << "NODES=" << totalBoundaryNodeCount[b] << ", ELEMENTS=" << grid[gid].globalBoundaryFaceCount[b] << endl;
+	if (b==0) file << "NODES=" << grid[gid].global_bc_nodeCount << ", ";
+	file << "ELEMENTS=" << grid[gid].globalBoundaryFaceCount[b] << endl;
 	if (nvars==4) {
 		file << "VARLOCATION=([4]=CELLCENTERED)" << endl;	
 	} else {
 		file << "VARLOCATION=([4-" << nvars << "]=CELLCENTERED)" << endl;
 	}
-	
+	if (b!=0) file << "VARSHARELIST=([1-3]=1)" << endl;
 	return;
 }
 	
-void write_surface_tec_nodes(int i,int b) {
+void write_surface_tec_nodes(int i) {
 	
 	ofstream file;
 	string fileName="./output/surface_"+int2str(timeStep)+"_"+int2str(gid+1)+".dat";
 	
 	file.open((fileName).c_str(),ios::app);
 	file << scientific << setprecision(8);
-
+	
 	int count=0;
-	vector<int>::iterator it;
-	for (it=grid[gid].boundaryNodes[b].begin();it!=grid[gid].boundaryNodes[b].end();it++) {
-		// Write node coordinates
-		file << grid[gid].node[*it][i];
-		count++;
-		if (count%10==0) file << "\n";
-		else file << "\t";
+	for (int n=0;n<grid[gid].nodeCount;++n) {
+		// Note that some nodes are repeated in different partitions
+		if (grid[gid].node[n].bc_output_id>=grid[gid].node_bc_output_offset) {
+			// Write node coordinates
+			file << grid[gid].node[n][i];
+			count++;
+			if (count%10==0) file << "\n";
+			else file << "\t";
+		}
 	}
+	file << endl;
 	file.close();
 	
 	return;
@@ -413,15 +406,15 @@ void write_surface_tec_cells(int b) {
 	for (int bf=0;bf<grid[gid].boundaryFaces[b].size();++bf) {
 		// Write connectivity
 		int f=grid[gid].boundaryFaces[b][bf];
-
-		file << myOffset[b]+grid[gid].maps.bc_nodeLocal2Output[b][grid[gid].face[f].nodes[0]]+1 << "\t" ;
-		file << myOffset[b]+grid[gid].maps.bc_nodeLocal2Output[b][grid[gid].face[f].nodes[1]]+1 << "\t" ;
-		file << myOffset[b]+grid[gid].maps.bc_nodeLocal2Output[b][grid[gid].face[f].nodes[2]]+1 << "\t" ;
+		
+		file << grid[gid].faceNode(f,0).bc_output_id+1 << "\t" ;
+		file << grid[gid].faceNode(f,1).bc_output_id+1 << "\t" ;
+		file << grid[gid].faceNode(f,2).bc_output_id+1 << "\t" ;
 		
 		if (grid[gid].face[f].nodeCount==4) {
-			file << myOffset[b]+grid[gid].maps.bc_nodeLocal2Output[b][grid[gid].face[f].nodes[3]]+1 << "\t" ;
+			file << grid[gid].faceNode(f,3).bc_output_id+1 << "\t" ;			
 		} else if (grid[gid].face[f].nodeCount==3) {
-			file << myOffset[b]+grid[gid].maps.bc_nodeLocal2Output[b][grid[gid].face[f].nodes[2]]+1 << "\t" ;			
+			file << grid[gid].faceNode(f,2).bc_output_id+1 << "\t" ;
 		}
 
 		file << endl;
