@@ -352,7 +352,11 @@ void NavierStokes::right_state_update(NS_Cell_State &left,NS_Cell_State &right,N
 void NavierStokes::face_geom_update(NS_Face_State &face,int f) {
 	face.index=f;
 	face.normal=grid[gid].face[f].normal;
-	face.tangent1=(0.5*(grid[gid].faceNode(f,0)+grid[gid].faceNode(f,1))-grid[gid].face[f].centroid).norm();
+	if (grid[gid].face[f].nodeCount==4) {
+		face.tangent1=((grid[gid].faceNode(f,0)+grid[gid].faceNode(f,1))-(grid[gid].faceNode(f,2)+grid[gid].faceNode(f,3))).norm();
+	} else {
+		face.tangent1=(0.5*(grid[gid].faceNode(f,0)+grid[gid].faceNode(f,1))-grid[gid].face[f].centroid).norm();
+	}
 	// Cross the tangent vector with the normal vector to get the second tangent
 	face.tangent2=((face.normal).cross(face.tangent1)).norm();
 	face.area=grid[gid].face[f].area;
