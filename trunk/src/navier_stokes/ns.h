@@ -72,7 +72,12 @@ public:
 	int ps_step;
 	int nIter;
 	double rNorm,res,ps_res;
-	
+      
+      // MPI exchange buffer
+      vector<double> sendBuffer;
+      vector<double> recvBuffer;
+      vector<int> mpi_send_offset,mpi_recv_offset;
+
 	// Inputs
 	double rtol,abstol;
 	int maxits;

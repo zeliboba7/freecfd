@@ -39,14 +39,14 @@ void Variable<double>::mpi_update (void) {
 			recvBuffer.resize(grid[gid].recvCells[proc].size());
 			
 			for (int g=0;g<grid[gid].sendCells[proc].size();++g) {
-				id=grid[gid].maps.cellGlobal2Local[grid[gid].sendCells[proc][g]];
+				id=grid[gid].sendCells[proc][g];
 				sendBuffer[g]=cell(id);
 			}
 			
 			MPI_Sendrecv(&sendBuffer[0],sendBuffer.size(),MPI_DOUBLE,proc,0,&recvBuffer[0],recvBuffer.size(),MPI_DOUBLE,proc,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
 
 			for (int g=0;g<grid[gid].recvCells[proc].size();++g) {
-				id=grid[gid].maps.ghostGlobal2Local[grid[gid].recvCells[proc][g]];
+				id=grid[gid].recvCells[proc][g];
 				ghost(id)=recvBuffer[g];
 			}
 		}

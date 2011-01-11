@@ -1,11 +1,11 @@
 set (CMAKE_CXX_COMPILER mpic++)
 set (CMAKE_CXX_FLAGS "-O3")
-set (CGNS_INCLUDE_DIRS /Users/esozer/fcfd/deps/cgnslib_2.5/include)
-set (CGNS_LIBRARY_DIRS /Users/esozer/fcfd/deps/cgnslib_2.5/lib)
-set (PARMETIS_INCLUDE_DIRS /Users/esozer/fcfd/deps/ParMetis-3.1.1)
-set (PARMETIS_LIBRARY_DIRS /Users/esozer/fcfd/deps/ParMetis-3.1.1)
-set (PETSC_INCLUDE_DIRS /Users/esozer/fcfd/deps/petsc-3.1-p2/include /Users/esozer/fcfd/deps/petsc-3.1-p2/darwin9.8.0-c-debug/include)
-set (PETSC_LIBRARY_DIRS /Users/esozer/fcfd/deps/petsc-3.1-p2/darwin9.8.0-c-debug/lib)
+set (CGNS_INCLUDE_DIRS /sde1-fs/esozer/codes/cgnslib_2.5)
+set (CGNS_LIBRARY_DIRS /sde1-fs/esozer/codes/cgnslib_2.5/LINUX)
+set (PARMETIS_INCLUDE_DIRS /sde1-fs/esozer/codes/ParMetis-3.1.1)
+set (PARMETIS_LIBRARY_DIRS /sde1-fs/esozer/codes/ParMetis-3.1.1)
+set (PETSC_INCLUDE_DIRS /sde1-fs/esozer/codes/petsc-3.1p2-install/include)
+set (PETSC_LIBRARY_DIRS /sde1-fs/esozer/codes/petsc-3.1p2-install/lib)
 
 cmake_minimum_required(VERSION 2.6)
 

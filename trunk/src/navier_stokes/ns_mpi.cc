@@ -26,11 +26,31 @@ void NavierStokes::mpi_init(void) {
 	
 	MPI_Comm_rank(MPI_COMM_WORLD, &Rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &np);
+
+      long unsigned int max_send_size=0;
+      long unsigned int max_recv_size=0;
+       
+      mpi_send_offset.resize(np);
+      mpi_recv_offset.resize(np);
+
+      for (int proc=0;proc<np;++proc) {
+            if (Rank!=proc) {
+                  mpi_send_offset[proc]=max_send_size;
+                  mpi_recv_offset[proc]=max_recv_size;
+                  max_send_size+=15*grid[gid].sendCells[proc].size();
+                  max_recv_size+=15*grid[gid].recvCells[proc].size();
+            }
+       }
+       sendBuffer.resize(max_send_size); recvBuffer.resize(max_recv_size);
 	
 	return;
 }
 
 void NavierStokes::mpi_update_ghost_primitives(void) {
+
+      MPI_Barrier(MPI_COMM_WORLD);
+      double timeRef,timeEnd;
+      timeRef=MPI_Wtime();
 	
 	for (int g=0;g<grid[gid].ghostCount;++g) {
 		update[0].ghost(g)=p.ghost(g);
@@ -46,50 +66,72 @@ void NavierStokes::mpi_update_ghost_primitives(void) {
 	V.mpi_update();
 	T.mpi_update();
 	 */
-	int id;
-	vector<double> sendBuffer;
-	vector<double> recvBuffer;
+	int id,offset;
+      int sendSize,recvSize;
+      int send_req_count=0;
+      int recv_req_count=0;
 
-	long unsigned int max_send_size=0;
-	long unsigned int max_recv_size=0;
-	
+	for (int proc=0;proc<np;++proc) { 
+            if (Rank!=proc) {
+                  sendSize=grid[gid].sendCells[proc].size();
+			recvSize=grid[gid].recvCells[proc].size();
+                  if (sendSize!=0) send_req_count++;;
+                  if (recvSize!=0) recv_req_count++;
+            }
+      }
+
+      vector<MPI_Request> send_request, recv_request;
+      send_request.resize(send_req_count);
+      recv_request.resize(recv_req_count);
+
+      send_req_count=0;
+      recv_req_count=0;
+
 	for (int proc=0;proc<np;++proc) {
 		if (Rank!=proc) {
-			max_send_size=max(max_send_size,5*grid[gid].sendCells[proc].size());
-			max_recv_size=max(max_recv_size,5*grid[gid].recvCells[proc].size());
+                  sendSize=grid[gid].sendCells[proc].size();
+			recvSize=grid[gid].recvCells[proc].size();
+			
+                  if (sendSize!=0) {
+	      		for (int g=0;g<sendSize;++g) {
+		      		id=grid[gid].sendCells[proc][g];
+                              offset=mpi_send_offset[proc];
+			      	sendBuffer[offset+g*5]=p.cell(id);
+				      sendBuffer[offset+g*5+1]=V.cell(id)[0];
+      				sendBuffer[offset+g*5+2]=V.cell(id)[1];
+	      			sendBuffer[offset+g*5+3]=V.cell(id)[2];
+		      		sendBuffer[offset+g*5+4]=T.cell(id);
+			      }
+			
+      	      	MPI_Isend(&sendBuffer[offset],sendSize*5,MPI_DOUBLE,proc,0,MPI_COMM_WORLD,&send_request[send_req_count]);
+                        send_req_count++;
+
+			}
+
+                  if (recvSize!=0) {
+                        offset=mpi_recv_offset[proc];
+	      		MPI_Irecv(&recvBuffer[offset],recvSize*5,MPI_DOUBLE,proc,0,MPI_COMM_WORLD,&recv_request[recv_req_count]);
+                        recv_req_count++;
+                  }
 		}
 	}
-	sendBuffer.reserve(max_send_size); recvBuffer.reserve(max_recv_size);
-			
-	for (int proc=0;proc<np;++proc) {
-		if (Rank!=proc) {
-			sendBuffer.resize(5*grid[gid].sendCells[proc].size());
-			recvBuffer.resize(5*grid[gid].recvCells[proc].size());
-			
-			for (int g=0;g<grid[gid].sendCells[proc].size();++g) {
-				id=grid[gid].maps.cellGlobal2Local[grid[gid].sendCells[proc][g]];
-				sendBuffer[g*5]=p.cell(id);
-				sendBuffer[g*5+1]=V.cell(id)[0];
-				sendBuffer[g*5+2]=V.cell(id)[1];
-				sendBuffer[g*5+3]=V.cell(id)[2];
-				sendBuffer[g*5+4]=T.cell(id);
-			}
-			
-			MPI_Sendrecv(&sendBuffer[0],sendBuffer.size(),MPI_DOUBLE,proc,0,&recvBuffer[0],recvBuffer.size(),MPI_DOUBLE,proc,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-			
-			for (int g=0;g<grid[gid].recvCells[proc].size();++g) {
-				id=grid[gid].maps.ghostGlobal2Local[grid[gid].recvCells[proc][g]];
-				p.ghost(id)=recvBuffer[g*5];
-				V.ghost(id)[0]=recvBuffer[g*5+1];
-				V.ghost(id)[1]=recvBuffer[g*5+2];
-				V.ghost(id)[2]=recvBuffer[g*5+3];
-				T.ghost(id)=recvBuffer[g*5+4];				
-			}
-		}
-	}
-	
-	sendBuffer.clear(); recvBuffer.clear();
-	
+
+      MPI_Waitall(recv_request.size(),&recv_request[0],MPI_STATUS_IGNORE);
+
+	for (int proc=0;proc<np;++proc) { 
+            if (Rank!=proc) {
+                  offset=mpi_recv_offset[proc];
+      		for (int g=0;g<grid[gid].recvCells[proc].size();++g) {
+      			id=grid[gid].recvCells[proc][g];
+     				p.ghost(id)=recvBuffer[offset+g*5];
+      			V.ghost(id)[0]=recvBuffer[offset+g*5+1];
+	      		V.ghost(id)[1]=recvBuffer[offset+g*5+2];
+		      	V.ghost(id)[2]=recvBuffer[offset+g*5+3];
+			      T.ghost(id)=recvBuffer[offset+g*5+4];				
+   			}
+
+            }
+      }
 	
 	for (int g=0;g<grid[gid].ghostCount;++g) {
 		update[0].ghost(g)=p.ghost(g)-update[0].ghost(g);
@@ -99,14 +141,23 @@ void NavierStokes::mpi_update_ghost_primitives(void) {
 		update[4].ghost(g)=T.ghost(g)-update[4].ghost(g);
 		rho.ghost(g)=material.rho(p.ghost(g),T.ghost(g));
 	}
-	
+
+      if (Rank==0) {
+            timeEnd=MPI_Wtime();
+            //cout << "[I] MPI primitive exchange time = " << timeEnd-timeRef << " seconds" << endl;
+      }
+
 	return;
 } 
 
 void NavierStokes::mpi_update_ghost_gradients(void) {
+
+      MPI_Barrier(MPI_COMM_WORLD);
+      double timeRef,timeEnd;
+      timeRef=MPI_Wtime();
 	
 	// The Following is convenient but not efficient
-	/*
+      /*	
 	gradp.mpi_update();
 	gradu.mpi_update();
 	gradv.mpi_update();
@@ -114,55 +165,83 @@ void NavierStokes::mpi_update_ghost_gradients(void) {
 	gradT.mpi_update();
 	gradrho.mpi_update();
 	*/
-	
-	int id;
-	vector<double> sendBuffer;
-	vector<double> recvBuffer;
-	
-	long unsigned int max_send_size=0;
-	long unsigned int max_recv_size=0;
-	
+
+	int id,offset;
+      int sendSize,recvSize;
+      int send_req_count=0;
+      int recv_req_count=0;
+
+	for (int proc=0;proc<np;++proc) { 
+            if (Rank!=proc) {
+                  sendSize=grid[gid].sendCells[proc].size();
+			recvSize=grid[gid].recvCells[proc].size();
+                  if (sendSize!=0) send_req_count++;;
+                  if (recvSize!=0) recv_req_count++;
+            }
+      }
+
+      vector<MPI_Request> send_request, recv_request;
+      send_request.resize(send_req_count);
+      recv_request.resize(recv_req_count);
+
+      send_req_count=0;
+      recv_req_count=0;
+
 	for (int proc=0;proc<np;++proc) {
 		if (Rank!=proc) {
-			max_send_size=max(max_send_size,15*grid[gid].sendCells[proc].size());
-			max_recv_size=max(max_recv_size,15*grid[gid].recvCells[proc].size());
+                  sendSize=grid[gid].sendCells[proc].size();
+			recvSize=grid[gid].recvCells[proc].size();
+			
+                  if (sendSize!=0) {
+	      		for (int g=0;g<sendSize;++g) {
+		      		id=grid[gid].sendCells[proc][g];
+                              offset=mpi_send_offset[proc];
+      				for (int i=0;i<3;++i) {
+      					sendBuffer[offset+g*15+i]=gradp.cell(id)[i];
+       					sendBuffer[offset+g*15+3+i]=gradu.cell(id)[i];
+      					sendBuffer[offset+g*15+6+i]=gradv.cell(id)[i];
+      					sendBuffer[offset+g*15+9+i]=gradw.cell(id)[i];
+      					sendBuffer[offset+g*15+12+i]=gradT.cell(id)[i];
+      				}
+			      }
+			
+      	      	MPI_Isend(&sendBuffer[offset],sendSize*15,MPI_DOUBLE,proc,0,MPI_COMM_WORLD,&send_request[send_req_count]);
+                        send_req_count++;
+
+			}
+
+                  if (recvSize!=0) {
+                        offset=mpi_recv_offset[proc];
+	      		MPI_Irecv(&recvBuffer[offset],recvSize*15,MPI_DOUBLE,proc,0,MPI_COMM_WORLD,&recv_request[recv_req_count]);
+                        recv_req_count++;
+                  }
 		}
 	}
-	sendBuffer.reserve(max_send_size); recvBuffer.reserve(max_recv_size);
+
+      MPI_Waitall(recv_request.size(),&recv_request[0],MPI_STATUS_IGNORE);
+
+	for (int proc=0;proc<np;++proc) { 
+            if (Rank!=proc) {
+                  offset=mpi_recv_offset[proc];
+      		for (int g=0;g<grid[gid].recvCells[proc].size();++g) {
+      			id=grid[gid].recvCells[proc][g];
+	      		for (int i=0;i<3;++i) {
+	      			gradp.ghost(id)[i]=recvBuffer[offset+g*15+i];
+	      			gradu.ghost(id)[i]=recvBuffer[offset+g*15+3+i];
+	      			gradv.ghost(id)[i]=recvBuffer[offset+g*15+6+i];
+	      			gradw.ghost(id)[i]=recvBuffer[offset+g*15+9+i];
+	      			gradT.ghost(id)[i]=recvBuffer[offset+g*15+12+i];
+		      	}				
+   			}
+
+            }
+      }
 	
-	for (int proc=0;proc<np;++proc) {
-		if (Rank!=proc) {
-			sendBuffer.resize(15*grid[gid].sendCells[proc].size());
-			recvBuffer.resize(15*grid[gid].recvCells[proc].size());
-			
-			for (int g=0;g<grid[gid].sendCells[proc].size();++g) {
-				id=grid[gid].maps.cellGlobal2Local[grid[gid].sendCells[proc][g]];
-				for (int i=0;i<3;++i) {
-					sendBuffer[g*15+i]=gradp.cell(id)[i];
-					sendBuffer[g*15+3+i]=gradu.cell(id)[i];
-					sendBuffer[g*15+6+i]=gradv.cell(id)[i];
-					sendBuffer[g*15+9+i]=gradw.cell(id)[i];
-					sendBuffer[g*15+12+i]=gradT.cell(id)[i];
-				}
-			}
-			
-			MPI_Sendrecv(&sendBuffer[0],sendBuffer.size(),MPI_DOUBLE,proc,0,&recvBuffer[0],recvBuffer.size(),MPI_DOUBLE,proc,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-			
-			for (int g=0;g<grid[gid].recvCells[proc].size();++g) {
-				id=grid[gid].maps.ghostGlobal2Local[grid[gid].recvCells[proc][g]];
-				for (int i=0;i<3;++i) {
-					gradp.ghost(id)[i]=recvBuffer[g*15+i];
-					gradu.ghost(id)[i]=recvBuffer[g*15+3+i];
-					gradv.ghost(id)[i]=recvBuffer[g*15+6+i];
-					gradw.ghost(id)[i]=recvBuffer[g*15+9+i];
-					gradT.ghost(id)[i]=recvBuffer[g*15+12+i];
-				}				
-			}
-		}
-	}
-	
-	sendBuffer.clear(); recvBuffer.clear();
-	
+      if (Rank==0) {
+            timeEnd=MPI_Wtime();
+            //cout << "[I] MPI gradient exchange time = " << timeEnd-timeRef << " seconds" << endl;
+      }
+
 	return;
 } 
 
