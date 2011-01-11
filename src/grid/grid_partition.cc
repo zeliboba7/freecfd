@@ -73,7 +73,7 @@ int Grid::partition() {
 
 	float tpwgts[np];
 	for (int p=0; p<np; ++p) tpwgts[p]=1./float(np);
-	float ubvec=1.02;
+	float ubvec=1.05;
 	int options[3]; // default values for timing info set 0 -> 1
 	options[0]=0; options[1]=1; options[2]=15;
 	int edgecut ; // output

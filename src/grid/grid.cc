@@ -48,17 +48,27 @@ void Grid::read(string fname) {
 }
 
 void Grid::setup(void) {
+      if (Rank==0) cout << "[I] Partitioning the grid" << endl;
 	partition();
+      if (Rank==0) cout << "[I] Creating nodes and cells" << endl;
 	create_nodes_cells();
 	raw.node.clear();
+      if (Rank==0) cout << "[I] Computing mesh dual" << endl;
 	mesh2dual();
+      if (Rank==0) cout << "[I] Creating faces" << endl;
 	create_faces();
+      if (Rank==0) cout << "[I] Creating ghost cells" << endl;
 	create_ghosts();
+      if (Rank==0) cout << "[I] Computing output node id's" << endl;
 	get_volume_output_ids();
 	get_bc_output_ids();
+      if (Rank==0) cout << "[I] Trimming memory" << endl;
 	trim_memory();
+      if (Rank==0) cout << "[I] Calculating areas and volumes" << endl;
 	areas_volumes();
+      if (Rank==0) cout << "[I] MPI handshake" << endl;
 	mpi_handshake();
+      if (Rank==0) cout << "[I] Getting ghost geometries" << endl;
 	mpi_get_ghost_geometry();
 	return;
 }
@@ -264,7 +274,13 @@ void Grid::mpi_handshake(void) {
 	MPI_Datatype types[2]={MPI_INT,MPI_DOUBLE};
 	int block_lengths[2];
 	MPI_Aint displacements[2];
+
 	
+      for (int proc=0;proc<np;++proc) {
+            for (int i=0;i<sendCells[proc].size();++i) sendCells[proc][i]=maps.cellGlobal2Local[sendCells[proc][i]];
+            for (int i=0;i<recvCells[proc].size();++i) recvCells[proc][i]=maps.ghostGlobal2Local[recvCells[proc][i]];
+      }
+
 	mpiGeomPack dummy4;
 	displacements[0]=(long) &dummy4.ids[0] - (long) &dummy4;
 	displacements[1]=(long) &dummy4.data[0] - (long) &dummy4;
@@ -283,7 +299,7 @@ void Grid::mpi_get_ghost_geometry(void) {
 			mpiGeomPack recvBuffer[recvCells[p].size()];
 			int id;
 			for (int g=0;g<sendCells[p].size();++g) {
-				id=maps.cellGlobal2Local[sendCells[p][g]];
+				id=sendCells[p][g];
 				sendBuffer[g].ids[0]=myOffset+id;
 				sendBuffer[g].ids[1]=id;
 				for (int i=0;i<3;++i) sendBuffer[g].data[i]=cell[id].centroid[i];
@@ -293,7 +309,7 @@ void Grid::mpi_get_ghost_geometry(void) {
 			MPI_Sendrecv(sendBuffer,sendCells[p].size(),MPI_GEOM_PACK,p,0,recvBuffer,recvCells[p].size(),MPI_GEOM_PACK,p,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
 			
 			for (int g=0;g<recvCells[p].size();++g) {
-				id=maps.ghostGlobal2Local[recvCells[p][g]];
+				id=recvCells[p][g];
 				ghost[id].matrix_id=recvBuffer[g].ids[0];
 				ghost[id].id_in_owner=recvBuffer[g].ids[1];
 				for (int i=0;i<3;++i) ghost[id].centroid[i]=recvBuffer[g].data[i];

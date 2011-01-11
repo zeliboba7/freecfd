@@ -265,8 +265,11 @@ int main(int argc, char *argv[]) {
 	/*****************************************************************************************/
 	// Begin time loop
 	/*****************************************************************************************/
-	
-    bool lastTimeStep=false;
+      MPI_Barrier(MPI_COMM_WORLD);
+      double timeRef,timeEnd;
+      timeRef=MPI_Wtime();
+
+      bool lastTimeStep=false;
 	
 	for (int timeStep=restart_step+1;timeStep<=timeStepMax+restart_step;++timeStep) {
 		if (timeStep==(timeStepMax+restart_step)) lastTimeStep=true;
@@ -346,6 +349,13 @@ int main(int argc, char *argv[]) {
 	// End time loop
 	/*****************************************************************************************/	
 		
+      MPI_Barrier(MPI_COMM_WORLD);
+
+      if (Rank==0) {
+            timeEnd=MPI_Wtime();
+            cout << "[I] Wall time = " << timeEnd-timeRef << " second" << endl;
+      }
+
 	PetscFinalize();
 	
 	return 0;
