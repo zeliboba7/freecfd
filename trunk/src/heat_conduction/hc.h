@@ -51,6 +51,13 @@ public:
 	int timeStep;
 	int nIter;
 	double rNorm,res;
+
+	// MPI exchange buffer
+    vector<double> sendBuffer;
+    vector<double> recvBuffer;
+    vector<int> mpi_send_offset,mpi_recv_offset;
+	int send_req_count,recv_req_count;
+	vector<MPI_Request> send_request, recv_request;
 	
 	// Inputs
 	double rtol,abstol;

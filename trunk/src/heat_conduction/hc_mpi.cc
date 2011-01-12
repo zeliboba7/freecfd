@@ -28,6 +28,35 @@ void HeatConduction::mpi_init(void) {
 	MPI_Comm_rank(MPI_COMM_WORLD, &Rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &np);
 	
+	long unsigned int max_send_size=0;
+	long unsigned int max_recv_size=0;
+	
+	mpi_send_offset.resize(np);
+	mpi_recv_offset.resize(np);
+	
+	for (int proc=0;proc<np;++proc) {
+		if (Rank!=proc) {
+			mpi_send_offset[proc]=max_send_size;
+			mpi_recv_offset[proc]=max_recv_size;
+			max_send_size+=3*grid[gid].sendCells[proc].size();
+			max_recv_size+=3*grid[gid].recvCells[proc].size();
+		}
+	}
+	sendBuffer.resize(max_send_size); recvBuffer.resize(max_recv_size);
+	
+	send_req_count=0;
+	recv_req_count=0;
+	
+	for (int proc=0;proc<np;++proc) { 
+		if (Rank!=proc) {
+			if (grid[gid].sendCells[proc].size()!=0) send_req_count++;;
+			if (grid[gid].recvCells[proc].size()!=0) recv_req_count++;
+		}
+	}
+	
+	send_request.resize(send_req_count);
+	recv_request.resize(recv_req_count);
+	
 	return;
 }
 
@@ -36,8 +65,42 @@ void HeatConduction::mpi_update_ghost_primitives(void) {
 	// Store the current time step values in the update array
 	for (int g=0;g<grid[gid].ghostCount;++g) update.ghost(g)=T.ghost(g);
 	
-	// Send and receive ghost data
-	T.mpi_update();
+	int id,offset;
+	
+    send_req_count=0; recv_req_count=0;
+	
+	for (int proc=0;proc<np;++proc) {
+		if (Rank!=proc) {
+			if (grid[gid].sendCells[proc].size()!=0) {
+				for (int g=0;g<grid[gid].sendCells[proc].size();++g) {
+					id=grid[gid].sendCells[proc][g];
+					offset=mpi_send_offset[proc];
+					sendBuffer[offset+g]=T.cell(id);
+				}
+				
+				MPI_Isend(&sendBuffer[offset],grid[gid].sendCells[proc].size(),MPI_DOUBLE,proc,0,MPI_COMM_WORLD,&send_request[send_req_count]);
+				send_req_count++;
+			}
+			
+			if (grid[gid].recvCells[proc].size()!=0) {
+				offset=mpi_recv_offset[proc];
+				MPI_Irecv(&recvBuffer[offset],grid[gid].recvCells[proc].size(),MPI_DOUBLE,proc,0,MPI_COMM_WORLD,&recv_request[recv_req_count]);
+				recv_req_count++;
+			}
+		}
+	}
+	
+    MPI_Waitall(recv_request.size(),&recv_request[0],MPI_STATUS_IGNORE);
+	
+	for (int proc=0;proc<np;++proc) { 
+		if (Rank!=proc) {
+			offset=mpi_recv_offset[proc];
+			for (int g=0;g<grid[gid].recvCells[proc].size();++g) {
+				id=grid[gid].recvCells[proc][g];
+				T.ghost(id)=recvBuffer[offset+g];
+			}
+		}
+	}
 
 	// Get the difference between the old and new values
 	for (int g=0;g<grid[gid].ghostCount;++g) update.ghost(g)=T.ghost(g)-update.ghost(g);
@@ -47,7 +110,46 @@ void HeatConduction::mpi_update_ghost_primitives(void) {
 
 void HeatConduction::mpi_update_ghost_gradients(void) {
 	
-	gradT.mpi_update();
+	int id,offset;
+	
+	send_req_count=0; recv_req_count=0;
+	
+	for (int proc=0;proc<np;++proc) {
+		if (Rank!=proc) {
+			if (grid[gid].sendCells[proc].size()!=0) {
+				for (int g=0;g<grid[gid].sendCells[proc].size();++g) {
+					id=grid[gid].sendCells[proc][g];
+					offset=mpi_send_offset[proc];
+					for (int i=0;i<3;++i) {
+						sendBuffer[offset+g*3+i]=gradT.cell(id)[i];
+					}
+				}
+				
+				MPI_Isend(&sendBuffer[offset],grid[gid].sendCells[proc].size()*3,MPI_DOUBLE,proc,0,MPI_COMM_WORLD,&send_request[send_req_count]);
+				send_req_count++;
+			}
+			
+			if (grid[gid].recvCells[proc].size()!=0) {
+				offset=mpi_recv_offset[proc];
+				MPI_Irecv(&recvBuffer[offset],grid[gid].recvCells[proc].size()*3,MPI_DOUBLE,proc,0,MPI_COMM_WORLD,&recv_request[recv_req_count]);
+				recv_req_count++;
+			}
+		}
+	}
+	
+	MPI_Waitall(recv_request.size(),&recv_request[0],MPI_STATUS_IGNORE);
+	
+	for (int proc=0;proc<np;++proc) { 
+		if (Rank!=proc) {
+			offset=mpi_recv_offset[proc];
+			for (int g=0;g<grid[gid].recvCells[proc].size();++g) {
+				id=grid[gid].recvCells[proc][g];
+				for (int i=0;i<3;++i) {
+					gradT.ghost(id)[i]=recvBuffer[offset+g*3+i];
+				}				
+			}
+		}
+	}
 	
 	return;
 } 
