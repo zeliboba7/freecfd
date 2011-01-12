@@ -70,7 +70,7 @@ void Interpolate::sort_stencil(bool is_internal) {
 	for (vit=stencil.begin();vit!=stencil.end();vit++) distances.push_back(fabs(*vit-point));
 	
 	vector<Vec3D> new_stencil (order.size(),0.);
-	vector<int> new_stencil_indices (order.size(),0.);
+	vector<int> new_stencil_indices (order.size(),0);
 
 	//is_internal=false;
 	
