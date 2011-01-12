@@ -28,6 +28,8 @@
 #define WTLI 0
 // Inverse distance weighted
 #define IDW 1 
+// Simple averaging
+#define SIMPLE 2
 
 #include <iomanip>
 #include <cmath>

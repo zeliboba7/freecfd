@@ -176,7 +176,7 @@ int main(int argc, char *argv[]) {
 		set_bcs(gid);
 		
 		set_lengthScales(gid);
-		if (Rank==0) cout << "[I grid=" << gid+1 << " ] Calculating face averaging metrics, this might take a while..." << endl;
+		if (Rank==0) cout << "[I grid=" << gid+1 << " ] Calculating face averaging metrics" << endl;
 
 		face_interpolation_weights(gid);
 		gradient_maps(gid);
