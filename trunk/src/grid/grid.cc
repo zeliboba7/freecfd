@@ -203,7 +203,7 @@ int Grid::areas_volumes() {
 	MPI_Allreduce (&totalVolume,&globalTotalVolume,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
 	if (Rank==0) cout << "[I] Total Volume= " << globalTotalVolume << endl;
 	
-	int count;
+	int count=0;
 	for (int f=0;f<faceCount;++f) {
 		if (face[f].normal.dot(face[f].centroid-cell[face[f].parent].centroid)<0.) {
 			count++;
