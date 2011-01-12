@@ -201,7 +201,7 @@ void NavierStokes::apply_initial_conditions (void) {
 			regionRho=region.get_double("rho");
 			if (region.get_double("T").is_found) {
 				regionT=region.get_double("T");
-				regionP=material.rho(regionRho,regionT);
+				regionP=material.p(regionRho,regionT);
 			} else {
 				cerr << "Need to specify T in initial condition IC_" << ic+1 << endl;
 				exit(1);
