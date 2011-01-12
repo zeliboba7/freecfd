@@ -203,9 +203,11 @@ int Grid::areas_volumes() {
 	MPI_Allreduce (&totalVolume,&globalTotalVolume,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
 	if (Rank==0) cout << "[I] Total Volume= " << globalTotalVolume << endl;
 	
+	int count;
 	for (int f=0;f<faceCount;++f) {
 		if (face[f].normal.dot(face[f].centroid-cell[face[f].parent].centroid)<0.) {
-			cout << "[W Rank=" << Rank << "] Face " << f << " normal is pointing in to its parent cell ..." << endl;
+			count++;
+			//cout << "[W Rank=" << Rank << "] Face " << f << " normal is pointing in to its parent cell ..." << endl;
 			// Need to swap the face and reflect the area vector TODO Check if following is right
 			// Never got to verify if the following works
 			//face[f].normal*=-1.;
@@ -214,6 +216,48 @@ int Grid::areas_volumes() {
 		}	    
 	}
 	
+	if (count!=0) cout << "[W rank=" << Rank << "] " << count << " face normals out of " << faceCount << " are pointing in to parent cell" << endl;
+	
+	/* DEBUG
+	if (count!=0) {
+		for (int f=0;f<faceCount;++f) {
+			if (face[f].normal.dot(face[f].centroid-cell[face[f].parent].centroid)<0.) {
+				int c=face[f].parent;
+				cout << c << "\t" << face[f].neighbor << endl;
+				ofstream dfile;
+				dfile.open("debug-cell.dat");
+				dfile << "VARIABLES = \"x\", \"y\", \"z\"" << endl;
+				dfile << "ZONE, T=\"cell\", ZONETYPE=FEBRICK, DATAPACKING=BLOCK" << endl;
+				dfile << "NODES=" << cell[c].nodeCount << " , ELEMENTS=1" << endl;
+				for (int i=0;i<3;++i) {
+					for (int n=0;n<cell[c].nodeCount;++n) {
+						dfile << cellNode(c,n)[i] << "\t";
+					}
+				}
+				dfile << endl;
+				for (int n=0;n<cell[c].nodeCount;++n) dfile << n+1 << "\t";
+				dfile << endl;
+				dfile.close();
+				
+				dfile.open("debug-face.dat");
+				dfile << "VARIABLES = \"x\", \"y\", \"z\"" << endl;
+				dfile << "ZONE, T=\"face\", ZONETYPE=FEQUADRILATERAL, DATAPACKING=BLOCK" << endl;
+				dfile << "NODES=" << face[f].nodeCount << " , ELEMENTS=1" << endl;
+				for (int i=0;i<3;++i) {
+					for (int n=0;n<face[f].nodeCount;++n) {
+						dfile << faceNode(f,n)[i] << "\t";
+					}
+				}
+				dfile << endl;
+				for (int n=0;n<face[f].nodeCount;++n) dfile << n+1 << "\t";
+				dfile << endl;
+				dfile.close();
+				
+				exit(1);
+			}
+		}
+	}
+	*/
 	return 0;
 
 }
