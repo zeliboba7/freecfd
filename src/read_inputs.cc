@@ -43,6 +43,7 @@ void read_inputs(void) {
 	input.section("grid",0).register_string("equations",required);
 	
 	input.section("grid",0).registerSubsection("interpolation",single,optional);
+	input.section("grid",0).subsection("interpolation").register_string("method",optional,"lti");
 	input.section("grid",0).subsection("interpolation").register_int("stencilsize",optional,2);
 	input.section("grid",0).subsection("interpolation").register_double("skewnesstolerance",optional,0.99);
 	
