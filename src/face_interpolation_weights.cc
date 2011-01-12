@@ -35,7 +35,7 @@ void face_interpolation_weights(int gid) {
 	
 	interpolation.init();
 
-	if (input.section("grid",0).subsection("interpolation").get_string("method")=="wlti") interpolation.method=WTLI;
+	if (input.section("grid",0).subsection("interpolation").get_string("method")=="wtli") interpolation.method=WTLI;
 	if (input.section("grid",0).subsection("interpolation").get_string("method")=="idw") interpolation.method=IDW;
 	if (input.section("grid",0).subsection("interpolation").get_string("method")=="simple") interpolation.method=SIMPLE;
 	
