@@ -48,8 +48,7 @@ void RANS::set_bcs(void) {
 			}
 			k.fixedonBC[b]=true; omega.fixedonBC[b]=true;
 			k.bcValue[b].resize(1); omega.bcValue[b].resize(1);
-			k.bc(b)=intensity*fabs(ns[gid].V.bc(b));
-			k.bc(b)*=1.5*k.bc(b);
+
 			// TODO: This could be done better
 			// Find a face index that is on this boundary (if any on this partition)
 			int fid=0;
@@ -62,6 +61,9 @@ void RANS::set_bcs(void) {
 			double rho,T;
 			rho=ns[gid].rho.face(fid);
 			T=ns[gid].T.face(fid);
+			k.bc(b)=intensity*fabs(ns[gid].V.face(fid));
+			k.bc(b)*=1.5*k.bc(b);
+			k.bc(b)=max(1.e-8,k.bc(b));
 			omega.bc(b)=viscRatio*material.viscosity(T)/(rho*k.bc(b));
 			mu_t.fixedonBC[b]=true; mu_t.bcValue[b].resize(1);
 			mu_t.bc(b)=viscRatio*material.viscosity(T);

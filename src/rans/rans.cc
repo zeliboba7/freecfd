@@ -146,6 +146,7 @@ void RANS::apply_initial_conditions (void) {
 				if (withinBox(grid[gid].cell[c].centroid,region.get_Vec3D("corner_1"),region.get_Vec3D("corner_2"))) {
 					k.cell(c)=intensity*fabs(ns[gid].V.cell(c));
 					k.cell(c)*=1.5*k.cell(c);
+					k.cell(c)=max(1.e-8,k.cell(c));
 					omega.cell(c)=viscRatio*material.viscosity(ns[gid].T.cell(c))/(ns[gid].rho.cell(c)*k.cell(c));
 				}
 			}

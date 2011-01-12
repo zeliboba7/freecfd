@@ -180,23 +180,37 @@ void NavierStokes::apply_initial_conditions (void) {
 		Vec3D regionV=region.get_Vec3D("V");
 		double regionRho,regionP,regionT;
 		// Assign specified values
-		regionP=region.get_double("p");
-		if (region.get_double("rho").is_found) { // Rho is specified in the input file
-			//  Check if Temperature is also specified
-			if (region.get_double("T").is_found) {
-				cerr << "Both rho and T can't be specified in initial condition IC_" << ic+1 << " of grid " << gid+1 << endl;
+		if (region.get_double("p").is_found) { // If p is specified in the input file
+			regionP=region.get_double("p");
+			if (region.get_double("rho").is_found) { // Rho is specified in the input file
+				//  Check if Temperature is also specified
+				if (region.get_double("T").is_found) {
+					cerr << "Both p, rho and T can't be specified in initial condition IC_" << ic+1 << " of grid " << gid+1 << endl;
+					exit(1);
+				}
+				regionRho=region.get_double("rho");
+				regionT=material.T(regionP,regionRho);
+			} else if (region.get_double("T").is_found) {
+				regionT=region.get_double("T");
+				regionRho=material.rho(regionP,regionT);	
+			} else {
+				cerr << "Need to specify either rho or T in initial condition IC_" << ic+1 << endl;
 				exit(1);
 			}
+		} else if (region.get_double("rho").is_found) {
 			regionRho=region.get_double("rho");
-			regionT=material.T(regionP,regionRho);
-		} else if (region.get_double("T").is_found) {
-			regionT=region.get_double("T");
-			regionRho=material.rho(regionP,regionT);	
+			if (region.get_double("T").is_found) {
+				regionT=region.get_double("T");
+				regionP=material.rho(regionRho,regionT);
+			} else {
+				cerr << "Need to specify T in initial condition IC_" << ic+1 << endl;
+				exit(1);
+			}
 		} else {
-			cerr << "Need to specify either rho or T in initial condition IC_" << ic+1 << endl;
+			cerr << "Need to specify either p or rho in initial condition IC_" << ic+1 << endl;
 			exit(1);
 		}
-
+		
 		// If region is specified with a box method
 		if (region.get_string("region")=="box") {
 			// Loop the cells
