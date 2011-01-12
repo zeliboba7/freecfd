@@ -125,11 +125,13 @@ void face_interpolation_weights(int gid) {
 				grid[gid].face[f].average.insert(pair<int,double>(interpolation.stencil_indices[1],0.5));
 			} else { // If a boundary face
 				if (interpolation.stencil_indices[0]==grid[gid].face[f].parent) { // If the first index is the parent cell
-					grid[gid].face[f].average.insert(pair<int,double>(interpolation.stencil_indices[0],1.5));
-					grid[gid].face[f].average.insert(pair<int,double>(interpolation.stencil_indices[1],-0.5));
+					grid[gid].face[f].average.insert(pair<int,double>(interpolation.stencil_indices[0],1.));
+					//grid[gid].face[f].average.insert(pair<int,double>(interpolation.stencil_indices[0],1.5));
+					//grid[gid].face[f].average.insert(pair<int,double>(interpolation.stencil_indices[1],-0.5));
 				} else {
-					grid[gid].face[f].average.insert(pair<int,double>(interpolation.stencil_indices[0],-0.5));
-					grid[gid].face[f].average.insert(pair<int,double>(interpolation.stencil_indices[1],1.5));
+					grid[gid].face[f].average.insert(pair<int,double>(interpolation.stencil_indices[1],1.));
+					//grid[gid].face[f].average.insert(pair<int,double>(interpolation.stencil_indices[0],-0.5));
+					//grid[gid].face[f].average.insert(pair<int,double>(interpolation.stencil_indices[1],1.5));
 				}
 			}	
 		}
