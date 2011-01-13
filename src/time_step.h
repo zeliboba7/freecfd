@@ -52,3 +52,6 @@ double ps_time_step_current,ps_time_step_target;
 double ps_CFLmax,ps_CFLmaxTarget,ps_CFLlocal,ps_CFLlocalTarget;
 bool ps_time_step_ramp;
 double ps_time_step_ramp_initial,ps_time_step_ramp_growth;
+
+string schedule_file_name;
+bool cfl_schedule;

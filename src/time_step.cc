@@ -60,6 +60,20 @@ void set_time_step_options(void) {
 		CFLlocalTarget=CFLlocal;
 	}
 
+	if (input.section("timemarching").get_string("schedulefile").is_found) {
+		// Check if the file exists
+		fstream file;
+		schedule_file_name=input.section("timemarching").get_string("schedulefile");
+		file.open(schedule_file_name.c_str());
+		if (!file) {
+			if (Rank==0) cout << "[W] CFL schedule file " << schedule_file_name << " is not found, continuing" << endl;
+			cfl_schedule=false;
+		} else {
+			time_step_type=CFL_MAX;
+			cfl_schedule=true;
+		}
+	}
+	
 	// Allocate the time step variable
 	dt.resize(grid.size());
 	for (int gid=0;gid<grid.size();++gid) dt[gid].allocate(gid);
@@ -143,6 +157,22 @@ void update_time_step(int timeStep,double &time,double &max_cfl,int gid) {
 	if (time_step_type==FIXED) {
 		for (int gid=0;gid<grid.size();++gid) for (int c=0;c<grid[gid].cellCount;++c) dt[gid].cell(c)=time_step_current;
 	} else if (time_step_type==CFL_MAX) {
+		if (cfl_schedule) {
+			// Read the schedule file
+			ifstream file;
+			int step; double value;
+			file.open(schedule_file_name.c_str(),ios::in);
+			while (!file.eof()) {
+				file >> step; file >> value;
+				if (timeStep==step) {
+					CFLmax=value;
+					time_step_ramp=false;
+					break;
+				}
+			}
+			file.close();
+		}
+		
 		double min_dt=1.e20;
 		for (int gid=0;gid<grid.size();++gid) {
 			if (equations[gid]==NS) {

@@ -146,6 +146,7 @@ void read_inputs(void) {
 	input.section("timemarching").subsection("ramp").register_double("growth",optional,1.2);
 	input.section("timemarching").register_int("numberofsteps",required);
 	input.section("timemarching").register_int("updatefrequency",optional,1000000);
+	input.section("timemarching").register_string("schedulefile",optional,"none");
 	input.read("timemarching");
 	
 	input.registerSection("pseudotime",single,optional);
