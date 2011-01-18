@@ -67,15 +67,13 @@ void face_interpolation_weights(int gid) {
 		int n=grid[gid].face[f].neighbor;
 		bool is_internal=false;
 		// Insert the parent and the neighbor cells directly to the interpolation stencil
+		interpolation.stencil.push_back(grid[gid].cell[c].centroid);
+		interpolation.stencil_indices.push_back(c);	
 		if (grid[gid].face[f].bc==INTERNAL_FACE) {
-			interpolation.stencil.push_back(grid[gid].cell[c].centroid);
-			interpolation.stencil_indices.push_back(c);			
 			interpolation.stencil.push_back(grid[gid].cell[n].centroid);
 			interpolation.stencil_indices.push_back(n);
 			is_internal=true;
 		} else if (grid[gid].face[f].bc==GHOST_FACE) {
-			interpolation.stencil.push_back(grid[gid].cell[c].centroid);
-			interpolation.stencil_indices.push_back(c);			
 			interpolation.stencil.push_back(grid[gid].ghost[-n-1].centroid);
 			interpolation.stencil_indices.push_back(n);	
 			is_internal=true;
@@ -93,10 +91,8 @@ void face_interpolation_weights(int gid) {
 			for (int g=0;g<grid[gid].cell[c].ghosts.size();++g) stencil.insert(-1*grid[gid].cell[c].ghosts[g]-1);
 		}
 		// Eliminate parent and neighbor from stencil set (those were directly inserted into interpolation class stencil)
-		if (is_internal) {
-			stencil.erase(grid[gid].face[f].parent);
-			stencil.erase(grid[gid].face[f].neighbor);
-		}
+		stencil.erase(grid[gid].face[f].parent);
+		if (grid[gid].face[f].bc<0) stencil.erase(grid[gid].face[f].neighbor);
 
 		for (sit=stencil.begin();sit!=stencil.end();sit++) {
 			interpolation.stencil_indices.push_back(*sit);
