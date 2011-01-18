@@ -28,7 +28,7 @@ MATERIAL::MATERIAL() {
 
 void MATERIAL::set(int gid) {
 	if (input.section("grid",gid).get_string("material").is_found) {
-		Mw=material_input[gid].get_double("molar mass");
+		Mw=material_input[gid].get_double("molarmass");
 		density=material_input[gid].get_double("density"); // for solids
 		gamma=material_input[gid].get_double("gamma");
 		
