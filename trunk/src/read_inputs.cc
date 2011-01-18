@@ -173,7 +173,7 @@ void read_inputs(void) {
 			string fileName=input.section("grid",0).get_string("material");
 			fileName+=".mat";
 			material_input[gid].setFile(fileName);
-			material_input[gid].register_double("molar mass",optional,28.97);
+			material_input[gid].register_double("molarmass",optional,28.97);
 			material_input[gid].register_double("density",optional,0.);
 			material_input[gid].register_double("gamma",optional,1.4);
 			material_input[gid].registerSection("equationofstate",single,optional);
