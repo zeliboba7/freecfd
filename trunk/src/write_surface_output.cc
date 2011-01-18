@@ -62,7 +62,7 @@ void write_surface_output(int gridid, int step) {
 	var_is_vec3d.resize(varList.size());
 	int nVar=0;
 	for (int var=0; var<varList.size(); ++var) {
-		nVar++;
+		if (varList[var]!="null") nVar++;
 		var_is_vec3d[var]=false;
 		if (varList[var]=="V" || varList[var]=="tau") {
 			var_is_vec3d[var]=true;
@@ -129,7 +129,7 @@ void write_surface_tec_header(int b) {
 				file << ",\"" << varList[var] << "_z\" "; 
 			}
 			nvars+=3;
-		} else {
+		} else if (varList[var]!="null") {
 			if (b==0) file << ",\"" << varList[var] << "\" "; 
 			nvars++;
 		}
