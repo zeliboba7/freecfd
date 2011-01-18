@@ -87,7 +87,7 @@ void write_volume_output(int gridid, int step) {
 	var_is_vec3d.resize(varList.size());
 	int nVar=0;
 	for (int var=0; var<varList.size(); ++var) {
-		nVar++;
+		if (varList[var]!="null") nVar++;
 		var_is_vec3d[var]=false;
 		if (varList[var]=="V" || varList[var].substr(0,4)=="grad" || varList[var]=="resV" || varList[var]=="limiterV") {
 			var_is_vec3d[var]=true;
@@ -156,7 +156,7 @@ void write_tec_header(void) {
 			file << ",\"" << varList[var] << "_y\" "; 
 			file << ",\"" << varList[var] << "_z\" "; 
 			nvars+=3;
-		} else {
+		} else if (varList[var]!="null") {
 			file << ",\"" << varList[var] << "\" "; 
 			nvars++;
 		}

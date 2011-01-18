@@ -254,6 +254,25 @@ int main(int argc, char *argv[]) {
 		exit(1);
 	}
 	
+	// If turbulence model is not on, clear the turbulence variables from the output option list
+	for (int gid=0;gid<grid.size();++gid) {
+		if (!turbulent[gid]) {
+			vector<string> *list;
+			list= &input.section("grid",0).subsection("writeoutput").stringLists["volumevariables"].value;
+			for (int i=0;i<(*list).size();++i) {
+				if ((*list)[i]=="k" || (*list)[i]=="omega" || (*list)[i]=="mu_t" || (*list)[i]=="gradk" || (*list)[i]=="gradomega" || (*list)[i]=="yplus") {
+						(*list)[i]="null";
+				}
+			}
+			list= &input.section("grid",0).subsection("writeoutput").stringLists["surfacevariables"].value;
+			for (int i=0;i<(*list).size();++i) {
+				if ((*list)[i]=="k" || (*list)[i]=="omega" || (*list)[i]=="mu_t" || (*list)[i]=="gradk" || (*list)[i]=="gradomega" || (*list)[i]=="yplus") {
+					(*list)[i]="null";
+				}
+			}
+		}
+	}
+	
 	if (Rank==0) cout << "[I] Beginning time loop\n" << endl; 
 	// Write out label for residuals
 	if (Rank==0) {

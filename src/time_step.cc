@@ -60,6 +60,7 @@ void set_time_step_options(void) {
 		CFLlocalTarget=CFLlocal;
 	}
 
+	cfl_schedule=false;
 	if (input.section("timemarching").get_string("schedulefile").is_found) {
 		// Check if the file exists
 		fstream file;
