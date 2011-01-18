@@ -187,6 +187,8 @@ void write_surface_tec_var(int ov,int i,int b) {
 	
 	if (varList[ov]=="p") {
 		for (int bf=0;bf<grid[gid].boundaryFaces[b].size();++bf) {
+			//int parent=grid[gid].face[grid[gid].boundaryFaces[b][bf]].parent;
+			//file << ns[gid].p.cell(parent);
 			file << ns[gid].p.face(grid[gid].boundaryFaces[b][bf]);
 			if ((bf+1)%10==0) file << "\n";
 			else file << "\t";
