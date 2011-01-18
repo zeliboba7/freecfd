@@ -72,6 +72,7 @@ void set_time_step_options(void) {
 		} else {
 			time_step_type=CFL_MAX;
 			cfl_schedule=true;
+			if (Rank==0) cout << "[I] Scheduling CFL according to " << schedule_file_name << " file" << endl;
 		}
 	}
 	
@@ -165,9 +166,10 @@ void update_time_step(int timeStep,double &time,double &max_cfl,int gid) {
 			file.open(schedule_file_name.c_str(),ios::in);
 			while (!file.eof()) {
 				file >> step; file >> value;
-				if (timeStep==step) {
+				if (timeStep>=step) {
 					CFLmax=value;
 					time_step_ramp=false;
+				} else {
 					break;
 				}
 			}
