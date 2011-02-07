@@ -47,7 +47,7 @@ void NavierStokes::assemble_linear_system(void) {
 	vector<bool> cellVisited;
 	for (int c=0;c<grid[gid].cellCount;++c) cellVisited.push_back(false);
 	
-	small_number=100.*sqrt(std::numeric_limits<double>::epsilon());
+	small_number=10.*sqrt(std::numeric_limits<double>::epsilon());
 	
 	PetscScalar value;
 
@@ -202,7 +202,7 @@ void NavierStokes::get_jacobians(const int var) {
 	using ns_state::left;
 	using ns_state::right;
 	double epsilon;
-	double factor=0.05;
+	double factor=0.001;
 	
 	if (jac_order==FIRST) order_factor=0.;
 	
