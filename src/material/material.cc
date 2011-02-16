@@ -121,7 +121,7 @@ double MATERIAL::a (double p, double T) {
 double MATERIAL::viscosity (double T) {
 	if (visc_model==CONSTANT) {
 		return mu;
-	} else if (visc_model=SUTHERLANDS) {
+	} else if (visc_model==SUTHERLANDS) {
 		return sut_mu_ref*pow((T+Tref)/sut_T_ref,1.5)*(sut_T_ref+sut_S)/(T+Tref+sut_S);
 	}
 }
@@ -129,7 +129,7 @@ double MATERIAL::viscosity (double T) {
 double MATERIAL::therm_cond (double T) {
 	if (lambda_model==CONSTANT) {
 		return lambda;
-	} else if (lambda_model=PRANDTL) {
+	} else if (lambda_model==PRANDTL) {
 		return Cp(T)*viscosity(T)/Pr;
 	}
 }
@@ -140,7 +140,7 @@ double MATERIAL::Cp (double T) {
 	} else {
 		if (Cp_model==CONSTANT) {
 			return Cp_value;
-		} else if (Cp_model=POLY) {
+		} else if (Cp_model==POLY) {
 			return Cp_poly.eval(T+Tref);
 		}
 	}

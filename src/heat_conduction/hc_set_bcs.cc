@@ -43,6 +43,8 @@ void HeatConduction::set_bcs(void) {
 			bc[gid][b].thermalType=ADIABATIC;
 		}
 		
+		if (!region.get_double("qdot").is_found) qdot.bcValue[b].resize(grid[gid].boundaryFaceCount[b][grid[gid].Rank]);
+		
 		// TODO: The following is done just to expand the arrays. 
 		// If in the future, the bcValue arrays are by default full size, get rid of this
 		// Loop through the interfaces
