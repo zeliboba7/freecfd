@@ -243,13 +243,14 @@ int main(int argc, char *argv[]) {
 		}
 	}
 	
-	if (gradient_test!=NONE) {
+	if (equations[0]==NS && gradient_test!=NONE) {
 		// Dump gradient errors and exit
 		if (Rank==0) cout << "\n[I] Writing gradient error output" << endl;
 		input.section("grid",0).subsection("writeoutput").stringLists["volumevariables"].value.clear();
 		input.section("grid",0).subsection("writeoutput").stringLists["volumevariables"].value.push_back("rank");
 		input.section("grid",0).subsection("writeoutput").stringLists["volumevariables"].value.push_back("grad");
 		input.section("grid",0).subsection("writeoutput").stringLists["volumevariables"].value.push_back("percent_grad_error");
+		input.section("grid",0).subsection("writeoutput").stringLists["volumevariables"].value.push_back("volume");
 		write_volume_output(0,0);
 		exit(1);
 	}

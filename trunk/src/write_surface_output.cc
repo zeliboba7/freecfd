@@ -268,10 +268,18 @@ void write_surface_tec_var(int ov,int i,int b) {
 			else file << "\t";
 		}
 	} else if (varList[ov]=="qdot") {
-		for (int bf=0;bf<grid[gid].boundaryFaces[b].size();++bf) {
-			file << ns[gid].qdot.face(grid[gid].boundaryFaces[b][bf]);
-			if ((bf+1)%10==0) file << "\n";
-			else file << "\t";
+		if (equations[gid]==NS)	{
+			for (int bf=0;bf<grid[gid].boundaryFaces[b].size();++bf) {
+				file << ns[gid].qdot.face(grid[gid].boundaryFaces[b][bf]);
+				if ((bf+1)%10==0) file << "\n";
+				else file << "\t";
+			}
+		} else if (equations[gid]==HEAT) {
+			for (int bf=0;bf<grid[gid].boundaryFaces[b].size();++bf) {
+				file << hc[gid].qdot.face(grid[gid].boundaryFaces[b][bf]);
+				if ((bf+1)%10==0) file << "\n";
+				else file << "\t";
+			}
 		}
 	} else if (varList[ov]=="yplus") {
 		for (int bf=0;bf<grid[gid].boundaryFaces[b].size();++bf) {

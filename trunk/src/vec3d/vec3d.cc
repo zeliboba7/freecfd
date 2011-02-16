@@ -69,7 +69,7 @@ Vec3D &Vec3D::operator= (const double &right) {
 Vec3D &Vec3D::operator= (const std::vector<double> &right) {
 	comp[0]=right[0];
 	comp[1]=right[1];
-	comp[3]=right[2];
+	comp[2]=right[2];
 	return *this;
 }
 

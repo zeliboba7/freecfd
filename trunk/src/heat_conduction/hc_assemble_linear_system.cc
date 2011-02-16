@@ -79,7 +79,11 @@ void HeatConduction::assemble_linear_system(void) {
 			cellVisited[neighbor]=true;
 			doRightSourceJac=true;
 		}
-			
+		
+		if (face.bc>=0) {
+			if (!qdot.fixedonBC[face.bc]) qdot.bc(face.bc,face.index)=-1.*flux/face.area;
+		}
+		
 		// Fill in rhs vector
 		row=grid[gid].myOffset+parent;
 		value=flux+sourceLeft;

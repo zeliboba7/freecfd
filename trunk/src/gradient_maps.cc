@@ -30,18 +30,19 @@ extern InputFile input;
 
 void gradient_maps(int gid) {
 
-	
 	bool DEBUG=false;
 	
 	set<int> stencil;
-	set<int>::iterator sit,sit1,sit2,sit3;
+	set<int>::iterator sit,sit1,sit2,sit3,sit4,sit5,sit6;
 	Vec3D my_normal,other_normal,cell2face;
 	int opposite_face;
 	double product,min_product,max_product;
 	vector<int> face_pairs (6,-1);
 	vector<int> cell_pairs (6,-1);
-	vector<Vec3D> Jac; // Changes in othogonal system and curvilinear system
-	Jac.resize(3);
+	vector<int> cell_pairs_temp
+	(6,-1);
+	vector<Vec3D> Jac,Jac_temp; // Changes in othogonal system and curvilinear system
+	Jac.resize(3),Jac_temp.resize(3);
 	vector<Vec3D> Jac_invT; // Inverse Jacobian Transposed
 	Jac_invT.resize(3);
 	double det; // Determinant of the Jacobian
@@ -52,189 +53,191 @@ void gradient_maps(int gid) {
 	| dx/deta  dy/deta  dz/deta  | 
  	| dx/dzeta dy/dzeta dz/dzeta | 
 	*/
-	
+	int counter=0;
 	// Loop all the cells
 	for (int c=0;c<grid[gid].cellCount;++c) {
 			
 		for (int cf=0;cf<grid[gid].cell[c].faceCount;++cf) stencil.insert(cf); // Note that these are not actual face indices
 		
 		if (grid[gid].cell[c].nodeCount==8) { //If hexa cell
-			 // Put the faces of the cell into a set (except the first one)
-			 for (int cf=0;cf<grid[gid].cell[c].faceCount;++cf) stencil.insert(cf); // Note that these are not actual face indices	 
-			 // Loop the stencil
-			 int counter=0;
-			 for (sit1=stencil.begin();sit1!=stencil.end();sit1++) {
-				 // For each face, find the corresponding opposite
-				 min_product=1.e20;
-				 my_normal=grid[gid].cellFace(c,*sit1).normal;
-				 if (grid[gid].cellFace(c,*sit1).parent!=c) my_normal*=-1.;
-				 face_pairs[2*counter+1]=*sit1;
-				 sit2=sit1; sit2++;
-				 for (sit2=sit2;sit2!=stencil.end();sit2++) {
-				 other_normal=grid[gid].cellFace(c,*sit2).normal;
-				 // Make sure these normals are pointing outward
-				 if (grid[gid].cellFace(c,*sit2).parent!=c) other_normal*=-1.;
-				 // Pick the face with the normal in the most opposite direction to the current normal
-				 product=my_normal.dot(other_normal);
-				 if (product<min_product) {
-				 min_product=product;
-				 face_pairs[2*counter]=*sit2;
-				 }
-				 }
-				 stencil.erase(face_pairs[2*counter]); 
-				 stencil.erase(face_pairs[2*counter+1]);
-				 counter++;
-			 }
-		} else {
-			//First internal face will define the first direction
-			sit1=stencil.begin();
-			for (sit=stencil.begin();sit!=stencil.end();sit++) {
-				if (grid[gid].cellFace(c,*sit).bc==INTERNAL_FACE) {
-					sit1=sit;
-					break;
-				}
-			}
-			my_normal=grid[gid].cellFace(c,*sit1).normal;
-			// Find the most perpendicular face to the first one
-			// First restrict the search to non-boundary faces
-			sit2=sit1;
-			min_product=1.e20;
-			for (sit=stencil.begin();sit!=stencil.end();sit++) {
-				if (sit!=sit1) {
-					if (grid[gid].cellFace(c,*sit).bc==INTERNAL_FACE) {
-						other_normal=grid[gid].cellFace(c,*sit).normal;
-						product=fabs(my_normal.dot(other_normal));
-						if (product<min_product) {
-							min_product=product;
-							sit2=sit;
-						}
-					}
-				}
-			}
-			// Check if an internal face is picked, if not remove the restriction
-			min_product=1.e20;
-			if (sit2==sit1) { // Means no selection made in the previous loop
-				for (sit=stencil.begin();sit!=stencil.end();sit++) {
-					if (sit!=sit1) {
-						other_normal=grid[gid].cellFace(c,*sit).normal;
-						product=fabs(my_normal.dot(other_normal));
-						if (product<min_product) {
-							min_product=product;
-							sit2=sit;
-						}
-					}
-				}
-			}
-			// Find the face with the normal most parallel to cross product of the first two
-			max_product=0.;
-			my_normal=grid[gid].cellFace(c,*sit1).normal.cross(grid[gid].cellFace(c,*sit2).normal);
-			for (sit=stencil.begin();sit!=stencil.end();sit++) {
-				if (sit!=sit1 && sit!=sit2) {
-					other_normal=grid[gid].cellFace(c,*sit).normal;
-					product=fabs(my_normal.dot(other_normal));
-					if (product>max_product) {
-						max_product=product;
-						sit3=sit;
-					}
-				}
-			}		
-			face_pairs[1]=*sit1;
-			face_pairs[3]=*sit2;
-			face_pairs[5]=*sit3;
-
-			// Just initialize these
-			face_pairs[0]=*sit2;
-			face_pairs[2]=*sit3;
-			face_pairs[4]=*sit1;
-			
-			// Now find the pairs of the 3 faces (most opposing faces)
-			min_product=1.e20;
-			my_normal=grid[gid].cellFace(c,*sit1).normal;
-			if (grid[gid].cellFace(c,*sit1).parent!=c) my_normal*=-1.;
-			for (sit=stencil.begin();sit!=stencil.end();sit++) {
-				other_normal=grid[gid].cellFace(c,*sit).normal;
-				// Make sure these normals are pointing outward
-				if (grid[gid].cellFace(c,*sit).parent!=c) other_normal*=-1.;
-				// Pick the face with the normal in the most opposite direction to the current normal
-				product=my_normal.dot(other_normal);
-				if (product<min_product) {
-					min_product=product;
-					face_pairs[0]=*sit;
-				}
-			}
-			min_product=1.e20;
-			my_normal=grid[gid].cellFace(c,*sit2).normal;
-			if (grid[gid].cellFace(c,*sit2).parent!=c) my_normal*=-1.;
-			for (sit=stencil.begin();sit!=stencil.end();sit++) {
-				other_normal=grid[gid].cellFace(c,*sit).normal;
-				// Make sure these normals are pointing outward
-				if (grid[gid].cellFace(c,*sit).parent!=c) other_normal*=-1.;
-				// Pick the face with the normal in the most opposite direction to the current normal
-				product=my_normal.dot(other_normal);
-				if (product<min_product) {
-					if (!(*sit==face_pairs[1] && face_pairs[3]==face_pairs[0])) { // Avoid the same but reverse direction pick
+			// Loop the stencil
+			int counter=0;
+			for (sit1=stencil.begin();sit1!=stencil.end();sit1++) {
+				// For each face, find the corresponding opposite
+				min_product=1.e20;
+				my_normal=grid[gid].cellFace(c,*sit1).normal;
+				if (grid[gid].cellFace(c,*sit1).parent!=c) my_normal*=-1.;
+				face_pairs[2*counter+1]=*sit1;
+				sit2=sit1; sit2++;
+				for (sit2=sit2;sit2!=stencil.end();sit2++) {
+					other_normal=grid[gid].cellFace(c,*sit2).normal;
+					// Make sure these normals are pointing outward
+					if (grid[gid].cellFace(c,*sit2).parent!=c) other_normal*=-1.;
+					// Pick the face with the normal in the most opposite direction to the current normal
+					product=my_normal.dot(other_normal);
+					if (product<min_product) {
 						min_product=product;
-						face_pairs[2]=*sit;
+						face_pairs[2*counter]=*sit2;
 					}
 				}
-			}		
-			min_product=1.e20;
-			my_normal=grid[gid].cellFace(c,*sit3).normal;
-			if (grid[gid].cellFace(c,*sit3).parent!=c) my_normal*=-1.;
-			for (sit=stencil.begin();sit!=stencil.end();sit++) {
-				other_normal=grid[gid].cellFace(c,*sit).normal;
-				// Make sure these normals are pointing outward
-				if (grid[gid].cellFace(c,*sit).parent!=c) other_normal*=-1.;
-				// Pick the face with the normal in the most opposite direction to the current normal
-				product=my_normal.dot(other_normal);
-				if (product<min_product) {
-					if (!(*sit==face_pairs[1] && face_pairs[5]==face_pairs[0])) { // Avoid the same but reverse direction pick
-						if (!(*sit==face_pairs[3] && face_pairs[5]==face_pairs[2])) {
-							min_product=product;
-							face_pairs[4]=*sit;
+				stencil.erase(face_pairs[2*counter]); 
+				stencil.erase(face_pairs[2*counter+1]);
+				counter++;
+			}
+			
+			bool plus_at_boundary;
+			// Now we know the three directions
+			for (int i=0;i<3;++i) {
+				plus_at_boundary=false;
+				
+				cell_plus=grid[gid].cellFace(c,face_pairs[2*i+1]).neighbor;
+				if (cell_plus==c) cell_plus=grid[gid].cellFace(c,face_pairs[2*i+1]).parent;
+				cell_pairs[2*i+1]=cell_plus;
+				if (grid[gid].cellFace(c,face_pairs[2*i+1]).bc>=0) { // Face is at a boundary
+					cell_plus=c;
+					cell_pairs[2*i+1]=c;
+					Jac[i]=grid[gid].cell[cell_plus].centroid;
+					plus_at_boundary=true;
+				} else if (cell_plus<0) { // An inter-partition ghost cell
+					Jac[i]=grid[gid].ghost[-cell_plus-1].centroid;
+				} else {
+					Jac[i]=grid[gid].cell[cell_plus].centroid;
+				}
+				
+				cell_minus=grid[gid].cellFace(c,face_pairs[2*i]).neighbor;
+				if (cell_minus==c) cell_minus=grid[gid].cellFace(c,face_pairs[2*i]).parent;
+				cell_pairs[2*i]=cell_minus;
+				if (grid[gid].cellFace(c,face_pairs[2*i]).bc>=0) { // Face is at a boundary
+					cell_minus=c;
+					cell_pairs[2*i]=c;
+					if (plus_at_boundary) Jac[i]-=grid[gid].cellFace(c,face_pairs[2*i]).centroid;
+					else Jac[i]-=grid[gid].cell[cell_minus].centroid;
+				} else if (cell_minus<0) { // An inter-partition ghost cell
+					Jac[i]-=grid[gid].ghost[-cell_minus-1].centroid;
+				} else {
+					Jac[i]-=grid[gid].cell[cell_minus].centroid;
+				}
+			}
+			
+		} else {
+
+			int counter=0;
+			int max_counter;
+			double max_det=0.;
+			bool plus_at_boundary;
+			
+			stencil.clear();
+			for (int cf=0;cf<grid[gid].cell[c].faceCount;++cf) stencil.insert(grid[gid].cell[c].faces[cf]); 
+			
+			for (sit1=stencil.begin();sit1!=stencil.end();sit1++) {
+				for (sit2=sit1;sit2!=stencil.end();sit2++) {
+
+					plus_at_boundary=false;
+					cell_plus=grid[gid].face[*sit2].neighbor;
+					if (cell_plus==c) cell_plus=grid[gid].face[*sit2].parent;
+					cell_pairs_temp[1]=cell_plus;
+					if (grid[gid].face[*sit2].bc>=0) { // Face is at a boundary
+						cell_pairs_temp[1]=c;
+						Jac_temp[0]=grid[gid].cell[c].centroid;
+						plus_at_boundary=true;
+					} else if (cell_plus<0) { // An inter-partition ghost cell
+						Jac_temp[0]=grid[gid].ghost[-cell_plus-1].centroid;
+					} else {
+						Jac_temp[0]=grid[gid].cell[cell_plus].centroid;
+					}
+					
+					cell_minus=grid[gid].face[*sit1].neighbor;
+					if (cell_minus==c) cell_minus=grid[gid].face[*sit1].parent;
+					cell_pairs_temp[0]=cell_minus;
+					if (grid[gid].face[*sit1].bc>=0) { // Face is at a boundary
+						cell_pairs_temp[0]=c;
+						if (plus_at_boundary) {Jac_temp[0]-=grid[gid].face[*sit1].centroid; Jac_temp[0]*=1.e-2;}
+						else Jac_temp[0]-=grid[gid].cell[c].centroid;
+					} else if (cell_minus<0) { // An inter-partition ghost cell
+						Jac_temp[0]-=grid[gid].ghost[-cell_minus-1].centroid;
+					} else {
+						Jac_temp[0]-=grid[gid].cell[cell_minus].centroid;
+					}
+					
+					for (sit3=sit1;sit3!=stencil.end();sit3++) {
+						for (sit4=sit3;sit4!=stencil.end();sit4++) {
+							
+							plus_at_boundary=false;
+							cell_plus=grid[gid].face[*sit4].neighbor;
+							if (cell_plus==c) cell_plus=grid[gid].face[*sit4].parent;
+							cell_pairs_temp[3]=cell_plus;
+							if (grid[gid].face[*sit4].bc>=0) { // Face is at a boundary
+								cell_pairs_temp[3]=c;
+								Jac_temp[1]=grid[gid].cell[c].centroid;
+								plus_at_boundary=true;
+							} else if (cell_plus<0) { // An inter-partition ghost cell
+								Jac_temp[1]=grid[gid].ghost[-cell_plus-1].centroid;
+							} else {
+								Jac_temp[1]=grid[gid].cell[cell_plus].centroid;
+							}
+							
+							cell_minus=grid[gid].face[*sit3].neighbor;
+							if (cell_minus==c) cell_minus=grid[gid].face[*sit3].parent;
+							cell_pairs_temp[2]=cell_minus;
+							if (grid[gid].face[*sit3].bc>=0) { // Face is at a boundary
+								cell_pairs_temp[2]=c;
+								if (plus_at_boundary) {Jac_temp[1]-=grid[gid].face[*sit3].centroid; Jac_temp[1]*=1.e-2;}
+								else Jac_temp[1]-=grid[gid].cell[c].centroid;
+							} else if (cell_minus<0) { // An inter-partition ghost cell
+								Jac_temp[1]-=grid[gid].ghost[-cell_minus-1].centroid;
+							} else {
+								Jac_temp[1]-=grid[gid].cell[cell_minus].centroid;
+							}
+							
+							for (sit5=sit2;sit5!=stencil.end();sit5++) {
+								for (sit6=sit5;sit6!=stencil.end();sit6++) {
+									
+									plus_at_boundary=false;
+									cell_plus=grid[gid].face[*sit6].neighbor;
+									if (cell_plus==c) cell_plus=grid[gid].face[*sit6].parent;
+									cell_pairs_temp[5]=cell_plus;
+									if (grid[gid].face[*sit6].bc>=0) { // Face is at a boundary
+										cell_pairs_temp[5]=c;
+										Jac_temp[2]=grid[gid].cell[c].centroid;
+										plus_at_boundary=true;
+									} else if (cell_plus<0) { // An inter-partition ghost cell
+										Jac_temp[2]=grid[gid].ghost[-cell_plus-1].centroid;
+									} else {
+										Jac_temp[2]=grid[gid].cell[cell_plus].centroid;
+									}
+									
+									cell_minus=grid[gid].face[*sit5].neighbor;
+									if (cell_minus==c) cell_minus=grid[gid].face[*sit5].parent;
+									cell_pairs_temp[4]=cell_minus;
+									if (grid[gid].face[*sit5].bc>=0) { // Face is at a boundary
+										cell_pairs_temp[4]=c;
+										if (plus_at_boundary) {Jac_temp[2]-=grid[gid].face[*sit5].centroid; Jac_temp[2]*=1.e-2;}
+										else Jac_temp[2]-=grid[gid].cell[c].centroid;
+									} else if (cell_minus<0) { // An inter-partition ghost cell
+										Jac_temp[2]-=grid[gid].ghost[-cell_minus-1].centroid;
+									} else {
+										Jac_temp[2]-=grid[gid].cell[cell_minus].centroid;
+									}
+									counter++;
+									det=Jac_temp[0].dot(Jac_temp[1].cross(Jac_temp[2]));
+									if (det>max_det) {
+										max_counter=counter;
+										max_det=det;
+										cell_pairs=cell_pairs_temp;
+										Jac=Jac_temp;
+									}
+								}
+							}
 						}
 					}
 				}
 			}
+
 		}
 		
 		stencil.clear();
 		
-		// Now we know the three directions
-		for (int i=0;i<3;++i) {
-			
-			cell_plus=grid[gid].cellFace(c,face_pairs[2*i+1]).neighbor;
-			if (cell_plus==c) cell_plus=grid[gid].cellFace(c,face_pairs[2*i+1]).parent;
-			cell_pairs[2*i+1]=cell_plus;
-			if (grid[gid].cellFace(c,face_pairs[2*i+1]).bc>=0) { // Face is at a boundary
-				cell_pairs[2*i+1]=c;
-				Jac[i]=grid[gid].cellFace(c,face_pairs[2*i+1]).centroid;
-			} else if (cell_plus<0) { // An inter-partition ghost cell
-				Jac[i]=grid[gid].ghost[-cell_plus-1].centroid;
-			} else {
-				Jac[i]=grid[gid].cell[cell_plus].centroid;
-			}
-			
-			cell_minus=grid[gid].cellFace(c,face_pairs[2*i]).neighbor;
-			if (cell_minus==c) cell_minus=grid[gid].cellFace(c,face_pairs[2*i]).parent;
-			cell_pairs[2*i]=cell_minus;
-			if (grid[gid].cellFace(c,face_pairs[2*i]).bc>=0) { // Face is at a boundary
-				cell_pairs[2*i]=c;
-				Jac[i]-=grid[gid].cellFace(c,face_pairs[2*i]).centroid;
-			} else if (cell_minus<0) { // An inter-partition ghost cell
-				Jac[i]-=grid[gid].ghost[-cell_minus-1].centroid;
-			} else {
-				Jac[i]-=grid[gid].cell[cell_minus].centroid;
-			}
-
-		}
-		
-		// The Jacobian is calculated, now need to invert it
-		
-		// Determinant
-		det=Jac[0][0]*(Jac[1][1]*Jac[2][2]-Jac[1][2]*Jac[2][1])
-		   -Jac[0][1]*(Jac[1][0]*Jac[2][2]-Jac[1][2]*Jac[2][0])
-		   +Jac[0][2]*(Jac[1][0]*Jac[2][1]-Jac[1][1]*Jac[2][0]);
+		det=Jac[0].dot(Jac[1].cross(Jac[2]));
 
 		Jac_invT[0][0]=(Jac[1][1]*Jac[2][2]-Jac[1][2]*Jac[2][1])/det;
 		Jac_invT[1][0]=(Jac[0][2]*Jac[2][1]-Jac[0][1]*Jac[2][2])/det;

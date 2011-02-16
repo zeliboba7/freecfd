@@ -126,6 +126,11 @@ void read_inputs(void) {
 	input.section("grid",0).subsection("navierstokes").register_string("jacobianorder",optional,"second");
 	input.section("grid",0).subsection("navierstokes").register_string("convectiveflux",optional,"AUSM+up");
 	
+	input.section("grid",0).registerSubsection("heatconduction",single,optional);
+	input.section("grid",0).subsection("heatconduction").register_double("relativetolerance",optional,1.e-6);
+	input.section("grid",0).subsection("heatconduction").register_double("absolutetolerance",optional,1.e-12);
+	input.section("grid",0).subsection("heatconduction").register_int("maximumiterations",optional,10);	
+	
 	input.section("grid",0).registerSubsection("transform",numbered,optional);
 	input.section("grid",0).subsection("transform",0).register_string("function",optional);
 	input.section("grid",0).subsection("transform",0).register_Vec3D("anchor",optional,0.);

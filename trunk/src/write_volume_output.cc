@@ -311,6 +311,12 @@ void write_tec_var(int ov, int i) {
 			if ((c+1)%10==0) file << "\n";
 			else file << "\t";
 		}
+	} else if (varList[ov]=="volume") {
+		for (int c=0;c<grid[gid].cellCount;++c) {
+			file << grid[gid].cell[c].volume;
+			if ((c+1)%10==0) file << "\n";
+			else file << "\t";
+		}
 	} else if (varList[ov]=="percent_grad_error") {
 		if (gradient_test==LINEAR) {
 			for (int c=0;c<grid[gid].cellCount;++c) {
