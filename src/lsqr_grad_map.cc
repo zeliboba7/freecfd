@@ -36,7 +36,7 @@ void lsqr_grad_map(int gid,int ci) {
 	vector<Vec3D> distance;
 	vector<int>::iterator sit;
 	double a,b,c,d,e,f,det;
-	Vec3D point,;
+	Vec3D point;
 	int neighbor;
 	Vec3D weight;
 	
