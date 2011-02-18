@@ -80,10 +80,10 @@ void set_bcs(int gid) {
 		if (type=="outlet") bcRegion.type=OUTLET;
 		if (type=="symmetry") bcRegion.type=SYMMETRY;
 		if (kind=="slip") bcRegion.kind=SLIP; // This is needed here to omit this BC in nearest wall distance calculation
-
 		// Integrate boundary areas
 		for (int f=0;f<grid[gid].faceCount;++f) {
 			if (grid[gid].face[f].bc==b) {
+				grid[gid].face[f].symmetry=false;
 				grid[gid].maps.face2bc[f]=bc_counter[b];
 				bc_counter[b]++;
 				bcRegion.area+=grid[gid].face[f].area;
