@@ -62,8 +62,10 @@ set (EXTRA_LIBS parmetis metis cgns petsc f2cblas f2clapack)
 #add the executable
 set (SOURCES
 bc_interface.cc
+curvilinear_grad_map.cc
 face_interpolation_weights.cc
 gradient_maps.cc
+lsqr_grad_map.cc
 main.cc
 read_restart.cc
 time_step.cc
