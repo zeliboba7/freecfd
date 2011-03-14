@@ -662,6 +662,7 @@ int Grid::get_bc_output_ids() {
 		}
 	}
 	
+	// Set all node output id's to -2 by default
 	for (n=0;n<nodeCount;++n) node[n].bc_output_id=-2;
 	
 	vector<int> output_node_counts;
