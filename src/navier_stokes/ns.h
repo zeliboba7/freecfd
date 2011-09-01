@@ -41,6 +41,7 @@
 // Options for limiter
 #define VK 1
 #define BJ 2
+#define MINMOD 3
 // Options for order of accuracy
 #define FIRST 1
 #define SECOND 2
@@ -131,6 +132,7 @@ public:
 	void calc_limiter(void);
 	void venkatakrishnan_limiter(void); 
 	void barth_jespersen_limiter(void);
+	void minmod_limiter(void);
 		
 	void solve(int timeStep,int ps_step);
 	

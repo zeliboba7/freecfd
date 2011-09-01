@@ -22,6 +22,14 @@
 *************************************************************************/
 #include "ns.h"
 
+template<typename T>
+inline T signum(T n)
+{
+	if (n < 0) return -1;
+	if (n > 0) return 1;
+	return 0;
+}
+
 void NavierStokes::calc_limiter(void) {
 	if(limiter_function==NONE || order==FIRST) {
 		// Do nothing
@@ -29,6 +37,8 @@ void NavierStokes::calc_limiter(void) {
 		venkatakrishnan_limiter();
 	} else if (limiter_function==BJ) {
 		barth_jespersen_limiter();
+	} else if (limiter_function==MINMOD) {
+		minmod_limiter();
 	} 
 	return;
 }
@@ -145,17 +155,18 @@ void NavierStokes::venkatakrishnan_limiter(void) {
 		for (int cf=0;cf<grid[gid].cell[c].faceCount;++cf) {
 			if (grid[gid].cellFace(c,cf).bc<0) { // If not a boundary face
 				c==grid[gid].cellFace(c,cf).parent ? neighbor=grid[gid].cellFace(c,cf).neighbor : neighbor=grid[gid].cellFace(c,cf).parent;
+				Vec3D neighbor2face=grid[gid].cellFace(c,cf).centroid-grid[gid].cell[neighbor].centroid;
 				if (neighbor>=0) { // real cell
-					max_delta[0]=max(max_delta[0],p.cell(neighbor)-p.cell(c));
-					max_delta[1]=max(max_delta[1],V.cell(neighbor)[0]-V.cell(c)[0]);
-					max_delta[2]=max(max_delta[2],V.cell(neighbor)[1]-V.cell(c)[1]);	
-					max_delta[3]=max(max_delta[3],V.cell(neighbor)[2]-V.cell(c)[2]);
+					max_delta[0]=max(max_delta[0],p.cell(neighbor)+gradp.cell(neighbor).dot(neighbor2face)-p.cell(c));
+					max_delta[1]=max(max_delta[1],V.cell(neighbor)[0]+gradu.cell(neighbor).dot(neighbor2face)-V.cell(c)[0]);
+					max_delta[2]=max(max_delta[2],V.cell(neighbor)[1]+gradv.cell(neighbor).dot(neighbor2face)-V.cell(c)[1]);	
+					max_delta[3]=max(max_delta[3],V.cell(neighbor)[2]+gradw.cell(neighbor).dot(neighbor2face)-V.cell(c)[2]);
 					max_delta[4]=max(max_delta[4],T.cell(neighbor)-T.cell(c));
 					
-					min_delta[0]=min(min_delta[0],p.cell(neighbor)-p.cell(c));
-					min_delta[1]=min(min_delta[1],V.cell(neighbor)[0]-V.cell(c)[0]);
-					min_delta[2]=min(min_delta[2],V.cell(neighbor)[1]-V.cell(c)[1]);	
-					min_delta[3]=min(min_delta[3],V.cell(neighbor)[2]-V.cell(c)[2]);
+					min_delta[0]=min(min_delta[0],p.cell(neighbor)+gradp.cell(neighbor).dot(neighbor2face)-p.cell(c));
+					min_delta[1]=min(min_delta[1],V.cell(neighbor)[0]+gradu.cell(neighbor).dot(neighbor2face)-V.cell(c)[0]);
+					min_delta[2]=min(min_delta[2],V.cell(neighbor)[1]+gradv.cell(neighbor).dot(neighbor2face)-V.cell(c)[1]);	
+					min_delta[3]=min(min_delta[3],V.cell(neighbor)[2]+gradw.cell(neighbor).dot(neighbor2face)-V.cell(c)[2]);
 					min_delta[4]=min(min_delta[4],T.cell(neighbor)-T.cell(c));
 					
 				} else { // neighbor cell is a ghost (partition interface)
@@ -221,6 +232,70 @@ void NavierStokes::venkatakrishnan_limiter(void) {
 		
 		for (int var=0;var<5;++var) limiter[var].cell(c)=phi[var];
 		
+	} // end cell loop
+	for (int var=0;var<5;++var) limiter[var].mpi_update();
+	
+	return;
+} 
+
+void NavierStokes::minmod_limiter(void) {
+	
+	int neighbor,g;
+	double delta1[5],delta2[5];
+	double phi[5];
+	double eps=1.e-8;
+	
+	for (int c=0;c<grid[gid].cellCount;++c) {
+		
+		for (int i=0;i<5;++i) limiter[i].cell(c)=1.;
+		
+		// First loop through face neighbors to find max values
+		for (int cf=0;cf<grid[gid].cell[c].faceCount;++cf) {
+			for (int i=0;i<5;++i) {
+				delta1[i]=0.;
+				delta2[i]=0.;
+				phi[i]=0.;
+			}
+			if (grid[gid].cellFace(c,cf).bc<0) { // If not a boundary face
+				c==grid[gid].cellFace(c,cf).parent ? neighbor=grid[gid].cellFace(c,cf).neighbor : neighbor=grid[gid].cellFace(c,cf).parent;
+				Vec3D cell2face=grid[gid].cellFace(c,cf).centroid-grid[gid].cell[c].centroid;
+				Vec3D neighbor2face=grid[gid].cellFace(c,cf).centroid-grid[gid].cell[neighbor].centroid;
+
+				delta1[0]=gradp.cell(c).dot(cell2face);
+				delta1[1]=gradu.cell(c).dot(cell2face);
+				delta1[2]=gradv.cell(c).dot(cell2face);
+				delta1[3]=gradw.cell(c).dot(cell2face);
+				delta1[4]=gradT.cell(c).dot(cell2face);
+				if (neighbor>=0) { // real cell
+					delta2[0]=p.cell(neighbor)+gradp.cell(neighbor).dot(neighbor2face)-p.cell(c);
+					delta2[1]=V.cell(neighbor)[0]+gradu.cell(neighbor).dot(neighbor2face)-V.cell(c)[0];
+					delta2[2]=V.cell(neighbor)[1]+gradv.cell(neighbor).dot(neighbor2face)-V.cell(c)[1];
+					delta2[3]=V.cell(neighbor)[2]+gradw.cell(neighbor).dot(neighbor2face)-V.cell(c)[2];
+					delta2[4]=T.cell(neighbor)+gradT.cell(neighbor).dot(neighbor2face)-T.cell(c);
+				} else { // neighbor cell is a ghost (partition interface)
+					neighbor=-1*neighbor-1;
+					delta2[0]=p.ghost(neighbor)+gradp.ghost(neighbor).dot(neighbor2face)-p.cell(c);
+					delta2[1]=V.ghost(neighbor)[0]+gradu.ghost(neighbor).dot(neighbor2face)-V.cell(c)[0];
+					delta2[2]=V.ghost(neighbor)[1]+gradv.ghost(neighbor).dot(neighbor2face)-V.cell(c)[1];
+					delta2[3]=V.ghost(neighbor)[2]+gradw.ghost(neighbor).dot(neighbor2face)-V.cell(c)[2];
+					delta2[4]=T.ghost(neighbor)+gradT.ghost(neighbor).dot(neighbor2face)-T.cell(c);
+				}
+			} else { // If a boundary face
+				
+			}
+			
+			for (int i=0;i<5;++i) {
+				if (delta1[i]*delta2[i]<0.) { // They are of opposite signs
+					phi[i]=0.;
+				} else {
+	//				Put minmod here;
+	//				phi[i]=(min(fabs(delta1[i]),fabs(delta2[i]))+eps)/(fabs(delta1[i])+eps);
+				}
+				limiter[i].cell(c)=min(limiter[i].cell(c),phi[i]);
+			}
+
+		} // end face loop		
+
 	} // end cell loop
 	for (int var=0;var<5;++var) limiter[var].mpi_update();
 	
