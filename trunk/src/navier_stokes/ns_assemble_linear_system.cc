@@ -326,13 +326,13 @@ void NavierStokes::right_state_update(NS_Cell_State &left,NS_Cell_State &right,N
 		Vec3D cell2face=order_factor*grid[gid].face[face.index].centroid-grid[gid].ghost[g].centroid;
 		Vec3D deltaV;
 		right.p=p.ghost(g)+limiter[0].ghost(g)*cell2face.dot(gradp.ghost(g));
-		deltaV[0]=limiter[0].ghost(g)*cell2face.dot(gradu.ghost(g));
-		deltaV[1]=limiter[0].ghost(g)*cell2face.dot(gradv.ghost(g));
-		deltaV[2]=limiter[0].ghost(g)*cell2face.dot(gradw.ghost(g));
+		deltaV[0]=limiter[1].ghost(g)*cell2face.dot(gradu.ghost(g));
+		deltaV[1]=limiter[2].ghost(g)*cell2face.dot(gradv.ghost(g));
+		deltaV[2]=limiter[3].ghost(g)*cell2face.dot(gradw.ghost(g));
 		right.V_center=V.ghost(g);
 		right.V=right.V_center+deltaV;
 		right.T_center=T.ghost(g);
-		right.T=right.T_center+limiter[0].ghost(g)*cell2face.dot(gradT.ghost(g));
+		right.T=right.T_center+limiter[4].ghost(g)*cell2face.dot(gradT.ghost(g));
 		right.rho=material.rho(right.p,right.T);
 		right.volume=grid[gid].ghost[g].volume;
 		
