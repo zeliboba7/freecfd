@@ -76,7 +76,7 @@ void NavierStokes::assemble_linear_system(void) {
 	// Loop through faces
 	for (f=0;f<grid[gid].faceCount;++f) {
 		
-		order_factor=1.; // This is used to kill gradients during Jacobian calculation if first order options is selected
+		order_factor=1.; // This is used to kill gradients during Jacobian calculation if first order option is selected
 		
 		doLeftSourceJac=false; doRightSourceJac=false;
 		for (int m=0;m<5;++m) { 
@@ -265,11 +265,13 @@ void NavierStokes::get_jacobians(const int var) {
 	}
 	
 	face_state_adjust(left,right,face,var);
+	
 }
 
 void NavierStokes::left_state_update(NS_Cell_State &left,NS_Face_State &face) {
 	
 	int parent=grid[gid].face[face.index].parent;
+
 	Vec3D cell2face=order_factor*grid[gid].face[face.index].centroid-grid[gid].cell[parent].centroid;
 	Vec3D deltaV;
 	left.p=p.cell(parent)+limiter[0].cell(parent)*cell2face.dot(gradp.cell(parent));
