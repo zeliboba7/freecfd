@@ -132,7 +132,6 @@ public:
 	void calc_limiter(void);
 	void venkatakrishnan_limiter(void); 
 	void barth_jespersen_limiter(void);
-	void minmod_limiter(void);
 		
 	void solve(int timeStep,int ps_step);
 	

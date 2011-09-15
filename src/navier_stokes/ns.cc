@@ -42,8 +42,6 @@ void NavierStokes::initialize (int ps_max) {
 		limiter_function=VK;
 	} else if (input.section("grid",gid).subsection("navierstokes").get_string("limiter")=="bj") {
 		limiter_function=BJ;
-	} else if (input.section("grid",gid).subsection("navierstokes").get_string("limiter")=="minmod") {
-		limiter_function=MINMOD;
 	} else {
 		limiter_function=NONE;
 	}
