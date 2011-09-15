@@ -129,7 +129,7 @@ void NavierStokes::barth_jespersen_limiter(void) {
 void NavierStokes::venkatakrishnan_limiter(void) {
 	
 	int neighbor,g;
-	double phi;
+	double phi[3];
 	double deltaP,deltaP2,deltaM,deltaM2,eps,eps2;
 	double K=limiter_threshold;
 	double max_delta[3], min_delta[3];
@@ -141,7 +141,7 @@ void NavierStokes::venkatakrishnan_limiter(void) {
 	for (int c=0;c<grid[gid].cellCount;++c) {
 		
 		for (int i=0;i<3;++i) {
-			phi=1.;
+			phi[i]=1.;
 			max_delta[i]=0.;
 			min_delta[i]=0.;
 		}
@@ -162,7 +162,7 @@ void NavierStokes::venkatakrishnan_limiter(void) {
 					max_delta[2]=max(max_delta[2],T.cell(neighbor)-T.cell(c));
 					
 					min_delta[0]=min(min_delta[0],p.cell(neighbor)-p.cell(c));
-					max_delta[1]=min(min_delta[1],V.cell(neighbor).dot(normal)-V.cell(c).dot(normal));
+					min_delta[1]=min(min_delta[1],V.cell(neighbor).dot(normal)-V.cell(c).dot(normal));
 					min_delta[2]=min(min_delta[2],T.cell(neighbor)-T.cell(c));
 					
 				} else { // neighbor cell is a ghost (partition interface)
@@ -208,13 +208,17 @@ void NavierStokes::venkatakrishnan_limiter(void) {
 					deltaM2=deltaM*deltaM;
 					deltaP2=deltaP*deltaP;
 					
-					phi=min(phi,((deltaP2+eps2)+2.*deltaM*deltaP)/(deltaP2+2.*deltaM2+deltaM*deltaP+eps2)); 
+					phi[var]=min(phi[var],((deltaP2+eps2)+2.*deltaM*deltaP)/(deltaP2+2.*deltaM2+deltaM*deltaP+eps2)); 
 					
 				} // var loop
 			} // if not a boundary face
 		} // end face loop
 		
-		for (int var=0;var<5;++var) limiter[var].cell(c)=phi;
+		limiter[0].cell(c)=phi[0];
+		limiter[1].cell(c)=phi[1];
+		limiter[2].cell(c)=phi[1];
+		limiter[3].cell(c)=phi[1];
+		limiter[4].cell(c)=phi[2];		
 		
 	} // end cell loop
 	for (int var=0;var<5;++var) limiter[var].mpi_update();
