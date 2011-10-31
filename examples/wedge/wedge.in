@@ -28,8 +28,10 @@ grid_1 {
 	);
         
 	write output (
-		variables=[V,p,T,rho,Mach,dt,resp,resV,resT,limiterp];
-		plot frequency = 50;
+		volume variables=[V,p,T,rho,Mach,dt,resp,resV,resT,limiterp];
+		surface variables=[V,p,T,rho,Mach,dt,resp,resV,resT,limiterp];
+		volume plot frequency = 50;
+		surface plot frequency = 50;
 		restart frequency = 50;
 	);
 	

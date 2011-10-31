@@ -22,15 +22,21 @@ step size=1.e-3;
 // If "CFLmax" is specified, time step value is found such as the
 // the maximum CFL number in the domain doesn't exceed the
 // specified value
+/* CFLlocal=1.; */
+// If "CFLlocal is specified, every cell in the domain uses a variable
+// time step value to match the CFL specified here locally
 ramp (initial=1.e-4; growth=1.1);
 // Whatever method of time stepping is chosen above, there is an
 // option to start with a lower value and ramp up with a growth factor
 // If the "ramp" subsection is skipped, ramping is not used
 number of steps =1000;
 // "number of steps" specifies how many time steps will be marched
+update frequency=100;
+// time matching options will be re-read from the input file at
+// specified intervals of time steps
 }
 
-// Free CFD 1.0.0 supports multiple grids and allows coupled solution
+// Free CFD 1.1 supports multiple grids and allows coupled solution
 // of different equations on each of them.
 // Available choices of equations and interactions are still work
 // in progress. Currently the only working setup is one of Navier-Stokes
@@ -44,9 +50,9 @@ grid_1 {
         dimension=2;
 	// Dimension of the grid. Either 2 or 3. Default is 3.
 	// In 1D or 2D runs, you can still use dimension=3. But specifying the
-	// correct value will reduce the node interpolation stencil size.
+	// correct value will reduce the interpolation stencil size.
 
-	transform ( // Transform the grid. Entire section can be ommitted if not needed.
+	transform_1 ( // Transform the grid. Entire section can be ommitted if not needed.
 		function=translate;
 		// Type of transformation. Options are "translate", "scale", "rotate".
 		anchor=[0.,0.,0];
@@ -67,6 +73,12 @@ grid_1 {
 		// Only used for "rotate". Angle of rotation in degrees.
 	);
 
+	transform_2 ( // You can have multiple transform inputs, they will be applied sequentially
+		function=scale;
+		anchor=[0.,0.,0.];
+		factor=[0.1,0.1,0.1];
+	);
+
         equations=navier stokes;
 	// Equation set to solve on this grid.
 	// Options are "navier stokes" and "heat conduction". Required.
@@ -74,11 +86,9 @@ grid_1 {
         navier stokes ( // Numerical options for the navier-stokes solver.
 		order=second;
 		// Order of accuracy. Options are "first" and "second". Default is "second".
-		jacobian order=first;
+		jacobian order=second;
 		// Order of the flux Jacobian evaluation. Options are "first" and "second".
-		// Default is "second". Default value is usually fine. If you are having
-		// stability problems, try "first".
-		// Omitted if the "order" options above is set to "first".
+		// If not specified, this will be taken the same as the "order"
 		limiter=vk;
 		// Gradient slope limiter needed for stability in second order
 		// accurate solver. 
@@ -90,7 +100,7 @@ grid_1 {
 		// Not used if any other limiter options is chosen.
 		// A smaller value means stricter enforcement of monotonicity at the 
 		// expense of a possible convergence rate hit. Larger value vice versa.
-		// Default should usually be fine.	
+		// Default should usually be fine.
 		relative tolerance=1.e-5;
 		// Target drop in residual before proceeding to the next time step.
 		absolute tolerance=1.e-8;
@@ -120,16 +130,18 @@ grid_1 {
 		k high limit=1.e4;
 		omega low limit=1.;
 		viscosity ratio limit=5.e4;
-		// These limits may help in some problems.Default values are shown.
+		// These limits may help in some problems. Default values are shown.
 		turbulent Pr=0.9;
 		// Turbulent Prandtl number. Default is 0.9.
 	);
 
         write output (
-                format=vtk;
-		// Options are "vtk" and "tecplot". Default is "vtk"
-		variables=[V,p,T,rho,Mach,mu,k,omega,mu_t];
-		// List of variables to put in the output file. Required.
+                format=tecplot;
+		// Options are "vtk" and "tecplot". Default is "tecplot"
+		volume variables=[V,p,T,rho,Mach,mu,k,omega,mu_t];
+		// List of variables to put in the volume output file. Required.
+		surface variables=[V,p,T,rho,Mach,mu,k,omega,mu_ti,tau,yplus];
+		// List of variables to put in the surface output file. Required.
 		// Available variables (everything in SI units):
 		// p: pressure
 		// V: velocity
@@ -147,8 +159,13 @@ grid_1 {
 		// mu_t: eddy viscosity
 		// lambda: laminar thermal conductivity
 		// Cp: specific heat at constant pressure
-                plot frequency = 5;
-		// Frequency of time steps at which output file is written
+		// rank: processor rank
+		// tau: surface shear stress vector
+		// yplus: turbulent y+ value
+                volume plot frequency = 5;
+		// Frequency of time steps at which volume output file is written
+                surface plot frequency = 5;
+		// Frequency of time steps at which volume output file is written
                 restart frequency = 10;
 		// Frequency of time steps at which a restart point is generated
 		// Frequency of zero will crash the code, so if you don't want
@@ -237,30 +254,6 @@ grid_1 {
 	BC_10 (type=outlet; p=1;);
 	// "BC_10" is also an outlet but now the pressure value is specified
 	// while the rest is extrapolated. Recommended for subsonic outlets
-
-	/*
-	All of the above boundary condition regions (which are faces on the grid)
-	followed from the grid file in the exact order it was written. Sometimes
-	it is useful to override/split some of those.
-
-	An example below demonstrates this.
-	*/
-
-	BC_11 (
-	region=box;
-	// Define a box region with two corner coordinates
-	corner_1=[-0.5,-1,-1];
-	corner_2=[-0.4,1,1];
-	pick=BC2;
-	type=wall;
-	);
-	// Any face that was originally part of "BC_2" (slip wall) and that falls
-	// within the box specified here, now becomes a noslip wall condition
-	// Only the box method is supported for now
-	// options for "pick": 
-	// override: will override any of the other BC's specified within the box region. This is default.
-	// BC#: Only the BC# faces are picked within the box.
-	// unassigned: Pick only unassigned boundary faces that are within the box.
 }
 
 // grid_2 { ... }

@@ -47,7 +47,7 @@ void read_inputs(void);
 void set_bcs(int gid);
 void write_volume_output(int gid, int step);
 void write_surface_output(int gid, int step);
-void write_restart(int gid,int timeStep,int restart_step,double time);
+void write_restart(int gid,int timeStep,double time);
 void write_loads(int gid,int timeStep,double time);
 void read_restart(int gid,int restart_step,double &time);
 void set_lengthScales(int gid);
@@ -339,7 +339,7 @@ int main(int argc, char *argv[]) {
 			} // end if
 			if (timeStep%restart_freq[gid]==0 || lastTimeStep) {
 				if (Rank==0) cout << "[I] Writing restart for grid=" << gid+1 << endl;
-				write_restart(gid,timeStep,restart_step,time[gid]);
+				write_restart(gid,timeStep,time[gid]);
 			} // end if
 			if (timeStep%loads[gid].frequency==0) {
 				write_loads(gid,timeStep,time[gid]);
@@ -361,9 +361,43 @@ int main(int argc, char *argv[]) {
 						ns[gid].preconditioner=WS95;
 					}
 				}
-			} // end if
+			} // end if	
 			
 		} // end grid loop
+		
+		if (fexists("dump_restart")) {
+			if (Rank==0) cout << "[I] Writing restart for all grids" << endl;
+			for (int gid=0;gid<grid.size();++gid) write_restart(gid,timeStep,time[gid]);
+			MPI_Barrier(MPI_COMM_WORLD);
+			if (Rank==0) remove("dump_restart");
+		} 
+		if (fexists("dump_volume")) {
+			if (Rank==0) cout << "[I] Writing volume output for all grids" << endl;
+			for (int gid=0;gid<grid.size();++gid) write_volume_output(gid,timeStep);
+			MPI_Barrier(MPI_COMM_WORLD);
+			if (Rank==0) remove("dump_volume");
+		} 
+		if (fexists("dump_surface")) {
+			if (Rank==0) cout << "[I] Writing surface output for all grids" << endl;
+			for (int gid=0;gid<grid.size();++gid) write_surface_output(gid,timeStep);
+			MPI_Barrier(MPI_COMM_WORLD);
+			if (Rank==0) remove("dump_surface");
+		} 
+		if (fexists("dump_all")) {
+			if (Rank==0) {
+				cout << "[I] Writing restart for all grids" << endl;
+				cout << "[I] Writing volume output for all grids" << endl;
+				cout << "[I] Writing surface output for all grids" << endl;
+			}
+			for (int gid=0;gid<grid.size();++gid) {
+				write_restart(gid,timeStep,time[gid]);
+				write_volume_output(gid,timeStep);
+				write_surface_output(gid,timeStep);
+			}
+			MPI_Barrier(MPI_COMM_WORLD);
+			if (Rank==0) remove("dump_all");
+		} 	
+
 	}
 	/*****************************************************************************************/
 	// End time loop
@@ -404,6 +438,7 @@ void set_lengthScales(int gid) {
 	if (grid[gid].dimension==3) {
 		grid[gid].lengthScale=pow(grid[gid].globalTotalVolume,1./3.);
 	} else {
+		/*
 		// If the problem is 2D, finding the grid length scale is a bit more challenging
 		// Find the symmetry BC region with the largest area, and take the square root
 		double maxTotalArea=0.;
@@ -415,7 +450,10 @@ void set_lengthScales(int gid) {
 				maxTotalArea=max(maxTotalArea,totalArea);
 			}
 		}
-		grid[gid].lengthScale=sqrt(maxTotalArea);
+		 */
+		for (int b=0;b<bc[gid].size();++b) {
+			if (bc[gid][b].kind==SYMMETRY) grid[gid].lengthScale=max(grid[gid].lengthScale,sqrt(bc[gid][b].total_area));
+		}
 	}
 	
 	return;

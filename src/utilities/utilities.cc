@@ -28,6 +28,11 @@ string int2str(int number) {
         return ss.str();
 }
 
+bool fexists(const char *filename) {
+	ifstream tfile(filename);
+	return tfile;
+}
+
 bool withinBox(Vec3D point,Vec3D corner_1,Vec3D corner_2) {
 	for (int i=0;i<3;++i) {
 		if (corner_1[i]>corner_2[i]) {

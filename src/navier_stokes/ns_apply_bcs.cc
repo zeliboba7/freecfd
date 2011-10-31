@@ -97,7 +97,8 @@ void NavierStokes::mdot_inlet(NS_Cell_State &left,NS_Cell_State &right,NS_Face_S
 	// Note that face normal is pointing out (towards the right state)
 	// Extrapolate outgoing Riemann invariant (isentropic) (uN+2a/(gamma-1)
 	double uNL=left.V.dot(face.normal);
-	double mdotNR=-1.*(mdot.bc(face.bc,face.index)/bc[gid][face.bc].area)*bc[gid][face.bc].areaVec.norm().dot(face.normal);
+	// This is mdot per area
+	double mdotNR=-1.*mdot.bc(face.bc,face.index)/bc[gid][face.bc].total_area;
 
 	double MachL=-uNL/left.a;
 	if (MachL>=1.) { // supersonic inlet, can't extrapolate anything
@@ -152,13 +153,14 @@ void NavierStokes::mdot_inlet(NS_Cell_State &left,NS_Cell_State &right,NS_Face_S
 
 void NavierStokes::stagnation_inlet(NS_Cell_State &left,NS_Cell_State &right,NS_Face_State &face) {
 	// Extrapolate velocity from inside
+
 	if (left.V.dot(face.normal)>0.) { // backflow
-		right.V=0.;
-		right.V_center=0.;
+		right.V=-1.*left.V;
+		right.V_center=-1.*left.V_center;
 	} else {
-		right.V=left.V_center;
-		right.V=right.V.dot(face.normal)*face.normal;
+		right.V=left.V;
 	}
+	
 	// Outgoing characteristic value
 	//double u0=left.V.dot(face.normal)+2.*sqrt(material.gamma*material.R*left.T)/(material.gamma-1.);
 	//double uNR;

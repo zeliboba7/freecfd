@@ -28,11 +28,14 @@
 #include <string>
 #include <sstream>
 #include <limits>
+#include <fstream>
 using namespace std;
 
 #include "vec3d.h"
 
 string int2str(int number);
+
+bool fexists(const char *filename);
 
 bool withinBox(Vec3D point, Vec3D corner_1, Vec3D corner_2);
 bool withinCylinder(Vec3D point, Vec3D center, double radius, Vec3D axisDirection, double height);
