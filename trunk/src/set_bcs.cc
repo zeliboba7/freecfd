@@ -81,6 +81,8 @@ void set_bcs(int gid) {
 		if (type=="symmetry") bcRegion.type=SYMMETRY;
 		if (kind=="slip") bcRegion.kind=SLIP; // This is needed here to omit this BC in nearest wall distance calculation
 		// Integrate boundary areas
+		bcRegion.area=0.;
+		bcRegion.total_area=0.;
 		for (int f=0;f<grid[gid].faceCount;++f) {
 			if (grid[gid].face[f].bc==b) {
 				grid[gid].face[f].symmetry=false;
@@ -91,9 +93,9 @@ void set_bcs(int gid) {
 				if (bcRegion.type==SYMMETRY) grid[gid].face[f].symmetry=true;
 			}
 		}
+		// Get the total area
+		MPI_Allreduce (&bcRegion.area,&bcRegion.total_area,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
 		bc[gid].push_back(bcRegion);
-
-		//cout << "[I rank=" << Rank << " grid=" << gid+1 << " BC=" << b+1 << "] is assigned as " << type << endl;
 		
 		string inter=region.get_string("interface");
 		if (inter!="none") {

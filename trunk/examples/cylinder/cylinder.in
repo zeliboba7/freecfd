@@ -12,6 +12,10 @@ grid_1 {
         dimension=2;
         equations=navier stokes;
 
+	interpolation (
+		stencil=12;
+	);
+
         turbulence (
 		relative tolerance=1.e-7;
 		absolute tolerance=1.e-12; 
@@ -27,10 +31,12 @@ grid_1 {
         );
 
         write output (
-                format=vtk;
-		variables=[V,p,T,rho,Mach,mu,k,omega,mu_t];
-                plot frequency = 5;
-                restart frequency = 10;
+                format=tecplot;
+		volume variables=[V,p,T,rho,Mach,mu,limiterp,mu_t];
+		surface variables=[tau];
+                volume plot frequency = 50;
+		surface plot frequency = 50;
+                restart frequency = 50;
 		moment center = [0.,0.,0.];
 		load frequency = 1;
 		include bcs=[2];

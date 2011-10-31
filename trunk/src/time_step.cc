@@ -166,7 +166,7 @@ void update_time_step(int timeStep,double &time,double &max_cfl,int gid) {
 			file.open(schedule_file_name.c_str(),ios::in);
 			while (!file.eof()) {
 				file >> step; file >> value;
-				if (timeStep>=step) {
+				if (timeStep>step) {
 					CFLmax=value;
 					time_step_ramp=false;
 				} else {

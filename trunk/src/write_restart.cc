@@ -42,7 +42,7 @@ extern vector<bool> turbulent;
 extern vector<Variable<double> > dt;
 extern vector<int> equations;
 
-void write_restart(int gid,int timeStep,int restart_step,double time) {
+void write_restart(int gid,int timeStep,double time) {
 
 	string fileName;
 	

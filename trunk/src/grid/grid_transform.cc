@@ -53,6 +53,7 @@ int Grid::rotate(Vec3D anchor, Vec3D axis, double angle) {
 		raw.node[n][1]=axis[1]*(axis.dot(p))+(p[1]*(1.-axis[1]*axis[1])-axis[1]*(axis[0]*p[0]+axis[2]*p[2]))*cos(angle)+(axis[2]*p[0]-axis[0]*p[2])*sin(angle);
 		raw.node[n][2]=axis[2]*(axis.dot(p))+(p[2]*(1.-axis[2]*axis[2])-axis[2]*(axis[0]*p[0]+axis[1]*p[1]))*cos(angle)+(-axis[1]*p[0]+axis[0]*p[1])*sin(angle);
 		raw.node[n]+=anchor;
+			
 	}
 	angle*=180./(4.*atan(1.));
 	if (Rank==0) cout << "[I grid=" << gid+1 << "] rotated by " << angle << " degrees around axis = " << axis << " with anchor = " << anchor << endl;

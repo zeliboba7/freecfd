@@ -56,7 +56,7 @@ public:
 	int kind;
 	int specified;
 	int thermalType;
-	double area;
+	double area,total_area;
 	Vec3D areaVec;
 
 };
