@@ -1,0 +1,53 @@
+reference {Mach=1.;p=0.;T=0.;}
+
+time marching {
+	CFLmax=1.e3;
+        number of steps=5000;
+	ramp (initial=1.e-1; growth=1.1;);
+	update frequency=10;
+	schedule file=cfl.sch;
+}
+
+grid_1 {
+        file=cylinder.cgns;
+        dimension=2;
+        equations=navier stokes;
+
+        navier stokes (
+		relative tolerance=1.e-7;
+		absolute tolerance=1.e-12;
+		maximum iterations=20;
+                order=second;
+                limiter=vk;
+		limiter threshold=5.;
+		convective Flux=SD-SLAU;
+	
+        );
+
+        write output (
+                format=tecplot;
+		volume variables=[V,p,T,rho,Mach,limiterp,limiterV,limiterT];
+		surface variables=[tau,qdot];
+		volume plot frequency=10;
+                surface plot frequency = 100;
+                restart frequency = 50;
+		moment center = [0.,0.,0.];
+		load frequency = 10;
+		include bcs=[4];
+        );
+	
+	material=argon;
+
+	IC_1 (
+                rho=1.40881871e-4; V=[2624.0,0.,0.]; T=200.;
+		BL thickness=0.05;
+	);
+   
+	BC_1 (type=inlet; rho=1.40881871e-4; V=[2624.0,0.,0.]; T=200.;);
+	BC_2 (type=outlet;); 
+	BC_3 (type=symmetry;); 
+	BC_4 (type=wall; T=500.;);
+
+}
+
+

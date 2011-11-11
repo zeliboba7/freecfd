@@ -1,0 +1,22 @@
+molar mass=39.997; // in kg/kmol
+gamma=1.6666667;
+
+equation of state {
+	model=ideal gas;
+}
+
+// Cp is in J/kg*K
+Cp=519.693486;
+
+viscosity { 
+	model=sutherlands;
+	reference viscosity=55.8e-6;
+	reference temperature=1000.0;
+	sutherland temperature=164.2;
+}
+
+thermal conductivity {
+	model=constant Prandtl;
+	Pr=0.5844;
+}
+

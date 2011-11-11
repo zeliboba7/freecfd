@@ -73,6 +73,7 @@ public:
 	int ps_step;
 	int nIter;
 	double rNorm,res,ps_res;
+	double qmax[5],qmin[5];
       
     // MPI exchange buffer
     vector<double> sendBuffer;
@@ -124,7 +125,7 @@ public:
 	void calc_cell_grads (void);
 	void set_bcs(void);
 	void set_interfaces(void);
-	
+
 	void petsc_init(void);
 	void petsc_solve(void);
 	void petsc_destroy(void);
@@ -132,6 +133,7 @@ public:
 	void calc_limiter(void);
 	void venkatakrishnan_limiter(void); 
 	void barth_jespersen_limiter(void);
+	void minmod_limiter(void);
 		
 	void solve(int timeStep,int ps_step);
 	
@@ -159,6 +161,7 @@ public:
 	void update_variables(void);
 	void write_restart(int timeStep);
 	void read_restart(int restart_step,vector<vector<int> > &partitionMap);
+	void find_min_max (void);
 
 };
 

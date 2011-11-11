@@ -64,7 +64,7 @@ void RANS::set_bcs(void) {
 			k.bc(b)=intensity*fabs(ns[gid].V.face(fid));
 			k.bc(b)*=1.5*k.bc(b);
 			k.bc(b)=max(1.e-8,k.bc(b));
-			omega.bc(b)=viscRatio*material.viscosity(T)/(rho*k.bc(b));
+	 	  	omega.bc(b)=rho*k.bc(b)/(viscRatio*material.viscosity(T));
 			mu_t.fixedonBC[b]=true; mu_t.bcValue[b].resize(1);
 			mu_t.bc(b)=viscRatio*material.viscosity(T);
 		} else if (type=="wall") {

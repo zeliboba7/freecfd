@@ -40,6 +40,7 @@ void RANS::update_eddy_viscosity(void) {
 			F2=tanh(arg3*arg3);
 			mu_t.cell(c)=a1*ns[gid].rho.cell(c)*k.cell(c)/max(a1*omega.cell(c),strainRate.cell(c)*F2);
 			mu_t.cell(c)=min(viscosityRatioLimit*mu,mu_t.cell(c));
+			//mu_t.cell(c)=ns[gid].rho.cell(c)*k.cell(c)/omega.cell(c);
 			//turbulent_length_scale=sqrt((k.cell(c)+1.e-15))/max(omega.cell(c),strainRate.cell(c)*F2/a1);
 			//turbulent_length_scale/=0.083;
 		} else {

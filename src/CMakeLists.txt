@@ -1,11 +1,11 @@
 set (CMAKE_CXX_COMPILER mpic++)
 set (CMAKE_CXX_FLAGS "-O3")
-set (CGNS_INCLUDE_DIRS /Users/esozer/fcfd/deps/cgnslib_2.5)
-set (CGNS_LIBRARY_DIRS /Users/esozer/fcfd/deps/cgnslib_2.5/DARWIN)
-set (PARMETIS_INCLUDE_DIRS /Users/esozer/fcfd/deps/ParMetis-3.1.1)
-set (PARMETIS_LIBRARY_DIRS /Users/esozer/fcfd/deps/ParMetis-3.1.1)
-set (PETSC_INCLUDE_DIRS /Users/esozer/fcfd/deps/petsc-3.1p2/include)
-set (PETSC_LIBRARY_DIRS /Users/esozer/fcfd/deps/petsc-3.1p2/lib)
+set (CGNS_INCLUDE_DIRS      /nobackup/esozer/codes/fcfd/deps/cgnslib_2.5/include)
+set (CGNS_LIBRARY_DIRS      /nobackup/esozer/codes/fcfd/deps/cgnslib_2.5/LINUX)
+set (PARMETIS_INCLUDE_DIRS  /nobackup/esozer/codes/fcfd/deps/ParMetis-3.1.1)
+set (PARMETIS_LIBRARY_DIRS  /nobackup/esozer/codes/fcfd/deps/ParMetis-3.1.1)
+set (PETSC_INCLUDE_DIRS     /nobackup/esozer/install/include)
+set (PETSC_LIBRARY_DIRS     /nobackup/esozer/install/lib)
 
 cmake_minimum_required(VERSION 2.6)
 
@@ -21,7 +21,7 @@ configure_file (
 	"${PROJECT_BINARY_DIR}/cmake_vars.h"
 )
 
-set (CMAKE_INSTALL_PREFIX ${PROJECT_SOURCE_DIR}/../)
+set (CMAKE_INSTALL_PREFIX /nobackup/esozer/install)
 
 # add to the include search path
 include_directories("${PROJECT_SOURCE_DIR}")
@@ -57,7 +57,7 @@ add_subdirectory(variable)
 add_subdirectory(vec3d)
 
 set (FCFD_LIBS grid hc inputs interpolate material ns polynomial rans utilities variable vec3d)
-set (EXTRA_LIBS parmetis metis cgns petsc f2cblas f2clapack)
+set (EXTRA_LIBS parmetis metis cgns petsc)
 
 #add the executable
 set (SOURCES
@@ -67,6 +67,7 @@ face_interpolation_weights.cc
 gradient_maps.cc
 lsqr_grad_map.cc
 main.cc
+node_interpolation_weights.cc
 read_restart.cc
 time_step.cc
 write_restart.cc			

@@ -41,10 +41,14 @@ void read_inputs(void) {
 	input.section("grid",0).register_string("file",required);
 	input.section("grid",0).register_int("dimension",optional,3);
 	input.section("grid",0).register_string("equations",required);
+
+	input.section("grid",0).registerSubsection("gradients",single,optional);
+	input.section("grid",0).subsection("gradients").register_string("hexmethod",optional,"curvilinear");
+	input.section("grid",0).subsection("gradients").register_string("othermethod",optional,"lsqr");
 	
 	input.section("grid",0).registerSubsection("interpolation",single,optional);
 	input.section("grid",0).subsection("interpolation").register_string("method",optional,"wtli");
-	input.section("grid",0).subsection("interpolation").register_int("stencilsize",optional,2);
+	input.section("grid",0).subsection("interpolation").register_int("stencilsize",optional,0); // means automatic
 	input.section("grid",0).subsection("interpolation").register_double("skewnesstolerance",optional,0.99);
 	
 	input.section("grid",0).registerSubsection("writeoutput",single,required);
@@ -110,6 +114,7 @@ void read_inputs(void) {
 	input.section("grid",0).subsection("turbulence").register_int("maximumiterations",optional,10);	
 	input.section("grid",0).subsection("turbulence").register_string("model",optional,"sst");
 	input.section("grid",0).subsection("turbulence").register_string("order",optional,"second");
+	input.section("grid",0).subsection("turbulence").register_string("limiter",optional,"none");
 	input.section("grid",0).subsection("turbulence").register_double("klowlimit",optional,1.e-10);
 	input.section("grid",0).subsection("turbulence").register_double("khighlimit",optional,1.e8);
 	input.section("grid",0).subsection("turbulence").register_double("omegalowlimit",optional,1.e-2);

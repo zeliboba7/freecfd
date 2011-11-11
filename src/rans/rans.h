@@ -52,6 +52,7 @@ extern vector<NavierStokes> ns;
 #define KOMEGA 2
 #define BSL 3
 #define SST 4
+// Options for limiter
 
 class RANS_Model {
 public:
@@ -61,7 +62,7 @@ public:
 class RANS {
 public:
 	int gid; // Grid id
-	int order,model;
+	int order,model,limiter_function;
 	int Rank,np;
 	int nVars;
 	Variable<double> k,omega,mu_t,strainRate,yplus;
