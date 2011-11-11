@@ -169,7 +169,7 @@ void NavierStokes::stagnation_inlet(NS_Cell_State &left,NS_Cell_State &right,NS_
 	right.p=(p_total.bc(face.bc)+material.Pref)/(1.+0.5*right.V.dot(right.V)/(material.R*(right.T+material.Tref)))-material.Pref;
 	right.T_center=2.*right.T-left.T_center;
 	right.rho=material.rho(right.p,right.T);
-	right.V_center=right.V;
+	right.V_center=2.*right.V-left.V_center;
 	return;
 } // end stagnation_inlet
 
@@ -271,7 +271,7 @@ void NavierStokes::wall(NS_Cell_State &left,NS_Cell_State &right,NS_Face_State &
 		right.V_center=left.V_center-2.*left.V_center.dot(face.normal)*face.normal;
 	} else {
 		right.V=-1.*left.V;
-		right.V_center=-1.*left.V_center;
+		right.V_center=2.*right.V-left.V_center;
 	}
 
 	return;

@@ -42,6 +42,8 @@ void NavierStokes::initialize (int ps_max) {
 		limiter_function=VK;
 	} else if (input.section("grid",gid).subsection("navierstokes").get_string("limiter")=="bj") {
 		limiter_function=BJ;
+	} else if (input.section("grid",gid).subsection("navierstokes").get_string("limiter")=="minmod") {
+		limiter_function=MINMOD;
 	} else {
 		limiter_function=NONE;
 	}
@@ -372,5 +374,39 @@ void NavierStokes::update_variables(void) {
 	return;
 }
 
+void NavierStokes::find_min_max (void) {
 
+	// Loop the cells and find the local max and min of each primitive vars
+	
+	qmax[0]=qmin[0]=p.cell(0);
+	qmax[1]=qmin[1]=V.cell(0)[0];
+	qmax[2]=qmin[2]=V.cell(0)[1];
+	qmax[3]=qmin[3]=V.cell(0)[2];
+	qmax[4]=qmin[4]=T.cell(0);
 
+	double temp[5];
+
+	for (int c=0;c<grid[gid].cellCount;++c) {
+		qmax[0]=max(qmax[0],p.cell(c));		
+		qmax[1]=max(qmax[1],V.cell(c)[0]);		
+		qmax[2]=max(qmax[2],V.cell(c)[1]);		
+		qmax[3]=max(qmax[4],V.cell(c)[2]);		
+		qmax[4]=max(qmax[4],p.cell(c));		
+		qmin[0]=min(qmin[0],p.cell(c));		
+		qmin[1]=min(qmin[1],V.cell(c)[0]);		
+		qmin[2]=min(qmin[2],V.cell(c)[1]);		
+		qmin[3]=min(qmin[4],V.cell(c)[2]);		
+		qmin[4]=min(qmin[4],p.cell(c));		
+	}
+
+	MPI_Allreduce(qmax,temp,5, MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
+	for (int i=0;i<5;++i) qmax[i]=temp[i];
+	MPI_Allreduce(qmin,temp,5, MPI_DOUBLE,MPI_MIN,MPI_COMM_WORLD);
+	for (int i=0;i<5;++i) qmin[i]=temp[i];
+
+	// DEBUG
+	//cout << "MAX\t" << Rank << "\t" << qmax[0] << "\t" << qmax[1] << "\t" << qmax[4] << endl;
+	//cout << "MIN\t" << Rank << "\t" << qmin[0] << "\t" << qmin[1] << "\t" << qmin[4] << endl;
+
+	return;
+}

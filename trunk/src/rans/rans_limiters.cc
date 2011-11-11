@@ -26,7 +26,12 @@ void RANS::calc_limiter(void) {
 	if(order==FIRST) {
 		// Do nothing
 	} else {
-		barth_jespersen_limiter();
+		if (limiter_function==NONE) {
+			// Do nothing
+		} else {
+			// Not working for now
+			//barth_jespersen_limiter();
+		}
 	} 
 	return;
 }

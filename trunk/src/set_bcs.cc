@@ -78,7 +78,7 @@ void set_bcs(int gid) {
 		if (type=="wall") bcRegion.type=WALL;
 		if (type=="inlet") bcRegion.type=INLET;
 		if (type=="outlet") bcRegion.type=OUTLET;
-		if (type=="symmetry") bcRegion.type=SYMMETRY;
+		if (type=="symmetry") bcRegion.type=SYMMETRY; 
 		if (kind=="slip") bcRegion.kind=SLIP; // This is needed here to omit this BC in nearest wall distance calculation
 		// Integrate boundary areas
 		bcRegion.area=0.;

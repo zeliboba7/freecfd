@@ -108,13 +108,13 @@ void NavierStokes::petsc_solve(void) {
 } 
 
 void NavierStokes::petsc_destroy(void) {
-	KSPDestroy(ksp);
-	MatDestroy(impOP);
-	VecDestroy(rhs);
-	VecDestroy(deltaU);
-	VecDestroy(soln_n);
-	VecDestroy(pseudo_delta);
-	VecDestroy(pseudo_right);	
-	PCDestroy(pc);
+	KSPDestroy(&ksp);
+	MatDestroy(&impOP);
+	VecDestroy(&rhs);
+	VecDestroy(&deltaU);
+	VecDestroy(&soln_n);
+	VecDestroy(&pseudo_delta);
+	VecDestroy(&pseudo_right);	
+	PCDestroy(&pc);
 	return;
 } 

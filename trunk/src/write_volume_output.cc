@@ -134,6 +134,7 @@ void write_volume_output(int gridid, int step) {
 	} else if (format=="vtk") {
 		// Write vtk output file
 		if (Rank==0) write_vtk_parallel();
+
 		write_vtk();	
 	}
 
@@ -569,8 +570,8 @@ void write_vtk(void) {
 				}
 			}				
 			else if (varList[ov]=="gradrho") for (int n=0;n<grid[gid].nodeCount;++n) file << ns[gid].gradrho.node(n)[i] << endl;
-			else if (varList[ov]=="resV") for (int n=0;n<grid[gid].nodeCount;++n) file << ns[gid].update[1].node(n) << endl;
-			else if (varList[ov]=="limiterV") for (int n=0;n<grid[gid].nodeCount;++n) file << ns[gid].limiter[1].node(n) << endl;
+			else if (varList[ov]=="resV") for (int n=0;n<grid[gid].nodeCount;++n) file << ns[gid].update[1+i].node(n) << endl;
+			else if (varList[ov]=="limiterV") for (int n=0;n<grid[gid].nodeCount;++n) file << ns[gid].limiter[1+i].node(n) << endl;
 			else if (varList[ov]=="gradk") for (int n=0;n<grid[gid].nodeCount;++n) file << rans[gid].gradk.node(n)[i] << endl;
 			else if (varList[ov]=="gradomega") for (int n=0;n<grid[gid].nodeCount;++n) file << rans[gid].gradomega.node(n)[i] << endl;	
 			file << "</DataArray>" << endl;

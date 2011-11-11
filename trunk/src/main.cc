@@ -62,6 +62,7 @@ void update_pseudo_time_step(int ps_tep,double &max_cfl,int gid);
 
 void bc_interface_sync(void);
 void face_interpolation_weights(int gid);
+void node_interpolation_weights(int gid);
 void gradient_maps(int gid);
 	
 // Global declerations
@@ -111,10 +112,14 @@ int main(int argc, char *argv[]) {
 
 	int restart_step=0;	
 	bool PREP=false;
+	bool OUTPUT_ONLY=false;
 	if (argc>2) {
 		string str_arg;
 		str_arg=argv[2];
 		if (str_arg=="restart") {
+			restart_step=atoi(argv[3]);
+		} else if (str_arg=="output") {
+			OUTPUT_ONLY=true;
 			restart_step=atoi(argv[3]);
 		} else if (str_arg=="prep") {
 			PREP=true;
@@ -179,6 +184,7 @@ int main(int argc, char *argv[]) {
 		if (Rank==0) cout << "[I grid=" << gid+1 << " ] Calculating face averaging metrics" << endl;
 
 		face_interpolation_weights(gid);
+		node_interpolation_weights(gid);
 		gradient_maps(gid);
 	}
 
@@ -274,6 +280,16 @@ int main(int argc, char *argv[]) {
 		}
 	}
 	
+	if (OUTPUT_ONLY==true) {
+		for (int gid=0;gid<grid.size();++gid) {
+			if (Rank==0) cout << "[I] Writing surface output for grid=" << gid+1 << endl;
+			write_surface_output(gid,restart_step);
+			if (Rank==0) cout << "[I] Writing volume output for grid=" << gid+1 << endl;
+			write_volume_output(gid, restart_step);
+		}
+		exit(0);
+	}
+
 	if (Rank==0) cout << "[I] Beginning time loop\n" << endl; 
 	// Write out label for residuals
 	if (Rank==0) {
@@ -285,11 +301,12 @@ int main(int argc, char *argv[]) {
 	/*****************************************************************************************/
 	// Begin time loop
 	/*****************************************************************************************/
-      MPI_Barrier(MPI_COMM_WORLD);
-      double timeRef,timeEnd;
-      timeRef=MPI_Wtime();
+	MPI_Barrier(MPI_COMM_WORLD);
+      	double timeRef,timeEnd;
+	timeRef=MPI_Wtime();
 
-      bool lastTimeStep=false;
+
+	bool lastTimeStep=false;
 	
 	for (int timeStep=restart_step+1;timeStep<=timeStepMax+restart_step;++timeStep) {
 		if (timeStep==(timeStepMax+restart_step)) lastTimeStep=true;
@@ -402,13 +419,13 @@ int main(int argc, char *argv[]) {
 	/*****************************************************************************************/
 	// End time loop
 	/*****************************************************************************************/	
-		
-      MPI_Barrier(MPI_COMM_WORLD);
+	
+	MPI_Barrier(MPI_COMM_WORLD);
 
-      if (Rank==0) {
-            timeEnd=MPI_Wtime();
-            cout << "[I] Wall time = " << timeEnd-timeRef << " second" << endl;
-      }
+      	if (Rank==0) {
+      	      timeEnd=MPI_Wtime();
+      	      cout << "[I] Wall time = " << timeEnd-timeRef << " second" << endl;
+      	}
 
 	PetscFinalize();
 	
@@ -437,23 +454,16 @@ void set_lengthScales(int gid) {
 	// Find out the global, grid cell length scale
 	if (grid[gid].dimension==3) {
 		grid[gid].lengthScale=pow(grid[gid].globalTotalVolume,1./3.);
+		if (Rank==0) cout << "[I] Grid length scale is set to " << grid[gid].lengthScale << endl;
 	} else {
-		/*
+		
 		// If the problem is 2D, finding the grid length scale is a bit more challenging
 		// Find the symmetry BC region with the largest area, and take the square root
-		double maxTotalArea=0.;
-		double totalArea;
+	        grid[gid].lengthScale=0.;	
 		for (int b=0;b<bc[gid].size();++b) {
-			totalArea=0.;
-			if (bc[gid][b].kind==SYMMETRY) {
-				MPI_Allreduce (&bc[gid][b].area,&totalArea,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
-				maxTotalArea=max(maxTotalArea,totalArea);
-			}
+			if (bc[gid][b].type==SYMMETRY) grid[gid].lengthScale=max(grid[gid].lengthScale,sqrt(0.5*bc[gid][b].total_area));
 		}
-		 */
-		for (int b=0;b<bc[gid].size();++b) {
-			if (bc[gid][b].kind==SYMMETRY) grid[gid].lengthScale=max(grid[gid].lengthScale,sqrt(bc[gid][b].total_area));
-		}
+		if (Rank==0) cout << "[I] Grid length scale is set to " << grid[gid].lengthScale << endl;
 	}
 	
 	return;
