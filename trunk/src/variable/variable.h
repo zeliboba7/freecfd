@@ -265,6 +265,7 @@ TYPE &Variable<TYPE>::bc (int b,int f) {
 	} else if (f>=0) {
 		return bcValue[b][grid[gid].maps.face2bc[f]]; 
 	}
+	return bcValue[b][0];
 }
 
 template <class TYPE>

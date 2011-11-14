@@ -101,9 +101,9 @@ void HeatConduction::petsc_solve(void) {
 } 
 
 void HeatConduction::petsc_destroy(void) {
-	KSPDestroy(&ksp);
-	MatDestroy(&impOP);
-	VecDestroy(&rhs);
-	VecDestroy(&deltaU);
+	KSPDestroy(ksp);
+	MatDestroy(impOP);
+	VecDestroy(rhs);
+	VecDestroy(deltaU);
 	return;
 } 
