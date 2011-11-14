@@ -78,4 +78,5 @@ double Polynomial::eval(double x) {
 		x/=1000.;
 		return coeff[p][0]+coeff[p][1]*x+coeff[p][2]*x*x+coeff[p][3]*x*x*x+coeff[p][4]/(x*x);
 	}
+	return 0.;
 }

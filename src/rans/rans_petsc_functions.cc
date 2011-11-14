@@ -108,13 +108,13 @@ void RANS::petsc_solve(void) {
 } 
 
 void RANS::petsc_destroy(void) {
-	KSPDestroy(&ksp);
-	MatDestroy(&impOP);
-	VecDestroy(&rhs);
-	VecDestroy(&deltaU);
-	VecDestroy(&soln_n);
-	VecDestroy(&pseudo_delta);
-	VecDestroy(&pseudo_right);
+	KSPDestroy(ksp);
+	MatDestroy(impOP);
+	VecDestroy(rhs);
+	VecDestroy(deltaU);
+	VecDestroy(soln_n);
+	VecDestroy(pseudo_delta);
+	VecDestroy(pseudo_right);
 	return;
 } 
 

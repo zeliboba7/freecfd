@@ -124,6 +124,7 @@ double MATERIAL::viscosity (double T) {
 	} else if (visc_model==SUTHERLANDS) {
 		return sut_mu_ref*pow((T+Tref)/sut_T_ref,1.5)*(sut_T_ref+sut_S)/(T+Tref+sut_S);
 	}
+	return mu;
 }
 
 double MATERIAL::therm_cond (double T) {
@@ -132,6 +133,7 @@ double MATERIAL::therm_cond (double T) {
 	} else if (lambda_model==PRANDTL) {
 		return Cp(T)*viscosity(T)/Pr;
 	}
+	return lambda;
 }
 
 double MATERIAL::Cp (double T) {
@@ -144,4 +146,5 @@ double MATERIAL::Cp (double T) {
 			return Cp_poly.eval(T+Tref);
 		}
 	}
+	return gamma*R/(gamma-1.);
 }
