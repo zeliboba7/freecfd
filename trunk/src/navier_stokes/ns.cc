@@ -69,8 +69,14 @@ void NavierStokes::initialize (int ps_max) {
 		convective_flux_function=VAN_LEER;
 	} else if (input.section("grid",gid).subsection("navierstokes").get_string("convectiveflux")=="SD-SLAU") {
 		convective_flux_function=SD_SLAU;
+	} else if (input.section("grid",gid).subsection("navierstokes").get_string("convectiveflux")=="SW") {
+		convective_flux_function=SW;
 	}
 	
+	wdiss=input.section("grid",0).subsection("navierstokes").get_double("walldissipation");
+	bl_height=input.section("grid",0).subsection("navierstokes").get_double("BLheight");
+
+
 	Minf=input.section("reference").get_double("Mach");
 	
 	if (input.section("pseudotime").get_string("preconditioner")=="none") {

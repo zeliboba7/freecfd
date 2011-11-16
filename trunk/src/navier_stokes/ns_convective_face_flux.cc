@@ -26,6 +26,7 @@ extern void roe_flux(NS_Cell_State &left,NS_Cell_State &right,double fluxNormal[
 extern void vanLeer_flux(NS_Cell_State &left,NS_Cell_State &right,double fluxNormal[],double Gamma,double Pref,double &weightL);
 extern void AUSMplusUP_flux(NS_Cell_State &left,NS_Cell_State &right,double fluxNormal[],double Gamma,double Pref,double Minf,double &weightL);
 extern void SD_SLAU_flux(NS_Cell_State &left,NS_Cell_State &right,double fluxNormal[],double Pref,double &weightL);
+extern void Stegger_Warming_flux(NS_Cell_State &left,NS_Cell_State &right,double diss_factor,double closest_wall_distance,double wdiss,double bl_height,MATERIAL &material,double fluxNormal[],double &weightL);
 void flux_from_right(NS_Cell_State &right,double fluxNormal[]);
 
 void NavierStokes::convective_face_flux(NS_Cell_State &left,NS_Cell_State &right,NS_Face_State &face,double flux[]) {
@@ -43,6 +44,12 @@ void NavierStokes::convective_face_flux(NS_Cell_State &left,NS_Cell_State &right
 		AUSMplusUP_flux(left,right,fluxNormal,material.gamma,material.Pref,Minf,weightL.face(face.index));
 	} else if (convective_flux_function==SD_SLAU) {
 		SD_SLAU_flux(left,right,fluxNormal,material.Pref,weightL.face(face.index));
+	} else if (convective_flux_function==SW) {
+		Stegger_Warming_flux(left,right,
+					grid[gid].face[face.index].dissipation_factor,
+					grid[gid].face[face.index].closest_wall_distance,
+					wdiss,bl_height,
+					material,fluxNormal,weightL.face(face.index));
 	} 
 	
 	flux[0] = fluxNormal[0]*face.area;

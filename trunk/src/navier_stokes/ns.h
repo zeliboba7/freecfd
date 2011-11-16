@@ -50,6 +50,7 @@
 #define VAN_LEER 2
 #define AUSM_PLUS_UP 3
 #define SD_SLAU 4
+#define SW 5
 // Options for preconditioner
 #define WS95 1
 
@@ -75,10 +76,10 @@ public:
 	double rNorm,res,ps_res;
 	double qmax[5],qmin[5];
       
-    // MPI exchange buffer
-    vector<double> sendBuffer;
-    vector<double> recvBuffer;
-    vector<int> mpi_send_offset,mpi_recv_offset;
+	// MPI exchange buffer
+	vector<double> sendBuffer;
+	vector<double> recvBuffer;
+	vector<int> mpi_send_offset,mpi_recv_offset;
 	int send_req_count,recv_req_count;
 	vector<MPI_Request> send_request, recv_request;
 	
@@ -91,6 +92,7 @@ public:
 	double limiter_threshold;
 	double Minf;
 	int preconditioner;
+	double wdiss,bl_height;
 	
 	double small_number;
 	
