@@ -97,7 +97,7 @@ int PetscPrintError(const char error[],...){
 
 int main(int argc, char *argv[]) {
 
-    // Initialize mpi
+	// Initialize mpi
 	MPI_Init(&argc,&argv);
 	MPI_Comm_rank(MPI_COMM_WORLD, &Rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &np);
@@ -154,7 +154,7 @@ int main(int argc, char *argv[]) {
 		grid[gid].dimension=input.section("grid",gid).get_int("dimension");
 		grid[gid].gid=gid;
 		// Read the grid raw data from file
-		grid[gid].read(input.section("grid",gid).get_string("file"));
+		grid[gid].read(input.section("grid",gid).get_string("file"),input.section("grid",gid).get_string("format"));
 		if (PREP && Rank==0) {grid[gid].write_raw(); continue;}
 		// Do the transformations
 		int tcount=input.section("grid",gid).subsection("transform",0).count;
@@ -298,6 +298,11 @@ int main(int argc, char *argv[]) {
 		cout << "=============================================================================================================" << endl;
 	}
 	cout << setprecision(3) << scientific;
+	fstream convergence;
+	if (fexists("convergence.dat") && restart_step>0) convergence.open("convergence.dat",fstream::out | fstream::app);
+	else convergence.open("convergence.dat",fstream::out);
+	convergence << setprecision(3) << scientific;
+
 	/*****************************************************************************************/
 	// Begin time loop
 	/*****************************************************************************************/
@@ -322,9 +327,15 @@ int main(int argc, char *argv[]) {
 					 ns[gid].solve(timeStep,ps_step);
 					// Write screen output for pseudo time iteration
 					if (Rank==0 && ps_step_max>1) {
-						cout << "\t" << ps_step << "\t" << ps_max_cfl[gid] << "\t" << ns[gid].nIter << "\t" << ns[gid].ps_res;
-						if (turbulent[gid]) cout << "\t" << rans[gid].nIter << "\t" << rans[gid].ps_res;
-						cout << endl;
+						cout        << "\t" << ps_step << "\t" << ps_max_cfl[gid] << "\t" << ns[gid].nIter << "\t" << ns[gid].ps_res;
+						convergence << "\t" << ps_step << "\t" << ps_max_cfl[gid] << "\t" << ns[gid].nIter << "\t" << ns[gid].ps_res;
+						if (turbulent[gid]) {
+							cout        << "\t" << rans[gid].nIter << "\t" << rans[gid].ps_res;
+							convergence << "\t" << rans[gid].nIter << "\t" << rans[gid].ps_res;
+
+						}
+						cout        << endl;
+						convergence << endl;
 					}
 					if (ps_step_max>1) {
 						if (ns[gid].ps_res < ps_tolerance) {
@@ -338,13 +349,22 @@ int main(int argc, char *argv[]) {
 			bc_interface_sync();
 			// Screen output
 			if (Rank==0) {
-				cout << timeStep << "\t" << gid+1 << "\t" << time[gid];
+				cout        << timeStep << "\t" << gid+1 << "\t" << time[gid];
+				convergence << timeStep << "\t" << gid+1 << "\t" << time[gid];
 				if (equations[gid]==NS) {
-					cout << "\t" << max_cfl[gid] << "\t" << ns[gid].nIter << "\t" << ns[gid].res;
-					if (turbulent[gid]) cout << "\t" << rans[gid].nIter << "\t" << rans[gid].res;
+					cout        << "\t" << max_cfl[gid] << "\t" << ns[gid].nIter << "\t" << ns[gid].res;
+					convergence << "\t" << max_cfl[gid] << "\t" << ns[gid].nIter << "\t" << ns[gid].res;
+					if (turbulent[gid]) {
+						cout        << "\t" << rans[gid].nIter << "\t" << rans[gid].res;
+						convergence << "\t" << rans[gid].nIter << "\t" << rans[gid].res;
+					}
 				}
-				if (equations[gid]==HEAT) cout << "\t" << hc[gid].nIter << "\t" << hc[gid].res;
-				cout << endl;
+				if (equations[gid]==HEAT) {
+					cout        << "\t" << hc[gid].nIter << "\t" << hc[gid].res;
+					convergence << "\t" << hc[gid].nIter << "\t" << hc[gid].res;
+				}
+				cout        << endl;
+				convergence << endl;
 			}
 			if (timeStep%volume_plot_freq[gid]==0 || lastTimeStep) {
 				if (Rank==0) cout << "[I] Writing volume output for grid=" << gid+1 << endl;
@@ -419,7 +439,7 @@ int main(int argc, char *argv[]) {
 	/*****************************************************************************************/
 	// End time loop
 	/*****************************************************************************************/	
-	
+	convergence.close();	
 	MPI_Barrier(MPI_COMM_WORLD);
 
       	if (Rank==0) {
@@ -428,6 +448,7 @@ int main(int argc, char *argv[]) {
       	}
 
 	PetscFinalize();
+	MPI_Finalize();
 	
 	return 0;
 }                	

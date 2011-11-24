@@ -159,21 +159,31 @@ void set_bcs(int gid) {
 
 	int nsf_sum=0;
 	int displacements[np];
+	// Total number of wall faces
 	for (int p=0;p<np;++p) {
 		displacements[p]=nsf_sum;
 		nsf_sum+=number_of_nsf[p];
 	}
 
+	// Collect wall face centroids
 	vector<double> noSlipFaces_x(nsf_sum);
 	vector<double> noSlipFaces_y(nsf_sum);
 	vector<double> noSlipFaces_z(nsf_sum);
 
+	// Collect wall face normals
+	vector<double> noSlipFaces_Nx(nsf_sum);
+	vector<double> noSlipFaces_Ny(nsf_sum);
+	vector<double> noSlipFaces_Nz(nsf_sum);
+
 	count=0;
-	for (int f=0;f<grid[gid].faceCount;++f) {
-		if (grid[gid].face[f].bc>=0 && bc[gid][grid[gid].face[f].bc].type==WALL && bc[gid][grid[gid].face[f].bc].kind!=SLIP) { 
+	for (int f=0;f<grid[gid].faceCount;++f) { // loop all the local faces
+		if (grid[gid].face[f].bc>=0 && bc[gid][grid[gid].face[f].bc].type==WALL && bc[gid][grid[gid].face[f].bc].kind!=SLIP) {
 			noSlipFaces_x[displacements[Rank]+count]=grid[gid].face[f].centroid[0];
 			noSlipFaces_y[displacements[Rank]+count]=grid[gid].face[f].centroid[1];
 			noSlipFaces_z[displacements[Rank]+count]=grid[gid].face[f].centroid[2];
+			noSlipFaces_Nx[displacements[Rank]+count]=grid[gid].face[f].normal[0];
+			noSlipFaces_Ny[displacements[Rank]+count]=grid[gid].face[f].normal[1];
+			noSlipFaces_Nz[displacements[Rank]+count]=grid[gid].face[f].normal[2];
 			count++;
 		}
 	}
@@ -182,10 +192,17 @@ void set_bcs(int gid) {
 	MPI_Allgatherv(&noSlipFaces_y[displacements[Rank]],number_of_nsf[Rank],MPI_DOUBLE,&noSlipFaces_y[0],&number_of_nsf[0],displacements,MPI_DOUBLE,MPI_COMM_WORLD);
 	MPI_Allgatherv(&noSlipFaces_z[displacements[Rank]],number_of_nsf[Rank],MPI_DOUBLE,&noSlipFaces_z[0],&number_of_nsf[0],displacements,MPI_DOUBLE,MPI_COMM_WORLD);
 
+	MPI_Allgatherv(&noSlipFaces_Nx[displacements[Rank]],number_of_nsf[Rank],MPI_DOUBLE,&noSlipFaces_Nx[0],&number_of_nsf[0],displacements,MPI_DOUBLE,MPI_COMM_WORLD);
+	MPI_Allgatherv(&noSlipFaces_Ny[displacements[Rank]],number_of_nsf[Rank],MPI_DOUBLE,&noSlipFaces_Ny[0],&number_of_nsf[0],displacements,MPI_DOUBLE,MPI_COMM_WORLD);
+	MPI_Allgatherv(&noSlipFaces_Nz[displacements[Rank]],number_of_nsf[Rank],MPI_DOUBLE,&noSlipFaces_Nz[0],&number_of_nsf[0],displacements,MPI_DOUBLE,MPI_COMM_WORLD);
+
 	Vec3D thisCentroid;
+	Vec3D fN;
 	double thisDistance;
+	// Loop all cells to find the closest distance to the wall
 	for (int c=0;c<grid[gid].cellCount;++c) {
 		grid[gid].cell[c].closest_wall_distance=1.e20;
+               
 		for (int nsf=0;nsf<nsf_sum;++nsf) {
 			thisCentroid[0]=noSlipFaces_x[nsf];
 			thisCentroid[1]=noSlipFaces_y[nsf];
@@ -194,12 +211,41 @@ void set_bcs(int gid) {
 			if (grid[gid].cell[c].closest_wall_distance>thisDistance) {
 				grid[gid].cell[c].closest_wall_distance=thisDistance;
 			}
-	}
+	        }
 	}
 
+	// Loop all faces to find the closest distance to the wall
+        for (int f=0;f<grid[gid].faceCount;++f) {
+        	grid[gid].face[f].closest_wall_distance=1.e20;
+
+		// If the face is not a no-slip wall
+                if (grid[gid].face[f].bc<0 || bc[gid][grid[gid].face[f].bc].type!=WALL || bc[gid][grid[gid].face[f].bc].kind==SLIP) {
+                    for (int nsf=0;nsf<nsf_sum;++nsf) {
+                        thisCentroid[0]=noSlipFaces_x[nsf];
+                        thisCentroid[1]=noSlipFaces_y[nsf];
+                        thisCentroid[2]=noSlipFaces_z[nsf];
+                        thisDistance=fabs(grid[gid].face[f].centroid-thisCentroid);
+                        if (grid[gid].face[f].closest_wall_distance>thisDistance) {
+                                grid[gid].face[f].closest_wall_distance=thisDistance;
+                                fN[0]=noSlipFaces_Nx[nsf];
+                                fN[1]=noSlipFaces_Ny[nsf];
+                                fN[2]=noSlipFaces_Nz[nsf];
+                        }
+                    }
+                    grid[gid].face[f].dissipation_factor=1.-fabs(fN[0]*grid[gid].face[f].normal[0]+fN[1]*grid[gid].face[f].normal[1]+fN[2]*grid[gid].face[f].normal[2]);
+                } else {
+                       grid[gid].face[f].closest_wall_distance=0.;
+                       grid[gid].face[f].dissipation_factor=0.;
+        	}
+	}
+
+
 	noSlipFaces_x.clear();
+	noSlipFaces_Nx.clear();
 	noSlipFaces_y.clear();
+	noSlipFaces_Ny.clear();
 	noSlipFaces_z.clear();
+	noSlipFaces_Nz.clear();
 
 	return;
 }

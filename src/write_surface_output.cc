@@ -112,6 +112,8 @@ void write_surface_tec_header(int b) {
 	
 	ofstream file;
 	string fileName="./output/surface_"+int2str(timeStep)+"_"+int2str(gid+1)+".dat";
+	string link_comm="ln -sf "+fileName+" ./surface_latest_"+int2str(gid+1)+".dat";
+	system(link_comm.c_str());
 	
 	// Proc 0 creates the output file and writes variable list
 	int nvars=3;

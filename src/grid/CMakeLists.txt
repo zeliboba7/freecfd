@@ -3,7 +3,8 @@ set (SOURCES
 grid.cc
 grid_create_elements.cc
 grid_partition.cc
-grid_readers.cc
+grid_reader_cgns.cc
+grid_reader_tec.cc
 grid_transform.cc
 )
 

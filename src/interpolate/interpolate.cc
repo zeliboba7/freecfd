@@ -42,10 +42,10 @@ void Interpolate::calculate_weights(bool is_internal) {
 	weights.resize(stencil.size());
 	for (int i=0;i<weights.size();++i) weights[i]=0.;
 		 
-	if (interpolate_tetra()) method=4;
-	else if (interpolate_tri()) method=3;
-	else if (interpolate_line()) method=2;
-	else { interpolate_point(); method=1; }
+	if (interpolate_tetra())     kind=4;
+	else if (interpolate_tri())  kind=3;
+	else if (interpolate_line()) kind=2;
+	else { interpolate_point();  kind=1; }
 	
 	return;
 }

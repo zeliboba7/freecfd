@@ -39,6 +39,7 @@ void read_inputs(void) {
 	
 	input.registerSection("grid",numbered,required);
 	input.section("grid",0).register_string("file",required);
+	input.section("grid",0).register_string("format",optional,"cgns");
 	input.section("grid",0).register_int("dimension",optional,3);
 	input.section("grid",0).register_string("equations",required);
 
@@ -130,6 +131,9 @@ void read_inputs(void) {
 	input.section("grid",0).subsection("navierstokes").register_string("order",optional,"second");
 	input.section("grid",0).subsection("navierstokes").register_string("jacobianorder",optional,"second");
 	input.section("grid",0).subsection("navierstokes").register_string("convectiveflux",optional,"AUSM+up");
+	input.section("grid",0).subsection("navierstokes").register_double("walldissipation",optional,0.3);
+	input.section("grid",0).subsection("navierstokes").register_double("BLheight",optional,0.);
+	
 	
 	input.section("grid",0).registerSubsection("heatconduction",single,optional);
 	input.section("grid",0).subsection("heatconduction").register_double("relativetolerance",optional,1.e-6);

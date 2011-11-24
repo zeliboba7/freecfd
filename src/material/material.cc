@@ -68,6 +68,9 @@ void MATERIAL::set(int gid) {
 				if (Rank==0) cerr << "[grid=" << gid+1 << "] invalid Cp -> model option!" << endl;
 				MPI_Abort(MPI_COMM_WORLD,-1);
 			}
+		} else {
+			Cp_model=CONSTANT;
+			Cp_value=gamma*R/(gamma-1.);
 		}
 		
 		if (material_input[gid].get_double("thermalconductivity").is_found) {

@@ -108,16 +108,18 @@ void face_interpolation_weights(int gid) {
 				weightSum+=interpolation.weights[i];
 			}
 			
-			if (interpolation.method==4) tetra_intp_count++;
-			else if (interpolation.method==3) tri_intp_count++; 
-			else if (interpolation.method==2) line_intp_count++;
-			else if (interpolation.method==1) point_intp_count++;
+			if      (interpolation.kind==4) tetra_intp_count++;
+			else if (interpolation.kind==3) tri_intp_count++; 
+			else if (interpolation.kind==2) line_intp_count++;
+			else if (interpolation.kind==1) point_intp_count++;
 			
-		} else if (interpolation.method==SIMPLE) {
-			
+		} else if (interpolation.method==SIMPLE) {		
+	
 			if (grid[gid].face[f].bc<0) { // If not a boundary face
-				grid[gid].face[f].average.insert(pair<int,double>(interpolation.stencil_indices[0],0.5));
-				grid[gid].face[f].average.insert(pair<int,double>(interpolation.stencil_indices[1],0.5));
+				double distance0=fabs(interpolation.stencil[0]-grid[gid].face[f].centroid);
+				double distance1=fabs(interpolation.stencil[1]-grid[gid].face[f].centroid);
+				grid[gid].face[f].average.insert(pair<int,double>(interpolation.stencil_indices[0],distance1/(distance0+distance1)));
+				grid[gid].face[f].average.insert(pair<int,double>(interpolation.stencil_indices[1],distance0/(distance0+distance1)));
 			} else { // If a boundary face
 				if (interpolation.stencil_indices[0]==grid[gid].face[f].parent) { // If the first index is the parent cell
 					grid[gid].face[f].average.insert(pair<int,double>(interpolation.stencil_indices[0],1.));
@@ -130,7 +132,6 @@ void face_interpolation_weights(int gid) {
 				}
 			}	
 		}
-
 		interpolation.flush();
 		stencil.clear();
 	}

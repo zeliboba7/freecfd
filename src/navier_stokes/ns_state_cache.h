@@ -25,13 +25,14 @@
 
 class NS_Cell_State {
 	public:
-		double p,T,T_center,rho,a,H,volume;
+		double p,p_center,T,T_center,rho,a,H,volume;
 		Vec3D V,V_center,Vn;
 		vector<double> update;
 		NS_Cell_State &operator= (const NS_Cell_State & rhs) {
 			// TODO: simplify this
 			// Is this even needed? What about default copy constructor?
 			p=rhs.p;
+			p_center=rhs.p_center;
 			T=rhs.T;
 			T_center=rhs.T_center;
 			rho=rhs.rho;

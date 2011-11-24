@@ -298,7 +298,11 @@ void RANS::get_kOmega() {
 	leftCentroid=grid[gid].cell[parent].centroid;
 	if (grid[gid].face[f].bc==INTERNAL_FACE) { rightCentroid=grid[gid].cell[neighbor].centroid;}
 	else if (grid[gid].face[f].bc>=0) {
-		rightCentroid=leftCentroid+2.*(grid[gid].face[f].centroid-leftCentroid).dot(grid[gid].face[f].normal)*grid[gid].face[f].normal;
+		if (bc[gid][grid[gid].face[f].bc].type==OUTLET || bc[gid][grid[gid].face[f].bc].type==INLET) {
+			rightCentroid=leftCentroid+2.*(grid[gid].face[f].centroid-leftCentroid);
+		} else {
+			rightCentroid=leftCentroid+2.*(grid[gid].face[f].centroid-leftCentroid).dot(grid[gid].face[f].normal)*grid[gid].face[f].normal;
+		}
 	} else { rightCentroid=grid[gid].ghost[-1*grid[gid].face[f].neighbor-1].centroid;}
 	
 	left2right=rightCentroid-leftCentroid;

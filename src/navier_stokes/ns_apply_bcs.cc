@@ -221,21 +221,31 @@ void NavierStokes::outlet(NS_Cell_State &left,NS_Cell_State &right,NS_Face_State
 		uNR=uNL+2.*(left.a-right.a)/(material.gamma-1.);
 		right.V=left.V-left.V.dot(face.normal)*face.normal+uNR*face.normal;
 	} else {
-		// If nothing is specified, everything is extrapolated
+		// If nothing is specified or flow is supersonic, everything is extrapolated
+		// First order	
+	//	right.p=left.p_center;
+	//	right.T=left.T_center;
+	//	right.T_center=left.T_center;
+	//	right.V=left.V_center;
+	//	right.V_center=left.V_center;
+		
+		// Second order
 		right.p=left.p;
-		if (MachL<0.) { // reverse flow
-			if (bc[gid][face.bc].kind==DAMP_REVERSE) right.p-=0.5*left.rho*uNL*uNL;
-		}
-		// Extrapolate entropy
-		right.rho=left.rho*pow((right.p+material.Pref),1./material.gamma)/pow((left.p+material.Pref),1./material.gamma);
-		right.a=sqrt(material.gamma*(right.p+material.Pref)/right.rho);
-		// Extrapolate outgoing characteristic
-		uNR=uNL+2.*(left.a-right.a)/(material.gamma-1.);
-		right.V=left.V-left.V.dot(face.normal)*face.normal+uNR*face.normal;
-		right.V_center=2.*right.V-left.V_center;
-		right.T=material.T(right.p,right.rho);
+		right.T=left.T;
 		right.T_center=2.*right.T-left.T_center;
-    }
+		right.V=left.V;
+		right.V_center=2.*right.V-left.V_center;
+	
+		// Common	
+		if (MachL<1. && bc[gid][face.bc].kind==FORCE_SUPERSONIC) {
+			right.p-=0.5*left.rho*pow(left.a-uNL,2.);
+			right.p=min(1.e-8,right.p+material.Pref)-material.Pref;	
+		} else if (MachL<0. && bc[gid][face.bc].kind==DAMP_REVERSE) { // reverse flow
+			right.p-=0.5*left.rho*uNL*uNL;
+		}
+		right.rho=material.rho(right.p,right.T);
+		
+	}
 	
 	if (MachL<0.) { // reverse flow
 		if (bc[gid][face.bc].kind==NO_REVERSE) {

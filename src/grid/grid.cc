@@ -31,7 +31,7 @@ Grid::Grid() {
 	MPI_Comm_size(MPI_COMM_WORLD, &np);
 }
 
-void Grid::read(string fname) {
+void Grid::read(string fname, string format) {
 	if (read_raw()) return;
 	fstream file;
 	fileName=fname;
@@ -39,7 +39,12 @@ void Grid::read(string fname) {
 	if (file.is_open()) {
 		if (Rank==0) cout << "[I] Found grid file " << fileName  << endl;
 		file.close();		
-		readCGNS();
+		if (format=="cgns") readCGNS();
+		else if (format=="tecplot") readTEC();
+		else {
+			if (Rank==0) cerr << "[E] Unrecognized grid format: " << format << endl;
+			exit(1);
+		}
 	} else {
 		if (Rank==0) cerr << "[E] Grid file "<< fileName << " could not be found." << endl;
 		exit(1);
@@ -56,7 +61,8 @@ void Grid::setup(void) {
       if (Rank==0) cout << "[I] Computing mesh dual" << endl;
 	mesh2dual();
       if (Rank==0) cout << "[I] Creating faces" << endl;
-	create_faces();
+	if (raw.type==CELL) create_faces();
+	else if (raw.type=FACE) create_faces2();
       if (Rank==0) cout << "[I] Creating ghost cells" << endl;
 	create_ghosts();
       if (Rank==0) cout << "[I] Computing output node id's" << endl;
@@ -110,6 +116,11 @@ void Grid::trim_memory() {
 	raw.cellConnectivity.clear();
 	raw.bocoNodes.clear();
 	raw.bocoNameMap.clear();
+	raw.faceNodeCount.clear();
+	raw.faceConnIndex.clear();
+	raw.faceConnectivity.clear();
+	raw.left.clear();
+	raw.right.clear();
 	
 	return;
 }

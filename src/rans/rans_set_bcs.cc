@@ -63,7 +63,7 @@ void RANS::set_bcs(void) {
 			T=ns[gid].T.face(fid);
 			k.bc(b)=intensity*fabs(ns[gid].V.face(fid));
 			k.bc(b)*=1.5*k.bc(b);
-			k.bc(b)=max(1.e-8,k.bc(b));
+			k.bc(b)=max(kLowLimit,k.bc(b));
 	 	  	omega.bc(b)=rho*k.bc(b)/(viscRatio*material.viscosity(T));
 			mu_t.fixedonBC[b]=true; mu_t.bcValue[b].resize(1);
 			mu_t.bc(b)=viscRatio*material.viscosity(T);
