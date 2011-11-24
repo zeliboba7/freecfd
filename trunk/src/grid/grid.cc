@@ -62,7 +62,7 @@ void Grid::setup(void) {
 	mesh2dual();
       if (Rank==0) cout << "[I] Creating faces" << endl;
 	if (raw.type==CELL) create_faces();
-	else if (raw.type=FACE) create_faces2();
+	else if (raw.type==FACE) create_faces2();
       if (Rank==0) cout << "[I] Creating ghost cells" << endl;
 	create_ghosts();
       if (Rank==0) cout << "[I] Computing output node id's" << endl;
