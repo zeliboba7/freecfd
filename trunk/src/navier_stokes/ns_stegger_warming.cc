@@ -29,7 +29,7 @@ void Stegger_Warming_flux(NS_Cell_State &left,NS_Cell_State &right,double diss_f
 	double gamma_s,beta,eta,Cp;
 	double w,deltap,weightR,eps;
 	double signal;
-	double Lambda[5],L[5][5],R[5][5],Q[4],Jacob[5][5];
+	double Lambda[5],L[5][5],R[5][5],Q[5],Jacob[5][5];
 
 	for (int i=0;i<5;++i) fluxNormal[i]=0.;
 
