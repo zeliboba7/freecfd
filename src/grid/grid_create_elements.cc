@@ -99,7 +99,7 @@ int Grid::create_nodes_cells() {
 
 	cellCount=cell.size();
 	
-	if (raw.type=FACE) {
+	if (raw.type==FACE) {
 		int c;
 		for (int i=0;i<raw.left.size();++i) {
 			c=raw.left[i];
