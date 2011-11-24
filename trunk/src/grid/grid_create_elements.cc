@@ -61,19 +61,26 @@ int Grid::create_nodes_cells() {
 			// Create the cell
 			Cell temp;
 			temp.nodeCount=cellNodeCount;
-			switch (cellNodeCount) {
-				case 4: // Tetra
-					temp.faceCount=4;
-					break;
-				case 5: // Pyramid
-					temp.faceCount=5;
-					break;
-				case 6: // Prism
-					temp.faceCount=5;
-					break;
-				case 8: // Hexa
-					temp.faceCount=6;
-					break;
+			if (raw.type==CELL) {
+				switch (cellNodeCount) {
+					case 4: // Tetra
+						temp.faceCount=4;
+						break;
+					case 5: // Pyramid
+						temp.faceCount=5;
+						break;
+					case 6: // Prism
+						temp.faceCount=5;
+						break;
+					case 8: // Hexa
+						temp.faceCount=6;
+						break;
+				}
+			} else {
+				temp.faceCount=0;
+				// Skip the face count for now.
+				// It is done just after the cell loop for efficiency
+				// Loop the left and right data and count
 			}
 			temp.nodes.reserve(cellNodeCount);
 			
@@ -89,7 +96,25 @@ int Grid::create_nodes_cells() {
 		} // end if cell is in current proc
 
 	} // end loop global cell count
+
+	cellCount=cell.size();
 	
+	if (raw.type=FACE) {
+		int c;
+		for (int i=0;i<raw.left.size();++i) {
+			c=raw.left[i];
+			if (c>=0 && maps.cellOwner[c]==Rank) { // If the cell belongs to current proc
+				cell[maps.cellGlobal2Local[c]].faceCount++;
+			}
+		}
+		for (int i=0;i<raw.right.size();++i) {
+			c=raw.right[i];
+			if (c>=0 && maps.cellOwner[c]==Rank) { // If the cell belongs to current proc
+				cell[maps.cellGlobal2Local[c]].faceCount++;
+			}
+		}
+	}
+		
 	if (Rank==0) cout << "[I] Created cells and nodes" << endl;
 
 	// Construct the list of cells for each node
@@ -408,6 +433,130 @@ int Grid::create_faces() {
 	
 } // end Grid::create_faces
 
+int Grid::create_faces2() {
+
+	// Search and construct faces
+	faceCount=0;
+	// Loop the global faces
+	int parent,neighbor;
+	bool owner,inter_partition,swap;
+	int ghostFaceCount=0;
+	for (int f=0;f<globalFaceCount;++f) {
+		// If the left or right cell is owned by the current processor, create the face
+		parent=raw.left[f];
+		neighbor=raw.right[f];
+		owner=false; 
+		inter_partition=true;
+		swap=true;
+		if (maps.cellOwner[parent]==Rank) {
+			owner=true;
+			swap=false;
+			parent=maps.cellGlobal2Local[parent];
+		}
+		if (neighbor>=0 && maps.cellOwner[neighbor]==Rank) {
+			if (owner) inter_partition=false;
+			owner=true;
+			neighbor=maps.cellGlobal2Local[neighbor];
+		}
+		
+		if (owner) { // This face needs to be created in the current processor
+			Face tempFace;
+			tempFace.id=faceCount;
+			tempFace.nodeCount=raw.faceNodeCount[f];
+			if (neighbor<0) tempFace.bc=UNASSIGNED_FACE;
+			else if (inter_partition) {tempFace.bc=GHOST_FACE; ghostFaceCount++;}
+			else tempFace.bc=INTERNAL_FACE;
+
+			tempFace.parent=parent;
+			tempFace.neighbor=neighbor;	
+			tempFace.nodes.resize(tempFace.nodeCount);
+			for (int fn=0;fn<tempFace.nodeCount;++fn) {
+				tempFace.nodes[fn]=maps.nodeGlobal2Local[raw.faceConnectivity[raw.faceConnIndex[f]+fn]];
+			}
+			// If ghost face, parent may not be owned by the current processor. Check for that
+			if (swap) {
+				// Swap parent and neighbor
+				tempFace.parent=neighbor;
+				tempFace.neighbor=parent;
+				// Swap tempFace node ordering
+				vector<int> tempv=tempFace.nodes;
+				vector<int>::reverse_iterator vit;
+				int temp=0;
+				for (vit=tempFace.nodes.rbegin();vit<tempFace.nodes.rend();++vit) {
+					tempv[temp]=*vit;
+					temp++;
+				}
+				tempFace.nodes.swap(tempv);
+			}
+
+			if (tempFace.bc==UNASSIGNED_FACE) { // If the face is at a boundary
+				vector<int> face_matched_bcs;
+				int cell_matched_bc=-1;
+				bool match;
+				for (int nbc=0;nbc<raw.bocoNameMap.size();++nbc) { // For each boundary condition region
+					match=true;
+					for (int i=0;i<tempFace.nodeCount;++i) { // For each node of the current face
+						if (raw.bocoNodes[nbc].find(tempFace.nodes[i])==raw.bocoNodes[nbc].end()) {
+							match=false;
+							break;
+						}
+					}
+					if (match) { // This means that all the face nodes are on the current bc node list
+						face_matched_bcs.push_back(nbc);
+					}
+					// There can be situations like back and front symmetry BC's in which
+					// face nodes will match more than one boundary condition
+					// Check if the parent cell has all its nodes on one of those bc's
+					// and eliminate those
+					
+					if (cell_matched_bc==-1) {
+						match=true;
+						for (int i=0;i<cell[tempFace.parent].nodeCount;++i) { 
+							if (raw.bocoNodes[nbc].find(cell[tempFace.parent].nodes[i])==raw.bocoNodes[nbc].end()) {
+								match=false;
+								break;
+							}
+						}
+						if (match) { // This means that all the cell nodes are on the current bc node list
+							cell_matched_bc=nbc;
+						}
+					}	
+				}
+				if (face_matched_bcs.size()>1) {
+					for (int fbc=0;fbc<face_matched_bcs.size();++fbc) {
+						if(face_matched_bcs[fbc]!=cell_matched_bc) {
+							tempFace.bc=face_matched_bcs[fbc];
+							break;
+						}
+					}
+				} else if (face_matched_bcs.size()==1) {
+					tempFace.bc=face_matched_bcs[0];
+				} else {
+					cout << "[E] Couldn't find BC for face " << f << endl;
+					exit(1);
+				}
+
+			} // if face is on boundary
+			face.push_back(tempFace);
+			cell[tempFace.parent].faces.push_back(tempFace.id);
+			if (tempFace.bc==INTERNAL_FACE) cell[tempFace.neighbor].faces.push_back(tempFace.id);
+			++faceCount;
+		} // end if owner
+	} // end global face loop
+
+	// Set faceCount for each cell
+	for (int c=0;c<cellCount;++c) cell[c].faceCount=cell[c].faces.size();
+
+	for (int f=0;f<faceCount;++f) {
+		for (int n=0;n<face[f].nodes.size();++n) faceNode(f,n).faces.push_back(f);	
+		face[f].symmetry=false; // by default
+	}
+
+	//cout << "[I Rank=" << Rank << "] Number of inter-partition faces = " << ghostFaceCount << endl;
+
+	return 0;
+}
+
 int Grid::create_ghosts() {
 	// Determine and mark faces adjacent to other partitions
 	// Create ghost elemets to hold the data from other partitions
@@ -425,13 +574,12 @@ int Grid::create_ghosts() {
 		// Find out other partition's cell counts
 		int otherCellCounts[np];
 		for (int i=0;i<np;++i) otherCellCounts[i]=0;
-		for (int c=0;c<globalCellCount;++c) otherCellCounts[maps.cellOwner[c]]+=1;
+		for (int c=0;c<globalCellCount;++c) otherCellCounts[maps.cellOwner[c]]++;
 		
 		for (int p=0;p<np;++p) {
 			cellCountOffset[p]=counter;
 			counter+=otherCellCounts[p];
 		}
-		
 		// Now find metis2global index mapping
 		int metis2global[globalCellCount];
 		int counter2[np];
@@ -451,7 +599,7 @@ int Grid::create_ghosts() {
 		
 		// Loop faces
 		for (int f=0; f<faceCount; ++f) {
-			if (face[f].bc==UNASSIGNED_FACE || face[f].bc>=0) { // if an unassigned boundary face
+			if ((face[f].bc==UNASSIGNED_FACE || face[f].bc==GHOST_FACE) || face[f].bc>=0) { // if an unassigned boundary face
 				parent=face[f].parent;
 				// Loop through the cells that are adjacent to the current face's parent
 				for (int adjCount=0;adjCount<(maps.adjIndex[parent+1]-maps.adjIndex[parent]);++adjCount)  {
@@ -534,7 +682,7 @@ int Grid::create_ghosts() {
 			cell[c].ghostCount=cell[c].ghosts.size();
 		} // end cell loop
 	} // if (np!=1)
-	//cout << "[I Rank=" << Rank << "] Number of Inter-Partition Ghost Cells= " << ghostCount << endl;
+//	cout << "[I Rank=" << Rank << "] Number of Inter-Partition Ghost Cells= " << ghostCount << endl;
 	
 	return 0;
 	

@@ -61,6 +61,7 @@ private:
 public:
 	// Inputs
 	int method;
+	int kind;
 	int max_stencil_size;
 	int dimension;
 	vector<Vec3D> stencil;

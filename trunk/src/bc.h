@@ -38,6 +38,7 @@
 #define MDOT 4
 #define SLIP 5
 #define STAGNATION 6
+#define FORCE_SUPERSONIC 7
 // Options for thermal boundary condition
 #define FIXED_T 1
 #define FIXED_Q 2

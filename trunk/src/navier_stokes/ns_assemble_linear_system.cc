@@ -274,7 +274,8 @@ void NavierStokes::left_state_update(NS_Cell_State &left,NS_Face_State &face) {
 
 	Vec3D cell2face=order_factor*grid[gid].face[face.index].centroid-grid[gid].cell[parent].centroid;
 	Vec3D deltaV;
-	left.p=p.cell(parent)+limiter[0].cell(parent)*cell2face.dot(gradp.cell(parent));
+	left.p_center=p.cell(parent);
+	left.p=left.p_center+limiter[0].cell(parent)*cell2face.dot(gradp.cell(parent));
 	deltaV[0]=limiter[1].cell(parent)*cell2face.dot(gradu.cell(parent));
 	deltaV[1]=limiter[2].cell(parent)*cell2face.dot(gradv.cell(parent));
 	deltaV[2]=limiter[3].cell(parent)*cell2face.dot(gradw.cell(parent));
@@ -303,7 +304,8 @@ void NavierStokes::right_state_update(NS_Cell_State &left,NS_Cell_State &right,N
 		int neighbor=grid[gid].face[face.index].neighbor;
 		Vec3D cell2face=order_factor*grid[gid].face[face.index].centroid-grid[gid].cell[neighbor].centroid;
 		Vec3D deltaV;
-		right.p=p.cell(neighbor)+limiter[0].cell(neighbor)*cell2face.dot(gradp.cell(neighbor));
+		right.p_center=p.cell(neighbor);
+		right.p=right.p_center+limiter[0].cell(neighbor)*cell2face.dot(gradp.cell(neighbor));
 		deltaV[0]=limiter[1].cell(neighbor)*cell2face.dot(gradu.cell(neighbor));
 		deltaV[1]=limiter[2].cell(neighbor)*cell2face.dot(gradv.cell(neighbor));
 		deltaV[2]=limiter[3].cell(neighbor)*cell2face.dot(gradw.cell(neighbor));
@@ -327,7 +329,8 @@ void NavierStokes::right_state_update(NS_Cell_State &left,NS_Cell_State &right,N
 		
 		Vec3D cell2face=order_factor*grid[gid].face[face.index].centroid-grid[gid].ghost[g].centroid;
 		Vec3D deltaV;
-		right.p=p.ghost(g)+limiter[0].ghost(g)*cell2face.dot(gradp.ghost(g));
+		right.p_center=p.ghost(g);
+		right.p=right.p_center+limiter[0].ghost(g)*cell2face.dot(gradp.ghost(g));
 		deltaV[0]=limiter[1].ghost(g)*cell2face.dot(gradu.ghost(g));
 		deltaV[1]=limiter[2].ghost(g)*cell2face.dot(gradv.ghost(g));
 		deltaV[2]=limiter[3].ghost(g)*cell2face.dot(gradw.ghost(g));
@@ -367,7 +370,11 @@ void NavierStokes::face_geom_update(NS_Face_State &face,int f) {
 	leftCentroid=grid[gid].cell[grid[gid].face[f].parent].centroid;
 	if (face.bc==INTERNAL_FACE) { rightCentroid=grid[gid].cell[grid[gid].face[f].neighbor].centroid;}
 	else if (face.bc>=0) {
-		rightCentroid=leftCentroid+2.*(grid[gid].face[f].centroid-leftCentroid).dot(face.normal)*face.normal;
+		if (bc[gid][face.bc].type==OUTLET || bc[gid][face.bc].type==INLET) {
+			rightCentroid=leftCentroid+2.*(grid[gid].face[f].centroid-leftCentroid);
+		} else {
+			rightCentroid=leftCentroid+2.*(grid[gid].face[f].centroid-leftCentroid).dot(face.normal)*face.normal;
+		}
 	} else { rightCentroid=grid[gid].ghost[-1*grid[gid].face[f].neighbor-1].centroid;}
 	face.left2right=rightCentroid-leftCentroid;
 	return;

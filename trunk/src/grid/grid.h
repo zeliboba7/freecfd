@@ -27,6 +27,11 @@
 #define INTERNAL_FACE -1
 #define UNASSIGNED_FACE -2
 #define GHOST_FACE -3
+
+// Raw grid definition options
+#define CELL 1
+#define FACE 2
+
 /*
   Classes for reading and storing grid information
 */
@@ -50,10 +55,21 @@ using namespace std;
 
 class GridRawData { // This data will be destroyed after processing
 public:
+	int type;
 	std::vector<Vec3D> node;
-	std::vector<int> cellConnIndex,cellConnectivity;
 	std::vector< set<int> > bocoNodes; // Node list for each boundary condition region
 	std::map<string,int> bocoNameMap;
+
+	// Either one of the following two sets need to be filled
+	
+	// Specific to CELL type data
+	std::vector<int> cellConnIndex,cellConnectivity;
+	
+	// Specific to FACE type data
+	std::vector<int> faceNodeCount;
+	std::vector<int> faceConnIndex,faceConnectivity;
+	std::vector<int> left,right;
+
 };
 
 class IndexMaps {
@@ -93,6 +109,7 @@ public:
 	std::map<int,double> average; // indices of cells in the averaging stenceil and corresponding weights
 	double area; 
 	std::vector<int> nodes; // Nodes of this face
+	double closest_wall_distance,dissipation_factor;
 };
 
 class Cell {
@@ -147,9 +164,10 @@ public:
 	std::vector< std::vector<int> > recvCells;
 	MPI_Datatype MPI_GEOM_PACK;
 	Grid();
-	void read(string);
+	void read(string fileName,string format);
 	void setup(void);
 	int readCGNS();
+	int readTEC();
 	int translate(Vec3D begin, Vec3D end);
 	int scale(Vec3D anchor, Vec3D factor);
 	int rotate(Vec3D anchor, Vec3D axis, double angle);
@@ -157,6 +175,7 @@ public:
 	int mesh2dual();
 	int create_nodes_cells();
 	int create_faces();
+	int create_faces2();
 	int create_ghosts();
 	int get_volume_output_ids();
 	int get_bc_output_ids();

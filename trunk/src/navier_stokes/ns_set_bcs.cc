@@ -37,6 +37,7 @@ void NavierStokes::set_bcs(void) {
 		if (kind=="noreverse") bc[gid][b].kind=NO_REVERSE;
 		if (kind=="dampreverse") bc[gid][b].kind=DAMP_REVERSE;
 		if (kind=="slip") bc[gid][b].kind=SLIP;
+		if (kind=="forcesupersonic") bc[gid][b].kind=FORCE_SUPERSONIC;
 		
 		if (region.get_double("p_total").is_found && region.get_double("T_total").is_found) {
 			bc[gid][b].kind=STAGNATION;

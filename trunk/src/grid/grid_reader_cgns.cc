@@ -23,9 +23,12 @@
 #include "grid.h"
 
 GridRawData raw;
-double block_stitch_tolerance=1.e-8;
+double block_stitch_tolerance=1.e-10;
 
 int Grid::readCGNS() {
+	
+	raw.type=CELL;
+
 	int fileIndex,baseIndex,nBases,nZones,nSections,nBocos;
 	char zoneName[20],sectionName[20]; //baseName[20]
 	//  int nBases,cellDim,physDim;
