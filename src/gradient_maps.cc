@@ -38,11 +38,15 @@ extern void curvilinear_grad_map(int gid,int c);
 
 void gradient_maps(int gid) {
 
-	int hex_method,other_method;
+	int hex_method,prism_method,other_method;
 
 	if (input.section("grid",0).subsection("gradients").get_string("hexmethod")=="curvilinear") hex_method=CURVILINEAR;
 	else if (input.section("grid",0).subsection("gradients").get_string("hexmethod")=="lsqr") hex_method=LSQR;
 	else if (input.section("grid",0).subsection("gradients").get_string("hexmethod")=="greengauss") hex_method=GREENGAUSS;
+
+	if (input.section("grid",0).subsection("gradients").get_string("prismmethod")=="curvilinear") prism_method=CURVILINEAR;
+	else if (input.section("grid",0).subsection("gradients").get_string("prismmethod")=="lsqr") prism_method=LSQR;
+	else if (input.section("grid",0).subsection("gradients").get_string("prismmethod")=="greengauss") prism_method=GREENGAUSS;
 
 	if (input.section("grid",0).subsection("gradients").get_string("othermethod")=="curvilinear") other_method=CURVILINEAR;
 	else if (input.section("grid",0).subsection("gradients").get_string("othermethod")=="lsqr") other_method=LSQR;
@@ -53,6 +57,12 @@ void gradient_maps(int gid) {
 			if (hex_method==CURVILINEAR) curvilinear_grad_map(gid,c);
 			else if (hex_method==LSQR) lsqr_grad_map(gid,c);
 			else if (hex_method==GREENGAUSS) { 
+				// if gradMap is not filled, this will be used automatically, so don't need to do anything here 
+			}
+		} else if (grid[gid].cell[c].nodeCount==6) {
+			if (prism_method==CURVILINEAR) curvilinear_grad_map(gid,c);
+			else if (prism_method==LSQR) lsqr_grad_map(gid,c);
+			else if (prism_method==GREENGAUSS) { 
 				// if gradMap is not filled, this will be used automatically, so don't need to do anything here 
 			}
 		} else {

@@ -367,6 +367,7 @@ int main(int argc, char *argv[]) {
 				cout        << endl;
 				convergence << endl;
 			}
+lastTimeStep=false;
 			if (timeStep%volume_plot_freq[gid]==0 || lastTimeStep) {
 				if (Rank==0) cout << "[I] Writing volume output for grid=" << gid+1 << endl;
 				write_volume_output(gid,timeStep);
