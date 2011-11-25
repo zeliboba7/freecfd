@@ -430,7 +430,7 @@ int Grid::create_faces() {
 	}
 	
 	return 0;
-	
+
 } // end Grid::create_faces
 
 int Grid::create_faces2() {
@@ -683,7 +683,29 @@ int Grid::create_ghosts() {
 		} // end cell loop
 	} // if (np!=1)
 //	cout << "[I Rank=" << Rank << "] Number of Inter-Partition Ghost Cells= " << ghostCount << endl;
-	
+
+	globalNumFaceNodes=0;
+	globalFaceCount=0;
+	bool include;
+	for (int f=0;f<faceCount;++f) {
+		include=true;
+		if (face[f].bc==GHOST_FACE) {
+			int g=-1*face[f].neighbor-1;
+			if (ghost[g].partition<Rank) include=false;
+		}
+		if (include) {
+			globalNumFaceNodes+=face[f].nodeCount;
+			globalFaceCount++;
+		}
+	}
+
+	int temp=0;
+	MPI_Allreduce (&globalNumFaceNodes,&temp,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+	globalNumFaceNodes=temp;
+	temp=0;
+	MPI_Allreduce (&globalFaceCount,&temp,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+	globalFaceCount=temp;
+
 	return 0;
 	
 } // end int Grid::create_ghosts

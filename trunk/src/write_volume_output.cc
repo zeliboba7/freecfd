@@ -53,7 +53,10 @@ using namespace volume_output;
 void write_tec_header(void);
 void write_tec_nodes(int i);
 void write_tec_var(int ov, int i);
-void write_tec_cells(void);
+void write_tec_face_node_counts(void);
+void write_tec_face_nodes(void);
+void write_tec_left(void);
+void write_tec_right(void);
 void write_vtk(void);
 void write_vtk_parallel(void);
 
@@ -106,7 +109,7 @@ void write_volume_output(int gridid, int step) {
 	
 	string format=input.section("grid",gid).subsection("writeoutput").get_string("format");
 	if (format=="tecplot") {
-		// Write tecplot output file
+		// Write tecplot output file		
 		if (Rank==0) write_tec_header();
 		for (int i=0;i<3;++i) {
 			for (int p=0;p<np;++p) {
@@ -127,10 +130,25 @@ void write_volume_output(int gridid, int step) {
 		}
 		
 		for (int p=0;p<np;++p) {
-			if(Rank==p) write_tec_cells();
+			if(Rank==p) write_tec_face_node_counts();
 			MPI_Barrier(MPI_COMM_WORLD);
 		}
 		 
+		for (int p=0;p<np;++p) {
+			if(Rank==p) write_tec_face_nodes();
+			MPI_Barrier(MPI_COMM_WORLD);
+		}
+
+		for (int p=0;p<np;++p) {
+			if(Rank==p) write_tec_left();
+			MPI_Barrier(MPI_COMM_WORLD);
+		}
+
+		for (int p=0;p<np;++p) {
+			if(Rank==p) write_tec_right();
+			MPI_Barrier(MPI_COMM_WORLD);
+		}
+
 	} else if (format=="vtk") {
 		// Write vtk output file
 		if (Rank==0) write_vtk_parallel();
@@ -165,8 +183,13 @@ void write_tec_header(void) {
 		}
 	}
 	file << endl;
-	file << "ZONE, T=\"Grid " << gid+1 << "\", ZONETYPE=FEBRICK, DATAPACKING=BLOCK" << endl;
-	file << "NODES=" << grid[gid].globalNodeCount << ", ELEMENTS=" << grid[gid].globalCellCount << endl;
+	file << "ZONE T=\"Grid_" << gid+1 << "\"" <<  endl;
+	file << "Nodes=" << grid[gid].globalNodeCount << ", Faces=" << grid[gid].globalFaceCount << ", Elements=" << grid[gid].globalCellCount << ", ZONETYPE=FEPolyhedron" << endl;
+	file << "DATAPACKING=BLOCK" << endl;
+	file << "TotalNumFaceNodes=" << grid[gid].globalNumFaceNodes << ", NumConnectedBoundaryFaces=0, TotalNumBoundaryConnections=0 " << endl;
+	file << "DT=(";
+	for (int var=0;var<nvars;++var) file << "DOUBLE ";
+	file << ")" << endl;
 	if (nvars==4) {
 		file << "VARLOCATION=([4]=CELLCENTERED)" << endl;	
 	} else {
@@ -420,57 +443,114 @@ void write_tec_var(int ov, int i) {
 		
 	return;
 } 
+
+void write_tec_face_node_counts () {
+
+	ofstream file;
+	string fileName="./output/volume_"+int2str(timeStep)+"_"+int2str(gid+1)+".dat";
+	file.open((fileName).c_str(),ios::app);
+
+	if (Rank==0) file << "\n# node count per face" << endl;
+	int count=0;
+	int g;
+	bool write;
+	for (int f=0;f<grid[gid].faceCount;++f) {
+		write=true;
+		if (grid[gid].face[f].bc==GHOST_FACE) {
+			g=-1*grid[gid].face[f].neighbor-1;
+			if (grid[gid].ghost[g].partition<Rank) write=false;
+		}
+		if (write) {
+			file << grid[gid].face[f].nodeCount << endl;
+		}
+	}
+	
+
+	file.close();
+	
+	return;
+}
 			
-void write_tec_cells() {
+void write_tec_face_nodes() {
 	
 	ofstream file;
 	string fileName="./output/volume_"+int2str(timeStep)+"_"+int2str(gid+1)+".dat";
-	
 	file.open((fileName).c_str(),ios::app);
-	
-	// Write connectivity
-	for (int c=0;c<grid[gid].cellCount;++c) {
-		if (grid[gid].cell[c].nodeCount==4) {
-			file << grid[gid].cellNode(c,0).output_id+1 << "\t" ;
-			file << grid[gid].cellNode(c,2).output_id+1 << "\t" ;
-			file << grid[gid].cellNode(c,1).output_id+1 << "\t" ;
-			file << grid[gid].cellNode(c,1).output_id+1 << "\t" ;
-			file << grid[gid].cellNode(c,3).output_id+1 << "\t" ;
-			file << grid[gid].cellNode(c,3).output_id+1 << "\t" ;
-			file << grid[gid].cellNode(c,3).output_id+1 << "\t" ;
-			file << grid[gid].cellNode(c,3).output_id+1 << "\t" ;
+
+	if (Rank==0) file << "# face nodes" << endl;
+	int g;
+	bool write;	
+	for (int f=0;f<grid[gid].faceCount;++f) { 
+		write=true;
+		if (grid[gid].face[f].bc==GHOST_FACE) {
+			g=-1*grid[gid].face[f].neighbor-1;
+			if (grid[gid].ghost[g].partition<Rank) write=false;
 		}
-		else if (grid[gid].cell[c].nodeCount==5) {
-			file << grid[gid].cellNode(c,0).output_id+1 << "\t" ;
-			file << grid[gid].cellNode(c,1).output_id+1 << "\t" ;
-			file << grid[gid].cellNode(c,2).output_id+1 << "\t" ;
-			file << grid[gid].cellNode(c,3).output_id+1 << "\t" ;
-			file << grid[gid].cellNode(c,4).output_id+1 << "\t" ;
-			file << grid[gid].cellNode(c,4).output_id+1 << "\t" ;
-			file << grid[gid].cellNode(c,4).output_id+1 << "\t" ;
-			file << grid[gid].cellNode(c,4).output_id+1 << "\t" ;
-		}
-		else if (grid[gid].cell[c].nodeCount==6) {
-			file << grid[gid].cellNode(c,0).output_id+1 << "\t" ;
-			file << grid[gid].cellNode(c,1).output_id+1 << "\t" ;
-			file << grid[gid].cellNode(c,2).output_id+1 << "\t" ;
-			file << grid[gid].cellNode(c,2).output_id+1 << "\t" ;
-			file << grid[gid].cellNode(c,3).output_id+1 << "\t" ;
-			file << grid[gid].cellNode(c,4).output_id+1 << "\t" ;
-			file << grid[gid].cellNode(c,5).output_id+1 << "\t" ;
-			file << grid[gid].cellNode(c,5).output_id+1 << "\t" ;
-		} else if (grid[gid].cell[c].nodeCount==8) {
-			for (int i=0;i<8;++i) {
-				file << grid[gid].cellNode(c,i).output_id+1 << "\t" ;
+
+		if (write) {
+			for (int fn=0;fn<grid[gid].face[f].nodeCount;++fn) { 
+				file << grid[gid].faceNode(f,fn).output_id+1 << " ";
 			}
+			file << endl;
 		}
-		file << endl;
 	}
-	
+				
 	file.close();
 	
 	return;
 	
+}
+
+void write_tec_left() {
+	
+	ofstream file;
+	string fileName="./output/volume_"+int2str(timeStep)+"_"+int2str(gid+1)+".dat";
+	file.open((fileName).c_str(),ios::app);
+
+	if (Rank==0) file << "# left elements" << endl;
+	int g;
+	bool write;
+	for (int f=0;f<grid[gid].faceCount;++f) { 
+		write=true;
+		if (grid[gid].face[f].bc==GHOST_FACE) {
+			g=-1*grid[gid].face[f].neighbor-1;
+			if (grid[gid].ghost[g].partition<Rank) write=false;
+		}
+
+		if (write) file << grid[gid].face[f].parent+grid[gid].partitionOffset[Rank]+1 << endl;
+	}
+
+	file.close();
+	
+	return;
+}
+
+void write_tec_right() {
+	
+	ofstream file;
+	string fileName="./output/volume_"+int2str(timeStep)+"_"+int2str(gid+1)+".dat";
+	file.open((fileName).c_str(),ios::app);
+
+	if (Rank==0) file << "# right elements" << endl;
+	int g;
+	bool write;	
+	for (int f=0;f<grid[gid].faceCount;++f) { 
+		write=true;
+		if (grid[gid].face[f].bc==GHOST_FACE) {
+			g=-1*grid[gid].face[f].neighbor-1;
+			if (grid[gid].ghost[g].partition<Rank) write=false;
+		}
+
+		if (write) {
+			if (grid[gid].face[f].bc==GHOST_FACE) file << grid[gid].ghost[g].id_in_owner+grid[gid].partitionOffset[grid[gid].ghost[g].partition]+1 << endl;
+			else if (grid[gid].face[f].bc>=0) file << 0 << endl;
+			else file << grid[gid].face[f].neighbor+grid[gid].partitionOffset[Rank]+1 << endl;
+		}
+	}
+
+	file.close();
+	
+	return;
 }
 
 void write_vtk(void) {

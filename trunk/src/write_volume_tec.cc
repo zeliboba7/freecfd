@@ -41,7 +41,6 @@ extern vector<HeatConduction> hc;
 extern vector<RANS> rans;
 extern vector<Variable<double> > dt;
 extern vector<int> equations;
-extern vector<Loads> loads;
 
 namespace volume_output {
 	int timeStep,gid;
