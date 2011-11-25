@@ -55,6 +55,8 @@ void write_tec_nodes(int i);
 void write_tec_var(int ov, int i);
 void write_tec_face_node_counts (void);
 void write_tec_face_nodes(void);
+void write_tec_left(void);
+void write_tec_right(void);
 
 void write_loads(int gid,int step,double time) {
 	ofstream file;
@@ -134,6 +136,16 @@ void write_volume_output(int gridid, int step) {
 			if(Rank==p) write_tec_face_nodes();
 			MPI_Barrier(MPI_COMM_WORLD);
 		}
+
+		for (int p=0;p<np;++p) {
+			if(Rank==p) write_tec_left();
+			MPI_Barrier(MPI_COMM_WORLD);
+		}
+
+		for (int p=0;p<np;++p) {
+			if(Rank==p) write_tec_right();
+			MPI_Barrier(MPI_COMM_WORLD);
+		}
 	} 
 
 	return;
@@ -163,11 +175,11 @@ void write_tec_header(void) {
 		}
 	}
 	file << endl;
-	file << "ZONE, T=\"Grid " << gid+1 << endl;
+	file << "ZONE T=\"Grid_" << gid+1 << "\"" <<  endl;
 	file << "Nodes=" << grid[gid].globalNodeCount << ", Faces=" << grid[gid].globalFaceCount << ", Elements=" << grid[gid].globalCellCount << ", ZONETYPE=FEPolyhedron" << endl;
 	file << "DATAPACKING=BLOCK" << endl;
 	file << "TotalNumFaceNodes=" << grid[gid].globalNumFaceNodes << ", NumConnectedBoundaryFaces=0, TotalNumBoundaryConnections=0 " << endl;
-	file << "DT=(" << endl;
+	file << "DT=(";
 	for (int var=0;var<nvars;++var) file << "DOUBLE ";
 	file << ")" << endl;
 	if (nvars==4) {
@@ -430,21 +442,21 @@ void write_tec_face_node_counts () {
 	string fileName="./output/volume_"+int2str(timeStep)+"_"+int2str(gid+1)+".dat";
 	file.open((fileName).c_str(),ios::app);
 
-	file << "# node count per face" << endl;
+	if (Rank==0) file << "\n# node count per face" << endl;
 	int count=0;
 	int g;
 	bool write;
 	for (int f=0;f<grid[gid].faceCount;++f) {
+		write=true;
 		if (grid[gid].face[f].bc==GHOST_FACE) {
 			g=-1*grid[gid].face[f].neighbor-1;
 			if (grid[gid].ghost[g].partition<Rank) write=false;
 		}
 		if (write) {
-			file << grid[gid].face[f].nodeCount;
-			count++;
-			if (count%10==0) file << endl;
+			file << grid[gid].face[f].nodeCount << endl;
 		}
 	}
+	
 
 	file.close();
 	
@@ -457,7 +469,7 @@ void write_tec_face_nodes() {
 	string fileName="./output/volume_"+int2str(timeStep)+"_"+int2str(gid+1)+".dat";
 	file.open((fileName).c_str(),ios::app);
 
-	file << "# face nodes" << endl;
+	if (Rank==0) file << "# face nodes" << endl;
 	int g;
 	bool write;	
 	for (int f=0;f<grid[gid].faceCount;++f) { 
@@ -481,3 +493,54 @@ void write_tec_face_nodes() {
 	
 }
 
+void write_tec_left() {
+	
+	ofstream file;
+	string fileName="./output/volume_"+int2str(timeStep)+"_"+int2str(gid+1)+".dat";
+	file.open((fileName).c_str(),ios::app);
+
+	if (Rank==0) file << "# left elements" << endl;
+	int g;
+	bool write;
+	for (int f=0;f<grid[gid].faceCount;++f) { 
+		write=true;
+		if (grid[gid].face[f].bc==GHOST_FACE) {
+			g=-1*grid[gid].face[f].neighbor-1;
+			if (grid[gid].ghost[g].partition<Rank) write=false;
+		}
+
+		if (write) file << grid[gid].face[f].parent+grid[gid].partitionOffset[Rank]+1 << endl;
+	}
+
+	file.close();
+	
+	return;
+}
+
+void write_tec_right() {
+	
+	ofstream file;
+	string fileName="./output/volume_"+int2str(timeStep)+"_"+int2str(gid+1)+".dat";
+	file.open((fileName).c_str(),ios::app);
+
+	if (Rank==0) file << "# right elements" << endl;
+	int g;
+	bool write;	
+	for (int f=0;f<grid[gid].faceCount;++f) { 
+		write=true;
+		if (grid[gid].face[f].bc==GHOST_FACE) {
+			g=-1*grid[gid].face[f].neighbor-1;
+			if (grid[gid].ghost[g].partition<Rank) write=false;
+		}
+
+		if (write) {
+			if (grid[gid].face[f].bc==GHOST_FACE) file << grid[gid].ghost[g].id_in_owner+grid[gid].partitionOffset[grid[gid].ghost[g].partition]+1 << endl;
+			else if (grid[gid].face[f].bc>=0) file << 0 << endl;
+			else file << grid[gid].face[f].neighbor+grid[gid].partitionOffset[Rank]+1 << endl;
+		}
+	}
+
+	file.close();
+	
+	return;
+}

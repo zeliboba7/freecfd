@@ -45,10 +45,11 @@ void read_inputs(void) {
 
 	input.section("grid",0).registerSubsection("gradients",single,optional);
 	input.section("grid",0).subsection("gradients").register_string("hexmethod",optional,"curvilinear");
+	input.section("grid",0).subsection("gradients").register_string("prismmethod",optional,"curvilinear");
 	input.section("grid",0).subsection("gradients").register_string("othermethod",optional,"lsqr");
 	
 	input.section("grid",0).registerSubsection("interpolation",single,optional);
-	input.section("grid",0).subsection("interpolation").register_string("method",optional,"wtli");
+	input.section("grid",0).subsection("interpolation").register_string("method",optional,"simple");
 	input.section("grid",0).subsection("interpolation").register_int("stencilsize",optional,0); // means automatic
 	input.section("grid",0).subsection("interpolation").register_double("skewnesstolerance",optional,0.99);
 	

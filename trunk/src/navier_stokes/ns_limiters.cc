@@ -321,7 +321,11 @@ void NavierStokes::venkatakrishnan_limiter(void) {
 			}
 		} // end face loop		
 	
-		for (int var=0;var<5;++var) limiter[var].cell(c)=phi[var];
+		//for (int var=0;var<5;++var) limiter[var].cell(c)=phi[var];
+
+		for (int var=0;var<5;++var) phi[0]=min(phi[0],phi[var]);
+		for (int var=0;var<5;++var) limiter[var].cell(c)=phi[0];
+		
 	
 	} // end cell loop
 	
