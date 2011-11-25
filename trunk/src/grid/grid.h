@@ -151,6 +151,7 @@ public:
 	int node_output_offset,node_bc_output_offset;
 	int nodeCount,cellCount,faceCount;
 	int globalNodeCount,global_bc_nodeCount,globalCellCount,globalFaceCount,ghostCount;
+	int globalNumFaceNodes;
 	double globalTotalVolume;
 	std::vector<std::vector<int> > boundaryFaceCount; // for each bc region in each proc
 	std::vector<int> globalBoundaryFaceCount;

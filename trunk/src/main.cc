@@ -120,7 +120,8 @@ int main(int argc, char *argv[]) {
 			restart_step=atoi(argv[3]);
 		} else if (str_arg=="output") {
 			OUTPUT_ONLY=true;
-			restart_step=atoi(argv[3]);
+			if (argc>3) restart_step=atoi(argv[3]);
+			else restart_step=0;
 		} else if (str_arg=="prep") {
 			PREP=true;
 			remove("grid.raw");
