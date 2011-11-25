@@ -240,6 +240,8 @@ int Grid::readTEC() {
 	// Close the grid file
 	file.close();
 
+	globalNumFaceNodes=raw.faceConnectivity.size();
+
 	// Now fill in cell connectivity (needed for partitioning)
 	// Declare a temporary set of nodes for each cell
 	vector<set<int> > cellnodes;

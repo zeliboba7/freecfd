@@ -78,7 +78,7 @@ bc_interface_sync.cc
 read_inputs.cc       
 set_bcs.cc 
 write_surface_output.cc	
-write_volume_output.cc
+write_volume_tec.cc
 )
 
 add_executable(freecfd ${SOURCES})
