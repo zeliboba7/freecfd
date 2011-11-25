@@ -197,8 +197,8 @@ bool Interpolate::interpolate_tetra(void) {
 					weightSum=0.;
 					for (int i=0;i<4;++i) weightSum+=weights4[i];
 					if (fabs(weightSum-1.)>1.e-8) {
-						cout << "[W rank=" << Rank << "] Tetra interpolation weightSum=" << setprecision(8) << weightSum << " is not unity" << endl;
-						cout << "[W rank=" << Rank << "] Switching to tri interpolation" << endl;
+					//	cout << "[W rank=" << Rank << "] Tetra interpolation weightSum=" << setprecision(8) << weightSum << " is not unity" << endl;
+					//	cout << "[W rank=" << Rank << "] Switching to tri interpolation" << endl;
 						return false;
 					}
 					
