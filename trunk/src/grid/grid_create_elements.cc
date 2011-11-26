@@ -699,12 +699,8 @@ int Grid::create_ghosts() {
 		}
 	}
 
-	int temp=0;
-	MPI_Allreduce (&globalNumFaceNodes,&temp,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
-	globalNumFaceNodes=temp;
-	temp=0;
-	MPI_Allreduce (&globalFaceCount,&temp,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
-	globalFaceCount=temp;
+        MPI_Allreduce (&globalNumFaceNodes,&globalNumFaceNodes,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
+        MPI_Allreduce (&globalFaceCount,&globalFaceCount,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
 
 	return 0;
 	

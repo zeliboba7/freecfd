@@ -128,10 +128,9 @@ bool Interpolate::interpolate_tetra(void) {
 	for (int i=0;i<weights.size();++i) weights[i]=0.;
 	
 	bool is_success=false;
-	
-	for (int s1=0;s1<stencil.size()-2;++s1) {
-		for (int s2=s1+1;s2<stencil.size()-1;++s2) {
-			for (int s3=s2+1;s3<stencil.size();++s3) {
+	for (int s1=0;s1<stencil.size()-3;++s1) {
+		for (int s2=s1+1;s2<stencil.size()-2;++s2) {
+			for (int s3=s2+1;s3<stencil.size()-1;++s3) {
 				for (int s4=s3+1;s4<stencil.size();++s4) {
 					// Evaluate viability of the constructed tetra for interpolation
 					edge1=stencil[s2]-stencil[s1];
@@ -149,13 +148,11 @@ bool Interpolate::interpolate_tetra(void) {
 					equilateral_volume=sqrt(2.)/12.*ave_edge*ave_edge*ave_edge;		
 					skewness=1.-volume/equilateral_volume; // really skewed -> 1, perfect -> 0
 					// If the tetra is too skewed, skip it
-					if (skewness>(skewness_tolerance*skewness_tolerance*skewness_tolerance)) continue;
-					// At this point, there is a decent tetra
-					is_success=true;
+					if (skewness>skewness_tolerance) continue;
 					// Weight its contribution by how close its centroid is to the point to interpolate
 					centroid=(stencil[s1]+stencil[s2]+stencil[s3]+stencil[s4])/4.;
 					distance=fabs(point-centroid)/ave_edge; // normalized distance
-					distance=max(distance,1.e-2); // limit minimum in case point and centroid coincide
+					distance=max(distance,1.e-8); // limit minimum in case point and centroid coincide
 					tetra_weight=1./(distance*distance); // far away -> 0 , really close >> 1
 					// Now to the actual interpolation
 					basis1=edge1;
@@ -163,49 +160,73 @@ bool Interpolate::interpolate_tetra(void) {
 					basis2=-1.*(basis1.cross(planeNormal)).norm();
 					basis3=(basis1.cross(basis2)).norm();
 
-					p_point-=stencil[s1]; // stencil[s1] is acting as the origin of a new coordinate system
-					
 					// Form the linear system
-					a4[0][0]=0.;
-					a4[0][1]=edge1.dot(basis1);
-					a4[0][2]=edge2.dot(basis1);
-					a4[0][3]=edge4.dot(basis1);
+					a4[0][0]=stencil[s1][0];
+					a4[0][1]=stencil[s2][0];
+					a4[0][2]=stencil[s3][0];
+					a4[0][3]=stencil[s4][0];
 					
-					a4[1][0]=0.;
-					a4[1][1]=edge1.dot(basis2);
-					a4[1][2]=edge2.dot(basis2);
-					a4[1][2]=edge4.dot(basis2);
+					a4[1][0]=stencil[s1][1];
+					a4[1][1]=stencil[s2][1];
+					a4[1][2]=stencil[s3][1];
+					a4[1][3]=stencil[s4][1];
 					
-					a4[2][0]=0.;
-					a4[2][1]=edge1.dot(basis3);
-					a4[2][2]=edge2.dot(basis3);
-					a4[2][2]=edge4.dot(basis3);
+					a4[2][0]=stencil[s1][2];
+					a4[2][1]=stencil[s2][2];
+					a4[2][2]=stencil[s3][2];
+					a4[2][3]=stencil[s4][2];
 					
 					a4[3][0]=1.;
 					a4[3][1]=1.;
 					a4[3][2]=1.;
-					a4[3][2]=1.;
+					a4[3][3]=1.;
 					
-					b4[0]=p_point.dot(basis1);
-					b4[1]=p_point.dot(basis2);
-					b4[2]=p_point.dot(basis3);
+					b4[0]=point[0];
+					b4[1]=point[1];
+					b4[2]=point[2];
 					b4[3]=1.;
+
+					//p_point=point-stencil[s1]; // stencil[s1] is acting as the origin of a new coordinate system
+					//
+					//// Form the linear system
+					//a4[0][0]=0.;
+					//a4[0][1]=edge1.dot(basis1);
+					//a4[0][2]=edge2.dot(basis1);
+					//a4[0][3]=edge4.dot(basis1);
+					//
+					//a4[1][0]=0.;
+					//a4[1][1]=edge1.dot(basis2);
+					//a4[1][2]=edge2.dot(basis2);
+					//a4[1][3]=edge4.dot(basis2);
+					//
+					//a4[2][0]=0.;
+					//a4[2][1]=edge1.dot(basis3);
+					//a4[2][2]=edge2.dot(basis3);
+					//a4[2][3]=edge4.dot(basis3);
+					//
+					//a4[3][0]=1.;
+					//a4[3][1]=1.;
+					//a4[3][2]=1.;
+					//a4[3][3]=1.;
+					//
+					//b4[0]=p_point.dot(basis1);
+					//b4[1]=p_point.dot(basis2);
+					//b4[2]=p_point.dot(basis3);
+					//b4[3]=1.;
 					
 					// Solve the 4x4 linear system by Gaussion Elimination
 					gelimd(a4,b4,weights4);
 					// Let's see if the linear system solution is good
 					weightSum=0.;
 					for (int i=0;i<4;++i) weightSum+=weights4[i];
-					if (fabs(weightSum-1.)>1.e-8) {
-					//	cout << "[W rank=" << Rank << "] Tetra interpolation weightSum=" << setprecision(8) << weightSum << " is not unity" << endl;
-					//	cout << "[W rank=" << Rank << "] Switching to tri interpolation" << endl;
-						return false;
+					if (fabs(weightSum-1.)<1.e-8) {
+						weights[s1]+=tetra_weight*weights4[0];
+						weights[s2]+=tetra_weight*weights4[1];
+						weights[s3]+=tetra_weight*weights4[2];
+						weights[s4]+=tetra_weight*weights4[3];
+						is_success=true; // At least one good interpolation
 					}
 					
-					weights[s1]+=tetra_weight*weights4[0];
-					weights[s2]+=tetra_weight*weights4[1];
-					weights[s3]+=tetra_weight*weights4[2];
-					weights[s4]+=tetra_weight*weights4[3];
 					
 				}
 			}
@@ -244,9 +265,7 @@ bool Interpolate::interpolate_tri(void) {
 				equilateral_area=0.433*ave_edge*ave_edge;
 				skewness=1.-area/equilateral_area; // really skewed -> 1, perfect -> 0
 				// If the triangle is too skewed, skip it
-				if (skewness>skewness_tolerance*skewness_tolerance) continue;
-				// At this point, there is a decent triangle
-				is_success=true;
+				if (skewness>skewness_tolerance) continue;
 				// Weight its contribution by how close its centroid is to the point to interpolate
 				// First project the point to the plane of the triangle
 				p_point=point-point.dot(planeNormal)*planeNormal;
@@ -279,16 +298,12 @@ bool Interpolate::interpolate_tri(void) {
 				// Let's see if the linear system solution is good
 				weightSum=0.;
 				for (int i=0;i<3;++i) weightSum+=weights3[i];
-				if (fabs(weightSum-1.)>1.e-8) {
-					cout << "[W rank=" << Rank << "] Tri interpolation weightSum=" << setprecision(8) << weightSum << " is not unity" << endl;
-					cout << "[W rank=" << Rank << "] Switching to line interpolation" << endl;
-					return false;
+				if (fabs(weightSum-1.)<1.e-8) {
+					weights[s1]+=tri_weight*weights3[0];
+					weights[s2]+=tri_weight*weights3[1];
+					weights[s3]+=tri_weight*weights3[2];
+					is_success=true;
 				}
-				
-				weights[s1]+=tri_weight*weights3[0];
-				weights[s2]+=tri_weight*weights3[1];
-				weights[s3]+=tri_weight*weights3[2];
-
 			}
 		}
 	}
