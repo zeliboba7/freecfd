@@ -23,7 +23,7 @@
 #ifndef UTILITIES_H
 #define UTILITIES_H
 
-#define EPS 1e-10
+#define EPS 1e-12
 
 #include <string>
 #include <sstream>
