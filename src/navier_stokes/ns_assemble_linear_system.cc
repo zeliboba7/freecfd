@@ -409,17 +409,16 @@ void NavierStokes::face_state_update(NS_Cell_State &left,NS_Cell_State &right,NS
 	 
 	// Boundary conditions are already taken care of in right state update
 
-	// TODO: In first order, this won't be a good averaging
-	
-	//if (face.bc>=0) {
+	if (order==FIRST) {
+		face.p=p.face(face.index);
+		face.V=V.face(face.index);
+		face.T=T.face(face.index);
+	} else {
 		face.p=0.5*(left.p+right.p);
 		face.V=0.5*(left.V+right.V);
 		face.T=0.5*(left.T+right.T);
-	//} else {
-	//	face.p=p.face(face.index);
-	//	face.V=V.face(face.index);
-	//	face.T=T.face(face.index);
-	//}
+	}	
+	
 	face.mu=material.viscosity(face.T);
 	face.lambda=material.therm_cond(face.T);
 	
