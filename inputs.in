@@ -1,0 +1,61 @@
+
+// Reference quantities
+// if p or T is specified as non-zero, the output values will be relative to these. i.e p_real=p_output+p_reference
+reference {         // [Optional]
+	p=0.;       // [Optional default=0.]
+	T=0.;
+	// Reference Mach number is only used by AUSM+up convective flux option
+	// to scale dissipation. Mach>1 has the same effect as Mach=1 (dissipation scaling is turned-off)
+	Mach=1.;    // [Optional default=1.]
+}
+
+grid_1 { // A grid_# section for each grid [Required]
+	file=filename;			// [Required]
+	format=cgns;			// [Optional default=cgns, available=cgns,tecplot]
+	dimension=3;			// [Optional default=3]
+	equations=navier stokes;	// [Required, available=navier stokes, heat conduction]
+
+	gradients ( 					// [Optional]
+		hex method=curvilinear;			// [Optional, default=curvilinear, available=curvilinear,lsqr,green gauss]
+		prism method=curvilinear;		// [Optional, default=curvilinear, available=curvilinear,lsqr,green gauss]
+		other method=lsqr;			// [Optional, default=lsqr,        available=curvilinear,lsqr,green gauss]
+	);
+
+	interpolation (					// [Optional]
+		method=wtli;				// [Optional default=wtli, available=wtli,idw,simple]
+		internal stencil=2;			// [Optional default=2]
+		boundary stencil=2;			// [Optional default=1]
+		skewness tolerance=0.99;		// [Optional default=0.99]
+	);
+
+	write output (					// [Required]
+		format=tecplot;				// [Optional default=tecplot, available=tecplot,vtk]
+		volume plot freuqency=1000000;		// [Optional default=1000000]
+		surface plot freuqency=1000000;		// [Optional default=1000000]
+		restart plot freuqency=1000000;		// [Optional default=1000000]
+
+		volume variables=[p,V,T];		// [Required]
+		// Available volume variables for navier stokes: 
+		// p,V,T,rho,dt,mu,lambda,Cp,resp,resV,resT,limiterp,limiterV,limiterT,Mach,rank,volume
+		// gradp,gradu,gradv,gradw,gradT,gradrho
+		// Available volume variables with rans:
+		// k,omega,mu_t,gradk,gradomega
+		// Available volume variables for heat conduction:
+		// T,gradT
+
+		surface variables=[p,T,tau]		// [Required]
+		// Available surface variables for navier stokes: 
+		// p,V,T,rho,dt,mu,lambda,Cp,resp,resV,resT,limiterp,limiterV,limiterT,mdot,qdot,tau,Mach,rank,volume
+		// gradp,gradu,gradv,gradw,gradT,gradrho
+		// Available surface variables with rans:
+		// k,omega,mu_t,gradk,gradomega,yplus
+		// Available surface variables for heat conduction:
+		// T,gradT,qdot
+
+		load freuqency=1000000;			// [Optional default=1000000]
+		moment center=[0.,0.,0.];		// [Optional default=[0.,0.,0.]]
+		include bcs=[1,2,3];			// [Optional default=none];
+		
+	);
+}
+
