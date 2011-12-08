@@ -31,7 +31,6 @@ int parent,neighbor,f;
 double lam_visc,turb_visc;
 
 double leftK,leftOmega, rightK, rightOmega, faceK, faceOmega, faceRho;
-double leftK_center, rightK_center, leftOmega_center, rightOmega_center;
 Vec3D faceGradK, faceGradOmega, left2right;
 
 double mdot,weightL,weightR;
@@ -54,6 +53,7 @@ void RANS::terms(void) {
 
 	// Loop through faces
 	for (f=0;f<grid[gid].faceCount;++f) {
+		extrapolated=false;
 		if (model==KOMEGA) blending=1.;
 		if (model==KEPSILON) blending=0.;
 		
@@ -76,17 +76,15 @@ void RANS::terms(void) {
 		// main flow was updated
 		
 		// The following weights are consistent with the splitting of the Riemann solver.
+		mdot=ns[gid].mdot.face(f);
 		weightL=ns[gid].weightL.face(f);
 		weightR=1.-weightL;
-		extrapolated=false;
-		mdot=ns[gid].mdot.face(f);
-		
+
 		// Get left, right and face values of k and omega as well as the face normal gradients
 		get_kOmega();
 
 		convectiveFlux[0]=mdot*(weightL*leftK+weightR*rightK)*grid[gid].face[f].area;
 		convectiveFlux[1]=mdot*(weightL*leftOmega+weightR*rightOmega)*grid[gid].face[f].area;
-
 
 		// Diffusive k and omega fluxes	
 		if (model==BSL || model==SST) {
@@ -99,10 +97,10 @@ void RANS::terms(void) {
 		alpha=blending*komega.alpha+(1.-blending)*kepsilon.alpha;
 		beta=blending*komega.beta+(1.-blending)*kepsilon.beta;
 		beta_star=blending*komega.beta_star+(1.-blending)*kepsilon.beta_star;
-		
+	
 		diffusiveFlux[0]=(lam_visc+turb_visc*sigma_k)*faceGradK.dot(grid[gid].face[f].normal)*grid[gid].face[f].area;
 		diffusiveFlux[1]=(lam_visc+turb_visc*sigma_omega)*faceGradOmega.dot(grid[gid].face[f].normal)*grid[gid].face[f].area;
-		
+
 		// Fill in rhs vector for rans scalars
 		for (int i=0;i<2;++i) {
 			row=(grid[gid].myOffset+parent)*2+i;
@@ -119,18 +117,26 @@ void RANS::terms(void) {
 		
 		// Assumes k flux doesn't change with omega and vice versa 
 		// This is true for convective flux (effect of mu_t in diffusive flux ignored)
+		double l2rmag=fabs(left2right);
+		double AoverH=grid[gid].face[f].area*grid[gid].face[f].normal.dot(left2right.norm())/(l2rmag);
 		// dF_k/dk_left
 		jacL[0]=weightL*mdot*grid[gid].face[f].area; // convective
-		if (!extrapolated) jacL[0]+=(lam_visc+turb_visc*sigma_k)/(left2right.dot(grid[gid].face[f].normal))*grid[gid].face[f].area; // diffusive
-		// dF_k/dk_right
-		jacR[0]=weightR*mdot*grid[gid].face[f].area; // convective
-		if (!extrapolated) jacR[0]-=(lam_visc+turb_visc*sigma_k)/(left2right.dot(grid[gid].face[f].normal))*grid[gid].face[f].area; // diffusive
+		if (extrapolated) jacL[0]+=weightR*mdot*grid[gid].face[f].area; // convective
+		if (!extrapolated) jacL[0]+=(lam_visc+turb_visc*sigma_k)*AoverH; // diffusive
+
 		// dF_omega/dOmega_left
 		jacL[1]=weightL*mdot*grid[gid].face[f].area; // convective
-		if (!extrapolated) jacL[1]+=(lam_visc+turb_visc*sigma_omega)/(left2right.dot(grid[gid].face[f].normal))*grid[gid].face[f].area; // diffusive
-		// dF_omega/dOmega_right
-		jacR[1]=weightR*mdot*grid[gid].face[f].area; // convective
-		if (!extrapolated) jacR[1]-=(lam_visc+turb_visc*sigma_omega)/(left2right.dot(grid[gid].face[f].normal))*grid[gid].face[f].area; // diffusive
+		if (extrapolated) jacL[1]+=weightR*mdot*grid[gid].face[f].area; // convective
+		if (!extrapolated) jacL[1]+=(lam_visc+turb_visc*sigma_omega)*AoverH; // diffusive
+
+		if (grid[gid].face[f].bc<0) {
+			// dF_k/dk_right
+			jacR[0]=weightR*mdot*grid[gid].face[f].area; // convective
+			jacR[0]-=(lam_visc+turb_visc*sigma_k)*AoverH; // diffusive
+			// dF_omega/dOmega_right
+			jacR[1]=weightR*mdot*grid[gid].face[f].area; // convective
+			jacR[1]-=(lam_visc+turb_visc*sigma_omega)*AoverH; // diffusive
+		}
 		
 		// Insert flux jacobians for the parent cell
 		// left_k/left_k
@@ -160,9 +166,9 @@ void RANS::terms(void) {
 			// right_omega/left_omega
 			row++; col++; value=-jacL[1];
 			MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
-		} else if (grid[gid].face[f].bc==GHOST_FACE) { 
+		} else if (grid[gid].face[f].bc==PARTITION_FACE) { 
 			// left_k/right_k
-			row=(grid[gid].myOffset+parent)*2; col=(grid[gid].ghost[-1*neighbor-1].matrix_id)*2; value=jacR[0];
+			row=(grid[gid].myOffset+parent)*2; col=(grid[gid].cell[neighbor].matrix_id)*2; value=jacR[0];
 			MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
 			// left_omega/right_omega
 			row++; col++; value=jacR[1];
@@ -173,8 +179,8 @@ void RANS::terms(void) {
 	
 	// Now do a cell loop to add the unsteady and source terms
 	double divU,Prod_k,Dest_k;
-	for (int c=0;c<grid[gid].cellCount;++c) {
-		
+	for (int c=0;c<grid[gid].cell.size();++c) {
+
 		if (model==BSL || model==SST) {
 			blending=get_blending(k.cell(c),omega.cell(c),ns[gid].rho.cell(c),grid[gid].cell[c].closest_wall_distance,lam_visc,gradk.cell(c),gradomega.cell(c));
 		}
@@ -186,7 +192,7 @@ void RANS::terms(void) {
 		beta_star=blending*komega.beta_star+(1.-blending)*kepsilon.beta_star;
 		
 		// Calculate the source terms
-		
+			
 		dudx=ns[gid].gradu.cell(c)[0];
 		dudy=ns[gid].gradu.cell(c)[1];
 		dudz=ns[gid].gradu.cell(c)[2];
@@ -209,7 +215,9 @@ void RANS::terms(void) {
 		
 		// Store this for sst model
 		strainRate.cell(c)=sr;
-		
+	
+		if (c>=grid[gid].cellCount) continue;
+	
 		Prod_k=mu_t.cell(c)*(sr*sr-2./3.*divU*divU)-2./3.*ns[gid].rho.cell(c)*k.cell(c)*divU;
 		Dest_k=beta_star*ns[gid].rho.cell(c)*omega.cell(c)*k.cell(c);
 		
@@ -253,7 +261,7 @@ void RANS::terms(void) {
 		// Add cross-diffusion term jacobian
 		value+=2.*(1.-blending)*komega.sigma_omega*komega.sigma_omega*cross_diffusion/(omega.cell(c)*omega.cell(c))*grid[gid].cell[c].volume;
 		MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
-	
+
 		
 	} // end cell loop
 	
@@ -268,131 +276,45 @@ void RANS::terms(void) {
 
 void RANS::get_kOmega() {
 	
-	// Get left k and omega
-	double delta[2];
-
-	Vec3D cell2face=grid[gid].face[f].centroid-grid[gid].cell[parent].centroid;
+	leftK=k.cell(parent);
+	leftOmega=omega.cell(parent);
+	rightK=k.cell(neighbor);
+	rightOmega=omega.cell(neighbor);
 	
-	if (order==SECOND) {
-		delta[0]=cell2face.dot(limiter[0].cell(parent)*gradk.cell(parent));
-		delta[1]=cell2face.dot(limiter[1].cell(parent)*gradomega.cell(parent));
+	int bcno=grid[gid].face[f].bc;
+	if (bcno>=0) {
+		if (bc[gid][bcno].type==SYMMETRY || bc[gid][bcno].type==OUTLET) {
+			extrapolated=true;
+		} else if (bc[gid][bcno].type==WALL && bc[gid][bcno].kind==SLIP) {
+			extrapolated=true;
+		}
+		faceGradK=gradk.cell(parent);
+		faceGradOmega=gradomega.cell(parent);
 	} else {
-		for (int i=0;i<2;++i) delta[i]=0.;
+		faceGradK=gradk.face(f);
+		faceGradOmega=gradomega.face(f);
 	}
-	
-	leftK_center=k.cell(parent);
-	leftK=leftK_center+delta[0];
-	leftOmega_center=omega.cell(parent);
-	leftOmega=leftOmega_center+delta[1];
-	
-	leftK=max(leftK,kLowLimit);
-	leftK=min(leftK,kHighLimit);
-	leftOmega=max(leftOmega,omegaLowLimit);
 
+	faceK=k.face(f);
+	faceOmega=omega.face(f);
 	faceRho=ns[gid].rho.face(f);
-	faceGradK=gradk.face(f);
-	faceGradOmega=gradomega.face(f);
 
 	// Find distance between left and right centroids 
 	Vec3D leftCentroid,rightCentroid;
 	leftCentroid=grid[gid].cell[parent].centroid;
-	if (grid[gid].face[f].bc==INTERNAL_FACE) { rightCentroid=grid[gid].cell[neighbor].centroid;}
-	else if (grid[gid].face[f].bc>=0) {
-		if (bc[gid][grid[gid].face[f].bc].type==OUTLET || bc[gid][grid[gid].face[f].bc].type==INLET) {
-			rightCentroid=leftCentroid+2.*(grid[gid].face[f].centroid-leftCentroid);
-		} else {
-			rightCentroid=leftCentroid+2.*(grid[gid].face[f].centroid-leftCentroid).dot(grid[gid].face[f].normal)*grid[gid].face[f].normal;
-		}
-	} else { rightCentroid=grid[gid].ghost[-1*grid[gid].face[f].neighbor-1].centroid;}
-	
+	rightCentroid=grid[gid].cell[neighbor].centroid;
 	left2right=rightCentroid-leftCentroid;
-	
-	// Get right k and omega
-	if (grid[gid].face[f].bc==INTERNAL_FACE) {// internal face
-
-		cell2face=grid[gid].face[f].centroid-grid[gid].cell[neighbor].centroid;
-		
-		if (order==SECOND) {
-			delta[0]=cell2face.dot(limiter[0].cell(neighbor)*gradk.cell(neighbor));
-			delta[1]=cell2face.dot(limiter[1].cell(neighbor)*gradomega.cell(neighbor));
-		} else {
-			for (int i=0;i<2;++i) delta[i]=0.;
-		}
-
-		rightK_center=k.cell(neighbor);
-		rightK=rightK_center+delta[0];
-		rightOmega_center=omega.cell(neighbor);
-		rightOmega=rightOmega_center+delta[1];
-	
-		rightK=max(rightK,kLowLimit);
-		rightK=min(rightK,kHighLimit);
-		rightOmega=max(rightOmega,omegaLowLimit);
-		
-	} else if (grid[gid].face[f].bc>=0) { // boundary face
-		
-		rightK=leftK; rightOmega=leftOmega;
-		faceRho=ns[gid].rho.cell(parent);
-		int bcno=grid[gid].face[f].bc;
-		
-		if (bc[gid][bcno].type==WALL) {
-			rightK=0.;
-			rightOmega=60.*lam_visc/(faceRho*0.075*pow(0.5*left2right.dot(grid[gid].face[f].normal),2.));
-			rightK_center=2.*rightK-leftK_center;
-			rightOmega_center=2.*rightOmega-leftOmega_center;
-		} else if (bc[gid][bcno].type==SYMMETRY) {
-			rightK_center=leftK_center; 
-			rightOmega_center=leftOmega_center;
-			extrapolated=true;
-		} else if (bc[gid][bcno].type==SLIP) {
-			rightK_center=leftK_center; 
-			rightOmega_center=leftOmega_center;
-			extrapolated=true;
-		} else if (bc[gid][bcno].type==INLET) {
-			rightK=k.bc(bcno);
-			rightOmega=omega.bc(bcno);
-			rightK_center=2.*rightK-leftK_center;
-			rightOmega_center=2.*rightOmega-leftOmega_center;
-		} else if (bc[gid][bcno].type==OUTLET) {
-			rightK_center=2.*rightK-leftK_center; 
-			rightOmega_center=2.*rightOmega-leftOmega_center;
-			extrapolated=true;
-		}
-		
-	} else { // partition boundary
-
-		int g=-1*grid[gid].face[f].neighbor-1; // ghost cell index
-		cell2face=grid[gid].face[f].centroid-grid[gid].ghost[g].centroid;
-		
-		if (order==SECOND) {
-			delta[0]=cell2face.dot(limiter[0].ghost(g)*gradk.ghost(g));
-			delta[1]=cell2face.dot(limiter[1].ghost(g)*gradomega.ghost(g));
-		} else {
-			for (int i=0;i<2;++i) delta[i]=0.;
-		}
-		
-		rightK_center=k.ghost(g);
-		rightK=rightK_center+delta[0];
-		rightOmega_center=omega.ghost(g);
-		rightOmega=rightOmega_center+delta[1];
-		
-		rightK=max(rightK,kLowLimit);
-		rightK=min(rightK,kHighLimit);
-		rightOmega=max(rightOmega,omegaLowLimit);
-	}
 	
 	Vec3D l2rnormal=left2right;
 	l2rnormal=l2rnormal.norm();
 	double l2rmag=fabs(left2right);
 	
 	faceGradK-=faceGradK.dot(l2rnormal)*l2rnormal;
-	faceGradK+=((rightK_center-leftK_center)/(l2rmag))*l2rnormal;
+	faceGradK+=((rightK-leftK)/(l2rmag))*l2rnormal;
 	
 	faceGradOmega-=faceGradOmega.dot(l2rnormal)*l2rnormal;
-	faceGradOmega+=((rightOmega_center-leftOmega_center)/(l2rmag))*l2rnormal;
+	faceGradOmega+=((rightOmega-leftOmega)/(l2rmag))*l2rnormal;
 
-	faceK=0.5*(leftK+rightK);
-	faceOmega=0.5*(leftOmega+rightOmega);
-	
 	return;	
 }
 

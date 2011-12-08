@@ -22,8 +22,6 @@
 *************************************************************************/
 #include "ns.h"
 
-double order_factor;
-
 namespace ns_state {
 	NS_Cell_State left,right,leftPlus,rightPlus;
 	NS_Face_State face;
@@ -121,10 +119,11 @@ void NavierStokes::assemble_linear_system(void) {
 		}
 	
 		// Fill in surface information
-		
+	
+		mdot.face(face.index)=(flux.convective[0]-flux.diffusive[0])/face.area;	
 		if (face.bc>=0) {
+			//if (!mdot.fixedonBC[face.bc]) mdot.bc(face.bc,face.index)=(flux.convective[0]-flux.diffusive[0])/face.area;
 			if (!qdot.fixedonBC[face.bc]) qdot.bc(face.bc,face.index)=(flux.convective[4]-flux.diffusive[4])/face.area;
-			if (!mdot.fixedonBC[face.bc]) mdot.bc(face.bc,face.index)=(flux.convective[0]-flux.diffusive[0])/face.area;
 			for (int i=0;i<3;++i) tau.bc(face.bc,face.index)[i]=-flux.diffusive[i+1]/face.area;
 		}
 		
@@ -164,26 +163,25 @@ void NavierStokes::assemble_linear_system(void) {
 						MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
 					}
 				} // for j
-	
-				if (face.bc==INTERNAL_FACE || face.bc==GHOST_FACE) { 
-	
-					// Add change of flux (flux Jacobian) to implicit operator
+
+				if (face.bc==INTERNAL_FACE) {
 					for (int j=0;j<5;++j) {
-						if (face.bc==INTERNAL_FACE) { 
-							col=(grid[gid].myOffset+neighbor)*5+i; // Effect of neighbor ith var perturbation
-							row=(grid[gid].myOffset+neighbor)*5+j; // on neighbor jth flux
-							value=jacobianRight[j];
-							//if (doRightSourceJac) value-=sourceJacRight[j];
-							MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
-							row=(grid[gid].myOffset+parent)*5+j; // on parent jth flux
-							value=-1.*jacobianRight[j];
-							MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
-						} else  { // Ghost (only add effect on parent cell, effect on itself is taken care of in its own partition
-							row=(grid[gid].myOffset+parent)*5+j;
-							col=(grid[gid].ghost[-1*neighbor-1].matrix_id)*5+i;
-							value=-1.*jacobianRight[j];
-							MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
-						}
+						col=(grid[gid].myOffset+neighbor)*5+i; // Effect of neighbor ith var perturbation
+						row=(grid[gid].myOffset+neighbor)*5+j; // on neighbor jth flux
+						value=jacobianRight[j];
+						//if (doRightSourceJac) value-=sourceJacRight[j];
+						MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
+						row=(grid[gid].myOffset+parent)*5+j; // on parent jth flux
+						value=-1.*jacobianRight[j];
+						MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
+					}
+				} else if (face.bc==PARTITION_FACE) { 
+					// Ghost (only add effect on parent cell, effect on itself is taken care of in its own partition
+					for (int j=0;j<5;++j) {
+						row=(grid[gid].myOffset+parent)*5+j;
+						col=(grid[gid].cell[neighbor].matrix_id)*5+i;
+						value=-1.*jacobianRight[j];
+						MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
 					}
 						
 				} // if 
@@ -240,7 +238,7 @@ void NavierStokes::get_jacobians(const int var) {
 		if (doLeftSourceJac) sourceJacLeft[j]=(sourceLeftPlus[j]-sourceLeft[j])/epsilon;
 	}
 	
-	if (face.bc==INTERNAL_FACE || face.bc==GHOST_FACE) { 
+	if (face.bc==INTERNAL_FACE || face.bc==PARTITION_FACE) { 
 		
 		if (right.update[var]>small_number) {epsilon=max(small_number,factor*right.update[var]);}
 		else if (right.update[var]<-small_number) {epsilon=min(-small_number,factor*right.update[var]); }
@@ -270,8 +268,7 @@ void NavierStokes::get_jacobians(const int var) {
 
 void NavierStokes::left_state_update(NS_Cell_State &left,NS_Face_State &face) {
 	
-	int parent=grid[gid].face[face.index].parent;
-
+	int parent=face.parent;
 	Vec3D cell2face=order_factor*grid[gid].face[face.index].centroid-grid[gid].cell[parent].centroid;
 	Vec3D deltaV;
 	left.p_center=p.cell(parent);
@@ -286,7 +283,6 @@ void NavierStokes::left_state_update(NS_Cell_State &left,NS_Face_State &face) {
 	left.rho=material.rho(left.p,left.T);
 	
 	for (int i=0;i<5;++i) left.update[i]=update[i].cell(parent);
-		
 	left.a=material.a(left.p,left.T);
 	left.H=left.a*left.a/(material.gamma-1.)+0.5*left.V.dot(left.V);
 	left.Vn[0]=left.V.dot(face.normal);
@@ -299,9 +295,14 @@ void NavierStokes::left_state_update(NS_Cell_State &left,NS_Face_State &face) {
 
 void NavierStokes::right_state_update(NS_Cell_State &left,NS_Cell_State &right,NS_Face_State &face) {
 
-	if (face.bc==INTERNAL_FACE) {// internal face
-
-		int neighbor=grid[gid].face[face.index].neighbor;
+	if (face.bc>=0) { // boundary face
+		for (int i=0;i<5;++i) right.update[i]=0.;
+		right.p_center=p.cell(face.neighbor);
+		right.T_center=T.cell(face.neighbor);
+		right.V_center=V.cell(face.neighbor);
+		apply_bcs(left,right,face);
+	} else {
+		int neighbor=face.neighbor;
 		Vec3D cell2face=order_factor*grid[gid].face[face.index].centroid-grid[gid].cell[neighbor].centroid;
 		Vec3D deltaV;
 		right.p_center=p.cell(neighbor);
@@ -317,32 +318,6 @@ void NavierStokes::right_state_update(NS_Cell_State &left,NS_Cell_State &right,N
 		right.volume=grid[gid].cell[neighbor].volume;
 		
 		for (int i=0;i<5;++i) right.update[i]=update[i].cell(neighbor);
-		
-	} else if (face.bc>=0) { // boundary face
-
-		for (int i=0;i<5;++i) right.update[i]=0.;
-		apply_bcs(left,right,face);
-		
-	} else { // partition boundary
-
-		int g=-1*grid[gid].face[face.index].neighbor-1; // ghost cell index
-		
-		Vec3D cell2face=order_factor*grid[gid].face[face.index].centroid-grid[gid].ghost[g].centroid;
-		Vec3D deltaV;
-		right.p_center=p.ghost(g);
-		right.p=right.p_center+limiter[0].ghost(g)*cell2face.dot(gradp.ghost(g));
-		deltaV[0]=limiter[1].ghost(g)*cell2face.dot(gradu.ghost(g));
-		deltaV[1]=limiter[2].ghost(g)*cell2face.dot(gradv.ghost(g));
-		deltaV[2]=limiter[3].ghost(g)*cell2face.dot(gradw.ghost(g));
-		right.V_center=V.ghost(g);
-		right.V=right.V_center+deltaV;
-		right.T_center=T.ghost(g);
-		right.T=right.T_center+limiter[4].ghost(g)*cell2face.dot(gradT.ghost(g));
-		right.rho=material.rho(right.p,right.T);
-		right.volume=grid[gid].ghost[g].volume;
-		
-		for (int i=0;i<5;++i) right.update[i]=update[i].ghost(g);
-		
 	}
 	
 	right.a=material.a(right.p,right.T);
@@ -356,37 +331,58 @@ void NavierStokes::right_state_update(NS_Cell_State &left,NS_Cell_State &right,N
 
 void NavierStokes::face_geom_update(NS_Face_State &face,int f) {
 	face.index=f;
+	face.parent=grid[gid].face[f].parent;
+	face.neighbor=grid[gid].face[f].neighbor;
 	face.normal=grid[gid].face[f].normal;
-	if (grid[gid].face[f].nodeCount==4) {
+	if (grid[gid].face[f].nodes.size()==4) {
 		face.tangent1=((grid[gid].faceNode(f,0)+grid[gid].faceNode(f,1))-(grid[gid].faceNode(f,2)+grid[gid].faceNode(f,3))).norm();
 	} else {
 		face.tangent1=(0.5*(grid[gid].faceNode(f,0)+grid[gid].faceNode(f,1))-grid[gid].face[f].centroid).norm();
 	}
-	// Cross the tangent vector with the normal vector to get the second tangent
 	face.tangent2=((face.normal).cross(face.tangent1)).norm();
+	// Cross the tangent vector with the normal vector to get the second tangent
 	face.area=grid[gid].face[f].area;
 	face.bc=grid[gid].face[f].bc;
 	Vec3D leftCentroid,rightCentroid;
-	leftCentroid=grid[gid].cell[grid[gid].face[f].parent].centroid;
-	if (face.bc==INTERNAL_FACE) { rightCentroid=grid[gid].cell[grid[gid].face[f].neighbor].centroid;}
-	else if (face.bc>=0) {
-		if (bc[gid][face.bc].type==OUTLET || bc[gid][face.bc].type==INLET) {
-			rightCentroid=leftCentroid+2.*(grid[gid].face[f].centroid-leftCentroid);
-		} else {
-			rightCentroid=leftCentroid+2.*(grid[gid].face[f].centroid-leftCentroid).dot(face.normal)*face.normal;
-		}
-	} else { rightCentroid=grid[gid].ghost[-1*grid[gid].face[f].neighbor-1].centroid;}
+	leftCentroid=grid[gid].cell[face.parent].centroid;
+	rightCentroid=grid[gid].cell[face.neighbor].centroid;
 	face.left2right=rightCentroid-leftCentroid;
 	return;
 } // end face_geom_update
 
 void NavierStokes::face_state_update(NS_Cell_State &left,NS_Cell_State &right,NS_Face_State &face) {
 
-	face.gradu=gradu.face(face.index);
-	face.gradv=gradv.face(face.index);
-	face.gradw=gradw.face(face.index);
-	face.gradT=gradT.face(face.index);
-	
+//	if (face.bc>=0) { // Boundary face
+//		int parent=grid[gid].face[face.index].parent;
+//		face.gradu=gradu.cell(parent);
+//		face.gradv=gradv.cell(parent);
+//		face.gradw=gradw.cell(parent);
+//		face.gradT=gradT.cell(parent);
+//	} else {
+//		face.gradu=gradu.face(face.index);
+//		face.gradv=gradv.face(face.index);
+//		face.gradw=gradw.face(face.index);
+//		face.gradT=gradT.face(face.index);
+//	}
+
+
+	if (face.bc>=0) {
+		face.gradu=gradu.cell(face.parent);
+		face.gradv=gradv.cell(face.parent);
+		face.gradw=gradw.cell(face.parent);
+		face.gradT=gradT.cell(face.parent);
+	} else {
+		face.gradu=gradu.face(face.index);
+		face.gradv=gradv.face(face.index);
+		face.gradw=gradw.face(face.index);
+		face.gradT=gradT.face(face.index);
+		//face.gradu=0.5*(gradu.cell(face.parent)+gradu.cell(face.neighbor));
+		//face.gradv=0.5*(gradv.cell(face.parent)+gradv.cell(face.neighbor));
+		//face.gradw=0.5*(gradw.cell(face.parent)+gradw.cell(face.neighbor));
+		//face.gradT=0.5*(gradT.cell(face.parent)+gradT.cell(face.neighbor));
+	}
+
+
 	//  The old way of doing deferred correction (REMOVE after enough testing)
 	//face.gradu-=face.gradu.dot(face.normal)*face.normal;
 	//face.gradu+=((right.V_center[0]-left.V_center[0])/(face.left2right.dot(face.normal)))*face.normal;
@@ -409,15 +405,8 @@ void NavierStokes::face_state_update(NS_Cell_State &left,NS_Cell_State &right,NS
 	 
 	// Boundary conditions are already taken care of in right state update
 
-	if (order==FIRST) {
-		face.p=p.face(face.index);
-		face.V=V.face(face.index);
-		face.T=T.face(face.index);
-	} else {
-		face.p=0.5*(left.p+right.p);
-		face.V=0.5*(left.V+right.V);
-		face.T=0.5*(left.T+right.T);
-	}	
+	face.V=0.5*(left.V+right.V);
+	face.T=0.5*(left.T+right.T);
 	
 	face.mu=material.viscosity(face.T);
 	face.lambda=material.therm_cond(face.T);
@@ -478,8 +467,7 @@ void NavierStokes::face_state_adjust(NS_Cell_State &left,NS_Cell_State &right,NS
 	switch (var)
 	{
 		case 0 : // p
-			face.p=0.5*(left.p+right.p);
-			//if (face.bc<0) face.p=p.face(face.index);
+			// face.p is not needed, do nothing
 			break;
 		case 1 : // u
 			face.V[0]=0.5*(left.V[0]+right.V[0]);

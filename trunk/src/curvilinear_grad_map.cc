@@ -49,9 +49,9 @@ void curvilinear_grad_map(int gid,int c) {
 	*/
 	int counter=0;
 			
-	for (int cf=0;cf<grid[gid].cell[c].faceCount;++cf) stencil.insert(cf); // Note that these are not actual face indices
+	for (int cf=0;cf<grid[gid].cell[c].faces.size();++cf) stencil.insert(cf); // Note that these are not actual face indices
 	
-	if (grid[gid].cell[c].nodeCount==8) { //If hexa cell
+	if (grid[gid].cell[c].nodes.size()==8) { //If hexa cell
 		// Loop the stencil
 		int counter=0;
 		for (sit1=stencil.begin();sit1!=stencil.end();sit1++) {
@@ -77,38 +77,17 @@ void curvilinear_grad_map(int gid,int c) {
 			counter++;
 		}
 		
-		bool plus_at_boundary;
 		// Now we know the three directions
 		for (int i=0;i<3;++i) {
-			plus_at_boundary=false;
-			
 			cell_plus=grid[gid].cellFace(c,face_pairs[2*i+1]).neighbor;
 			if (cell_plus==c) cell_plus=grid[gid].cellFace(c,face_pairs[2*i+1]).parent;
 			cell_pairs[2*i+1]=cell_plus;
-			if (grid[gid].cellFace(c,face_pairs[2*i+1]).bc>=0) { // Face is at a boundary
-				cell_plus=c;
-				cell_pairs[2*i+1]=c;
-				Jac[i]=grid[gid].cell[cell_plus].centroid;
-				plus_at_boundary=true;
-			} else if (cell_plus<0) { // An inter-partition ghost cell
-				Jac[i]=grid[gid].ghost[-cell_plus-1].centroid;
-			} else {
-				Jac[i]=grid[gid].cell[cell_plus].centroid;
-			}
-			
+			Jac[i]=grid[gid].cell[cell_plus].centroid;
+					
 			cell_minus=grid[gid].cellFace(c,face_pairs[2*i]).neighbor;
 			if (cell_minus==c) cell_minus=grid[gid].cellFace(c,face_pairs[2*i]).parent;
 			cell_pairs[2*i]=cell_minus;
-			if (grid[gid].cellFace(c,face_pairs[2*i]).bc>=0) { // Face is at a boundary
-				cell_minus=c;
-				cell_pairs[2*i]=c;
-				if (plus_at_boundary) Jac[i]-=grid[gid].cellFace(c,face_pairs[2*i]).centroid;
-				else Jac[i]-=grid[gid].cell[cell_minus].centroid;
-			} else if (cell_minus<0) { // An inter-partition ghost cell
-				Jac[i]-=grid[gid].ghost[-cell_minus-1].centroid;
-			} else {
-				Jac[i]-=grid[gid].cell[cell_minus].centroid;
-			}
+			Jac[i]-=grid[gid].cell[cell_minus].centroid;
 		}
 		
 	} else {
@@ -116,100 +95,49 @@ void curvilinear_grad_map(int gid,int c) {
 		int counter=0;
 		int max_counter;
 		double max_det=0.;
-		bool plus_at_boundary;
 		
 		stencil.clear();
-		for (int cf=0;cf<grid[gid].cell[c].faceCount;++cf) stencil.insert(grid[gid].cell[c].faces[cf]); 
+		for (int cf=0;cf<grid[gid].cell[c].faces.size();++cf) stencil.insert(grid[gid].cell[c].faces[cf]); 
 		
 		for (sit1=stencil.begin();sit1!=stencil.end();sit1++) {
 			for (sit2=sit1;sit2!=stencil.end();sit2++) {
 
-				plus_at_boundary=false;
 				cell_plus=grid[gid].face[*sit2].neighbor;
 				if (cell_plus==c) cell_plus=grid[gid].face[*sit2].parent;
 				cell_pairs_temp[1]=cell_plus;
-				if (grid[gid].face[*sit2].bc>=0) { // Face is at a boundary
-					cell_pairs_temp[1]=c;
-					Jac_temp[0]=grid[gid].cell[c].centroid;
-					plus_at_boundary=true;
-				} else if (cell_plus<0) { // An inter-partition ghost cell
-					Jac_temp[0]=grid[gid].ghost[-cell_plus-1].centroid;
-				} else {
-					Jac_temp[0]=grid[gid].cell[cell_plus].centroid;
-				}
+				Jac_temp[0]=grid[gid].cell[cell_plus].centroid;
 				
 				cell_minus=grid[gid].face[*sit1].neighbor;
 				if (cell_minus==c) cell_minus=grid[gid].face[*sit1].parent;
 				cell_pairs_temp[0]=cell_minus;
-				if (grid[gid].face[*sit1].bc>=0) { // Face is at a boundary
-					cell_pairs_temp[0]=c;
-					if (plus_at_boundary) {Jac_temp[0]-=grid[gid].face[*sit1].centroid; Jac_temp[0]*=1.e-2;}
-					else Jac_temp[0]-=grid[gid].cell[c].centroid;
-				} else if (cell_minus<0) { // An inter-partition ghost cell
-					Jac_temp[0]-=grid[gid].ghost[-cell_minus-1].centroid;
-				} else {
-					Jac_temp[0]-=grid[gid].cell[cell_minus].centroid;
-				}
+				Jac_temp[0]-=grid[gid].cell[cell_minus].centroid;
 				
 				for (sit3=sit1;sit3!=stencil.end();sit3++) {
 					for (sit4=sit3;sit4!=stencil.end();sit4++) {
 						
-						plus_at_boundary=false;
 						cell_plus=grid[gid].face[*sit4].neighbor;
 						if (cell_plus==c) cell_plus=grid[gid].face[*sit4].parent;
 						cell_pairs_temp[3]=cell_plus;
-						if (grid[gid].face[*sit4].bc>=0) { // Face is at a boundary
-							cell_pairs_temp[3]=c;
-							Jac_temp[1]=grid[gid].cell[c].centroid;
-							plus_at_boundary=true;
-						} else if (cell_plus<0) { // An inter-partition ghost cell
-							Jac_temp[1]=grid[gid].ghost[-cell_plus-1].centroid;
-						} else {
-							Jac_temp[1]=grid[gid].cell[cell_plus].centroid;
-						}
+						Jac_temp[1]=grid[gid].cell[cell_plus].centroid;
 						
 						cell_minus=grid[gid].face[*sit3].neighbor;
 						if (cell_minus==c) cell_minus=grid[gid].face[*sit3].parent;
 						cell_pairs_temp[2]=cell_minus;
-						if (grid[gid].face[*sit3].bc>=0) { // Face is at a boundary
-							cell_pairs_temp[2]=c;
-							if (plus_at_boundary) {Jac_temp[1]-=grid[gid].face[*sit3].centroid; Jac_temp[1]*=1.e-2;}
-							else Jac_temp[1]-=grid[gid].cell[c].centroid;
-						} else if (cell_minus<0) { // An inter-partition ghost cell
-							Jac_temp[1]-=grid[gid].ghost[-cell_minus-1].centroid;
-						} else {
-							Jac_temp[1]-=grid[gid].cell[cell_minus].centroid;
-						}
+						Jac_temp[1]-=grid[gid].cell[cell_minus].centroid;
 						
 						for (sit5=sit2;sit5!=stencil.end();sit5++) {
 							for (sit6=sit5;sit6!=stencil.end();sit6++) {
 								
-								plus_at_boundary=false;
 								cell_plus=grid[gid].face[*sit6].neighbor;
 								if (cell_plus==c) cell_plus=grid[gid].face[*sit6].parent;
 								cell_pairs_temp[5]=cell_plus;
-								if (grid[gid].face[*sit6].bc>=0) { // Face is at a boundary
-									cell_pairs_temp[5]=c;
-									Jac_temp[2]=grid[gid].cell[c].centroid;
-									plus_at_boundary=true;
-								} else if (cell_plus<0) { // An inter-partition ghost cell
-									Jac_temp[2]=grid[gid].ghost[-cell_plus-1].centroid;
-								} else {
-									Jac_temp[2]=grid[gid].cell[cell_plus].centroid;
-								}
+								Jac_temp[2]=grid[gid].cell[cell_plus].centroid;
 								
 								cell_minus=grid[gid].face[*sit5].neighbor;
 								if (cell_minus==c) cell_minus=grid[gid].face[*sit5].parent;
 								cell_pairs_temp[4]=cell_minus;
-								if (grid[gid].face[*sit5].bc>=0) { // Face is at a boundary
-									cell_pairs_temp[4]=c;
-									if (plus_at_boundary) {Jac_temp[2]-=grid[gid].face[*sit5].centroid; Jac_temp[2]*=1.e-2;}
-									else Jac_temp[2]-=grid[gid].cell[c].centroid;
-								} else if (cell_minus<0) { // An inter-partition ghost cell
-									Jac_temp[2]-=grid[gid].ghost[-cell_minus-1].centroid;
-								} else {
-									Jac_temp[2]-=grid[gid].cell[cell_minus].centroid;
-								}
+								Jac_temp[2]-=grid[gid].cell[cell_minus].centroid;
+								
 								counter++;
 								det=Jac_temp[0].dot(Jac_temp[1].cross(Jac_temp[2]));
 								if (det>max_det) {

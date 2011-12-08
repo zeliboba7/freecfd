@@ -61,16 +61,6 @@ void RANS::initialize (int ps_max) {
 		model=SST;
 	}
 
-	if (input.section("grid",gid).subsection("turbulence").get_string("order")=="first") {
-		order=FIRST;
-		limiter_function=NONE;
-	} else if (input.section("grid",gid).subsection("turbulence").get_string("order")=="second") {
-		order=SECOND;
-		if (input.section("grid",gid).subsection("turbulence").get_string("limiter")=="none") {
-			limiter_function=NONE;
-		}
-	}
-	
 	kLowLimit=input.section("grid",0).subsection("turbulence").get_double("klowlimit");
 	kHighLimit=input.section("grid",0).subsection("turbulence").get_double("khighlimit");
 	omegaLowLimit=input.section("grid",0).subsection("turbulence").get_double("omegalowlimit");
@@ -82,29 +72,28 @@ void RANS::initialize (int ps_max) {
 	create_vars();
 	apply_initial_conditions();
 	set_bcs();
-	update_eddy_viscosity();
 	mpi_update_ghost_primitives();
+	update_boundaries();
+	update_eddy_viscosity();
 	calc_cell_grads();
 	mpi_update_ghost_gradients();
-	calc_limiter();
 	petsc_init();
 	first_residuals.resize(2);
 	return;
 }
 
 void RANS::solve  (int ts,int pts) {
-
 	timeStep=ts;
 	ps_step=pts;
 	terms();
 	time_terms();
 	petsc_solve();
 	update_variables();
-	update_eddy_viscosity();
 	mpi_update_ghost_primitives();
+	update_boundaries();
+	update_eddy_viscosity();
 	calc_cell_grads();
 	mpi_update_ghost_gradients();
-	calc_limiter();
 	return;
 }
 
@@ -119,11 +108,7 @@ void RANS::create_vars (void) {
 	gradomega.allocate(gid);
 
 	update.resize(2);
-	limiter.resize(2);
-	for (int i=0; i<2; ++i) {
-		update[i].allocate(gid);
-		limiter[i].allocate(gid);
-	}
+	for (int i=0; i<2; ++i) update[i].allocate(gid);
 	
 	yplus.cellStore=false; yplus.allocate(gid);
 	
@@ -145,7 +130,7 @@ void RANS::apply_initial_conditions (void) {
 		// If region is specified with a box method
 		if (region.get_string("region")=="box") {
 			// Loop the cells
-			for (int c=0;c<grid[gid].cellCount;++c) {
+			for (int c=0;c<grid[gid].cell.size();++c) {
 				// Check if the cell centroid is inside the box region
 				if (withinBox(grid[gid].cell[c].centroid,region.get_Vec3D("corner_1"),region.get_Vec3D("corner_2"))) {
 					k.cell(c)=intensity*(fabs(ns[gid].V.cell(c)));
@@ -156,7 +141,7 @@ void RANS::apply_initial_conditions (void) {
 			}
 		} else if (region.get_string("region")=="cylinder") {
 			// Loop the cells
-			for (int c=0;c<grid[gid].cellCount;++c) {
+			for (int c=0;c<grid[gid].cell.size();++c) {
 				// Check if the cell centroid is inside the cylinder region
 				Vec3D axisDirection=region.get_Vec3D("axisdirection");
 				axisDirection=axisDirection.norm();
@@ -169,7 +154,7 @@ void RANS::apply_initial_conditions (void) {
 			}
 		} else if (region.get_string("region")=="sphere") {
 			// Loop the cells
-			for (int c=0;c<grid[gid].cellCount;++c) {
+			for (int c=0;c<grid[gid].cell.size();++c) {
 				// Check if the cell centroid is inside the sphere region
 				if (withinSphere(grid[gid].cell[c].centroid,region.get_Vec3D("center"),region.get_double("radius"))) {
 					k.cell(c)=intensity*(fabs(ns[gid].V.cell(c)));
@@ -181,23 +166,19 @@ void RANS::apply_initial_conditions (void) {
 		}
 	}
 
-	// initialize updates and limiter
-
-	for (int c=0;c<grid[gid].cellCount;++c) {
+	// initialize updates
+	for (int c=0;c<grid[gid].cell.size();++c) {
 		for (int i=0;i<2;++i) {
 			update[i].cell(c)=0.;
-			if (order==FIRST) limiter[i].cell(c)=0.;
-			else limiter[i].cell(c)=1.;
-		}
-	}
-	for (int g=0;g<grid[gid].ghostCount;++g) {
-		for (int i=0;i<2;++i) {
-			update[i].ghost(g)=0.;
-			if (order==FIRST) limiter[i].ghost(g)=0.;
-			else limiter[i].ghost(g)=1.;
 		}
 	}
 	
+	// Initialize gradients to zero (for internal+ghost cells)
+	for (int c=0;c<grid[gid].cell.size();++c) {
+		gradk.cell(c)=0.;
+		gradomega.cell(c)=0.;
+	}
+
 	return;
 }
 
@@ -225,6 +206,7 @@ void RANS::update_variables(void) {
 		for (int i=0;i<2;++i) {
 			if (isnan(update[i].cell(c)) || isinf(update[i].cell(c))) {
 				cerr << "[E] Divergence detected in RANS!...exiting" << endl;
+				cerr << "[E] Cell: " << c << " Variable: " << i << endl;
 				MPI_Abort(MPI_COMM_WORLD,1);
 			}
 		}
@@ -236,12 +218,6 @@ void RANS::update_variables(void) {
 		
 		k.cell(c) += update[0].cell(c);
 		omega.cell(c)+= update[1].cell(c);
-		
-		/*
-		k.cell(c)=max(kLowLimit,k.cell(c));
-		k.cell(c)=min(kHighLimit,k.cell(c));
-		omega.cell(c)=max(omegaLowLimit,omega.cell(c));
-		*/
 		
 		if (ps_step_max>1) {
 			dtau2=dtau[gid].cell(c)*dtau[gid].cell(c);

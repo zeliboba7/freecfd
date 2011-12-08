@@ -150,8 +150,17 @@ void set_bcs(int gid) {
 		}
 		if (grid[gid].face[f].bc>=0) { // if a boundary face
 			if (bc[gid][grid[gid].face[f].bc].type==WALL && bc[gid][grid[gid].face[f].bc].kind!=SLIP) number_of_nsf[Rank]++;
+			// A fix for centroids of inlet and outlet boundary ghost cells:
+			if (bc[gid][grid[gid].face[f].bc].type==INLET || bc[gid][grid[gid].face[f].bc].type==OUTLET) {
+				int neighbor=grid[gid].face[f].neighbor;
+				int parent=grid[gid].face[f].parent;
+				grid[gid].cell[neighbor].centroid=grid[gid].cell[parent].centroid+
+						2.*(grid[gid].face[f].centroid-grid[gid].cell[parent].centroid);
+			}
 		}
 	}
+
+
 
 	if (Rank==0) cout << "[I] Finding closest wall distances" << endl;
 	
@@ -200,7 +209,7 @@ void set_bcs(int gid) {
 	Vec3D fN;
 	double thisDistance;
 	// Loop all cells to find the closest distance to the wall
-	for (int c=0;c<grid[gid].cellCount;++c) {
+	for (int c=0;c<grid[gid].cell.size();++c) {
 		grid[gid].cell[c].closest_wall_distance=1.e20;
                
 		for (int nsf=0;nsf<nsf_sum;++nsf) {

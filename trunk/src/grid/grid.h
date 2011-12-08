@@ -26,7 +26,12 @@
 // Face bc type numbering
 #define INTERNAL_FACE -1
 #define UNASSIGNED_FACE -2
-#define GHOST_FACE -3
+#define PARTITION_FACE -3
+
+// Cell type numbering
+#define INTERNAL 1
+#define PARTITION_GHOST 2
+#define BOUNDARY_GHOST 3
 
 // Raw grid definition options
 #define CELL 1
@@ -77,7 +82,6 @@ public:
 	std::vector<int> cellOwner; // takes cell global id and returns the owner rank
 	std::map<int,int> nodeGlobal2Local;
 	std::map<int,int> cellGlobal2Local;
-	std::map<int,int> ghostGlobal2Local;
 	std::vector<int> face2bc; // face index to bc array index map
 	idxtype* adjIndex;
 	idxtype* adjacency;
@@ -85,11 +89,9 @@ public:
 
 class Node : public Vec3D {
 public:
-	int id; // TODO: Eliminate this?
 	int globalId; // id is the local index in the current processor
 	int output_id,bc_output_id;
 	std::vector<int> cells; // list of cells (ids) sharing this node
-	std::vector<int> ghosts; // list of ghosts (inter-partition cells) sharing this node 
 	std::vector<int> faces; // list of faces touching this node
 	std::map<int,double> average; // indices of cells in the averaging stencil and corresponding weights
 	Node(double x=0., double y=0., double z=0.);
@@ -98,12 +100,10 @@ public:
 class Face {
 public:
 	int bc; // A face can only be on one bc zone
-	int id;
 	bool symmetry;
 	int parent,neighbor; // parent is the id of the cell owning this face
 	// A cell owns a face if the face normal is pointing outwards from it
 	// The other cell is called the neighbor
-	int nodeCount;
 	Vec3D centroid;
 	Vec3D normal; // This should point outwards from the parent cell center
 	std::map<int,double> average; // indices of cells in the averaging stenceil and corresponding weights
@@ -114,27 +114,18 @@ public:
 
 class Cell {
 public:
-	int nodeCount,faceCount,neighborCellCount,ghostCount,globalId,globalCellCount;
+	int type; // either INTERNAL/PARTITION_GHOST/BOUNDARY_GHOST
+	int globalId;
+	int partition,matrix_id,id_in_owner; // These are only needed for PARTITION_GHOST type cells
+	int bc; // This is only needed for BOUNDARY_GHOST type cells
 	double volume,lengthScale,closest_wall_distance;
 	Vec3D centroid;
 	std::vector<int> nodes;
 	std::vector<int> faces;
 	std::vector<int> neighborCells;
-	std::vector<int> ghosts;
 	std::map<int,Vec3D> gradMap;
 	Cell(void);
-	bool HaveNodes(int &nodelistsize, int nodelist[]) ;
-};
-
-class Ghost {
-public:
-	int partition;
-	int globalId;
-	int matrix_id;
-	int id_in_owner;
-	std::vector<int> cells;
-	Vec3D centroid;
-	double volume;
+	bool HaveNodes(int const nodelistsize, int nodelist[]) ;
 };
 
 class Grid {
@@ -150,7 +141,9 @@ public:
 	vector<int> partitionOffset;
 	int node_output_offset,node_bc_output_offset;
 	int nodeCount,cellCount,faceCount;
-	int globalNodeCount,global_bc_nodeCount,globalCellCount,globalFaceCount,ghostCount;
+	int partition_ghosts_begin,partition_ghosts_end;
+	vector<int> boundary_ghosts_begin,boundary_ghosts_end;
+	int globalNodeCount,global_bc_nodeCount,globalCellCount,globalFaceCount;
 	int globalNumFaceNodes;
 	double globalTotalVolume;
 	std::vector<std::vector<int> > boundaryFaceCount; // for each bc region in each proc
@@ -158,7 +151,6 @@ public:
 	std::vector<Node> node;
 	std::vector<Face> face;
 	std::vector<Cell> cell;
-	std::vector<Ghost> ghost;
 	std::vector<vector<int> > boundaryFaces,boundaryNodes;
 	// Maps for MPI exchanges
 	std::vector< std::vector<int> > sendCells;
@@ -177,11 +169,12 @@ public:
 	int create_nodes_cells();
 	int create_faces();
 	int create_faces2();
-	int create_ghosts();
+	int create_partition_ghosts();
 	int get_volume_output_ids();
 	int get_bc_output_ids();
 	void trim_memory();
 	int areas_volumes();
+	int create_boundary_ghosts();
 	void nodeAverages();
 	void sortStencil(Node& n);
 	void sortStencil(int f);

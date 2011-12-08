@@ -52,9 +52,11 @@ void RANS::petsc_init(void) {
 				nextCellCount++;
 			}
 		}
+		int cellGhostCount=0;
+		for (int cc=0;cc<(*cit).neighborCells.size();++cc) if (grid[gid].cell[(*cit).neighborCells[cc]].partition!=Rank) cellGhostCount++;
 		for (int i=0;i<nVars;++i) {
 			diagonal_nonzeros.push_back( (nextCellCount+1)*nVars);
-			off_diagonal_nonzeros.push_back( ((*cit).ghosts.size())*nVars);
+			off_diagonal_nonzeros.push_back(cellGhostCount*nVars);
 		}
 	}
 	

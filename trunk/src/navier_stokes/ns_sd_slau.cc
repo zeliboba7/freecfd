@@ -70,7 +70,7 @@ void SD_SLAU_flux(NS_Cell_State &left,NS_Cell_State &right,double fluxNormal[],d
 	double Vnminus=(1.-g)*Vn+g*fabs(right.Vn[0]);
 	double theta=(Csd2*fabs(delta_p)/ave_p+Csd1)/(max_delta_p/ave_p+Csd1);
 	theta=min(1.,theta*theta);
-	theta=1.; // See the above TODO to enable shock detection
+	//theta=1.; // See the above TODO to enable shock detection
 	double mdot=0.5*(left.rho*(left.Vn[0]+Vnplus)+right.rho*(right.Vn[0]-Vnminus)-theta*max(0.,(1.-Vn/a))*delta_p/a);
 	
 	p-=Pref;

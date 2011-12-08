@@ -46,12 +46,11 @@ int Grid::create_nodes_cells() {
 				if (maps.nodeGlobal2Local.find(ngid)==maps.nodeGlobal2Local.end() ) { // If the node is not already found
 					// Create the node
 					Node temp;
-					temp.id=nodeCount;
 					temp.globalId=ngid;
 					temp.comp[0]=raw.node[temp.globalId][0];
 					temp.comp[1]=raw.node[temp.globalId][1];
 					temp.comp[2]=raw.node[temp.globalId][2];
-					maps.nodeGlobal2Local[temp.globalId]=temp.id;
+					maps.nodeGlobal2Local[temp.globalId]=nodeCount;
 					node.push_back(temp);
 					++nodeCount;
 				}
@@ -60,33 +59,39 @@ int Grid::create_nodes_cells() {
 			} // end for each cell node
 			// Create the cell
 			Cell temp;
-			temp.nodeCount=cellNodeCount;
+			temp.partition=Rank;
+			temp.bc=-1;
+			temp.id_in_owner=cell.size();
+			temp.nodes.resize(cellNodeCount);
+			temp.type=INTERNAL;
 			if (raw.type==CELL) {
 				switch (cellNodeCount) {
 					case 4: // Tetra
-						temp.faceCount=4;
+						temp.faces.resize(4);
 						break;
 					case 5: // Pyramid
-						temp.faceCount=5;
+						temp.faces.resize(5);
 						break;
 					case 6: // Prism
-						temp.faceCount=5;
+						temp.faces.resize(5);
 						break;
 					case 8: // Hexa
-						temp.faceCount=6;
+						temp.faces.resize(6);
 						break;
 				}
+				// Fill the face list with -1's to mark unfilled ones later in face generation
+				for (int i=0;i<temp.faces.size();++i) temp.faces[i]=-1;
 			} else {
-				temp.faceCount=0;
-				// Skip the face count for now.
+				temp.faces.clear();
+				// Skip the face resizing for now.
 				// It is done just after the cell loop for efficiency
 				// Loop the left and right data and count
 			}
 			temp.nodes.reserve(cellNodeCount);
 			
 			// Fill in the node list
-			for (int n=0;n<temp.nodeCount;++n) {
-				temp.nodes.push_back(cellNodes[n]);
+			for (int n=0;n<temp.nodes.size();++n) {
+				temp.nodes[n]=cellNodes[n];
 			}
 			
 			temp.globalId=c;
@@ -97,20 +102,20 @@ int Grid::create_nodes_cells() {
 
 	} // end loop global cell count
 
-	cellCount=cell.size();
+	cellCount=cell.size(); // This excludes ghost cells
 	
 	if (raw.type==FACE) {
 		int c;
 		for (int i=0;i<raw.left.size();++i) {
 			c=raw.left[i];
 			if (c>=0 && maps.cellOwner[c]==Rank) { // If the cell belongs to current proc
-				cell[maps.cellGlobal2Local[c]].faceCount++;
+				cell[maps.cellGlobal2Local[c]].faces.resize(cell[maps.cellGlobal2Local[c]].faces.size()+1);
 			}
 		}
 		for (int i=0;i<raw.right.size();++i) {
 			c=raw.right[i];
 			if (c>=0 && maps.cellOwner[c]==Rank) { // If the cell belongs to current proc
-				cell[maps.cellGlobal2Local[c]].faceCount++;
+				cell[maps.cellGlobal2Local[c]].faces.resize(cell[maps.cellGlobal2Local[c]].faces.size()+1);
 			}
 		}
 	}
@@ -121,7 +126,7 @@ int Grid::create_nodes_cells() {
 	bool flag;
 	for (int c=0;c<cellCount;++c) {
 		int n;
-		for (int cn=0;cn<cell[c].nodeCount;++cn) {
+		for (int cn=0;cn<cell[c].nodes.size();++cn) {
 			n=cell[c].nodes[cn];
 			flag=false;
 			for (int i=0;i<node[n].cells.size();++i) {
@@ -142,7 +147,7 @@ int Grid::create_nodes_cells() {
 	int c2;
 	for (int c=0;c<cellCount;++c) {
 		int n;
-		for (int cn=0;cn<cell[c].nodeCount;++cn) { // Loop nodes of the cell
+		for (int cn=0;cn<cell[c].nodes.size();++cn) { // Loop nodes of the cell
 			n=cell[c].nodes[cn];
 			for (int nc=0;nc<node[n].cells.size();++nc) { // Loop neighboring cells of the node
 				c2=node[n].cells[nc];
@@ -156,7 +161,6 @@ int Grid::create_nodes_cells() {
 				if (!flag) cell[c].neighborCells.push_back(c2);
 			} // end node cell loop
 		} // end cell node loop
-		cell[c].neighborCellCount=cell[c].neighborCells.size();
 	} // end cell loop
 
 	if (Rank==0) cout << "[I] Computed cell-cell connectivity" << endl;
@@ -221,57 +225,55 @@ int Grid::create_faces() {
 	for (int c=0;c<cellCount;++c) {
 		int degenerate_face_count=0;
 		// Loop through the faces of the current cell
-		for (int cf=0;cf<cell[c].faceCount;++cf) {
+		for (int cf=0;cf<cell[c].faces.size();++cf) {
 			bool degenerate=false;
 			Face tempFace;
 			int *tempNodes;
-			switch (cell[c].nodeCount) {
+			switch (cell[c].nodes.size()) {
 				case 4: // Tetrahedra
-					tempFace.nodeCount=3;
+					tempFace.nodes.resize(3);
 					tempNodes= new int[3];
 					break;
 				case 5: // Pyramid
 					if (cf<1) {
-						tempFace.nodeCount=4;
+						tempFace.nodes.resize(4);
 						tempNodes= new int[4];
 					} else {
-						tempFace.nodeCount=3;
+						tempFace.nodes.resize(3);
 						tempNodes= new int[3];
 					}
 					break;
 				case 6: // Prism
 					if (cf<2) {
-						tempFace.nodeCount=3;
+						tempFace.nodes.resize(3);
 						tempNodes= new int[3];
 					} else {
-						tempFace.nodeCount=4;
+						tempFace.nodes.resize(4);
 						tempNodes= new int[4];
 					}
 					break;
 				case 8: // Brick 
-					tempFace.nodeCount=4;
+					tempFace.nodes.resize(4);
 					tempNodes= new int[4];
 					break;
 			}
-			// Face count is incremented everytime a new face is found
-			tempFace.id=faceCount;
 			// Assign current cell as the parent cell
 			tempFace.parent=c;
 			// Assign boundary type as internal by default, will be overwritten later
 			tempFace.bc=INTERNAL_FACE;
 			// Store the node local ids of the current face	
-			for (int fn=0;fn<tempFace.nodeCount;++fn) {
-				switch (cell[c].nodeCount) {
-					case 4: tempNodes[fn]=cellNode(c,tetraFaces[cf][fn]).id; break;
-					case 5: tempNodes[fn]=cellNode(c,pyraFaces[cf][fn]).id; break;
-					case 6: tempNodes[fn]=cellNode(c,prismFaces[cf][fn]).id; break;
-					case 8: tempNodes[fn]=cellNode(c,hexaFaces[cf][fn]).id; break;
+			for (int fn=0;fn<tempFace.nodes.size();++fn) {
+				switch (cell[c].nodes.size()) {
+					case 4: tempNodes[fn]=cell[c].nodes[tetraFaces[cf][fn]]; break;
+					case 5: tempNodes[fn]=cell[c].nodes[pyraFaces[cf][fn]]; break;
+					case 6: tempNodes[fn]=cell[c].nodes[prismFaces[cf][fn]]; break;
+					case 8: tempNodes[fn]=cell[c].nodes[hexaFaces[cf][fn]]; break;
 				}
 			}
 			// Check if there is a repeated node
 			unique_nodes.clear();
 			bool skip;
-			for (int fn=0;fn<tempFace.nodeCount;++fn) {
+			for (int fn=0;fn<tempFace.nodes.size();++fn) {
 				skip=false;
 				for (int i=0;i<fn;++i) {
 					if (tempNodes[fn]==tempNodes[i]) {
@@ -281,24 +283,25 @@ int Grid::create_faces() {
 				}
 				if (!skip) unique_nodes.push_back(tempNodes[fn]);
 			}
-			if (unique_nodes.size()!=tempFace.nodeCount) {
+			if (unique_nodes.size()!=tempFace.nodes.size()) {
 				repeated_node_cells.insert(c); // mark the owner cell (it has repeated nodes)
 				if (unique_nodes.size()==2) { // If a face only has two unique nodes, mark as degenerate
 					degenerate=true;
 					degenerate_face_count++;
 				}
-				tempFace.nodeCount=unique_nodes.size();
-				for (int fn=0;fn<tempFace.nodeCount;++fn) tempNodes[fn]=unique_nodes[fn];
+				tempFace.nodes.resize(unique_nodes.size());
+				for (int fn=0;fn<tempFace.nodes.size();++fn) tempNodes[fn]=unique_nodes[fn];
 			}
 			// Find the neighbor cell
 			bool internal=false;
 			bool unique=true;
+			tempFace.neighbor=-1;
 			// Loop cells neighboring the first node of the current face
 			for (int nc=0;nc<node[tempNodes[0]].cells.size();++nc) {
 				// i is the neighbor cell index
 				int i=node[tempNodes[0]].cells[nc];
 				// If neighbor cell is not the current cell itself, and it has the same nodes as the face
-				if (i!=c && cell[i].HaveNodes(tempFace.nodeCount,tempNodes)) {
+				if (i!=c && i<cellCount && cell[i].HaveNodes(tempFace.nodes.size(),tempNodes)) {
 					// If the neighbor cell index is smaller then the current cell index,
 					// it has already been processed so skip it
 					if (i>c) {
@@ -309,10 +312,9 @@ int Grid::create_faces() {
 					}
 				}
 			}
-
 			if (unique && !degenerate) { // If a new face
 				// Insert the node list
-				for (int fn=0;fn<tempFace.nodeCount;++fn) tempFace.nodes.push_back(tempNodes[fn]);
+				for (int fn=0;fn<tempFace.nodes.size();++fn) tempFace.nodes[fn]=tempNodes[fn];
 				if (!internal) { // If the face is either at inter-partition or boundary
 					tempFace.bc=UNASSIGNED_FACE; // yet
 					vector<int> face_matched_bcs;
@@ -320,7 +322,7 @@ int Grid::create_faces() {
 					bool match;
 					for (int nbc=0;nbc<raw.bocoNameMap.size();++nbc) { // For each boundary condition region
 						match=true;
-						for (int i=0;i<tempFace.nodeCount;++i) { // For each node of the current face
+						for (int i=0;i<tempFace.nodes.size();++i) { // For each node of the current face
 							if (raw.bocoNodes[nbc].find(tempNodes[i])==raw.bocoNodes[nbc].end()) {
 								match=false;
 								break;
@@ -335,7 +337,7 @@ int Grid::create_faces() {
 						// and eliminate those
 						if (cell_matched_bc==-1) {
 							match=true;
-							for (int i=0;i<cell[c].nodeCount;++i) { 
+							for (int i=0;i<cell[c].nodes.size();++i) { 
 								if (raw.bocoNodes[nbc].find(cell[c].nodes[i])==raw.bocoNodes[nbc].end()) {
 									match=false;
 									break;
@@ -359,33 +361,44 @@ int Grid::create_faces() {
 					// Some of these bc values will be overwritten later if the face is at a partition interface
 
 				} // if not internal
+				for (int i=0;i<cell[c].faces.size();++i)  {
+					if (cell[c].faces[i]<0) {
+						cell[c].faces[i]=face.size();
+						break;
+					}
+				}
+				if (internal) {
+					for (int i=0;i<cell[tempFace.neighbor].faces.size();++i) {
+						if (cell[tempFace.neighbor].faces[i]<0) {
+							cell[tempFace.neighbor].faces[i]=face.size();
+							break;
+						}
+					}
+				}
 				face.push_back(tempFace);
-				cell[c].faces.push_back(tempFace.id);
-				if (internal) cell[tempFace.neighbor].faces.push_back(tempFace.id);
 				++faceCount;
 			}
 			delete [] tempNodes;
 		} //for face cf
-		cell[c].faceCount-=degenerate_face_count;
+		cell[c].faces.resize(cell[c].faces.size()-degenerate_face_count);
 	} // for cells c
-
 	// Loop cells that has repeated nodes and fix the node list
 	set<int>::iterator sit;
 	vector<int> repeated_nodes;
 	for (sit=repeated_node_cells.begin();sit!=repeated_node_cells.end();sit++) {
 		// Find repeated nodes
 		repeated_nodes.clear();
-		for (int cn=0;cn<cell[(*sit)].nodeCount;++cn) {
+		for (int cn=0;cn<cell[(*sit)].nodes.size();++cn) {
 			for (int cn2=0;cn2<cn;++cn2) {
 				if (cell[(*sit)].nodes[cn]==cell[(*sit)].nodes[cn2]) repeated_nodes.push_back(cell[(*sit)].nodes[cn]);
 			}
 		}
-		if (cell[(*sit)].nodeCount==8 && repeated_nodes.size()==2) { // TODO Only Hexa to Penta mapping is handled for now
+		if (cell[(*sit)].nodes.size()==8 && repeated_nodes.size()==2) { // TODO Only Hexa to Penta mapping is handled for now
 			cell[(*sit)].nodes.clear();
 			// Loop triangular cell faces
 			int rindex=-1;
-			for (int cf=0;cf<cell[(*sit)].faceCount;++cf) {
-				if (cellFace((*sit),cf).nodeCount==3) {
+			for (int cf=0;cf<cell[(*sit)].faces.size();++cf) {
+				if (cellFace((*sit),cf).nodes.size()==3) {
 					// Loop the face nodes and see if the repeated node apears
 					int fn;
 					for (fn=0;fn<3;++fn) {
@@ -410,14 +423,9 @@ int Grid::create_faces() {
 				}
 				
 			}
-			cell[(*sit)].nodeCount=6;
 		}
 	}		
  	repeated_node_cells.clear();
-	
-	for (int c=0; c<cellCount; ++c) {
-		if (Rank==0) if (cell[c].faceCount != cell[c].faces.size() ) cout << "no match" << "\t" << c << "\t" << cell[c].faceCount << "\t" << cell[c].faces.size() << "\t" << cell[c].nodeCount << endl;
-	}
 	
 	if (Rank==0) {
 		timeEnd=MPI_Wtime();
@@ -426,14 +434,14 @@ int Grid::create_faces() {
 
 	for (int f=0;f<faceCount;++f) {
 		for (int n=0;n<face[f].nodes.size();++n) faceNode(f,n).faces.push_back(f);	
-		face[f].symmetry=false; // by default
+		face[f].symmetry=false; // by default, this is later overwritten in set_bcs.cc
 	}
 	
 	return 0;
 
 } // end Grid::create_faces
 
-int Grid::create_faces2() {
+int Grid::create_faces2() { // This routine is specifically for face based grid inputs, alternative to above
 
 	// Search and construct faces
 	faceCount=0;
@@ -461,16 +469,14 @@ int Grid::create_faces2() {
 		
 		if (owner) { // This face needs to be created in the current processor
 			Face tempFace;
-			tempFace.id=faceCount;
-			tempFace.nodeCount=raw.faceNodeCount[f];
 			if (neighbor<0) tempFace.bc=UNASSIGNED_FACE;
-			else if (inter_partition) {tempFace.bc=GHOST_FACE; ghostFaceCount++;}
+			else if (inter_partition) {tempFace.bc=PARTITION_FACE; ghostFaceCount++;}
 			else tempFace.bc=INTERNAL_FACE;
 
 			tempFace.parent=parent;
 			tempFace.neighbor=neighbor;	
-			tempFace.nodes.resize(tempFace.nodeCount);
-			for (int fn=0;fn<tempFace.nodeCount;++fn) {
+			tempFace.nodes.resize(raw.faceNodeCount[f]);
+			for (int fn=0;fn<tempFace.nodes.size();++fn) {
 				tempFace.nodes[fn]=maps.nodeGlobal2Local[raw.faceConnectivity[raw.faceConnIndex[f]+fn]];
 			}
 			// If ghost face, parent may not be owned by the current processor. Check for that
@@ -495,7 +501,7 @@ int Grid::create_faces2() {
 				bool match;
 				for (int nbc=0;nbc<raw.bocoNameMap.size();++nbc) { // For each boundary condition region
 					match=true;
-					for (int i=0;i<tempFace.nodeCount;++i) { // For each node of the current face
+					for (int i=0;i<tempFace.nodes.size();++i) { // For each node of the current face
 						if (raw.bocoNodes[nbc].find(tempFace.nodes[i])==raw.bocoNodes[nbc].end()) {
 							match=false;
 							break;
@@ -511,7 +517,7 @@ int Grid::create_faces2() {
 					
 					if (cell_matched_bc==-1) {
 						match=true;
-						for (int i=0;i<cell[tempFace.parent].nodeCount;++i) { 
+						for (int i=0;i<cell[tempFace.parent].nodes.size();++i) { 
 							if (raw.bocoNodes[nbc].find(cell[tempFace.parent].nodes[i])==raw.bocoNodes[nbc].end()) {
 								match=false;
 								break;
@@ -537,37 +543,27 @@ int Grid::create_faces2() {
 				}
 
 			} // if face is on boundary
+			cell[tempFace.parent].faces.push_back(face.size());
+			if (tempFace.bc==INTERNAL_FACE) cell[tempFace.neighbor].faces.push_back(face.size());
 			face.push_back(tempFace);
-			cell[tempFace.parent].faces.push_back(tempFace.id);
-			if (tempFace.bc==INTERNAL_FACE) cell[tempFace.neighbor].faces.push_back(tempFace.id);
 			++faceCount;
 		} // end if owner
 	} // end global face loop
-
-	// Set faceCount for each cell
-	for (int c=0;c<cellCount;++c) cell[c].faceCount=cell[c].faces.size();
 
 	for (int f=0;f<faceCount;++f) {
 		for (int n=0;n<face[f].nodes.size();++n) faceNode(f,n).faces.push_back(f);	
 		face[f].symmetry=false; // by default
 	}
 
-	//cout << "[I Rank=" << Rank << "] Number of inter-partition faces = " << ghostFaceCount << endl;
-
 	return 0;
 }
 
-int Grid::create_ghosts() {
+int Grid::create_partition_ghosts() {
+
 	// Determine and mark faces adjacent to other partitions
 	// Create ghost elemets to hold the data from other partitions
-	ghostCount=0;
 
-	if (np==1) {
-		for (int c=0;c<cellCount;++c) {
-			cell[c].ghostCount=0;
-		} // end cell loop
-	} else {
-
+	if (np>1) {
 		int counter=0;
 		int cellCountOffset[np];
 
@@ -589,112 +585,108 @@ int Grid::create_ghosts() {
 			counter2[maps.cellOwner[c]]++;
 		}
 
-		int foundFlag[globalCellCount];
-		for (int c=0; c<globalCellCount;++c) foundFlag[c]=0;
+		bool foundFlag[globalCellCount];
+		for (int c=0; c<globalCellCount;++c) foundFlag[c]=false;
 
 		int parent, metisIndex, gg, matchCount;
 		
-		map<int,set<int> > nodeGhostSet; // Stores global id's of ghost cells near each node
 		Vec3D nodeVec;
 		
 		// Loop faces
-		for (int f=0; f<faceCount; ++f) {
-			if ((face[f].bc==UNASSIGNED_FACE || face[f].bc==GHOST_FACE) || face[f].bc>=0) { // if an unassigned boundary face
+		for (int f=0;f<faceCount;++f) {
+			if (face[f].bc!=INTERNAL_FACE) { 
 				parent=face[f].parent;
 				// Loop through the cells that are adjacent to the current face's parent
 				for (int adjCount=0;adjCount<(maps.adjIndex[parent+1]-maps.adjIndex[parent]);++adjCount)  {
 					metisIndex=maps.adjacency[maps.adjIndex[parent]+adjCount];
 					// Get global id of the adjacent cell
 					gg=metis2global[metisIndex];
-					int cellNodeCount; // Find the number of nodes of the cell from raw grid data
-					if (gg<globalCellCount-1) {
-						cellNodeCount=raw.cellConnIndex[gg+1]-raw.cellConnIndex[gg];
-					} else {
-						cellNodeCount=raw.cellConnectivity.size()-raw.cellConnIndex[globalCellCount-1];
-					}
-					// If that cell is not on the current partition
+					// If the adjacent cell is not on the current partition
 					if (metisIndex<cellCountOffset[Rank] || metisIndex>=(cellCount+cellCountOffset[Rank])) {
+						int cellNodeCount; // Find the number of nodes of the cell from raw grid data
+						if (gg<globalCellCount-1) {
+							cellNodeCount=raw.cellConnIndex[gg+1]-raw.cellConnIndex[gg];
+						} else {
+							cellNodeCount=raw.cellConnectivity.size()-raw.cellConnIndex[globalCellCount-1];
+						}
 						// Count number of matches in node lists of the current face and the adjacent cell
-						matchCount=0;
-						for (int fn=0;fn<face[f].nodeCount;++fn) {
-							set<int> tempSet;
-							nodeGhostSet.insert(pair<int,set<int> >(face[f].nodes[fn],tempSet) );
+						vector<int> matchedNodes;
+						for (int fn=0;fn<face[f].nodes.size();++fn) {
 							for (int gn=0;gn<cellNodeCount;++gn) {
 								if (raw.cellConnectivity[raw.cellConnIndex[gg]+gn]==faceNode(f,fn).globalId) {
-									nodeGhostSet[face[f].nodes[fn]].insert(gg);
-									++matchCount;
+									matchedNodes.push_back(fn);
+									break;
 								}
 							}
 						}
-						// foundFlag is 0 by default
-						// 0 means that particular adjacent cell wasn't discovered as a ghost before
-						// If so, create a new ghost
-						if (matchCount>0 && foundFlag[gg]==0) {
-							foundFlag[gg]=matchCount;
-							Ghost temp;
+
+						if (matchedNodes.size()>0 && !foundFlag[gg]) {
+							foundFlag[gg]=true;
+							Cell temp;
 							temp.globalId=gg;
 							temp.partition=maps.cellOwner[gg];
-							maps.ghostGlobal2Local[temp.globalId]=ghost.size();
-							ghost.push_back(temp);	
-							++ghostCount;
+							maps.cellGlobal2Local[temp.globalId]=cell.size();
+							cell.push_back(temp);
 						}
-						// If that ghost was found before, now we discovered another face also neighbors the same ghost
-						if (matchCount==face[f].nodeCount) {
-							foundFlag[gg]=matchCount;
-							face[f].bc=GHOST_FACE;
-							face[f].neighbor=-1*maps.ghostGlobal2Local[gg]-1;
+							
+						if (matchedNodes.size()==face[f].nodes.size()) {
+							// If that ghost was found before, now we discovered another face also neighbors the same ghost
+							face[f].bc=PARTITION_FACE;
+							face[f].neighbor=maps.cellGlobal2Local[gg];
 						}
+				
+						for (int i=0;i<matchedNodes.size();++i) {
+							bool flag=true;
+							for (int ic=0;ic<faceNode(f,matchedNodes[i]).cells.size();++ic) {
+								if (faceNode(f,matchedNodes[i]).cells[ic]==maps.cellGlobal2Local[gg]) flag=false;
+							}
+							if (flag) faceNode(f,matchedNodes[i]).cells.push_back(maps.cellGlobal2Local[gg]);
+						}
+						matchedNodes.clear();
 					}
 				}
 			}
 		}
 
-		// Store the local id's of ghosts touching each node
-		map<int,set<int> >::iterator mit;
-		set<int>::iterator sit;
-		for ( mit=nodeGhostSet.begin() ; mit != nodeGhostSet.end(); mit++ ) {
-			for ( sit=(*mit).second.begin() ; sit != (*mit).second.end(); sit++ ) {
-				node[(*mit).first].ghosts.push_back(maps.ghostGlobal2Local[*sit]);
-			}
-		}
-		// Construct the list of neighboring ghosts for each cell
-		int g;
-		bool flag;
-		for (int c=0;c<cellCount;++c) {
-			int n;
-			for (int cn=0;cn<cell[c].nodeCount;++cn) {
-				n=cell[c].nodes[cn];
-				for (int ng=0;ng<node[n].ghosts.size();++ng) {
-					g=node[n].ghosts[ng];
+	} // if (np>1)
+
+	// Construct the list of neighboring ghosts for each cell
+	int g;
+	bool flag;
+	for (int c=0;c<cellCount;++c) {
+		int n;
+		for (int cn=0;cn<cell[c].nodes.size();++cn) {
+			n=cell[c].nodes[cn];
+			for (int ng=0;ng<node[n].cells.size();++ng) {
+				g=node[n].cells[ng];
+				if (g>=cellCount) { // means ghost
 					flag=false;
-					for (int cg=0;cg<cell[c].ghosts.size();++cg) {
-						if(cell[c].ghosts[cg]==g) {
+					for (int cg=0;cg<cell[c].neighborCells.size();++cg) {
+						if(cell[c].neighborCells[cg]==g) {
 							flag=true;
 							break;
 						}
-					} // end cell ghost loop
+					} // end cell neighborCell  loop
 					if (flag==false) {
-						cell[c].ghosts.push_back(g);
-						ghost[g].cells.push_back(c);
+						cell[c].neighborCells.push_back(g);
+						cell[g].neighborCells.push_back(c);
 					}
-				} // end node ghost loop
-			} // end cell node loop
-			cell[c].ghostCount=cell[c].ghosts.size();
-		} // end cell loop
-	} // if (np!=1)
-//	cout << "[I Rank=" << Rank << "] Number of Inter-Partition Ghost Cells= " << ghostCount << endl;
+				}
+			} // end node cell loop
+		} // end cell node loop
+	} // end cell loop
 
 	globalNumFaceNodes=0;
 	globalFaceCount=0;
 	bool include;
 	for (int f=0;f<faceCount;++f) {
 		include=true;
-		if (face[f].bc==GHOST_FACE) {
-			int g=-1*face[f].neighbor-1;
-			if (ghost[g].partition<Rank) include=false;
+		if (face[f].bc==PARTITION_FACE) {
+			int g=face[f].neighbor;
+			if (cell[g].partition<Rank) include=false;
 		}
 		if (include) {
-			globalNumFaceNodes+=face[f].nodeCount;
+			globalNumFaceNodes+=face[f].nodes.size();
 			globalFaceCount++;
 		}
 	}
@@ -702,9 +694,82 @@ int Grid::create_ghosts() {
         MPI_Allreduce (&globalNumFaceNodes,&globalNumFaceNodes,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
         MPI_Allreduce (&globalFaceCount,&globalFaceCount,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
 
+	partition_ghosts_begin=cellCount;
+	partition_ghosts_end=cell.size()-1;
+
+} // end int Grid::create_partition_ghosts
+
+int Grid::create_boundary_ghosts (void) {
+
+	boundary_ghosts_begin.resize(bcCount);
+	boundary_ghosts_end.resize(bcCount);
+
+	// Create boundary ghost cells
+	for (int b=0;b<bcCount;++b) {
+		boundary_ghosts_begin[b]=cell.size();
+		for (int f=0;f<faceCount;++f) {
+			if (face[f].bc==b) {
+				int parent=face[f].parent;
+				Cell temp;
+				temp.type=BOUNDARY_GHOST;
+				temp.globalId=-1;
+				temp.partition=Rank;
+				temp.matrix_id=-1;
+				temp.id_in_owner=cell.size();
+				temp.bc=b;
+				temp.volume=cell[parent].volume;
+				temp.lengthScale=cell[parent].lengthScale;
+				temp.closest_wall_distance=0.;
+				
+				// n1
+				temp.centroid=cell[parent].centroid+
+						2.*(face[f].centroid-cell[parent].centroid).dot(face[f].normal)*face[f].normal;
+				// n2	
+				//temp.centroid=cell[parent].centroid+
+				//		2.*(face[f].centroid-cell[parent].centroid);
+				
+				// n3
+				//temp.centroid=face[f].centroid;
+
+				// n4
+				//temp.centroid=face[f].centroid+(face[f].centroid-cell[parent].centroid).dot(face[f].normal)*face[f].normal;
+				
+				face[f].neighbor=cell.size();
+				for (int fn=0;fn<face[f].nodes.size();++fn) faceNode(f,fn).cells.push_back(face[f].neighbor);
+				cell.push_back(temp);
+			}
+		}
+		boundary_ghosts_end[b]=cell.size()-1;
+	}
+
+	// Construct the list of neighboring ghosts for each cell
+	int g;
+	bool flag;
+	for (int c=0;c<cellCount;++c) {
+		int n;
+		for (int cn=0;cn<cell[c].nodes.size();++cn) {
+			n=cell[c].nodes[cn];
+			for (int ng=0;ng<node[n].cells.size();++ng) {
+				g=node[n].cells[ng];
+				if (g>=boundary_ghosts_begin[0]) { // means boundary ghost
+					flag=false;
+					for (int cg=0;cg<cell[c].neighborCells.size();++cg) {
+						if(cell[c].neighborCells[cg]==g) {
+							flag=true;
+							break;
+						}
+					} // end cell neighborCell  loop
+					if (flag==false) {
+						cell[c].neighborCells.push_back(g);
+						cell[g].neighborCells.push_back(c);
+					}
+				}
+			} // end node cell loop
+		} // end cell node loop
+	} // end cell loop
+
 	return 0;
-	
-} // end int Grid::create_ghosts
+} // end in Grid::create_boundary_ghosts
 
 int Grid::get_volume_output_ids() {
 	
@@ -713,11 +778,13 @@ int Grid::get_volume_output_ids() {
 	int count=0;
 	for (int n=0;n<nodeCount;++n) {
 		node[n].output_id=0;
-		for (int ng=0;ng<node[n].ghosts.size();++ng) {
-			int g=node[n].ghosts[ng];
-			if (ghost[g].partition<Rank) {
-				node[n].output_id=-1;
-				break;
+		for (int ng=0;ng<node[n].cells.size();++ng) {
+			int g=node[n].cells[ng];
+			if (g>=cellCount) {
+				if (cell[g].partition<Rank) {
+					node[n].output_id=-1;
+					break;
+				}
 			}
 		}
 		if (node[n].output_id==0) {
@@ -736,7 +803,7 @@ int Grid::get_volume_output_ids() {
 	for (int p=0;p<np;++p) sum+=output_node_counts[p];
 	if (sum!=globalNodeCount) {
 		cerr << "[E] Output node counts sum doesn't match global node count" << endl;
-		exit(1);
+		//exit(1);
 	}
 	
 	node_output_offset=0;
@@ -795,7 +862,7 @@ int Grid::get_volume_output_ids() {
 	for (int f=0;f<faceCount;++f) {
 		if (face[f].bc>=0) {
 			boundaryFaces[face[f].bc].push_back(f);
-			for (int fn=0;fn<face[f].nodeCount;++fn) {
+			for (int fn=0;fn<face[f].nodes.size();++fn) {
 				bcnodeset[face[f].bc].insert(face[f].nodes[fn]);
 			}
 		}
@@ -822,7 +889,7 @@ int Grid::get_bc_output_ids() {
 	
 	for (int f=0;f<faceCount;++f) {
 		if (face[f].bc>=0) {
-			for (int fn=0;fn<face[f].nodeCount;++fn) {
+			for (int fn=0;fn<face[f].nodes.size();++fn) {
 				bc_nodes.insert(face[f].nodes[fn]);
 			}
 		}
@@ -837,9 +904,9 @@ int Grid::get_bc_output_ids() {
 	for (sit=bc_nodes.begin();sit!=bc_nodes.end();sit++) {
 		n=*sit;
 		node[n].bc_output_id=0;
-		for (int ng=0;ng<node[n].ghosts.size();++ng) {
-			int g=node[n].ghosts[ng];
-			if (ghost[g].partition<Rank) {
+		for (int ng=0;ng<node[n].cells.size();++ng) {
+			int g=node[n].cells[ng];
+			if (cell[g].partition<Rank) {
 				node[n].bc_output_id=-1;
 				break;
 			}
@@ -908,11 +975,11 @@ int Grid::get_bc_output_ids() {
 	return 0;
 }
 	
-bool Cell::HaveNodes(int &nodelistsize, int nodelist []) {	
+bool Cell::HaveNodes(int nodelistsize, int nodelist []) {	
 	bool match;
 	for (int i=0;i<nodelistsize;++i) {
 		match=false;
-		for (int j=0;j<nodeCount;++j) if (nodelist[i]==nodes[j]) {match=true; break;}
+		for (int j=0;j<nodes.size();++j) if (nodelist[i]==nodes[j]) {match=true; break;}
 		if (!match) return false;
 	}
 	return true;

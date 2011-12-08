@@ -47,7 +47,7 @@ void Variable<double>::mpi_update (void) {
 
 			for (int g=0;g<grid[gid].recvCells[proc].size();++g) {
 				id=grid[gid].recvCells[proc][g];
-				ghost(id)=recvBuffer[g];
+				cell(id)=recvBuffer[g];
 			}
 		}
 	}
@@ -80,8 +80,8 @@ void Variable<Vec3D>::mpi_update (void) {
 			MPI_Sendrecv(&sendBuffer[0],sendBuffer.size(),MPI_DOUBLE,proc,0,&recvBuffer[0],recvBuffer.size(),MPI_DOUBLE,proc,MPI_ANY_TAG,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
 			
 			for (int g=0;g<grid[gid].recvCells[proc].size();++g) {
-				id=grid[gid].maps.ghostGlobal2Local[grid[gid].recvCells[proc][g]];
-				for (int i=0;i<3;++i) ghost(id)[i]=recvBuffer[g*3+i];
+				id=grid[gid].maps.cellGlobal2Local[grid[gid].recvCells[proc][g]];
+				for (int i=0;i<3;++i) cell(id)[i]=recvBuffer[g*3+i];
 			}
 		}
 	
@@ -109,10 +109,4 @@ Vec3D Variable<Vec3D>::cell2node (int c, int n) {
 	result[2]=grad[2].dot(grid[gid].node[n]-grid[gid].cell[c].centroid);
 	return cell(c)+result;
 }
-
-
-
-
-
-
 

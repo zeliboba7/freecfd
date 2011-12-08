@@ -40,30 +40,18 @@ void lsqr_grad_map(int gid,int ci) {
 	int neighbor;
 	Vec3D weight;
 	
-	// Populate cell neighbors into the stencil
-	/*
-	for (int cf=0;cf<grid[gid].cell[ci].faceCount;++cf) {
-		if (grid[gid].cellFace(ci,cf).bc<0) { // if not a boundary face
-			neighbor=grid[gid].cellFace(ci,cf).neighbor;
-			if (neighbor==ci) neighbor=grid[gid].cellFace(ci,cf).parent;
-			stencil.push_back(neighbor);
-		}
-	}
-	*/
-	
 	for (int i=0;i<grid[gid].cell[ci].neighborCells.size();++i) {
 		neighbor=grid[gid].cell[ci].neighborCells[i];
 		if (neighbor!=ci) stencil.push_back(neighbor);
 	}
-	
+
 	// Loop the stencil and calculate the metrics
 	a=0.; b=0.; c=0.; d=0.; e=0; f=0.;
 	
 	for (int k=0;k<stencil.size();k++) {
-		if (stencil[k]>=0) point=grid[gid].cell[stencil[k]].centroid;
-		else point=grid[gid].ghost[stencil[k]].centroid;
+		point=grid[gid].cell[stencil[k]].centroid;
 		distance.push_back(point-grid[gid].cell[ci].centroid);
- 	    w.push_back(distance[k].dot(distance[k]));
+	 	w.push_back(distance[k].dot(distance[k]));
 		a+=w[k]*distance[k][0]*distance[k][0];
 		b+=w[k]*distance[k][0]*distance[k][1];
 		c+=w[k]*distance[k][0]*distance[k][2];
@@ -75,7 +63,7 @@ void lsqr_grad_map(int gid,int ci) {
 	// Handle the coplanar stencil happening in 2D or 1D runs
 	// Add mirror cells to the symmetry faces of the target cell (ci)
 	//if (grid[gid].dimension<3) {
-	for (int cf=0;cf<grid[gid].cell[ci].faceCount;++cf) {
+	for (int cf=0;cf<grid[gid].cell[ci].faces.size();++cf) {
 		int bcno=grid[gid].cellFace(ci,cf).bc;
 		if (grid[gid].face[grid[gid].cell[ci].faces[cf]].symmetry) {
 			stencil.push_back(ci);

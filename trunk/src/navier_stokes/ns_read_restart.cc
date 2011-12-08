@@ -31,6 +31,7 @@ void NavierStokes::read_restart(int restart_step,vector<vector<int> > &partition
 	V.read_cell_data(dirname+"V"+gs,partitionMap);
 	T.read_cell_data(dirname+"T"+gs,partitionMap);
 	for (int c=0;c<grid[gid].cellCount;++c) rho.cell(c)=material.rho(p.cell(c),T.cell(c));
+	update_boundaries();
 	mpi_update_ghost_primitives();
 	calc_cell_grads();
 	mpi_update_ghost_gradients();

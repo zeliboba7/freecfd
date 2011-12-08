@@ -33,11 +33,6 @@ void NavierStokes::convective_face_flux(NS_Cell_State &left,NS_Cell_State &right
 
 	double fluxNormal[5];
 
-	//if (face.bc>=0 && bc[gid][face.bc].type==INLET) {
-	//	flux_from_right(right,fluxNormal);
-	//	weightL.face(face.index)=0.;
-	//} else 
-
 	if (convective_flux_function==ROE) {
 		roe_flux(left,right,fluxNormal,material.gamma,weightL.face(face.index));
 	} else if (convective_flux_function==VAN_LEER) {
@@ -59,7 +54,6 @@ void NavierStokes::convective_face_flux(NS_Cell_State &left,NS_Cell_State &right
 	flux[2] = (fluxNormal[1]*face.normal[1]+fluxNormal[2]*face.tangent1[1]+fluxNormal[3]*face.tangent2[1])*face.area;
 	flux[3] = (fluxNormal[1]*face.normal[2]+fluxNormal[2]*face.tangent1[2]+fluxNormal[3]*face.tangent2[2])*face.area;
 	flux[4] = fluxNormal[4]*face.area;
-	mdot.face(face.index)=fluxNormal[0];
 
 	return;
 } // end face flux

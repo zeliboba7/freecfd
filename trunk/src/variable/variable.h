@@ -34,8 +34,8 @@ public:
 	int gid; // grid ID
 	vector<bool> fixedonBC; // whether this variable is fixed on a certain BC of this grid
 	vector<vector<TYPE> > bcValue; // Stores the bc data if specified on a certain bc
-	vector<TYPE> cellData, faceData, nodeData, ghostData;
-	bool cellStore, faceStore, nodeStore, ghostStore;
+	vector<TYPE> cellData, faceData, nodeData;
+	bool cellStore, faceStore, nodeStore;
 	TYPE temp;
 	map<int,double>::iterator it;
 	set<int>::iterator sit;
@@ -45,7 +45,6 @@ public:
 	// Or can be an on-demand evaluation function
 	// That Variable:: is important here
 	TYPE & (Variable::*get_cell)(int); // get_cell is a pointer to a function that returns address of TYPE
-	TYPE & (Variable::*get_ghost)(int);
 	TYPE & (Variable::*get_face)(int);
 	TYPE & (Variable::*get_node)(int);
 	
@@ -53,7 +52,6 @@ public:
 	Variable (void) { 
 		/* Set default choices */ 
 		cellStore=true; 
-		ghostStore=true; 
 		faceStore=false; 
 		nodeStore=false; 
 		return;
@@ -62,10 +60,6 @@ public:
 	TYPE &cell (int c); // This will invoke either fetch or the calculate function depending on what get_cell above points to
 	TYPE &cell_fetch (int c);
 	TYPE &cell_calculate (int c);
-	
-	TYPE &ghost (int g); // This will invoke either fetch or the calculate function depending on what get_ghost above points to
-	TYPE &ghost_fetch (int g);
-	TYPE &ghost_calculate (int g);
 	
 	TYPE &face (int f); // This will invoke either fetch or the calculate function depending on what get_face above points to
 	TYPE &face_fetch (int f);
@@ -90,13 +84,9 @@ template <class TYPE>
 void Variable<TYPE>::allocate (int g) {
 	gid=g;
 	if (cellStore) {
-		cellData.resize(grid[gid].cellCount);
+		cellData.resize(grid[gid].cell.size()); // Store in internal cells + inter-partition ghosts
 		get_cell=&Variable::cell_fetch;
 	}
-	if (ghostStore) {
-		ghostData.resize(grid[gid].ghostCount);
-		get_ghost=&Variable::ghost_fetch;
-	} 
 	if (faceStore) {
 		faceData.resize(grid[gid].faceCount);		
 		get_face=&Variable::face_fetch;
@@ -130,18 +120,6 @@ TYPE &Variable<TYPE>::cell_fetch (int c) {
 }
 
 template <class TYPE>
-TYPE &Variable<TYPE>::ghost (int g) { 
-	// Call whatever get_ghost is pointing to
-	return (this->*get_ghost)(g);
-}
-
-template <class TYPE>
-TYPE &Variable<TYPE>::ghost_fetch (int g) { 
-	// Just return the data in ghostData
-	return ghostData[g];
-}
-
-template <class TYPE>
 TYPE &Variable<TYPE>::face (int f) { 
 	// Call whatever get_face is pointing to
 	return (this->*get_face)(f);
@@ -163,12 +141,7 @@ TYPE &Variable<TYPE>::face_calculate (int f) {
 	temp=0.;
 	it=grid[gid].face[f].average.begin();
 	for ( it=grid[gid].face[f].average.begin() ; it != grid[gid].face[f].average.end(); it++ ) {
-		// Note: cell((*it).first) could be used but the get_cell method should be slightly faster
-		if ((*it).first>=0) { // if contribution is coming from a real cell
 			temp+=(*it).second*(this->*get_cell)((*it).first);
-		} else { // if contribution is coming from a ghost cell
-			temp+=(*it).second*(this->*get_ghost)(-1*((*it).first+1));
-		}
 	}
 	return temp;
 }
@@ -188,45 +161,33 @@ TYPE &Variable<TYPE>::node_fetch (int n) {
 template <class TYPE>
 TYPE &Variable<TYPE>::node_calculate (int n) { 
 
+//	temp=0.;
+//	int count=0;
+//	// Loop node neighbor faces
+//	for (vector<int>::iterator itr=grid[gid].node[n].faces.begin(); itr!=grid[gid].node[n].faces.end(); itr++) {
+//		int fbc=grid[gid].face[*itr].bc;
+//		if (fbc>=0) {
+//			if (bcValue[fbc].size()==1) { // Uniform bc
+//				temp+=bcValue[fbc][0];
+//				count++;
+//			} else if (bcValue[fbc].size()>1) { // Distributed bc
+//				// Use cell gradient to get to the node
+//				temp+=cell2node(grid[gid].face[*itr].parent,n);
+//				count++;
+//			}
+//		}
+//	}
+//	if (count>0) {
+//		temp/=double(count);
+//		return temp;
+//	}
+	// Run the node averaging map from the grid class
 	temp=0.;
-	int count=0;
-	// Loop node neighbor faces
-	for (vector<int>::iterator itr=grid[gid].node[n].faces.begin(); itr!=grid[gid].node[n].faces.end(); itr++) {
-		int fbc=grid[gid].face[*itr].bc;
-		if (fbc>=0) {
-			if (bcValue[fbc].size()==1) { // Uniform bc
-				temp+=bcValue[fbc][0];
-				count++;
-			} else if (bcValue[fbc].size()>1) { // Distributed bc
-				// Use cell gradient to get to the node
-				temp+=cell2node(grid[gid].face[*itr].parent,n);
-				count++;
-			}
-		}
+	it=grid[gid].node[n].average.begin();
+	for ( it=grid[gid].node[n].average.begin() ; it != grid[gid].node[n].average.end(); it++ ) {
+		temp+=(*it).second*(this->*get_cell)((*it).first);
 	}
-	if (count>0) {
-		temp/=double(count);
-		return temp;
-	}
-	// TODO: Wait until a general interpolation routine is available
-	// Then check neighbor face bc's and interpolate to this node
-	//if (!grid.node[n].bcs.empty()) {
-	//	for (sit=grid.node[n].bcs.begin();sit!=raw.grid.node[n].bcs.end();sit++) {
-	//	}
-	//} else {
-		// Run the node averaging map from the grid class
-		temp=0.;
-		it=grid[gid].node[n].average.begin();
-		for ( it=grid[gid].node[n].average.begin() ; it != grid[gid].node[n].average.end(); it++ ) {
-			// Note: cell((*it).first) could be used but the get_cell method should be slightly faster
-			if ((*it).first>=0) { // if contribution is coming from a real cell
-				temp+=(*it).second*(this->*get_cell)((*it).first);
-			} else { // if contribution is coming from a ghost cell
-				temp+=(*it).second*(this->*get_ghost)(-1*((*it).first+1));
-			}
-		}
-		return temp;
-	//}
+	return temp;
 }
 
 template <class TYPE>
@@ -237,18 +198,14 @@ vector<TYPE> Variable<TYPE>::cell_gradient (int c) {
 	if (grid[gid].cell[c].gradMap.size()!=0) {
 		map<int,Vec3D>::iterator it;
 		for (it=grid[gid].cell[c].gradMap.begin();it!=grid[gid].cell[c].gradMap.end(); it++ ) {
-			if ((*it).first>=0) { // if contribution is coming from a real cell
-				for (int i=0;i<3;++i) grad[i]+=(*it).second[i]*(this->*get_cell)((*it).first);
-			} else { // if contribution is coming from a ghost cell
-				for (int i=0;i<3;++i) grad[i]+=(*it).second[i]*(this->*get_ghost)(-1*((*it).first+1));
-			}
+			for (int i=0;i<3;++i) grad[i]+=(*it).second[i]*(this->*get_cell)((*it).first);
 		} // end gradMap loop
 	} else {
 		int f;
 		Vec3D areaVec;
 		// The grad map loop above doesn't count the boundary faces
 		// Add boundary face contributions
-		for (int cf=0;cf<grid[gid].cell[c].faceCount;++cf) {
+		for (int cf=0;cf<grid[gid].cell[c].faces.size();++cf) {
 			f=grid[gid].cell[c].faces[cf];		
 			areaVec=grid[gid].face[f].normal*grid[gid].face[f].area/grid[gid].cell[c].volume;
 			if (grid[gid].face[f].parent!=c) areaVec*=-1.;
@@ -314,16 +271,4 @@ void Variable<TYPE>::read_cell_data(string fileName,vector<vector<int> > &partit
 }
 
 #endif
-
-
-
-
-
-
-
-
-
-
-
-
 

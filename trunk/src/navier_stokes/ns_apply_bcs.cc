@@ -45,8 +45,6 @@ void NavierStokes::apply_bcs(NS_Cell_State &left,NS_Cell_State &right,NS_Face_St
 void NavierStokes::velocity_inlet(NS_Cell_State &left,NS_Cell_State &right,NS_Face_State &face) {
 	
 	right.V=V.bc(face.bc,face.index);
-	// The right cell doesn't exist, exrapolate linearly to an imaginary cell center
-	right.V_center=2.*right.V-left.V_center; 
 	// Note that face normal is pointing out (towards the right state)
 	// Extrapolate outgoing Riemann invariant (isentropic) (uN+2a/(gamma-1)
 	double uNL=left.V.dot(face.normal);
@@ -63,16 +61,13 @@ void NavierStokes::velocity_inlet(NS_Cell_State &left,NS_Cell_State &right,NS_Fa
 	if (bc[gid][face.bc].specified==BC_STATE) {
 		right.p=p.bc(face.bc,face.index);
 		right.T=T.bc(face.bc,face.index);
-		right.T_center=2.*right.T-left.T_center;
 		right.rho=rho.bc(face.bc,face.index);
 	} else if (bc[gid][face.bc].specified==BC_P) {
 		right.p=p.bc(face.bc,face.index);
 		right.rho=material.gamma*(right.p+material.Pref)/(right.a*right.a);
 		right.T=material.T(right.p,right.rho);
-		right.T_center=2.*right.T-left.T_center;
 	} else if (bc[gid][face.bc].specified==BC_T) {
 		right.T=T.bc(face.bc,face.index);
-		right.T_center=2.*right.T-left.T_center;
 		// Extrapolate entropy to get density
 		right.rho=left.rho*pow((left.T+material.Tref)/(right.T+material.Tref),1./(1.-material.gamma));
 		right.p=material.p(right.rho,right.T);
@@ -80,14 +75,14 @@ void NavierStokes::velocity_inlet(NS_Cell_State &left,NS_Cell_State &right,NS_Fa
 		right.rho=rho.bc(face.bc,face.index);
 		right.p=right.a*right.a*right.rho/material.gamma-material.Pref;
 		right.T=material.T(right.p,right.rho);
-		right.T_center=2.*right.T-left.T_center;
 	} else {
-		// If nothing is specified extrapolate pressure, get the density
-		right.p=left.p;
-		right.rho=material.gamma*(right.p+material.Pref)/(right.a*right.a);
-		right.T=material.T(right.p,right.rho);
-		right.T_center=2.*right.T-left.T_center;
+		cerr << "[E] At least one of p,T,rho needs to be specified at Inlet at BC_" << face.bc+1 << endl;
+		exit(1);
 	}
+
+	right.p_center=right.p;
+	right.V_center=right.V;
+	right.T_center=right.T;
 
 	return;
 } // end velocity_inlet
@@ -111,42 +106,30 @@ void NavierStokes::mdot_inlet(NS_Cell_State &left,NS_Cell_State &right,NS_Face_S
 	if (bc[gid][face.bc].specified==BC_STATE) {
 		right.p=p.bc(face.bc,face.index);
 		right.T=T.bc(face.bc,face.index);
-		right.T_center=2.*right.T-left.T_center;
 		right.rho=rho.bc(face.bc,face.index);
 	} else if (bc[gid][face.bc].specified==BC_P) {
-		cerr << "[E] You need to specify either T or p with mdot for inlet BC_" << face.bc+1 << endl;
-		exit(1);
+		right.p=p.bc(face.bc,face.index);
+		right.T=left.T;
+		right.rho=material.rho(right.p,right.T);
 	} else if (bc[gid][face.bc].specified==BC_T) {
 		right.T=T.bc(face.bc,face.index);
-		right.T_center=2.*right.T-left.T_center;
-		right.a=sqrt(material.gamma*material.R*(right.T+material.Tref));
-		if (fabs(mdotNR/uNL-left.rho)/left.rho<0.2) {
-			right.rho=mdotNR/(uNL+2.*(left.a-right.a)/(material.gamma-1.));	
-		} else {
-			right.rho=left.rho;
-		}
-		right.p=right.a*right.a*right.rho/material.gamma-material.Pref;
+		right.p=left.p;
+		right.rho=material.rho(right.p,right.T);
 	} else if (bc[gid][face.bc].specified==BC_RHO) {
 		right.rho=rho.bc(face.bc,face.index);
 		right.a=0.5*(material.gamma-1.)*(uNL+2.*left.a/(material.gamma-1.)-mdotNR/right.rho);
 		right.p=right.a*right.a*right.rho/material.gamma-material.Pref;
 		right.T=material.T(right.p,right.rho);
-		right.T_center=2.*right.T-left.T_center;
 	} else {
-		// extrapolate temperature
-		right.T=left.T;
-		right.T_center=2.*right.T-left.T_center;
-		right.a=sqrt(material.gamma*material.R*(right.T+material.Tref));
-		if (fabs(mdotNR/uNL-left.rho)/left.rho<0.2) {
-			right.rho=mdotNR/(uNL+2.*(left.a-right.a)/(material.gamma-1.));	
-		} else {
-			right.rho=left.rho;
-		}
-		right.p=right.a*right.a*right.rho/material.gamma-material.Pref;
+		cerr << "[E] At least one of p,T,rho needs to be specified at Inlet at BC_" << face.bc+1 << endl;
+		exit(1);
 	}
 	
 	right.V=mdotNR/right.rho*face.normal;
-	right.V_center=2.*right.V-left.V_center; 
+
+	right.p_center=right.p;
+	right.V_center=right.V;
+	right.T_center=right.T;
 
 	return;
 } // end mdot_inlet
@@ -155,21 +138,19 @@ void NavierStokes::stagnation_inlet(NS_Cell_State &left,NS_Cell_State &right,NS_
 	// Extrapolate velocity from inside
 
 	if (left.V.dot(face.normal)>0.) { // backflow
-		right.V=-1.*left.V;
-		right.V_center=-1.*left.V_center;
+		right.V=-1.*left.V_center;
 	} else {
-		right.V=left.V;
+		right.V=left.V_center;
 	}
 	
-	// Outgoing characteristic value
-	//double u0=left.V.dot(face.normal)+2.*sqrt(material.gamma*material.R*left.T)/(material.gamma-1.);
-	//double uNR;
 	// Impose pressure and temperature
 	right.T=T_total.bc(face.bc)-0.5*(material.gamma-1.)/(material.gamma*material.R)*right.V.dot(right.V);
 	right.p=(p_total.bc(face.bc)+material.Pref)/(1.+0.5*right.V.dot(right.V)/(material.R*(right.T+material.Tref)))-material.Pref;
-	right.T_center=2.*right.T-left.T_center;
 	right.rho=material.rho(right.p,right.T);
-	right.V_center=2.*right.V-left.V_center;
+	right.p_center=right.p;
+	right.V_center=right.V;
+	right.T_center=right.T;
+
 	return;
 } // end stagnation_inlet
 
@@ -185,89 +166,61 @@ void NavierStokes::outlet(NS_Cell_State &left,NS_Cell_State &right,NS_Face_State
 		cerr << "[E] You can't specify complete thermodynamic state at outlet BC_" << face.bc+1 << endl;
 		exit(1);
 	} else if (bc[gid][face.bc].specified==BC_P && !supersonic) {
-		right.p=p.bc(face.bc,face.index);
-		if (MachL<0.) { // reverse flow
-			if (bc[gid][face.bc].kind==DAMP_REVERSE) right.p-=0.5*left.rho*uNL*uNL;
-		}
+		right.p=right.p_center=p.bc(face.bc,face.index);
 		// Extrapolate entropy
 		right.rho=left.rho*pow((right.p+material.Pref),1./material.gamma)/pow((left.p+material.Pref),1./material.gamma);
 		right.a=sqrt(material.gamma*(right.p+material.Pref)/right.rho);
-		// Extrapolate outgoing characteristic
-		uNR=uNL+2.*(left.a-right.a)/(material.gamma-1.);
-		right.V=left.V-left.V.dot(face.normal)*face.normal+uNR*face.normal;
-		right.V_center=2.*right.V-left.V_center;
 		right.T=material.T(right.p,right.rho);
-		right.T_center=2.*right.T-left.T_center;
+		right.V=left.V;
 	} else if (bc[gid][face.bc].specified==BC_T && !supersonic) {
-		right.T=T.bc(face.bc,face.index);
-		right.T_center=2.*right.T-left.T_center;
-		material.gamma=material.gamma; // TODO check left-right gamma's and correct below
+		right.T=right.T_center=T.bc(face.bc,face.index);
 		right.a=sqrt(material.gamma*material.R*(right.T+material.Tref));
 		// Extrapolate entropy
 		right.rho=pow(material.gamma*(left.p+material.Pref)/(right.a*right.a*pow(left.rho,material.gamma)),1.-material.gamma);
 		right.p=material.p(right.rho,right.T);
-		// Extrapolate outgoing characteristic
-		uNR=uNL+2.*(left.a-right.a)/(material.gamma-1.);
-		right.V=left.V-left.V.dot(face.normal)*face.normal+uNR*face.normal;
+		right.V=left.V;
 	} else if (bc[gid][face.bc].specified==BC_RHO && !supersonic) {
 		right.rho=rho.bc(face.bc,face.index);
 		// Extrapolate entropy
-		material.gamma=material.gamma; // TODO check left-right gamma's and correct below
 		right.p=(left.p+material.Pref)*pow(right.rho/left.rho,material.gamma)-material.Pref;
 		right.T=material.T(right.p,right.rho);
-		right.T_center=2.*right.T-left.T_center;
 		right.a=sqrt(material.gamma*(right.p+material.Pref)/right.rho);
-		// Extrapolate outgoing characteristic
-		uNR=uNL+2.*(left.a-right.a)/(material.gamma-1.);
-		right.V=left.V-left.V.dot(face.normal)*face.normal+uNR*face.normal;
+		right.V=left.V;
 	} else {
 		// If nothing is specified or flow is supersonic, everything is extrapolated
-		// First order	
-	//	right.p=left.p_center;
-	//	right.T=left.T_center;
-	//	right.T_center=left.T_center;
-	//	right.V=left.V_center;
-	//	right.V_center=left.V_center;
-		
-		// Second order
 		right.p=left.p;
 		right.T=left.T;
-		right.T_center=2.*right.T-left.T_center;
 		right.V=left.V;
-		right.V_center=2.*right.V-left.V_center;
-	
-		// Common	
-		if (MachL<1. && bc[gid][face.bc].kind==FORCE_SUPERSONIC) {
-			right.p-=0.5*left.rho*pow(left.a-uNL,2.);
-			right.p=min(1.e-8,right.p+material.Pref)-material.Pref;	
-		} else if (MachL<0. && bc[gid][face.bc].kind==DAMP_REVERSE) { // reverse flow
-			right.p-=0.5*left.rho*uNL*uNL;
-		}
-		right.rho=material.rho(right.p,right.T);
-		
 	}
 	
 	if (MachL<0.) { // reverse flow
-		if (bc[gid][face.bc].kind==NO_REVERSE) {
-			right.V=-1.*left.V;
-			right.V_center=-1.*left.V_center; 
+		if (bc[gid][face.bc].kind==DAMP_REVERSE) {
+			right.p-=0.5*left.rho*uNL*uNL;
+			right.rho=left.rho*pow((right.p+material.Pref),1./material.gamma)/pow((left.p+material.Pref),1./material.gamma);
+			right.a=sqrt(material.gamma*(right.p+material.Pref)/right.rho);
+			right.T=material.T(right.p,right.rho);
 		}
+		if (bc[gid][face.bc].kind==NO_REVERSE) right.V=-1.*left.V;
 	}
-	
+
+	if (MachL<1. && bc[gid][face.bc].kind==FORCE_SUPERSONIC) {
+		right.p-=0.5*left.rho*pow(left.a-uNL,2.);
+		right.p=min(1.e-8,right.p+material.Pref)-material.Pref;	
+		right.rho=left.rho*pow((right.p+material.Pref),1./material.gamma)/pow((left.p+material.Pref),1./material.gamma);
+		right.a=sqrt(material.gamma*(right.p+material.Pref)/right.rho);
+		right.T=material.T(right.p,right.rho);
+	}
+
 	return;
 } // end outlet
 
 void NavierStokes::wall(NS_Cell_State &left,NS_Cell_State &right,NS_Face_State &face,bool is_slip) {
 	
 	if (bc[gid][face.bc].thermalType==FIXED_T) {
-		right.T=T.bc(face.bc,face.index);
-		right.T_center=2.*right.T-left.T_center;
+		//TODO: CHECK THIS
+		right.T=right.T_center=T.bc(face.bc,face.index);
 		right.p=left.p; // pressure is extrapolated
 		right.rho=material.rho(right.p,right.T);
-		if (right.rho<=0) {
-			right.T=right.T_center;
-			right.rho=material.rho(right.p,right.T);
-		}
 	} else {
 		// If nothing is specified, everything is extrapolated
 		right.p=left.p;
@@ -276,13 +229,16 @@ void NavierStokes::wall(NS_Cell_State &left,NS_Cell_State &right,NS_Face_State &
 		// if temperature is not specified, it is assumed adiabatic
 		right.T_center=left.T_center;
 	}
+
 	if (is_slip) {
 		right.V=left.V-2.*left.V.dot(face.normal)*face.normal;
 		right.V_center=left.V_center-2.*left.V_center.dot(face.normal)*face.normal;
 	} else {
 		right.V=-1.*left.V;
-		right.V_center=2.*right.V-left.V_center;
+		right.V_center=-1.*left.V_center;
 	}
+
+	right.p_center=left.p_center; // force normal pressure gradient
 
 	return;
 } // end wall
@@ -290,12 +246,14 @@ void NavierStokes::wall(NS_Cell_State &left,NS_Cell_State &right,NS_Face_State &
 void NavierStokes::symmetry(NS_Cell_State &left,NS_Cell_State &right,NS_Face_State &face) {
 
 	right.p=left.p;
-	right.rho=left.rho;
-	right.T=left.T;
-	right.T_center=left.T_center;
-	
 	right.V=left.V-2.*left.V.dot(face.normal)*face.normal;
+	right.T=left.T;
+	right.rho=left.rho;
+
+	right.p_center=left.p_center;
+	right.T_center=left.T_center;
 	right.V_center=left.V_center-2.*left.V_center.dot(face.normal)*face.normal;
-	
+
 	return;
 } // end symmetry
+

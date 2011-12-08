@@ -61,14 +61,14 @@ void RANS::mpi_init(void) {
 
 void RANS::mpi_update_ghost_primitives(void) {
 
-	for (int g=0;g<grid[gid].ghostCount;++g) {
-		update[0].ghost(g)=k.ghost(g);
-		update[1].ghost(g)=omega.ghost(g);
+	for (int g=grid[gid].partition_ghosts_begin;g<=grid[gid].partition_ghosts_end;++g) {
+		update[0].cell(g)=k.cell(g);
+		update[1].cell(g)=omega.cell(g);
 	}
 	
 	int id,offset;
 	
-    send_req_count=0; recv_req_count=0;
+	send_req_count=0; recv_req_count=0;
 	
 	for (int proc=0;proc<np;++proc) {
 		if (Rank!=proc) {
@@ -76,18 +76,17 @@ void RANS::mpi_update_ghost_primitives(void) {
 				for (int g=0;g<grid[gid].sendCells[proc].size();++g) {
 					id=grid[gid].sendCells[proc][g];
 					offset=mpi_send_offset[proc];
-					sendBuffer[offset+g*3]=k.cell(id);
-					sendBuffer[offset+g*3+1]=omega.cell(id);
-					sendBuffer[offset+g*3+2]=mu_t.cell(id);
+					sendBuffer[offset+g*2]=k.cell(id);
+					sendBuffer[offset+g*2+1]=omega.cell(id);
 				}
 				
-				MPI_Isend(&sendBuffer[offset],grid[gid].sendCells[proc].size()*3,MPI_DOUBLE,proc,0,MPI_COMM_WORLD,&send_request[send_req_count]);
+				MPI_Isend(&sendBuffer[offset],grid[gid].sendCells[proc].size()*2,MPI_DOUBLE,proc,0,MPI_COMM_WORLD,&send_request[send_req_count]);
 				send_req_count++;
 			}
 			
 			if (grid[gid].recvCells[proc].size()!=0) {
 				offset=mpi_recv_offset[proc];
-				MPI_Irecv(&recvBuffer[offset],grid[gid].recvCells[proc].size()*3,MPI_DOUBLE,proc,0,MPI_COMM_WORLD,&recv_request[recv_req_count]);
+				MPI_Irecv(&recvBuffer[offset],grid[gid].recvCells[proc].size()*2,MPI_DOUBLE,proc,0,MPI_COMM_WORLD,&recv_request[recv_req_count]);
 				recv_req_count++;
 			}
 		}
@@ -100,16 +99,15 @@ void RANS::mpi_update_ghost_primitives(void) {
 			offset=mpi_recv_offset[proc];
 			for (int g=0;g<grid[gid].recvCells[proc].size();++g) {
 				id=grid[gid].recvCells[proc][g];
-				k.ghost(id)=recvBuffer[offset+g*3];
-				omega.ghost(id)=recvBuffer[offset+g*3+1];
-				mu_t.ghost(id)=recvBuffer[offset+g*3+2];
+				k.cell(id)=recvBuffer[offset+g*2];
+				omega.cell(id)=recvBuffer[offset+g*2+1];
 			}
 		}
 	}
 
-	for (int g=0;g<grid[gid].ghostCount;++g) {
-		update[0].ghost(g)=k.ghost(g)-update[0].ghost(g);
-		update[1].ghost(g)=omega.ghost(g)-update[1].ghost(g);
+	for (int g=grid[gid].partition_ghosts_begin;g<=grid[gid].partition_ghosts_end;++g) {
+		update[0].cell(g)=k.cell(g)-update[0].cell(g);
+		update[1].cell(g)=omega.cell(g)-update[1].cell(g);
 	}
 	
 	return;
@@ -153,8 +151,8 @@ void RANS::mpi_update_ghost_gradients(void) {
 			for (int g=0;g<grid[gid].recvCells[proc].size();++g) {
 				id=grid[gid].recvCells[proc][g];
 				for (int i=0;i<3;++i) {
-					gradk.ghost(id)[i]=recvBuffer[offset+g*6+i];
-					gradomega.ghost(id)[i]=recvBuffer[offset+g*6+3+i];
+					gradk.cell(id)[i]=recvBuffer[offset+g*6+i];
+					gradomega.cell(id)[i]=recvBuffer[offset+g*6+3+i];
 				}
 			}
 		}

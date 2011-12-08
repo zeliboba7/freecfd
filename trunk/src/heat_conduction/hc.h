@@ -53,9 +53,9 @@ public:
 	double rNorm,res;
 
 	// MPI exchange buffer
-    vector<double> sendBuffer;
-    vector<double> recvBuffer;
-    vector<int> mpi_send_offset,mpi_recv_offset;
+	vector<double> sendBuffer;
+	vector<double> recvBuffer;
+	vector<int> mpi_send_offset,mpi_recv_offset;
 	int send_req_count,recv_req_count;
 	vector<MPI_Request> send_request, recv_request;
 	
@@ -67,7 +67,6 @@ public:
 	// Total residuals
 	double first_residual;
 
-	
 	// Scalar variables
 	Variable<double> T,update,qdot;
 	// Vector variables
