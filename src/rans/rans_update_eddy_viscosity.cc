@@ -30,7 +30,7 @@ void RANS::update_eddy_viscosity(void) {
 	double a1=0.31; // SST a1 value
 	double turbulent_length_scale;
 
-	for (int c=0;c<grid[gid].cellCount;++c) {
+	for (int c=0;c<grid[gid].cell.size();++c) {
 		mu=ns[gid].material.viscosity(ns[gid].T.cell(c));
 		if (model==SST) {
 			arg1=2.*sqrt(k.cell(c)+1.e-15)/(kepsilon.beta_star*omega.cell(c)*grid[gid].cell[c].closest_wall_distance);

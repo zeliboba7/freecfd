@@ -49,8 +49,8 @@ void read_inputs(void) {
 	input.section("grid",0).subsection("gradients").register_string("othermethod",optional,"lsqr");
 	
 	input.section("grid",0).registerSubsection("interpolation",single,optional);
-	input.section("grid",0).subsection("interpolation").register_string("method",optional,"simple");
-	input.section("grid",0).subsection("interpolation").register_int("stencilsize",optional,0); // means automatic
+	input.section("grid",0).subsection("interpolation").register_string("method",optional,"wtli");
+	input.section("grid",0).subsection("interpolation").register_int("stencilsize",optional,2); 
 	input.section("grid",0).subsection("interpolation").register_double("skewnesstolerance",optional,0.99);
 	
 	input.section("grid",0).registerSubsection("writeoutput",single,required);
@@ -86,7 +86,7 @@ void read_inputs(void) {
 	input.section("grid",0).subsection("IC",0).register_Vec3D("V",optional);
 	input.section("grid",0).subsection("IC",0).register_double("T",optional);
 	input.section("grid",0).subsection("IC",0).register_double("rho",optional);
-	input.section("grid",0).subsection("IC",0).register_double("turbulenceintensity",optional,1.e-2);
+	input.section("grid",0).subsection("IC",0).register_double("turbulenceintensity",optional,1.e-4);
 	input.section("grid",0).subsection("IC",0).register_double("eddyviscosityratio",optional,0.1);
 	input.section("grid",0).subsection("IC",0).register_double("BLthickness",optional,-1.);
 	input.section("grid",0).subsection("IC",0).register_string("gradienttest",optional,"none");
@@ -107,7 +107,7 @@ void read_inputs(void) {
 	input.section("grid",0).subsection("BC",0).register_double("T",optional);
 	input.section("grid",0).subsection("BC",0).register_double("T_total",optional);
 	input.section("grid",0).subsection("BC",0).register_double("rho",optional);
-	input.section("grid",0).subsection("BC",0).register_double("turbulenceintensity",optional,1.e-2);
+	input.section("grid",0).subsection("BC",0).register_double("turbulenceintensity",optional,1.e-4);
 	input.section("grid",0).subsection("BC",0).register_double("eddyviscosityratio",optional,0.1);
 	
 	input.section("grid",0).registerSubsection("turbulence",single,optional);
@@ -115,8 +115,6 @@ void read_inputs(void) {
 	input.section("grid",0).subsection("turbulence").register_double("absolutetolerance",optional,1.e-12);
 	input.section("grid",0).subsection("turbulence").register_int("maximumiterations",optional,10);	
 	input.section("grid",0).subsection("turbulence").register_string("model",optional,"sst");
-	input.section("grid",0).subsection("turbulence").register_string("order",optional,"second");
-	input.section("grid",0).subsection("turbulence").register_string("limiter",optional,"none");
 	input.section("grid",0).subsection("turbulence").register_double("klowlimit",optional,1.e-10);
 	input.section("grid",0).subsection("turbulence").register_double("khighlimit",optional,1.e8);
 	input.section("grid",0).subsection("turbulence").register_double("omegalowlimit",optional,1.e-2);
@@ -128,9 +126,9 @@ void read_inputs(void) {
 	input.section("grid",0).subsection("navierstokes").register_double("absolutetolerance",optional,1.e-12);
 	input.section("grid",0).subsection("navierstokes").register_int("maximumiterations",optional,10);	
 	input.section("grid",0).subsection("navierstokes").register_string("limiter",optional,"vk");
-	input.section("grid",0).subsection("navierstokes").register_double("limiterthreshold",optional,1.);
+	input.section("grid",0).subsection("navierstokes").register_double("limiterthreshold",optional,0.);
 	input.section("grid",0).subsection("navierstokes").register_string("order",optional,"second");
-	input.section("grid",0).subsection("navierstokes").register_string("jacobianorder",optional,"second");
+	input.section("grid",0).subsection("navierstokes").register_string("jacobianorder",optional,"first");
 	input.section("grid",0).subsection("navierstokes").register_string("convectiveflux",optional,"AUSM+up");
 	input.section("grid",0).subsection("navierstokes").register_double("walldissipation",optional,0.3);
 	input.section("grid",0).subsection("navierstokes").register_double("BLheight",optional,0.);

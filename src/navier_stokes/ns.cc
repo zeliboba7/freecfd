@@ -84,19 +84,20 @@ void NavierStokes::initialize (int ps_max) {
 	} else if (input.section("pseudotime").get_string("preconditioner")=="ws95") {
 		preconditioner=WS95;
 	}
-	
 	mpi_init();
 	material.set(gid);
 	create_vars();
 	apply_initial_conditions();
-	set_bcs();
+	if (gradient_test==NONE) set_bcs();
 	mpi_update_ghost_primitives();
+	if (gradient_test==NONE) update_boundaries(); // grads are initialized to zero. This update will be first order 
 	calc_cell_grads();
 	mpi_update_ghost_gradients();
 	calc_limiter();
 	petsc_init();
 	first_residuals.resize(3);
 	first_ps_residuals.resize(3);
+
 	return;
 }
 
@@ -109,10 +110,10 @@ void NavierStokes::solve (int ts,int pts) {
 	if (turbulent[gid]) rans[gid].solve(timeStep,ps_step);
 	update_variables();
 	mpi_update_ghost_primitives();
+	update_boundaries();
 	calc_cell_grads();
 	mpi_update_ghost_gradients();
 	calc_limiter();
-
 	return;
 }
 
@@ -124,7 +125,6 @@ void NavierStokes::create_vars (void) {
 	p.allocate(gid);
 	T.allocate(gid);
 	V.allocate(gid);
-	gradrho.allocate(gid);
 	gradp.allocate(gid);
 	gradT.allocate(gid);
 	gradu.allocate(gid);
@@ -162,21 +162,21 @@ void NavierStokes::apply_initial_conditions (void) {
 		gradient_test=NONE;
 		if (region.get_string("gradienttest")=="linear") {
 			gradient_test=LINEAR;
-			for (int c=0;c<grid[gid].cellCount;++c) p.cell(c)=grid[gid].cell[c].centroid[0];
+			for (int c=0;c<grid[gid].cell.size();++c) p.cell(c)=grid[gid].cell[c].centroid[0];
 		} if (region.get_string("gradienttest")=="quadratic") {
 			gradient_test=QUADRATIC;
 			// Avoid zero grad points
 			// Find min x-coord
 			min_x=1.e20;
 			max_x=-1.e20;
-			for (int c=0;c<grid[gid].cellCount;++c) {
+			for (int c=0;c<grid[gid].cell.size();++c) {
 				min_x=min(min_x,grid[gid].cell[c].centroid[0]);
 				max_x=max(max_x,grid[gid].cell[c].centroid[0]);
 			}
 			MPI_Allreduce(&min_x,&min_x,1, MPI_DOUBLE,MPI_MIN,MPI_COMM_WORLD);
 			MPI_Allreduce(&max_x,&max_x,1, MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
 			
-			for (int c=0;c<grid[gid].cellCount;++c) {
+			for (int c=0;c<grid[gid].cell.size();++c) {
 				double xc=grid[gid].cell[c].centroid[0];
 				p.cell(c)=xc*xc+3.*(max_x-min_x)*xc;
 			}
@@ -222,7 +222,7 @@ void NavierStokes::apply_initial_conditions (void) {
 		// If region is specified with a box method
 		if (region.get_string("region")=="box") {
 			// Loop the cells
-			for (int c=0;c<grid[gid].cellCount;++c) {
+			for (int c=0;c<grid[gid].cell.size();++c) {
 				// Check if the cell centroid is inside the box region
 				if (withinBox(grid[gid].cell[c].centroid,region.get_Vec3D("corner_1"),region.get_Vec3D("corner_2"))) {
 					// Assign specified values
@@ -234,7 +234,7 @@ void NavierStokes::apply_initial_conditions (void) {
 			}
 		} else if (region.get_string("region")=="cylinder") {
 			// Loop the cells
-			for (int c=0;c<grid[gid].cellCount;++c) {
+			for (int c=0;c<grid[gid].cell.size();++c) {
 				// Check if the cell centroid is inside the cylinder region
 				Vec3D axisDirection=region.get_Vec3D("axisdirection");
 				axisDirection=axisDirection.norm();
@@ -255,7 +255,7 @@ void NavierStokes::apply_initial_conditions (void) {
 			}
 		} else if (region.get_string("region")=="sphere") {
 			// Loop the cells
-			for (int c=0;c<grid[gid].cellCount;++c) {
+			for (int c=0;c<grid[gid].cell.size();++c) {
 				// Check if the cell centroid is inside the sphere region
 				if (withinSphere(grid[gid].cell[c].centroid,region.get_Vec3D("center"),region.get_double("radius"))) {
 					p.cell(c)=regionP;
@@ -268,7 +268,7 @@ void NavierStokes::apply_initial_conditions (void) {
 			}
 		}
 		
-		for (int c=0;c<grid[gid].cellCount;++c) {
+		for (int c=0;c<grid[gid].cell.size();++c) {
 			double delta=region.get_double("BLthickness");
 			if (delta>0.) {
 				double factor=min(1.,grid[gid].cell[c].closest_wall_distance/delta);
@@ -279,27 +279,28 @@ void NavierStokes::apply_initial_conditions (void) {
 	}
 	
 	// initialize updates and limiter
-	for (int c=0;c<grid[gid].cellCount;++c) {
+	for (int c=0;c<grid[gid].cell.size();++c) {
 		for (int i=0;i<5;++i) {
-			update[i].cell(c)=0.;
-			if (limiter_function==NONE) limiter[i].cell(c)=1.;
 			if (order==FIRST) limiter[i].cell(c)=0.;
+			else limiter[i].cell(c)=1.;
 		}
 	}
-	for (int g=0;g<grid[gid].ghostCount;++g) {
-		for (int i=0;i<5;++i) {
-			update[i].ghost(g)=0.;
-			if (limiter_function==NONE) limiter[i].ghost(g)=1.;
-			if (order==FIRST) limiter[i].ghost(g)=0.;
-		}
+
+	// Initialize gradients to zero (for internal+ghost cells)
+	for (int c=0;c<grid[gid].cell.size();++c) {
+		gradp.cell(c)=0.;
+		gradu.cell(c)=0.;
+		gradv.cell(c)=0.;
+		gradw.cell(c)=0.;
+		gradT.cell(c)=0.;
 	}
+	
 	return;
 }
 
 void NavierStokes::calc_cell_grads (void) {
 	vector<Vec3D> grad (3,0.);
 	for (int c=0;c<grid[gid].cellCount;++c) {
-		gradrho.cell(c)=rho.cell_gradient(c);
 		gradp.cell(c)=p.cell_gradient(c);
 		gradT.cell(c)=T.cell_gradient(c);
 
@@ -315,6 +316,22 @@ void NavierStokes::calc_cell_grads (void) {
 		gradw.cell(c)[2]=grad[2][2];
 		
 	 }
+
+	// Copy parent cell gradients to the boundary ghost cells
+	int bcno,parent,neighbor;
+	for (int f=0;f<grid[gid].faceCount;++f) {
+		bcno=grid[gid].face[f].bc;
+		if (bcno>=0) {
+			parent=grid[gid].face[f].parent;
+			neighbor=grid[gid].face[f].neighbor;
+			gradp.cell(neighbor)=gradp.cell(parent);
+			gradu.cell(neighbor)=gradu.cell(parent);
+			gradv.cell(neighbor)=gradv.cell(parent);
+			gradw.cell(neighbor)=gradw.cell(parent);
+			gradT.cell(neighbor)=gradT.cell(parent);
+		}
+	}
+
 	return;
 }
 

@@ -158,7 +158,7 @@ int Grid::mesh2dual() {
 	MPI_Comm commWorld=MPI_COMM_WORLD;
 
 	for (int c=0;c<cellCount;++c) {
-		eindSize+=cell[c].nodeCount;
+		eindSize+=cell[c].nodes.size();
 	}
 	eind = new idxtype[eindSize];
 
@@ -166,10 +166,10 @@ int Grid::mesh2dual() {
 	elmdist[0]=0;
 	for (int p=1;p<=np;p++) elmdist[p]=otherCellCounts[p-1]+elmdist[p-1];
 	eptr[0]=0;
-	for (int c=1; c<=cellCount;++c) eptr[c]=eptr[c-1]+cell[c-1].nodeCount;
+	for (int c=1; c<=cellCount;++c) eptr[c]=eptr[c-1]+cell[c-1].nodes.size();
 	int eindIndex=0;
 	for (int c=0; c<cellCount;c++){
-		for (int cn=0; cn<cell[c].nodeCount; ++cn) {
+		for (int cn=0; cn<cell[c].nodes.size(); ++cn) {
 			eind[eindIndex]=cellNode(c,cn).globalId;
 			++eindIndex;
 		}

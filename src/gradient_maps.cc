@@ -53,13 +53,13 @@ void gradient_maps(int gid) {
 	else if (input.section("grid",0).subsection("gradients").get_string("othermethod")=="greengauss") other_method=GREENGAUSS;
 
 	for (int c=0;c<grid[gid].cellCount;++c) {
-		if (grid[gid].cell[c].nodeCount==8) {
+		if (grid[gid].cell[c].nodes.size()==8) {
 			if (hex_method==CURVILINEAR) curvilinear_grad_map(gid,c);
 			else if (hex_method==LSQR) lsqr_grad_map(gid,c);
 			else if (hex_method==GREENGAUSS) { 
 				// if gradMap is not filled, this will be used automatically, so don't need to do anything here 
 			}
-		} else if (grid[gid].cell[c].nodeCount==6) {
+		} else if (grid[gid].cell[c].nodes.size()==6) {
 			if (prism_method==CURVILINEAR) curvilinear_grad_map(gid,c);
 			else if (prism_method==LSQR) lsqr_grad_map(gid,c);
 			else if (prism_method==GREENGAUSS) { 

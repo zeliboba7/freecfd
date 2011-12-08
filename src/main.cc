@@ -288,6 +288,44 @@ int main(int argc, char *argv[]) {
 			if (Rank==0) cout << "[I] Writing volume output for grid=" << gid+1 << endl;
 			write_volume_output(gid, restart_step);
 		}
+
+
+		fstream wall,centerline,outlet;
+		wall.open("wall.csv",fstream::out);
+		wall << setprecision(8) << scientific;
+		for (int f=0;f<grid[0].faceCount;++f) {
+			if (bc[0][grid[0].face[f].bc].type==WALL) {
+				wall << grid[0].face[f].centroid[0] << "," << ns[0].p.face(f) << "," << ns[0].T.face(f) << ",";
+				wall << ns[0].V.cell(grid[0].face[f].parent)[0] << ","; 
+				wall << ns[0].V.cell(grid[0].face[f].parent)[2] << endl;
+			}
+		}
+		wall.close();
+
+		centerline.open("centerline.csv",fstream::out);
+		centerline << setprecision(8) << scientific;
+		for (int c=0;c<grid[0].cellCount;++c) {
+			if (grid[0].cell[c].centroid[2]<0.007) {
+				centerline << grid[0].cell[c].centroid[0] << "," << ns[0].p.cell(c) << "," << ns[0].T.cell(c) << ",";
+				centerline << ns[0].V.cell(c)[0] << ","; 
+				centerline << ns[0].V.cell(c)[2] << endl;
+			}
+		}
+		centerline.close();
+
+		outlet.open("outlet.csv",fstream::out);
+		outlet << setprecision(8) << scientific;
+		for (int f=0;f<grid[0].faceCount;++f) {
+			if (bc[0][grid[0].face[f].bc].type==OUTLET) {
+				outlet << grid[0].face[f].centroid[2] << "," << ns[0].p.face(f) << "," << ns[0].T.face(f) << ",";
+				outlet << ns[0].V.face(f)[0] << ","; 
+				outlet << ns[0].V.face(f)[2] << endl;
+			}
+		}
+		outlet.close();
+
+
+
 		exit(0);
 	}
 
@@ -367,7 +405,6 @@ int main(int argc, char *argv[]) {
 				cout        << endl;
 				convergence << endl;
 			}
-lastTimeStep=false;
 			if (timeStep%volume_plot_freq[gid]==0 || lastTimeStep) {
 				if (Rank==0) cout << "[I] Writing volume output for grid=" << gid+1 << endl;
 				write_volume_output(gid,timeStep);
@@ -436,6 +473,40 @@ lastTimeStep=false;
 			MPI_Barrier(MPI_COMM_WORLD);
 			if (Rank==0) remove("dump_all");
 		} 	
+		fstream wall,centerline,outlet;
+		wall.open("wall.csv",fstream::out);
+		wall << setprecision(8) << scientific;
+		for (int f=0;f<grid[0].faceCount;++f) {
+			if (bc[0][grid[0].face[f].bc].type==WALL) {
+				wall << grid[0].face[f].centroid[0] << "," << ns[0].p.face(f) << "," << ns[0].T.face(f) << ",";
+				wall << ns[0].V.cell(grid[0].face[f].parent)[0] << ","; 
+				wall << ns[0].V.cell(grid[0].face[f].parent)[2] << endl;
+			}
+		}
+		wall.close();
+
+		centerline.open("centerline.csv",fstream::out);
+		centerline << setprecision(8) << scientific;
+		for (int c=0;c<grid[0].cellCount;++c) {
+			if (grid[0].cell[c].centroid[2]<0.007) {
+				centerline << grid[0].cell[c].centroid[0] << "," << ns[0].p.cell(c) << "," << ns[0].T.cell(c) << ",";
+				centerline << ns[0].V.cell(c)[0] << ","; 
+				centerline << ns[0].V.cell(c)[2] << endl;
+			}
+		}
+		centerline.close();
+
+		outlet.open("outlet.csv",fstream::out);
+		outlet << setprecision(8) << scientific;
+		for (int f=0;f<grid[0].faceCount;++f) {
+			if (bc[0][grid[0].face[f].bc].type==OUTLET) {
+				outlet << grid[0].face[f].centroid[2] << "," << ns[0].p.face(f) << "," << ns[0].T.face(f) << ",";
+				outlet << ns[0].V.face(f)[0] << ","; 
+				outlet << ns[0].V.face(f)[2] << endl;
+			}
+		}
+		outlet.close();
+
 
 	}
 	/*****************************************************************************************/
@@ -461,7 +532,7 @@ void set_lengthScales(int gid) {
 		grid[gid].cell[c].lengthScale=1.e20;
 		double height;
 		int f;
-		for (int cf=0;cf<grid[gid].cell[c].faceCount;++cf) {
+		for (int cf=0;cf<grid[gid].cell[c].faces.size();++cf) {
 			f=grid[gid].cell[c].faces[cf];
 			height=fabs(grid[gid].face[f].normal.dot(grid[gid].face[f].centroid-grid[gid].cell[c].centroid));
 			bool skipScale=false;

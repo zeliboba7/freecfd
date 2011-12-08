@@ -15,6 +15,7 @@ ns_ausm_plus_up.cc
 ns_limiters.cc                 
 ns_roe.cc                      
 ns_stegger_warming.cc
+ns_update_boundaries.cc
 ns_vanleer.cc
 ns_write_restart.cc
 ns_time_terms.cc

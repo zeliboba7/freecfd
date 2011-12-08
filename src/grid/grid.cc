@@ -63,8 +63,8 @@ void Grid::setup(void) {
       if (Rank==0) cout << "[I] Creating faces" << endl;
 	if (raw.type==CELL) create_faces();
 	else if (raw.type==FACE) create_faces2();
-      if (Rank==0) cout << "[I] Creating ghost cells" << endl;
-	create_ghosts();
+      if (Rank==0) cout << "[I] Creating inter-partition ghost cells" << endl;
+	create_partition_ghosts();
       if (Rank==0) cout << "[I] Computing output node id's" << endl;
 	get_volume_output_ids();
 	get_bc_output_ids();
@@ -72,6 +72,8 @@ void Grid::setup(void) {
 	trim_memory();
       if (Rank==0) cout << "[I] Calculating areas and volumes" << endl;
 	areas_volumes();
+      if (Rank==0) cout << "[I] Creating boundary ghost cells" << endl;
+	create_boundary_ghosts();
       if (Rank==0) cout << "[I] MPI handshake" << endl;
 	mpi_handshake();
       if (Rank==0) cout << "[I] Getting ghost geometries" << endl;
@@ -84,7 +86,6 @@ void Grid::trim_memory() {
 	
 	for (int n=0;n<nodeCount;++n) {
 		vector<int> (node[n].cells).swap(node[n].cells);
-		vector<int> (node[n].ghosts).swap(node[n].ghosts);
 		vector<int> (node[n].faces).swap(node[n].faces);
 	}
 	
@@ -96,17 +97,11 @@ void Grid::trim_memory() {
 		vector<int> (cell[c].nodes).swap(cell[c].nodes);
 		vector<int> (cell[c].faces).swap(cell[c].faces);
 		vector<int> (cell[c].neighborCells).swap(cell[c].neighborCells);
-		vector<int> (cell[c].ghosts).swap(cell[c].ghosts);
-	}
-	
-	for (int g=0;g<ghostCount;++g) { 
-		vector<int> (ghost[g].cells).swap(ghost[g].cells);
 	}
 	
 	vector<Node> (node).swap(node);
 	vector<Face> (face).swap(face);
 	vector<Cell> (cell).swap(cell);
-	vector<Ghost> (ghost).swap(ghost);
 	
 	vector<int> (partitionOffset).swap(partitionOffset);
 		
@@ -126,33 +121,35 @@ void Grid::trim_memory() {
 }
 
 int Grid::areas_volumes() {
-	// NOTE The methodology here is generic hence slower than it could be:
-	// i.e Even though volume/centroid of tetrahedra is easy enough, we still break it down to
-	// smaller tetrahedras
-
 	Vec3D centroid;
 	Vec3D areaVec;
 	Vec3D patchCentroid,patchArea;
+	Vec3D diagonal1,diagonal2;
 	// Now loop through faces and calculate centroids and areas
 	for (int f=0;f<faceCount;++f) {
-		centroid=0.;
-		areaVec=0.;
-
-		// Sum the area as a patch of triangles formed by connecting two nodes and an interior point
-		areaVec=0.;
-		int next;
-		centroid=faceNode(f,0);
-		for (int n=1;n<face[f].nodeCount;++n) {
-			next=n+1;
-			if (next==face[f].nodeCount) next=0;
-			patchArea=0.5*(faceNode(f,n)-centroid).cross(faceNode(f,next)-centroid);
-			areaVec+=patchArea;
+		if (face[f].nodes.size()==4) { // Quad face
+			diagonal1=faceNode(f,2)-faceNode(f,0);
+			diagonal2=faceNode(f,3)-faceNode(f,1);
+			face[f].normal=diagonal1.cross(diagonal2);
+			face[f].area=0.5*fabs(face[f].normal);
+			face[f].normal=face[f].normal.norm();
+		} else {
+			// Sum the area as a patch of triangles formed by connecting two nodes and an interior point
+			areaVec=0.;
+			int next;
+			centroid=faceNode(f,0);
+			for (int n=1;n<face[f].nodes.size();++n) {
+				next=n+1;
+				if (next==face[f].nodes.size()) next=0;
+				patchArea=0.5*(faceNode(f,n)-centroid).cross(faceNode(f,next)-centroid);
+				areaVec+=patchArea;
+			}
+			face[f].area=fabs(areaVec);
+			face[f].normal=areaVec.norm();
 		}
-		face[f].area=fabs(areaVec);
-		face[f].normal=areaVec.norm();
 		face[f].centroid=0.;
-		for (int n=0;n<face[f].nodeCount;++n) face[f].centroid+=faceNode(f,n);
-		face[f].centroid/=double(face[f].nodeCount);
+		for (int n=0;n<face[f].nodes.size();++n) face[f].centroid+=faceNode(f,n);
+		face[f].centroid/=double(face[f].nodes.size());
 	}
 	
 	if (Rank==0) cout << "[I] Calculated face areas and centroids" << endl;
@@ -160,56 +157,25 @@ int Grid::areas_volumes() {
 	// Loop through the cells and calculate the volumes
 	double totalVolume=0.;
 	for (int c=0;c<cellCount;++c) {
-		double volume=0.;
-		double patchVolume=0.;
-		Vec3D patchCentroid;
-		int f,next;
-		// Calculate cell centroid
-		Vec3D centroid=0.;
-		for (int cn=0;cn<cell[c].nodeCount;++cn) {
-			centroid+=cellNode(c,cn);
-		}
-		centroid/=double(cell[c].nodeCount);
-		// Break-up the volume into tetrahedras and add the volumes
-		// Calculate the centroid of the cell by taking moments of each tetra
+		// Calculate the cell centroid
 		cell[c].centroid=0.;
-		double sign;
+		for (int cn=0;cn<cell[c].nodes.size();++cn) cell[c].centroid+=cellNode(c,cn);
+		cell[c].centroid/=double(cell[c].nodes.size());
+		cell[c].volume=0.;
+
 		Vec3D height; 
 		Vec3D base_area;
 		Vec3D base_area_norm;
-		Vec3D base_area_center;
-		for (int cf=0;cf<cell[c].faceCount;++cf) {
-			f=cell[c].faces[cf];
-			// Calculate the contribution from the triangle of first 3 nodes
-			base_area=0.5*(faceNode(f,2)-faceNode(f,0)).cross(faceNode(f,1)-faceNode(f,0));
-			if (face[f].parent!=c) base_area*=-1.;
+		for (int cf=0;cf<cell[c].faces.size();++cf) {
+			int f=cell[c].faces[cf];
+			base_area=face[f].area*face[f].normal;
+			if (face[f].parent==c) base_area*=-1.;
 			base_area_norm=base_area.norm();
-			base_area_center=1./3.*(faceNode(f,0)+faceNode(f,1)+faceNode(f,2));
-			height=(centroid-base_area_center).dot(base_area_norm)*base_area_norm;
-			patchVolume=base_area.dot(height)/3.;
-			volume+=patchVolume;
-			
-			if (face[f].nodeCount==4) { // quad face
-				base_area=0.5*(faceNode(f,0)-faceNode(f,2)).cross(faceNode(f,3)-faceNode(f,2));
-				if (face[f].parent!=c) base_area*=-1.;
-				base_area_norm=base_area.norm();
-				base_area_center=1./3.*(faceNode(f,0)+faceNode(f,2)+faceNode(f,3));
-				height=(centroid-base_area_center).dot(base_area_norm)*base_area_norm;
-				patchVolume=base_area.dot(height)/3.;
-				volume+=patchVolume;
-			}
-			
-			if (face[f].nodeCount>4) {
-				if (Rank==0) cerr << "Face type with " << face[f].nodeCount << " nodes is not supported" << endl;
-				exit(1);
-			}
-			 
+			height=(cell[c].centroid-face[f].centroid).dot(base_area_norm)*base_area_norm;
+			cell[c].volume+=base_area.dot(height)/3.;
 		}
-		cell[c].volume=volume;
-		cell[c].centroid=centroid;
-		totalVolume+=volume;
+		totalVolume+=cell[c].volume;
 	}
-
 	globalTotalVolume=0.;
 	MPI_Allreduce (&totalVolume,&globalTotalVolume,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
 	if (Rank==0) cout << "[I] Total Volume= " << globalTotalVolume << endl;
@@ -305,9 +271,9 @@ void Grid::mpi_handshake(void) {
 	recvCount.resize(np);
 	
 	
-	for (int g=0;g<ghostCount;++g) {
-		int p=ghost[g].partition;
-		recvCells[p].push_back(ghost[g].globalId);
+	for (int g=partition_ghosts_begin;g<=partition_ghosts_end;++g) {
+		int p=cell[g].partition;
+		recvCells[p].push_back(cell[g].globalId);
 	}
 	for (int p=0;p<np;++p) recvCount[p]=recvCells[p].size();
 	
@@ -333,7 +299,7 @@ void Grid::mpi_handshake(void) {
 	
       for (int proc=0;proc<np;++proc) {
             for (int i=0;i<sendCells[proc].size();++i) sendCells[proc][i]=maps.cellGlobal2Local[sendCells[proc][i]];
-            for (int i=0;i<recvCells[proc].size();++i) recvCells[proc][i]=maps.ghostGlobal2Local[recvCells[proc][i]];
+            for (int i=0;i<recvCells[proc].size();++i) recvCells[proc][i]=maps.cellGlobal2Local[recvCells[proc][i]];
       }
 
 	mpiGeomPack dummy4;
@@ -365,10 +331,10 @@ void Grid::mpi_get_ghost_geometry(void) {
 			
 			for (int g=0;g<recvCells[p].size();++g) {
 				id=recvCells[p][g];
-				ghost[id].matrix_id=recvBuffer[g].ids[0];
-				ghost[id].id_in_owner=recvBuffer[g].ids[1];
-				for (int i=0;i<3;++i) ghost[id].centroid[i]=recvBuffer[g].data[i];
-				ghost[g].volume=recvBuffer[g].data[3];
+				cell[id].matrix_id=recvBuffer[g].ids[0];
+				cell[id].id_in_owner=recvBuffer[g].ids[1];
+				for (int i=0;i<3;++i) cell[id].centroid[i]=recvBuffer[g].data[i];
+				cell[g].volume=recvBuffer[g].data[3];
 			}
 		}
 	}

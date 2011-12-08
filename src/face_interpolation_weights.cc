@@ -43,14 +43,13 @@ void face_interpolation_weights(int gid) {
 	interpolation.skewness_tolerance=input.section("grid",gid).subsection("interpolation").get_double("skewnesstolerance");
 	interpolation.dimension=grid[gid].dimension;
 
-	if (interpolation.max_stencil_size<1) { // Means it wasn't specified in the input file
-		// Defaults here:
+	if (interpolation.max_stencil_size<1) { // Means auto based on dimension
 		if (interpolation.dimension==3) interpolation.max_stencil_size=12;
 		else if (interpolation.dimension==2) interpolation.max_stencil_size=6; 
 		else if (interpolation.dimension==1) interpolation.max_stencil_size=2;
 	}
 	
-	if (interpolation.method==SIMPLE) interpolation.max_stencil_size=2;
+	if (interpolation.method==IDW) interpolation.max_stencil_size=99;
 
 	int tetra_intp_count=0;		
 	int tri_intp_count=0;		
@@ -60,43 +59,37 @@ void face_interpolation_weights(int gid) {
 	set<int> stencil;
 	set<int>::iterator sit;
 	// Loop all the faces
+	bool is_internal=true;
 	for (int f=0;f<grid[gid].faceCount;++f) {
 		interpolation.point=grid[gid].face[f].centroid;
 		int c=grid[gid].face[f].parent;
 		int n=grid[gid].face[f].neighbor;
-		bool is_internal=false;
+		bool extend_stencil=true;
 		// Insert the parent and the neighbor cells directly to the interpolation stencil
 		interpolation.stencil.push_back(grid[gid].cell[c].centroid);
 		interpolation.stencil_indices.push_back(c);	
-		if (grid[gid].face[f].bc==INTERNAL_FACE) {
-			interpolation.stencil.push_back(grid[gid].cell[n].centroid);
-			interpolation.stencil_indices.push_back(n);
-			is_internal=true;
-		} else if (grid[gid].face[f].bc==GHOST_FACE) {
-			interpolation.stencil.push_back(grid[gid].ghost[-n-1].centroid);
-			interpolation.stencil_indices.push_back(n);	
-			is_internal=true;
-		}
-		// Initialize stencil to nearest neighbor cells
-		// Loop face nodes and their neighboring cells
-		for (int nc=0;nc<grid[gid].cell[c].neighborCells.size();++nc) stencil.insert(grid[gid].cell[c].neighborCells[nc]);
-		// Add parent cell's ghosts
-		for (int g=0;g<grid[gid].cell[c].ghosts.size();++g) stencil.insert(-1*grid[gid].cell[c].ghosts[g]-1);
-		if (grid[gid].face[f].bc==INTERNAL_FACE) {
-			c=grid[gid].face[f].neighbor;
-			// Add neighbor cell's neighbors
+		interpolation.stencil.push_back(grid[gid].cell[n].centroid);
+		interpolation.stencil_indices.push_back(n);
+		// Parent and neighbor are in the stencil now
+		if (interpolation.stencil.size()>=interpolation.max_stencil_size) extend_stencil=false;
+	
+		if (extend_stencil) {
+			// Initialize stencil to nearest neighbor cells
+			// Loop face nodes and their neighboring cells
 			for (int nc=0;nc<grid[gid].cell[c].neighborCells.size();++nc) stencil.insert(grid[gid].cell[c].neighborCells[nc]);
-			// Add neighbor cell's ghosts
-			for (int g=0;g<grid[gid].cell[c].ghosts.size();++g) stencil.insert(-1*grid[gid].cell[c].ghosts[g]-1);
-		}
-		// Eliminate parent and neighbor from stencil set (those were directly inserted into interpolation class stencil)
-		stencil.erase(grid[gid].face[f].parent);
-		if (grid[gid].face[f].bc<0) stencil.erase(grid[gid].face[f].neighbor);
+			if (grid[gid].face[f].bc==INTERNAL_FACE) {
+				c=grid[gid].face[f].neighbor;
+				// Add neighbor cell's neighbors
+				for (int nc=0;nc<grid[gid].cell[c].neighborCells.size();++nc) stencil.insert(grid[gid].cell[c].neighborCells[nc]);
+			}
+			// Eliminate parent and neighbor from stencil set (those were directly inserted into interpolation class stencil)
+			stencil.erase(grid[gid].face[f].parent);
+			stencil.erase(grid[gid].face[f].neighbor);
 
-		for (sit=stencil.begin();sit!=stencil.end();sit++) {
-			interpolation.stencil_indices.push_back(*sit);
-			if (*sit>=0) interpolation.stencil.push_back(grid[gid].cell[*sit].centroid);
-			else interpolation.stencil.push_back(grid[gid].ghost[-1*(*sit)-1].centroid);
+			for (sit=stencil.begin();sit!=stencil.end();sit++) {
+				interpolation.stencil_indices.push_back(*sit);
+				interpolation.stencil.push_back(grid[gid].cell[*sit].centroid);
+			}
 		}
 		
 		if (interpolation.method==WTLI) {
@@ -107,41 +100,39 @@ void face_interpolation_weights(int gid) {
 				grid[gid].face[f].average.insert(pair<int,double>(interpolation.stencil_indices[i],interpolation.weights[i]));
 				weightSum+=interpolation.weights[i];
 			}
-			
+
 			if      (interpolation.kind==4) tetra_intp_count++;
 			else if (interpolation.kind==3) tri_intp_count++; 
 			else if (interpolation.kind==2) line_intp_count++;
 			else if (interpolation.kind==1) point_intp_count++;
 			
+		} else if (interpolation.method==IDW) {
+			// Loop the stencil
+			vector<double> weights(interpolation.stencil.size(),0.);
+			double weightSum=0.;
+			for (int s=0;s<interpolation.stencil.size();++s) {
+				weights[s]=fabs(grid[gid].face[f].centroid-interpolation.stencil[s]);
+				weightSum+=weights[s];
+			}		
+			for (int s=0;s<interpolation.stencil.size();++s) weights[s]/=weightSum;
+			for (int s=0;s<interpolation.stencil.size();++s) grid[gid].face[f].average.insert(pair<int,double>(interpolation.stencil_indices[s],weights[s])); 
+
 		} else if (interpolation.method==SIMPLE) {		
 	
-			if (grid[gid].face[f].bc<0) { // If not a boundary face
-				double distance0=fabs(interpolation.stencil[0]-grid[gid].face[f].centroid);
-				double distance1=fabs(interpolation.stencil[1]-grid[gid].face[f].centroid);
-				grid[gid].face[f].average.insert(pair<int,double>(interpolation.stencil_indices[0],distance1/(distance0+distance1)));
-				grid[gid].face[f].average.insert(pair<int,double>(interpolation.stencil_indices[1],distance0/(distance0+distance1)));
-			} else { // If a boundary face
-				if (interpolation.stencil_indices[0]==grid[gid].face[f].parent) { // If the first index is the parent cell
-					grid[gid].face[f].average.insert(pair<int,double>(interpolation.stencil_indices[0],1.));
-					//grid[gid].face[f].average.insert(pair<int,double>(interpolation.stencil_indices[0],1.5));
-					//grid[gid].face[f].average.insert(pair<int,double>(interpolation.stencil_indices[1],-0.5));
-				} else {
-					grid[gid].face[f].average.insert(pair<int,double>(interpolation.stencil_indices[1],1.));
-					//grid[gid].face[f].average.insert(pair<int,double>(interpolation.stencil_indices[0],-0.5));
-					//grid[gid].face[f].average.insert(pair<int,double>(interpolation.stencil_indices[1],1.5));
-				}
-			}	
+			grid[gid].face[f].average.insert(pair<int,double>(interpolation.stencil_indices[0],0.5));
+			grid[gid].face[f].average.insert(pair<int,double>(interpolation.stencil_indices[1],0.5));
 		}
+	
 		interpolation.flush();
 		stencil.clear();
 	}
 	
-	
-//	cout << "[I rank=" << Rank << "] Face centers for which tetra interpolation method was used = " << tetra_intp_count << endl; 
-//	cout << "[I rank=" << Rank << "] Face centers for which tri interpolation method was used = " << tri_intp_count << endl; 
-//	cout << "[I rank=" << Rank << "] Face centers for which line interpolation method was used = " << line_intp_count << endl; 
-//	cout << "[I rank=" << Rank << "] Face centers for which point interpolation method was used = " << point_intp_count << endl;
-	
+/*	
+	cout << "[I rank=" << Rank << "] Face centers for which tetra interpolation method was used = " << tetra_intp_count << endl; 
+	cout << "[I rank=" << Rank << "] Face centers for which tri interpolation method was used = " << tri_intp_count << endl; 
+	cout << "[I rank=" << Rank << "] Face centers for which line interpolation method was used = " << line_intp_count << endl; 
+	cout << "[I rank=" << Rank << "] Face centers for which point interpolation method was used = " << point_intp_count << endl;
+*/	
 	
 	return;
 }

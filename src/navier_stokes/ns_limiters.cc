@@ -54,72 +54,37 @@ void NavierStokes::minmod_limiter(void) {
 		for (int i=0;i<5;++i) phi[i]=1.;
 		
 		// Repeat the loop to calculate the limiter for each face
-		for (int cf=0;cf<grid[gid].cell[c].faceCount;++cf) {
-                        if (grid[gid].cellFace(c,cf).bc<0) { // If not a boundary face
-				Vec3D cell2face=grid[gid].cellFace(c,cf).centroid-grid[gid].cell[c].centroid;
-				if (c==grid[gid].cellFace(c,cf).parent) {
-					neighbor=grid[gid].cellFace(c,cf).neighbor;
-				} else {
-					neighbor=grid[gid].cellFace(c,cf).parent;
+		for (int cf=0;cf<grid[gid].cell[c].faces.size();++cf) {
+			Vec3D cell2face=grid[gid].cellFace(c,cf).centroid-grid[gid].cell[c].centroid;
+			if (c==grid[gid].cellFace(c,cf).parent) {
+				neighbor=grid[gid].cellFace(c,cf).neighbor;
+			} else {
+				neighbor=grid[gid].cellFace(c,cf).parent;
+			}
+			for (int var=0;var<5;++var) {
+				if (var==0) { 
+					deltaU=p.cell(neighbor)-p.cell(c);
+					deltaUg=gradp.cell(c).dot(cell2face);
+				} else if (var==1) { 
+					deltaU=V.cell(neighbor)[0]-V.cell(c)[0];
+					deltaUg=gradu.cell(c).dot(cell2face);
+				} else if (var==2) { 
+					deltaU=V.cell(neighbor)[1]-V.cell(c)[1];
+					deltaUg=gradv.cell(c).dot(cell2face);
+				} else if (var==3) { 
+					deltaU=V.cell(neighbor)[2]-V.cell(c)[2];
+					deltaUg=gradw.cell(c).dot(cell2face);
+				} else if (var==4) { 
+					deltaU=T.cell(neighbor)-T.cell(c);
+					deltaUg=gradT.cell(c).dot(cell2face);
 				}
-				if (neighbor>=0) { // real cell
-					for (int var=0;var<5;++var) {
-						if (var==0) { 
-							deltaU=p.cell(neighbor)-p.cell(c);
-							deltaUg=gradp.cell(c).dot(cell2face);
-						} else if (var==1) { 
-							deltaU=V.cell(neighbor)[0]-V.cell(c)[0];
-							deltaUg=gradu.cell(c).dot(cell2face);
-						} else if (var==2) { 
-							deltaU=V.cell(neighbor)[1]-V.cell(c)[1];
-							deltaUg=gradv.cell(c).dot(cell2face);
-						} else if (var==3) { 
-							deltaU=V.cell(neighbor)[2]-V.cell(c)[2];
-							deltaUg=gradw.cell(c).dot(cell2face);
-						} else if (var==4) { 
-							deltaU=T.cell(neighbor)-T.cell(c);
-							deltaUg=gradT.cell(c).dot(cell2face);
-						}
 
-						deltaU=minmod(deltaU,deltaUg);
-						phi[var]=min(phi[var],(deltaU+sign(deltaU)*small)/(deltaUg+sign(deltaUg)*small));
-					}
-				} else {
-					neighbor=-1*neighbor-1;
-					for (int var=0;var<5;++var) {
-						if (var==0) { 
-							deltaU=p.ghost(neighbor)-p.cell(c);
-							deltaUg=gradp.cell(c).dot(cell2face);
-						} else if (var==1) { 
-							deltaU=V.ghost(neighbor)[0]-V.cell(c)[0];
-							deltaUg=gradu.cell(c).dot(cell2face);
-						} else if (var==2) { 
-							deltaU=V.ghost(neighbor)[1]-V.cell(c)[1];
-							deltaUg=gradv.cell(c).dot(cell2face);
-						} else if (var==3) { 
-							deltaU=V.ghost(neighbor)[2]-V.cell(c)[2];
-							deltaUg=gradw.cell(c).dot(cell2face);
-						} else if (var==4) { 
-							deltaU=T.ghost(neighbor)-T.cell(c);
-							deltaUg=gradT.cell(c).dot(cell2face);
-						}
-
-						deltaU=minmod(deltaU,deltaUg);
-						phi[var]=min(phi[var],(deltaU+sign(deltaU)*small)/(deltaUg+sign(deltaUg)*small));
-					} 
-				}	
-
+				deltaU=minmod(deltaU,deltaUg);
+				phi[var]=min(phi[var],(deltaU+sign(deltaU)*small)/(deltaUg+sign(deltaUg)*small));
 			}
 		} // end face loop		
 
-		if (phi[0]<0.) cout << "[E] Limiter can't be less than 0" << endl;
-		if (phi[0]>1.) cout << "[E] Limiter can't be greater than 1" << endl;
-	
-		limiter[0].cell(c)=phi[0];
-		limiter[1].cell(c)=phi[1];
-		limiter[2].cell(c)=phi[2];
-		limiter[3].cell(c)=phi[3];
-		limiter[4].cell(c)=phi[4];		
+		for (int var=0;var<5;++var) limiter[var].cell(c)=phi[var];
 		
 	} // end cell loop
 	
@@ -144,73 +109,50 @@ void NavierStokes::barth_jespersen_limiter(void) {
 		umax[4]=umin[4]=T.cell(c);
 		
 		// First loop through face neighbors to find the max and min values
-		for (int cf=0;cf<grid[gid].cell[c].faceCount;++cf) {
-			if (grid[gid].cellFace(c,cf).bc<0) { // If not a boundary face
-				if (c==grid[gid].cellFace(c,cf).parent) {
-					neighbor=grid[gid].cellFace(c,cf).neighbor;
-				} else {
-					neighbor=grid[gid].cellFace(c,cf).parent;
-				}
-				if (neighbor>=0) { // real cell
-					umax[0]=max(umax[0],p.cell(neighbor));
-					umax[1]=max(umax[1],V.cell(neighbor)[0]);
-					umax[2]=max(umax[2],V.cell(neighbor)[1]);
-					umax[3]=max(umax[3],V.cell(neighbor)[2]);
-					umax[4]=max(umax[4],T.cell(neighbor));
-
-					umin[0]=min(umin[0],p.cell(neighbor));
-					umin[1]=min(umin[1],V.cell(neighbor)[0]);
-					umin[2]=min(umin[2],V.cell(neighbor)[1]);
-					umin[3]=min(umin[3],V.cell(neighbor)[2]);
-					umin[4]=min(umin[4],T.cell(neighbor));
-				} else { // neighbor cell is a ghost (partition interface)
-					neighbor=-1*neighbor-1;
-					umax[0]=max(umax[0],p.ghost(neighbor));
-					umax[1]=max(umax[1],V.ghost(neighbor)[0]);
-					umax[2]=max(umax[2],V.ghost(neighbor)[1]);
-					umax[3]=max(umax[3],V.ghost(neighbor)[2]);
-					umax[4]=max(umax[4],T.ghost(neighbor));
-
-					umin[0]=min(umin[0],p.ghost(neighbor));
-					umin[1]=min(umin[1],V.ghost(neighbor)[0]);
-					umin[2]=min(umin[2],V.ghost(neighbor)[1]);
-					umin[3]=min(umin[3],V.ghost(neighbor)[2]);
-					umin[4]=min(umin[4],T.ghost(neighbor));
-				}
+		for (int cf=0;cf<grid[gid].cell[c].faces.size();++cf) {
+			if (c==grid[gid].cellFace(c,cf).parent) {
+				neighbor=grid[gid].cellFace(c,cf).neighbor;
+			} else {
+				neighbor=grid[gid].cellFace(c,cf).parent;
 			}
+			umax[0]=max(umax[0],p.cell(neighbor));
+			umax[1]=max(umax[1],V.cell(neighbor)[0]);
+			umax[2]=max(umax[2],V.cell(neighbor)[1]);
+			umax[3]=max(umax[3],V.cell(neighbor)[2]);
+			umax[4]=max(umax[4],T.cell(neighbor));
+
+			umin[0]=min(umin[0],p.cell(neighbor));
+			umin[1]=min(umin[1],V.cell(neighbor)[0]);
+			umin[2]=min(umin[2],V.cell(neighbor)[1]);
+			umin[3]=min(umin[3],V.cell(neighbor)[2]);
+			umin[4]=min(umin[4],T.cell(neighbor));
 		}
 
 		// Repeat the loop to calculate the limiter for each face
-		for (int cf=0;cf<grid[gid].cell[c].faceCount;++cf) {
-                        if (grid[gid].cellFace(c,cf).bc<0) { // If not a boundary face
-				Vec3D cell2face=grid[gid].cellFace(c,cf).centroid-grid[gid].cell[c].centroid;
-				for (int var=0;var<5;++var) {
-					if (var==0) { deltaM=gradp.cell(c).dot(cell2face); deltaP=p.cell(c); } 
-					if (var==1) { deltaM=gradu.cell(c).dot(cell2face); deltaP=V.cell(c)[0]; }
-					if (var==2) { deltaM=gradv.cell(c).dot(cell2face); deltaP=V.cell(c)[1]; }
-					if (var==3) { deltaM=gradw.cell(c).dot(cell2face); deltaP=V.cell(c)[2]; }
-					if (var==4) { deltaM=gradT.cell(c).dot(cell2face); deltaP=T.cell(c); }
+		for (int cf=0;cf<grid[gid].cell[c].faces.size();++cf) {
+			Vec3D cell2face=grid[gid].cellFace(c,cf).centroid-grid[gid].cell[c].centroid;
+			for (int var=0;var<5;++var) {
+				if (var==0) { deltaM=gradp.cell(c).dot(cell2face); deltaP=p.cell(c); } 
+				if (var==1) { deltaM=gradu.cell(c).dot(cell2face); deltaP=V.cell(c)[0]; }
+				if (var==2) { deltaM=gradv.cell(c).dot(cell2face); deltaP=V.cell(c)[1]; }
+				if (var==3) { deltaM=gradw.cell(c).dot(cell2face); deltaP=V.cell(c)[2]; }
+				if (var==4) { deltaM=gradT.cell(c).dot(cell2face); deltaP=T.cell(c); }
 
-					if (deltaM>0.) {
-						deltaP=umax[var]-deltaP;
-					} else if (deltaM<0.) {
-						deltaP=umin[var]-deltaP;
-					} else {
-						deltaP=1.; deltaM=1.;
-					}
-	
-					phi[var]=min(phi[var],deltaP/deltaM);
-				}	
+				if (deltaM>0.) {
+					deltaP=umax[var]-deltaP;
+				} else if (deltaM<0.) {
+					deltaP=umin[var]-deltaP;
+				} else {
+					deltaP=1.; deltaM=1.;
+				}
 
-			} 
+				phi[var]=min(phi[var],deltaP/deltaM);
+			}	
+
 		} // end face loop		
-	
-		limiter[0].cell(c)=phi[0];
-		limiter[1].cell(c)=phi[1];
-		limiter[2].cell(c)=phi[2];
-		limiter[3].cell(c)=phi[3];
-		limiter[4].cell(c)=phi[4];		
 		
+		for (int var=0;var<5;++var) limiter[var].cell(c)=phi[var];
+	
 	} // end cell loop
 	
 	return;
@@ -223,14 +165,14 @@ void NavierStokes::venkatakrishnan_limiter(void) {
 	double deltaP,deltaP2,deltaM,deltaM2,eps,eps2;
 	double K=limiter_threshold;
 	double umax[5],umin[5];
-	double pref,uref,tref,Lref;
+	//double pref,uref,tref
+	double Lref;
 	double deltaRef[5];
 
 	find_min_max();
 
 	Lref=grid[gid].lengthScale;
 	for (int i=0;i<5;++i) deltaRef[i]=fabs(qmax[i]-qmin[i]);
-
 
 	for (int c=0;c<grid[gid].cellCount;++c) {
 		
@@ -244,88 +186,61 @@ void NavierStokes::venkatakrishnan_limiter(void) {
 		}
 		
 		// First loop through face neighbors to find the max and min values
-		for (int cf=0;cf<grid[gid].cell[c].faceCount;++cf) {
-			if (grid[gid].cellFace(c,cf).bc<0) { // If not a boundary face
-				if (c==grid[gid].cellFace(c,cf).parent) {
-					neighbor=grid[gid].cellFace(c,cf).neighbor;
-				} else {
-					neighbor=grid[gid].cellFace(c,cf).parent;
-				}
-				if (neighbor>=0) { // real cell
-					umax[0]=max(umax[0],p.cell(neighbor));
-					umax[1]=max(umax[1],V.cell(neighbor)[0]);
-					umax[2]=max(umax[2],V.cell(neighbor)[1]);
-					umax[3]=max(umax[3],V.cell(neighbor)[2]);
-					umax[4]=max(umax[4],T.cell(neighbor));
-
-					umin[0]=min(umin[0],p.cell(neighbor));
-					umin[1]=min(umin[1],V.cell(neighbor)[0]);
-					umin[2]=min(umin[2],V.cell(neighbor)[1]);
-					umin[3]=min(umin[3],V.cell(neighbor)[2]);
-					umin[4]=min(umin[4],T.cell(neighbor));
-				} else { // neighbor cell is a ghost (partition interface)
-					neighbor=-1*neighbor-1;
-					umax[0]=max(umax[0],p.ghost(neighbor));
-					umax[1]=max(umax[1],V.ghost(neighbor)[0]);
-					umax[2]=max(umax[2],V.ghost(neighbor)[1]);
-					umax[3]=max(umax[3],V.ghost(neighbor)[2]);
-					umax[4]=max(umax[4],T.ghost(neighbor));
-
-					umin[0]=min(umin[0],p.ghost(neighbor));
-					umin[1]=min(umin[1],V.ghost(neighbor)[0]);
-					umin[2]=min(umin[2],V.ghost(neighbor)[1]);
-					umin[3]=min(umin[3],V.ghost(neighbor)[2]);
-					umin[4]=min(umin[4],T.ghost(neighbor));
-				}
+		for (int cf=0;cf<grid[gid].cell[c].faces.size();++cf) {
+			if (c==grid[gid].cellFace(c,cf).parent) {
+				neighbor=grid[gid].cellFace(c,cf).neighbor;
+			} else {
+				neighbor=grid[gid].cellFace(c,cf).parent;
 			}
+			umax[0]=max(umax[0],p.cell(neighbor));
+			umax[1]=max(umax[1],V.cell(neighbor)[0]);
+			umax[2]=max(umax[2],V.cell(neighbor)[1]);
+			umax[3]=max(umax[3],V.cell(neighbor)[2]);
+			umax[4]=max(umax[4],T.cell(neighbor));
+
+			umin[0]=min(umin[0],p.cell(neighbor));
+			umin[1]=min(umin[1],V.cell(neighbor)[0]);
+			umin[2]=min(umin[2],V.cell(neighbor)[1]);
+			umin[3]=min(umin[3],V.cell(neighbor)[2]);
+			umin[4]=min(umin[4],T.cell(neighbor));
 		}
 
-		pref=p.cell(c)+material.Pref;
-		tref=T.cell(c)+material.Tref;
-		uref=max(fabs(V.cell(c)),material.a(p.cell(c),T.cell(c)));
 		// Repeat the loop to calculate the limiter for each face
-		for (int cf=0;cf<grid[gid].cell[c].faceCount;++cf) {
-                        if (grid[gid].cellFace(c,cf).bc<0) { // If not a boundary face
-				Vec3D cell2face=grid[gid].cellFace(c,cf).centroid-grid[gid].cell[c].centroid;
-                                //eps2=pow(K*fabs(cell2face),3);
-				for (int var=0;var<5;++var) {
-					if (var==0) { deltaM=gradp.cell(c).dot(cell2face); deltaP=p.cell(c); eps=pref/Lref;} 
-					if (var==1) { deltaM=gradu.cell(c).dot(cell2face); deltaP=V.cell(c)[0]; eps=uref/Lref; }
-					if (var==2) { deltaM=gradv.cell(c).dot(cell2face); deltaP=V.cell(c)[1]; eps=uref/Lref; }
-					if (var==3) { deltaM=gradw.cell(c).dot(cell2face); deltaP=V.cell(c)[2]; eps=uref/Lref; }
-					if (var==4) { deltaM=gradT.cell(c).dot(cell2face); deltaP=T.cell(c); eps=tref/Lref;}
-					eps=deltaRef[var]/Lref;
+		for (int cf=0;cf<grid[gid].cell[c].faces.size();++cf) {
+			Vec3D cell2face=grid[gid].cellFace(c,cf).centroid-grid[gid].cell[c].centroid;
+			for (int var=0;var<5;++var) {
+				if (var==0) { deltaM=gradp.cell(c).dot(cell2face); deltaP=p.cell(c); } 
+				if (var==1) { deltaM=gradu.cell(c).dot(cell2face); deltaP=V.cell(c)[0]; }
+				if (var==2) { deltaM=gradv.cell(c).dot(cell2face); deltaP=V.cell(c)[1]; }
+				if (var==3) { deltaM=gradw.cell(c).dot(cell2face); deltaP=V.cell(c)[2]; }
+				if (var==4) { deltaM=gradT.cell(c).dot(cell2face); deltaP=T.cell(c); }
+				eps=deltaRef[var]/Lref;
 
-					if (deltaM>0.) {
-						deltaP=umax[var]-deltaP;
-						deltaM+=1.e-12;
-					} else if (deltaM<0.) {
-						deltaP=umin[var]-deltaP;
-						deltaM-=1.e-12;
-					} 
+				if (deltaM>0.) {
+					deltaP=umax[var]-deltaP;
+				//	deltaM+=1.e-12;
+				} else if (deltaM<0.) {
+					deltaP=umin[var]-deltaP;
+				//	deltaM-=1.e-12;
+				} 
 		
-					deltaP2=deltaP*deltaP;
-					deltaM2=deltaM*deltaM;
-					eps2=pow(0.01*K*eps,2);
+				deltaP2=deltaP*deltaP;
+				deltaM2=deltaM*deltaM;
+				eps2=pow(1.e-6*K*eps,2);
 
-					if (deltaM!=0.) {
-						//phi[var]=min(phi[var],((deltaP2+eps2)+2.*deltaM*deltaP)/(deltaP2+2.*deltaM2+deltaM*deltaP+eps2));
-						phi[var]=min(
-							phi[var],
-							(1./deltaM)*(((deltaP2+eps2)*deltaM+2.*deltaM2*deltaP)/(deltaP2+2.*deltaM2+deltaM*deltaP+eps2))
-							);
-					}
+				if (deltaM!=0.) {
+					phi[var]=min(phi[var],((deltaP2+eps2)+2.*deltaM*deltaP)/(deltaP2+2.*deltaM2+deltaM*deltaP+eps2));
+				//	phi[var]=min(
+				//		phi[var],
+				//		(1./deltaM)*(((deltaP2+eps2)*deltaM+2.*deltaM2*deltaP)/(deltaP2+2.*deltaM2+deltaM*deltaP+eps2))
+				//		);
+				}
 
-				}	
+			}	
 
-			}
 		} // end face loop		
-	
-		//for (int var=0;var<5;++var) limiter[var].cell(c)=phi[var];
 
-		for (int var=0;var<5;++var) phi[0]=min(phi[0],phi[var]);
-		for (int var=0;var<5;++var) limiter[var].cell(c)=phi[0];
-		
+		for (int var=0;var<5;++var) limiter[var].cell(c)=phi[var];
 	
 	} // end cell loop
 	

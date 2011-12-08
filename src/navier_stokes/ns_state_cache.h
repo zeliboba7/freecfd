@@ -49,8 +49,8 @@ class NS_Cell_State {
 
 class NS_Face_State {
 	public:
-		int index;
-		double p,T,mu,lambda;
+		int index,parent,neighbor;
+		double T,mu,lambda;
 		Vec3D V;
 		Vec3D gradu,gradv,gradw,gradT;
 		Vec3D normal,tangent1,tangent2,left2right;

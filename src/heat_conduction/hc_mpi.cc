@@ -63,11 +63,11 @@ void HeatConduction::mpi_init(void) {
 void HeatConduction::mpi_update_ghost_primitives(void) {
 	
 	// Store the current time step values in the update array
-	for (int g=0;g<grid[gid].ghostCount;++g) update.ghost(g)=T.ghost(g);
+	for (int g=grid[gid].partition_ghosts_begin;g<=grid[gid].partition_ghosts_end;++g) update.cell(g)=T.cell(g);
 	
 	int id,offset;
 	
-    send_req_count=0; recv_req_count=0;
+	send_req_count=0; recv_req_count=0;
 	
 	for (int proc=0;proc<np;++proc) {
 		if (Rank!=proc) {
@@ -97,13 +97,13 @@ void HeatConduction::mpi_update_ghost_primitives(void) {
 			offset=mpi_recv_offset[proc];
 			for (int g=0;g<grid[gid].recvCells[proc].size();++g) {
 				id=grid[gid].recvCells[proc][g];
-				T.ghost(id)=recvBuffer[offset+g];
+				T.cell(id)=recvBuffer[offset+g];
 			}
 		}
 	}
 
 	// Get the difference between the old and new values
-	for (int g=0;g<grid[gid].ghostCount;++g) update.ghost(g)=T.ghost(g)-update.ghost(g);
+	for (int g=grid[gid].partition_ghosts_begin;g<=grid[gid].partition_ghosts_end;++g) update.cell(g)=T.cell(g)-update.cell(g);
 
 	return;
 } 
@@ -145,7 +145,7 @@ void HeatConduction::mpi_update_ghost_gradients(void) {
 			for (int g=0;g<grid[gid].recvCells[proc].size();++g) {
 				id=grid[gid].recvCells[proc][g];
 				for (int i=0;i<3;++i) {
-					gradT.ghost(id)[i]=recvBuffer[offset+g*3+i];
+					gradT.cell(id)[i]=recvBuffer[offset+g*3+i];
 				}				
 			}
 		}

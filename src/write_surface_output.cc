@@ -55,7 +55,7 @@ void write_surface_tec_var(int ov,int i,int b);
 void write_surface_tec_cells(int b);
 
 void write_surface_output(int gridid, int step) {
-	mkdir("./output",S_IRWXU);
+	mkdir("./surface_output",S_IRWXU);
 	gid=gridid;
 	timeStep=step;
 	varList=input.section("grid",gid).subsection("writeoutput").get_stringList("surfacevariables");
@@ -111,7 +111,7 @@ void write_surface_output(int gridid, int step) {
 void write_surface_tec_header(int b) {
 	
 	ofstream file;
-	string fileName="./output/surface_"+int2str(timeStep)+"_"+int2str(gid+1)+".dat";
+	string fileName="./surface_output/surface_"+int2str(timeStep)+"_"+int2str(gid+1)+".dat";
 	string link_comm="ln -sf "+fileName+" ./surface_latest_"+int2str(gid+1)+".dat";
 	system(link_comm.c_str());
 	
@@ -156,7 +156,7 @@ void write_surface_tec_header(int b) {
 void write_surface_tec_nodes(int i) {
 	
 	ofstream file;
-	string fileName="./output/surface_"+int2str(timeStep)+"_"+int2str(gid+1)+".dat";
+	string fileName="./surface_output/surface_"+int2str(timeStep)+"_"+int2str(gid+1)+".dat";
 	
 	file.open((fileName).c_str(),ios::app);
 	file << scientific << setprecision(8);
@@ -182,7 +182,7 @@ void write_surface_tec_nodes(int i) {
 void write_surface_tec_var(int ov,int i,int b) {
 
 	ofstream file;
-	string fileName="./output/surface_"+int2str(timeStep)+"_"+int2str(gid+1)+".dat";
+	string fileName="./surface_output/surface_"+int2str(timeStep)+"_"+int2str(gid+1)+".dat";
 	
 	file.open((fileName).c_str(),ios::app);
 	file << scientific << setprecision(8);
@@ -363,12 +363,6 @@ void write_surface_tec_var(int ov,int i,int b) {
 				else file << "\t";
 			}
 		}
-	} else if (varList[ov]=="gradrho") {
-		for (int bf=0;bf<grid[gid].boundaryFaces[b].size();++bf) {
-			file << ns[gid].gradrho.face(grid[gid].boundaryFaces[b][bf])[i];
-			if ((bf+1)%10==0) file << "\n";
-			else file << "\t";
-		}
 	} else if (varList[ov]=="resV") {
 		for (int bf=0;bf<grid[gid].boundaryFaces[b].size();++bf) {
 			file << ns[gid].update[i+1].face(grid[gid].boundaryFaces[b][bf]);
@@ -409,7 +403,7 @@ void write_surface_tec_var(int ov,int i,int b) {
 void write_surface_tec_cells(int b) {
 	
 	ofstream file;
-	string fileName="./output/surface_"+int2str(timeStep)+"_"+int2str(gid+1)+".dat";
+	string fileName="./surface_output/surface_"+int2str(timeStep)+"_"+int2str(gid+1)+".dat";
 	
 	file.open((fileName).c_str(),ios::app);
 	
@@ -423,9 +417,9 @@ void write_surface_tec_cells(int b) {
 		file << grid[gid].faceNode(f,1).bc_output_id+1 << "\t" ;
 		file << grid[gid].faceNode(f,2).bc_output_id+1 << "\t" ;
 		
-		if (grid[gid].face[f].nodeCount==4) {
+		if (grid[gid].face[f].nodes.size()==4) {
 			file << grid[gid].faceNode(f,3).bc_output_id+1 << "\t" ;			
-		} else if (grid[gid].face[f].nodeCount==3) {
+		} else if (grid[gid].face[f].nodes.size()==3) {
 			file << grid[gid].faceNode(f,2).bc_output_id+1 << "\t" ;
 		}
 

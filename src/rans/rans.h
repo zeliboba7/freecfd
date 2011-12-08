@@ -44,15 +44,11 @@ extern vector<Variable<double> > dt;
 extern vector<vector<BC_Interface> > interface; 
 extern vector<NavierStokes> ns;
 
-// Options for order of accuracy
-#define FIRST 1
-#define SECOND 2
 // Options for turbulence model
 #define KEPSILON 1
 #define KOMEGA 2
 #define BSL 3
 #define SST 4
-// Options for limiter
 
 class RANS_Model {
 public:
@@ -62,12 +58,12 @@ public:
 class RANS {
 public:
 	int gid; // Grid id
-	int order,model,limiter_function;
+	int model;
 	int Rank,np;
 	int nVars;
 	Variable<double> k,omega,mu_t,strainRate,yplus;
 	Variable<Vec3D> gradk,gradomega;
-	vector<Variable<double> > update,limiter;
+	vector<Variable<double> > update;
 	double kLowLimit,kHighLimit,omegaLowLimit,viscosityRatioLimit;
 	double Pr_t;
 	double rtol,abstol;
@@ -105,13 +101,12 @@ public:
 	void apply_initial_conditions (void);
 	void set_bcs (void);
 	void mpi_update_ghost_primitives(void);
+	void update_boundaries(void);
 	void calc_cell_grads(void);
 	void mpi_update_ghost_gradients(void);
 	void petsc_init(void);
 	void petsc_solve(void);
 	void petsc_destroy(void);
-	void calc_limiter(void);
-	void barth_jespersen_limiter(void);
 	void solve (int timeStep,int ps_step);
 	void initialize_linear_system(void);
 	void get_kOmega(void);

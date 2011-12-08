@@ -107,32 +107,29 @@ void HeatConduction::assemble_linear_system(void) {
 		//if (doLeftSourceJac) value-=sourceJacLeft[j];
 		MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
 		if (face.bc==INTERNAL_FACE) { 
+			col=grid[gid].myOffset+parent;   // Effect of parent perturbation
 			row=grid[gid].myOffset+neighbor; // on neighbor flux
 			value=jacobianLeft; 
 			MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
+
+			col=grid[gid].myOffset+neighbor; // Effect of neighbor perturbation
+			row=grid[gid].myOffset+neighbor; // on neighbor flux
+			value=jacobianRight;
+			//if (doRightSourceJac) value-=sourceJacRight[j];
+			MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
+
+			col=grid[gid].myOffset+neighbor; // Effect of neighbor perturbation
+			row=grid[gid].myOffset+parent;   // on parent flux
+			value=-1.*jacobianRight;
+			MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
+		} else if (face.bc==PARTITION_FACE) { 
+			// Ghost (only add effect on parent cell, effect on itself is taken care of in its own partition
+			row=grid[gid].myOffset+parent;
+			col=grid[gid].cell[neighbor].matrix_id;
+			value=-1.*jacobianRight;
+			MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
 		}
-		
-		if (face.bc==INTERNAL_FACE || face.bc==GHOST_FACE) { 
-			
-			// Add change of flux (flux Jacobian) to implicit operator
-			if (face.bc==INTERNAL_FACE) { 
-				col=grid[gid].myOffset+neighbor; // Effect of neighbor perturbation
-				row=grid[gid].myOffset+neighbor; // on neighbor flux
-				value=jacobianRight;
-				//if (doRightSourceJac) value-=sourceJacRight[j];
-				MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
-				row=grid[gid].myOffset+parent; // on parent flux
-				value=-1.*jacobianRight;
-				MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
-			} else  { // Ghost (only add effect on parent cell, effect on itself is taken care of in its own partition
-				row=grid[gid].myOffset+parent;
-				col=grid[gid].ghost[-1*neighbor-1].matrix_id;
-				value=-1.*jacobianRight;
-				MatSetValues(impOP,1,&row,1,&col,&value,ADD_VALUES);
-			}
-			
-		} // if 
-		
+
 		//} // if implicit
 		
 	} // for faces
@@ -174,7 +171,7 @@ void HeatConduction::get_jacobians(void) {
 	jacobianLeft=(fluxPlus-flux)/epsilon;
 	if (doLeftSourceJac) sourceJacLeft=(sourceLeftPlus-sourceLeft)/epsilon;
 		
-	if (face.bc==INTERNAL_FACE || face.bc==GHOST_FACE) { 
+	if (face.bc==INTERNAL_FACE || face.bc==PARTITION_FACE) { 
 		
 		if (right.update>=0.) epsilon=max(sqrt_machine_error,factor*right.update); 
 		else epsilon=min(-1.*sqrt_machine_error,factor*right.update); 
@@ -214,19 +211,7 @@ void HeatConduction::left_state_update(HC_Cell_State &left,HC_Face_State &face) 
 
 void HeatConduction::right_state_update(HC_Cell_State &left,HC_Cell_State &right,HC_Face_State &face) {
 
-	if (face.bc==INTERNAL_FACE) {// internal face
-
-		int neighbor=grid[gid].face[face.index].neighbor;
-		
-		Vec3D cell2face=grid[gid].face[face.index].centroid-grid[gid].cell[neighbor].centroid;
-
-		right.T_center=T.cell(neighbor);
-		right.T=right.T_center+cell2face.dot(gradT.cell(neighbor));
-		right.update=update.cell(neighbor);
-		right.volume=grid[gid].cell[neighbor].volume;
-		
-	} else if (face.bc>=0) { // boundary face
-
+	if (face.bc>=0) { // boundary face
 		right.update=0.;
 		if (bc[gid][face.bc].thermalType==FIXED_T) {
 			right.T=T.bc(face.bc,face.index);
@@ -234,16 +219,14 @@ void HeatConduction::right_state_update(HC_Cell_State &left,HC_Cell_State &right
 		}
 		// qdot BC's are taken care of in the diffusive_face_flux fuction
 		
-	} else { // partition boundary
-
-		int g=-1*grid[gid].face[face.index].neighbor-1; // ghost cell index
+	} else {
+		int neighbor=grid[gid].face[face.index].neighbor;
+		Vec3D cell2face=grid[gid].face[face.index].centroid-grid[gid].cell[neighbor].centroid;
+		right.T_center=T.cell(neighbor);
+		right.T=right.T_center+cell2face.dot(gradT.cell(neighbor));
+		right.update=update.cell(neighbor);
+		right.volume=grid[gid].cell[neighbor].volume;
 		
-		Vec3D cell2face=grid[gid].face[face.index].centroid-grid[gid].ghost[g].centroid;
-
-		right.T_center=T.ghost(g);
-		right.T=right.T_center+cell2face.dot(gradT.ghost(g));
-		right.update=update.ghost(g);
-		right.volume=grid[gid].ghost[g].volume;
 	}
 	
 	return;
@@ -260,10 +243,7 @@ void HeatConduction::face_geom_update(HC_Face_State &face,int f) {
 	face.bc=grid[gid].face[f].bc;
 	Vec3D leftCentroid,rightCentroid;
 	leftCentroid=grid[gid].cell[grid[gid].face[f].parent].centroid;
-	if (face.bc==INTERNAL_FACE) { rightCentroid=grid[gid].cell[grid[gid].face[f].neighbor].centroid;}
-	else if (face.bc>=0) {
-		rightCentroid=leftCentroid+2.*(grid[gid].face[f].centroid-leftCentroid).dot(face.normal)*face.normal;
-	} else { rightCentroid=grid[gid].ghost[-1*grid[gid].face[f].neighbor-1].centroid;}
+	rightCentroid=grid[gid].cell[grid[gid].face[f].neighbor].centroid;
 	face.left2right=rightCentroid-leftCentroid;
 	return;
 } // end face_geom_update

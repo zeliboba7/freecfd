@@ -95,6 +95,7 @@ public:
 	double wdiss,bl_height;
 	
 	double small_number;
+	double order_factor;
 	
 	// Total residuals
 	vector<double> first_residuals,first_ps_residuals;
@@ -102,7 +103,7 @@ public:
 	// Scalar variables
 	Variable<double> rho,p,T,qdot,mdot,weightL,p_total,T_total;
 	// Vector variables
-	Variable<Vec3D> V,gradu,gradv,gradw,gradrho,gradp,gradT,tau;
+	Variable<Vec3D> V,gradu,gradv,gradw,gradp,gradT,tau;
 	vector<Variable<double> > update,limiter;
 
 	MATERIAL material;
@@ -161,6 +162,7 @@ public:
 	void wall(NS_Cell_State &left,NS_Cell_State &right,NS_Face_State &face,bool slip=false);
 	void symmetry(NS_Cell_State &left,NS_Cell_State &right,NS_Face_State &face);
 	void update_variables(void);
+	void update_boundaries(void);
 	void write_restart(int timeStep);
 	void read_restart(int restart_step,vector<vector<int> > &partitionMap);
 	void find_min_max (void);

@@ -70,7 +70,7 @@ void HeatConduction::create_vars (void) {
 	gradT.allocate(gid);
 	update.allocate(gid);
 	// qdot is only stored on bc faces
-	qdot.cellStore=false; qdot.ghostStore=false; qdot.allocate(gid);
+	qdot.cellStore=false; qdot.allocate(gid);
 	return;
 }
 

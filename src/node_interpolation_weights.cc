@@ -43,13 +43,13 @@ void node_interpolation_weights(int gid) {
 	interpolation.skewness_tolerance=input.section("grid",gid).subsection("interpolation").get_double("skewnesstolerance");
 	interpolation.dimension=grid[gid].dimension;
 
-	if (interpolation.max_stencil_size<1) { // Means it wasn't specified in the input file
-		// Defaults here:
+	if (interpolation.max_stencil_size<1) { // Means auto based on dimension
 		if (interpolation.dimension==3) interpolation.max_stencil_size=12;
 		else if (interpolation.dimension==2) interpolation.max_stencil_size=6; 
 		else if (interpolation.dimension==1) interpolation.max_stencil_size=2;
 	}
-	if (interpolation.method==SIMPLE) interpolation.max_stencil_size=99; // Simply all the node cell neighbors
+
+	if (interpolation.method==IDW) interpolation.max_stencil_size=99; // Simply all the node cell neighbors
 	
 	int tetra_intp_count=0;		
 	int tri_intp_count=0;		
@@ -59,18 +59,15 @@ void node_interpolation_weights(int gid) {
 	set<int> stencil;
 	set<int>::iterator sit;
 	// Loop all the nodes
+	bool is_internal=true;
 	for (int n=0;n<grid[gid].nodeCount;++n) {
 		interpolation.point=grid[gid].node[n];
-		bool is_internal=true;
 		// Initialize stencil to nearest neighbor cells
 		for (int nc=0;nc<grid[gid].node[n].cells.size();++nc) stencil.insert(grid[gid].node[n].cells[nc]);
-		// Add neighboring ghosts
-		for (int ng=0;ng<grid[gid].node[n].ghosts.size();++ng) stencil.insert(-1*grid[gid].node[n].ghosts[ng]-1);
 
 		for (sit=stencil.begin();sit!=stencil.end();sit++) {
 			interpolation.stencil_indices.push_back(*sit);
-			if (*sit>=0) interpolation.stencil.push_back(grid[gid].cell[*sit].centroid);
-			else interpolation.stencil.push_back(grid[gid].ghost[-1*(*sit)-1].centroid);
+			interpolation.stencil.push_back(grid[gid].cell[*sit].centroid);
 		}
 		
 		if (interpolation.method==WTLI) {
@@ -82,11 +79,22 @@ void node_interpolation_weights(int gid) {
 				weightSum+=interpolation.weights[i];
 			}
 			
-			if (interpolation.method==4) tetra_intp_count++;
-			else if (interpolation.method==3) tri_intp_count++; 
-			else if (interpolation.method==2) line_intp_count++;
-			else if (interpolation.method==1) point_intp_count++;
+			if (interpolation.kind==4) tetra_intp_count++;
+			else if (interpolation.kind==3) tri_intp_count++; 
+			else if (interpolation.kind==2) line_intp_count++;
+			else if (interpolation.kind==1) point_intp_count++;
 			
+		} else if (interpolation.method==IDW) {
+			// Loop the stencil
+			vector<double> weights(interpolation.stencil.size(),0.);
+			double weightSum=0.;
+			for (int s=0;s<interpolation.stencil.size();++s) {
+				weights[s]=fabs(grid[gid].node[n]-interpolation.stencil[s]);
+				weightSum+=weights[s];
+			}		
+			for (int s=0;s<interpolation.stencil.size();++s) weights[s]/=weightSum;
+			for (int s=0;s<interpolation.stencil.size();++s) grid[gid].node[n].average.insert(pair<int,double>(interpolation.stencil_indices[s],weights[s])); 
+
 		} else if (interpolation.method==SIMPLE) {
 			
 			for (int i=0;i<interpolation.stencil_indices.size();++i) {

@@ -67,12 +67,12 @@ void NavierStokes::mpi_update_ghost_primitives(void) {
     timeRef=MPI_Wtime();
 	*/
 	
-	for (int g=0;g<grid[gid].ghostCount;++g) {
-		update[0].ghost(g)=p.ghost(g);
-		update[1].ghost(g)=V.ghost(g)[0];
-		update[2].ghost(g)=V.ghost(g)[1];
-		update[3].ghost(g)=V.ghost(g)[2];
-		update[4].ghost(g)=T.ghost(g);		
+	for (int g=grid[gid].partition_ghosts_begin;g<=grid[gid].partition_ghosts_end;++g) {
+		update[0].cell(g)=p.cell(g);
+		update[1].cell(g)=V.cell(g)[0];
+		update[2].cell(g)=V.cell(g)[1];
+		update[3].cell(g)=V.cell(g)[2];
+		update[4].cell(g)=T.cell(g);		
 	}
 	
 	// The Following is convenient but not efficient
@@ -83,7 +83,7 @@ void NavierStokes::mpi_update_ghost_primitives(void) {
 	 */
 	int id,offset;
 
-    send_req_count=0; recv_req_count=0;
+	send_req_count=0; recv_req_count=0;
 
 	for (int proc=0;proc<np;++proc) {
 		if (Rank!=proc) {
@@ -110,29 +110,29 @@ void NavierStokes::mpi_update_ghost_primitives(void) {
 		}
 	}
 
-    MPI_Waitall(recv_request.size(),&recv_request[0],MPI_STATUS_IGNORE);
+	MPI_Waitall(recv_request.size(),&recv_request[0],MPI_STATUS_IGNORE);
 
 	for (int proc=0;proc<np;++proc) { 
 		if (Rank!=proc) {
 			offset=mpi_recv_offset[proc];
 			for (int g=0;g<grid[gid].recvCells[proc].size();++g) {
 				id=grid[gid].recvCells[proc][g];
-				p.ghost(id)=recvBuffer[offset+g*5];
-				V.ghost(id)[0]=recvBuffer[offset+g*5+1];
-				V.ghost(id)[1]=recvBuffer[offset+g*5+2];
-				V.ghost(id)[2]=recvBuffer[offset+g*5+3];
-				T.ghost(id)=recvBuffer[offset+g*5+4];				
+				p.cell(id)=recvBuffer[offset+g*5];
+				V.cell(id)[0]=recvBuffer[offset+g*5+1];
+				V.cell(id)[1]=recvBuffer[offset+g*5+2];
+				V.cell(id)[2]=recvBuffer[offset+g*5+3];
+				T.cell(id)=recvBuffer[offset+g*5+4];				
 			}
 		}
 	}
 	
-	for (int g=0;g<grid[gid].ghostCount;++g) {
-		update[0].ghost(g)=p.ghost(g)-update[0].ghost(g);
-		update[1].ghost(g)=V.ghost(g)[0]-update[1].ghost(g);
-		update[2].ghost(g)=V.ghost(g)[1]-update[2].ghost(g);
-		update[3].ghost(g)=V.ghost(g)[2]-update[3].ghost(g);
-		update[4].ghost(g)=T.ghost(g)-update[4].ghost(g);
-		rho.ghost(g)=material.rho(p.ghost(g),T.ghost(g));
+	for (int g=grid[gid].partition_ghosts_begin;g<=grid[gid].partition_ghosts_end;++g) {
+		update[0].cell(g)=p.cell(g)   -update[0].cell(g);
+		update[1].cell(g)=V.cell(g)[0]-update[1].cell(g);
+		update[2].cell(g)=V.cell(g)[1]-update[2].cell(g);
+		update[3].cell(g)=V.cell(g)[2]-update[3].cell(g);
+		update[4].cell(g)=T.cell(g)   -update[4].cell(g);
+		rho.cell(g)=material.rho(p.cell(g),T.cell(g));
 	}
 
 	/*
@@ -154,7 +154,6 @@ void NavierStokes::mpi_update_ghost_gradients(void) {
 	gradv.mpi_update();
 	gradw.mpi_update();
 	gradT.mpi_update();
-	gradrho.mpi_update();
 	*/
 
 	int id,offset;
@@ -196,11 +195,11 @@ void NavierStokes::mpi_update_ghost_gradients(void) {
 			for (int g=0;g<grid[gid].recvCells[proc].size();++g) {
 				id=grid[gid].recvCells[proc][g];
 				for (int i=0;i<3;++i) {
-					gradp.ghost(id)[i]=recvBuffer[offset+g*15+i];
-					gradu.ghost(id)[i]=recvBuffer[offset+g*15+3+i];
-					gradv.ghost(id)[i]=recvBuffer[offset+g*15+6+i];
-					gradw.ghost(id)[i]=recvBuffer[offset+g*15+9+i];
-					gradT.ghost(id)[i]=recvBuffer[offset+g*15+12+i];
+					gradp.cell(id)[i]=recvBuffer[offset+g*15+i];
+					gradu.cell(id)[i]=recvBuffer[offset+g*15+3+i];
+					gradv.cell(id)[i]=recvBuffer[offset+g*15+6+i];
+					gradw.cell(id)[i]=recvBuffer[offset+g*15+9+i];
+					gradT.cell(id)[i]=recvBuffer[offset+g*15+12+i];
 				}				
 			}
 		}
